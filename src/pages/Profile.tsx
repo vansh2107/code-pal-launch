@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronRight, FileText, Download, User, Shield, Bell, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck } from "lucide-react";
+import { ChevronRight, FileText, Download, User, Shield, Bell, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { toast } from "@/hooks/use-toast";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
+import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
 import { exportToCSV, exportToJSON } from "@/utils/exportData";
 
 interface Profile {
@@ -374,6 +375,12 @@ export default function Profile() {
               </div>
             </DialogContent>
           </Dialog>
+
+          <DeleteAccountDialog>
+            <button className="w-full">
+              <SettingsItem icon={Trash2} title="Delete Account" />
+            </button>
+          </DeleteAccountDialog>
         </SettingsSection>
 
         {/* Support Section */}
