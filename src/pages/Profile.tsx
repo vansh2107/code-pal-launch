@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
 import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
+import { TwoFactorAuth } from "@/components/profile/TwoFactorAuth";
 import { exportToCSV, exportToJSON } from "@/utils/exportData";
 
 interface Profile {
@@ -329,24 +330,22 @@ export default function Profile() {
                 <SettingsItem icon={Shield} title="Security" />
               </button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Security Settings</DialogTitle>
               </DialogHeader>
-              <div className="pt-4">
-                <p className="text-sm text-muted-foreground mb-4">
-                  Password and authentication settings are managed through your email. 
-                  You can reset your password via the login page.
-                </p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-muted-foreground">Two-Factor Authentication</span>
-                    <span className="text-foreground">Coming Soon</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-muted-foreground">Biometric Login</span>
-                    <span className="text-foreground">Coming Soon</span>
-                  </div>
+              <div className="pt-4 space-y-6">
+                <div>
+                  <h3 className="text-sm font-semibold mb-2">Password Reset</h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Password settings are managed through your email. 
+                    You can reset your password via the login page.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold mb-3">Two-Factor Authentication</h3>
+                  <TwoFactorAuth />
                 </div>
               </div>
             </DialogContent>
