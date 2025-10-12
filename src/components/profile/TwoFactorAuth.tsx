@@ -31,7 +31,9 @@ export function TwoFactorAuth() {
       const { data, error } = await supabase.auth.mfa.listFactors();
       if (error) throw error;
 
-      setFactors(data?.totp || []);
+      // Get all factors, not just totp
+      const allFactors = data?.totp || [];
+      setFactors(allFactors);
     } catch (error: any) {
       console.error('Error loading MFA factors:', error);
       toast({
@@ -47,12 +49,41 @@ export function TwoFactorAuth() {
   const enrollMFA = async () => {
     setEnrolling(true);
     try {
+      // Check if user already has an authenticator app factor
+      const existingFactor = factors.find(f => 
+        f.friendly_name === 'Authenticator App' && f.status === 'verified'
+      );
+      
+      if (existingFactor) {
+        toast({
+          title: "2FA Already Enabled",
+          description: "You already have an authenticator app set up for this account",
+          variant: "destructive",
+        });
+        setEnrolling(false);
+        await loadFactors(); // Refresh the factors list
+        return;
+      }
+
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
         friendlyName: 'Authenticator App',
       });
 
-      if (error) throw error;
+      if (error) {
+        // Handle specific error cases
+        if (error.message?.includes('already exists')) {
+          toast({
+            title: "2FA Already Enabled",
+            description: "You already have an authenticator app set up for this account",
+            variant: "destructive",
+          });
+          await loadFactors(); // Refresh the factors list
+          setEnrolling(false);
+          return;
+        }
+        throw error;
+      }
 
       if (data) {
         setFactorId(data.id);
@@ -83,6 +114,15 @@ export function TwoFactorAuth() {
       return;
     }
 
+    if (!factorId) {
+      toast({
+        title: "Error",
+        description: "No 2FA factor found to verify",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setVerifying(true);
     try {
       const { data, error } = await supabase.auth.mfa.challengeAndVerify({
@@ -90,7 +130,17 @@ export function TwoFactorAuth() {
         code: verificationCode,
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes('invalid') || error.message?.includes('expired')) {
+          toast({
+            title: "Invalid Code",
+            description: "The verification code is invalid or expired. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw error;
+      }
 
       toast({
         title: "2FA Enabled",
@@ -117,12 +167,32 @@ export function TwoFactorAuth() {
   };
 
   const disableMFA = async (factorId: string) => {
+    if (!factorId) {
+      toast({
+        title: "Error",
+        description: "No 2FA factor found to disable",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase.auth.mfa.unenroll({
         factorId,
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes('not found')) {
+          toast({
+            title: "2FA Factor Not Found",
+            description: "The 2FA factor may have already been removed",
+            variant: "destructive",
+          });
+          await loadFactors(); // Refresh the factors list
+          return;
+        }
+        throw error;
+      }
 
       toast({
         title: "2FA Disabled",
@@ -166,7 +236,9 @@ export function TwoFactorAuth() {
     );
   }
 
+  // Check for any active factor (verified or unverified)
   const activeFactor = factors.find(f => f.status === 'verified');
+  const hasAnyFactor = factors.length > 0;
 
   if (enrolling && qrCodeUrl) {
     return (
@@ -244,7 +316,7 @@ export function TwoFactorAuth() {
 
   return (
     <div className="space-y-4">
-      {activeFactor ? (
+      {activeFactor || hasAnyFactor ? (
         <>
           <Alert className="border-success/20 bg-success/5">
             <ShieldCheck className="h-4 w-4 text-success" />
@@ -254,19 +326,21 @@ export function TwoFactorAuth() {
           </Alert>
 
           <div className="space-y-2">
-            <div className="flex justify-between items-center py-3 px-4 bg-accent/5 rounded-lg">
-              <div>
-                <p className="font-medium text-sm">Authenticator App</p>
-                <p className="text-xs text-muted-foreground">
-                  Enrolled on {new Date(activeFactor.created_at).toLocaleDateString()}
-                </p>
+            {factors.map((factor) => (
+              <div key={factor.id} className="flex justify-between items-center py-3 px-4 bg-accent/5 rounded-lg">
+                <div>
+                  <p className="font-medium text-sm">{factor.friendly_name || 'Authenticator App'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Status: {factor.status} • Enrolled on {new Date(factor.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <ShieldCheck className="h-5 w-5 text-success" />
               </div>
-              <ShieldCheck className="h-5 w-5 text-success" />
-            </div>
+            ))}
 
             <Button
               variant="destructive"
-              onClick={() => disableMFA(activeFactor.id)}
+              onClick={() => disableMFA(activeFactor?.id || factors[0]?.id)}
               className="w-full"
             >
               <ShieldOff className="h-4 w-4 mr-2" />
