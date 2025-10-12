@@ -43,6 +43,7 @@ export default function DocumentDetail() {
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && id) {
@@ -71,6 +72,19 @@ export default function DocumentDetail() {
       }
       
       setDocument(data);
+      
+      // Fetch signed URL for document image if it exists
+      if (data.image_path) {
+        const { data: signedUrlData, error: urlError } = await supabase.storage
+          .from('document-images')
+          .createSignedUrl(data.image_path, 3600); // 1 hour expiry
+        
+        if (urlError) {
+          console.error('Error getting signed URL:', urlError);
+        } else if (signedUrlData) {
+          setImageUrl(signedUrlData.signedUrl);
+        }
+      }
     } catch (error) {
       console.error('Error fetching document:', error);
       toast({
@@ -191,11 +205,11 @@ export default function DocumentDetail() {
 
       <main className="px-4 py-6 space-y-6">
         {/* Document Image */}
-        {document.image_path && (
+        {document.image_path && imageUrl && (
           <Card>
             <CardContent className="p-4">
               <img 
-                src={`${supabase.storage.from('document-images').getPublicUrl(document.image_path).data.publicUrl}`}
+                src={imageUrl}
                 alt={document.name}
                 className="w-full rounded-lg"
                 onError={(e) => {

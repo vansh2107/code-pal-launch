@@ -36,6 +36,18 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Validate secret token to prevent unauthorized access
+  const expectedSecret = Deno.env.get("CRON_SECRET");
+  const providedSecret = req.headers.get("x-cron-secret");
+  
+  if (!expectedSecret || providedSecret !== expectedSecret) {
+    console.error("Unauthorized access attempt to send-reminder-emails");
+    return new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   console.log("Starting reminder email job...");
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
