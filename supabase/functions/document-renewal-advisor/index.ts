@@ -6,6 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Sanitize user input to prevent prompt injection
+const sanitizeInput = (input: string): string => {
+  if (!input || typeof input !== 'string') return '';
+  return input
+    .replace(/[<>"'`\n\r]/g, '') // Remove potentially dangerous characters
+    .substring(0, 200) // Enforce max length
+    .trim();
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -39,11 +48,18 @@ serve(async (req) => {
       .select('*')
       .eq('user_id', user.id);
 
+    // Sanitize document data for context
+    const sanitizedDocs = userDocuments?.map(doc => ({
+      name: sanitizeInput(doc.name || 'Unnamed'),
+      type: sanitizeInput(doc.document_type || 'Unknown'),
+      expiry: doc.expiry_date
+    })) || [];
+
     const systemPrompt = `You are a helpful document renewal advisor assistant. 
 Your role is to provide clear, concise information about document renewal requirements.
 
 Context about user's documents:
-${userDocuments?.map(doc => `- ${doc.name} (${doc.document_type}): expires on ${doc.expiry_date}`).join('\n') || 'No documents yet'}
+${sanitizedDocs.map(doc => `- ${doc.name} (${doc.type}): expires on ${doc.expiry}`).join('\n') || 'No documents yet'}
 
 When advising about document renewals:
 1. List the required documents needed for renewal
@@ -54,10 +70,15 @@ When advising about document renewals:
 
 Keep responses clear, organized, and actionable.`;
 
-    let userPrompt = question;
+    // Sanitize user inputs
+    const safeQuestion = question ? sanitizeInput(question) : '';
+    const safeDocType = documentType ? sanitizeInput(documentType) : '';
+    const safeDocName = documentName ? sanitizeInput(documentName) : '';
+
+    let userPrompt = safeQuestion;
     
-    if (!question && documentType) {
-      userPrompt = `What documents are required to renew a ${documentType}${documentName ? ` (${documentName})` : ''}${expiryDate ? ` that expires on ${new Date(expiryDate).toLocaleDateString()}` : ''}?`;
+    if (!safeQuestion && safeDocType) {
+      userPrompt = `What documents are required to renew a ${safeDocType}${safeDocName ? ` (${safeDocName})` : ''}${expiryDate ? ` that expires on ${new Date(expiryDate).toLocaleDateString()}` : ''}?`;
     }
 
     console.log('Calling Lovable AI Gateway with prompt:', userPrompt);

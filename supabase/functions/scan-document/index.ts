@@ -5,6 +5,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Sanitize user input to prevent prompt injection
+const sanitizeInput = (input: string): string => {
+  if (!input || typeof input !== 'string') return '';
+  return input
+    .replace(/[<>"'`\n\r]/g, '') // Remove potentially dangerous characters
+    .substring(0, 100) // Enforce max length
+    .trim();
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -24,7 +33,7 @@ serve(async (req) => {
 
     const { imageBase64, country } = JSON.parse(requestBody);
     
-    // Validate country input
+    // Validate and sanitize country input
     if (country && (typeof country !== 'string' || country.length > 100)) {
       console.error('Invalid country input');
       return new Response(
@@ -32,6 +41,7 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const safeCountry = country ? sanitizeInput(country) : '';
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -75,7 +85,7 @@ Examples:
 - Vehicle Registration: 30 days
 - Simple permits: 14-30 days
 
-${country ? `User is in: ${country}. Consider this country's specific renewal timelines and regulations.` : 'Country unknown - use general best practices.'}
+${safeCountry ? `User is in: ${safeCountry}. Consider this country's specific renewal timelines and regulations.` : 'Country unknown - use general best practices.'}
 
 Respond ONLY with valid JSON:
 {
@@ -91,7 +101,7 @@ Respond ONLY with valid JSON:
             content: [
               {
                 type: "text",
-                text: `Extract the document information from this image and determine an intelligent renewal reminder period based on the document type${country ? ` and ${country}'s regulations` : ''}.`,
+                text: `Extract the document information from this image and determine an intelligent renewal reminder period based on the document type${safeCountry ? ` and ${safeCountry}'s regulations` : ''}.`,
               },
               {
                 type: "image_url",

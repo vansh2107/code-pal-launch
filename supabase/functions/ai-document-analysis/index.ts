@@ -6,6 +6,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Sanitize user input to prevent prompt injection
+const sanitizeInput = (input: string): string => {
+  if (!input || typeof input !== 'string') return '';
+  return input
+    .replace(/[<>"'`\n\r]/g, '') // Remove potentially dangerous characters
+    .substring(0, 200) // Enforce max length for general inputs
+    .trim();
+};
+
+const sanitizeCountry = (input: string): string => {
+  if (!input || typeof input !== 'string') return '';
+  return input
+    .replace(/[<>"'`\n\r]/g, '')
+    .substring(0, 100)
+    .trim();
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -26,7 +43,7 @@ serve(async (req) => {
     const parsedBody = JSON.parse(requestBody);
     const { documentData, analysisType, userCountry, documents } = parsedBody;
     
-    // Validate inputs
+    // Validate and sanitize inputs
     if (userCountry && (typeof userCountry !== 'string' || userCountry.length > 100)) {
       console.error('Invalid country input');
       return new Response(
@@ -34,6 +51,7 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    const safeCountry = userCountry ? sanitizeCountry(userCountry) : '';
     
     const validAnalysisTypes = ['classify', 'renewal_prediction', 'cost_estimate', 'priority_scoring', 'full_analysis', 'renewal_suggestions', 'renewal_requirements', 'compliance_check'];
     if (!validAnalysisTypes.includes(analysisType)) {
@@ -57,11 +75,11 @@ serve(async (req) => {
 
 Documents requiring attention:
 ${documents.map((doc: any) => `
-- Document: ${doc.name}
-- Type: ${doc.document_type}
+- Document: ${sanitizeInput(doc.name || 'Unnamed')}
+- Type: ${sanitizeInput(doc.document_type || 'Unknown')}
 - Expiry Date: ${doc.expiry_date}
 - Days Until Expiry: ${doc.daysUntilExpiry}
-- Issuing Authority: ${doc.issuing_authority || 'Not specified'}
+- Issuing Authority: ${sanitizeInput(doc.issuing_authority || 'Not specified')}
 `).join('\n')}
 
 For each document, provide:
@@ -148,15 +166,21 @@ Format your response as a JSON array of objects with this structure:
     let userPrompt = "";
     let toolParameters: any = {};
 
-    const countryContext = userCountry ? `\nUser's Country: ${userCountry} - Consider country-specific regulations, costs, and procedures.` : '';
+    const countryContext = safeCountry ? `\nUser's Country: ${safeCountry} - Consider country-specific regulations, costs, and procedures.` : '';
+
+    // Sanitize document data
+    const safeName = sanitizeInput(documentData.name || 'Unnamed');
+    const safeType = sanitizeInput(documentData.document_type || 'Unknown');
+    const safeAuthority = sanitizeInput(documentData.issuing_authority || 'Not specified');
+    const safeNotes = sanitizeInput(documentData.notes || 'None');
 
     if (analysisType === "classify") {
       systemPrompt = "You are an expert document classification AI with deep knowledge of international document types, legal requirements, and categorization standards.";
       userPrompt = `Analyze this document and provide detailed classification:
-Name: ${documentData.name}
-Current Type: ${documentData.document_type}
-Issuing Authority: ${documentData.issuing_authority || 'Not specified'}
-Notes: ${documentData.notes || 'None'}
+Name: ${safeName}
+Current Type: ${safeType}
+Issuing Authority: ${safeAuthority}
+Notes: ${safeNotes}
 Expiry Date: ${documentData.expiry_date}${countryContext}
 
 Consider: document purpose, legal category, regulatory requirements, and international standards.`;
@@ -171,8 +195,8 @@ Consider: document purpose, legal category, regulatory requirements, and interna
     } else if (analysisType === "renewal_prediction") {
       systemPrompt = "You are a renewal optimization expert with knowledge of government processing times, international regulations, and best practices for document renewals.";
       userPrompt = `Analyze renewal strategy for this document:
-Document: ${documentData.name}
-Type: ${documentData.document_type}
+Document: ${safeName}
+Type: ${safeType}
 Current Expiry: ${documentData.expiry_date}
 Days Until Expiry: ${documentData.daysUntilExpiry}
 Current Reminder Period: ${documentData.renewal_period_days} days${countryContext}
@@ -190,10 +214,10 @@ Consider: processing delays, peak seasons, required documentation, and typical c
     } else if (analysisType === "priority_scoring") {
       systemPrompt = "You are a document priority assessment specialist who evaluates urgency based on multiple factors including expiry timeline, document importance, and potential consequences.";
       userPrompt = `Assess priority for this document:
-Name: ${documentData.name}
-Type: ${documentData.document_type}
+Name: ${safeName}
+Type: ${safeType}
 Days Until Expiry: ${documentData.daysUntilExpiry}
-Issuing Authority: ${documentData.issuing_authority || 'Unknown'}${countryContext}
+Issuing Authority: ${safeAuthority}${countryContext}
 
 Consider: legal consequences of expiry, replacement difficulty, daily usage importance, and grace periods.`;
       
@@ -207,9 +231,9 @@ Consider: legal consequences of expiry, replacement difficulty, daily usage impo
     } else if (analysisType === "cost_estimate") {
       systemPrompt = "You are a financial analyst specializing in document renewal costs, government fees, and associated expenses across different countries.";
       userPrompt = `Estimate renewal costs for this document:
-Document: ${documentData.name}
-Type: ${documentData.document_type}
-Issuing Authority: ${documentData.issuing_authority || 'Unknown'}${countryContext}
+Document: ${safeName}
+Type: ${safeType}
+Issuing Authority: ${safeAuthority}${countryContext}
 
 Provide realistic cost estimates including government fees, service charges, and potential additional costs.`;
       
@@ -222,10 +246,10 @@ Provide realistic cost estimates including government fees, service charges, and
     } else if (analysisType === "compliance_check") {
       systemPrompt = "You are a legal compliance expert with knowledge of document requirements, renewal regulations, and legal obligations across jurisdictions.";
       userPrompt = `Check compliance requirements for this document:
-Document: ${documentData.name}
-Type: ${documentData.document_type}
+Document: ${safeName}
+Type: ${safeType}
 Days Until Expiry: ${documentData.daysUntilExpiry}
-Issuing Authority: ${documentData.issuing_authority || 'Unknown'}${countryContext}
+Issuing Authority: ${safeAuthority}${countryContext}
 
 Identify: legal requirements, necessary documentation, deadlines, and potential compliance issues.`;
       
@@ -239,12 +263,12 @@ Identify: legal requirements, necessary documentation, deadlines, and potential 
     } else if (analysisType === "full_analysis") {
       systemPrompt = "You are a comprehensive document management AI providing holistic analysis covering classification, renewal strategy, costs, compliance, and actionable recommendations.";
       userPrompt = `Provide complete analysis for this document:
-Document: ${documentData.name}
-Type: ${documentData.document_type}
+Document: ${safeName}
+Type: ${safeType}
 Expiry Date: ${documentData.expiry_date}
 Days Until Expiry: ${documentData.daysUntilExpiry}
-Issuing Authority: ${documentData.issuing_authority || 'Unknown'}
-Notes: ${documentData.notes || 'None'}${countryContext}
+Issuing Authority: ${safeAuthority}
+Notes: ${safeNotes}${countryContext}
 
 Deliver: comprehensive overview, key insights, priority assessment, cost considerations, and step-by-step action plan.`;
       
@@ -268,11 +292,11 @@ Deliver: comprehensive overview, key insights, priority assessment, cost conside
     } else if (analysisType === "renewal_requirements") {
       systemPrompt = "You are a document renewal specialist with expertise in identifying exact documents, items, and requirements needed for renewals across different countries and jurisdictions.";
       userPrompt = `Identify all documents and items required for renewal of this document:
-Document: ${documentData.name}
-Type: ${documentData.document_type}
+Document: ${safeName}
+Type: ${safeType}
 Expiry Date: ${documentData.expiry_date}
 Days Until Expiry: ${documentData.daysUntilExpiry}
-Issuing Authority: ${documentData.issuing_authority || 'Unknown'}${countryContext}
+Issuing Authority: ${safeAuthority}${countryContext}
 
 Provide a comprehensive checklist of:
 1. Required documents (originals, copies, certified copies)
