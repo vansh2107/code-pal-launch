@@ -10,7 +10,11 @@ import { Loader2, Shield, CheckCircle2 } from "lucide-react";
 import { z } from "zod";
 
 const passwordSchema = z.object({
-  password: z.string().min(12, "Password must be at least 12 characters"),
+  password: z.string()
+    .min(12, "Password must be at least 12 characters")
+    .regex(/[A-Z]/, "Password must contain at least 1 uppercase letter")
+    .regex(/[0-9]/, "Password must contain at least 1 number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least 1 special character"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -160,7 +164,7 @@ export default function ResetPassword() {
                   disabled={loading}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Must be at least 12 characters for security
+                  Must be at least 12 characters with 1 uppercase, 1 number, and 1 special character
                 </p>
               </div>
               <div className="space-y-2">
