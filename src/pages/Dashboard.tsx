@@ -9,8 +9,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { DocumentStats } from "@/components/dashboard/DocumentStats";
 
-import { ExpiryTimeline } from "@/components/dashboard/ExpiryTimeline";
-
 interface Document {
   id: string;
   name: string;
@@ -33,7 +31,6 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({ total: 0, expiringSoon: 0, expired: 0, valid: 0 });
   const [documents, setDocuments] = useState<Document[]>([]);
   const [recentDocuments, setRecentDocuments] = useState<Document[]>([]);
-  const [timelineData, setTimelineData] = useState<Array<{ month: string; expiring: number }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -69,32 +66,7 @@ export default function Dashboard() {
       setDocuments(documents || []);
       setRecentDocuments(documents?.slice(0, 3) || []);
 
-      // Calculate expiry timeline (next 6 months)
-      const monthCounts: Record<string, number> = {};
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      
-      for (let i = 0; i < 6; i++) {
-        const date = new Date();
-        date.setMonth(date.getMonth() + i);
-        const monthKey = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-        monthCounts[monthKey] = 0;
-      }
-
-      documents?.forEach(doc => {
-        const expiryDate = new Date(doc.expiry_date);
-        const monthKey = `${monthNames[expiryDate.getMonth()]} ${expiryDate.getFullYear()}`;
-        
-        if (monthCounts.hasOwnProperty(monthKey)) {
-          monthCounts[monthKey]++;
-        }
-      });
-
-      setTimelineData(
-        Object.entries(monthCounts).map(([month, expiring]) => ({
-          month,
-          expiring,
-        }))
-      );
+      // Removed expiry timeline calculation
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -144,10 +116,7 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Expiry Timeline */}
-        <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
-          <ExpiryTimeline data={timelineData} documents={documents} />
-        </div>
+        {/* Expiry Timeline removed */}
 
         {/* Quick Action */}
         <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
