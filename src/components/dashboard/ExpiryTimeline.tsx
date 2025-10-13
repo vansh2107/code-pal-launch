@@ -101,15 +101,15 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
         className="relative max-h-[420px] overflow-y-auto px-6 pb-6"
       >
         {/* Vertical glowing line */}
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 h-full w-[2px] bg-gradient-to-b from-primary/40 via-primary to-primary/40 shadow-[0_0_20px_theme(colors.primary/50%)]" />
+        <div className="absolute left-1/2 top-0 -translate-x-1/2 h-full w-[2px] bg-gradient-to-b from-primary/40 via-primary to-primary/40" style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.5)' }} />
 
         {/* Moving current-date marker */}
         <div
           className="pointer-events-none absolute left-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{ top: `calc(${markerOffset * 100}% )` }}
+          style={{ top: `calc(${markerOffset * 100}%)` }}
         >
           <div className="relative">
-            <div className="h-3 w-3 rounded-full bg-background border border-primary shadow-[0_0_12px_theme(colors.primary/80%)]" />
+            <div className="h-3 w-3 rounded-full bg-background border border-primary" style={{ boxShadow: '0 0 12px hsl(var(--primary) / 0.8)' }} />
             <div className="absolute -left-2 -right-2 -top-2 -bottom-2 rounded-full blur-md bg-primary/30" />
           </div>
         </div>
@@ -118,7 +118,8 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
           {items.map((item) => {
             const isActive = item.index === activeIndex;
             const baseFade = item.isPast ? "opacity-50" : item.isFuture ? "opacity-100" : "opacity-90";
-            const glow = item.isFuture || isActive ? "shadow-[0_0_24px_theme(colors.primary/35%)] border-primary/50" : "shadow-none border-border";
+            const glowClass = item.isFuture || isActive ? "border-primary/50" : "border-border";
+            const glowStyle = item.isFuture || isActive ? { boxShadow: '0 0 24px hsl(var(--primary) / 0.35)' } : {};
             const sideClass = item.side === "left" ? "pr-12 md:pr-24" : "pl-12 md:pl-24";
             const align = item.side === "left" ? "md:items-end" : "md:items-start";
             const floatSide = item.side === "left" ? "md:mr-auto md:pr-6" : "md:ml-auto md:pl-6";
@@ -137,7 +138,8 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
                     className={`relative ${floatSide} transition-all duration-500 ${baseFade}`}
                   >
                     <div
-                      className={`relative border rounded-xl bg-card p-4 hover:translate-y-[-2px] smooth ${glow}`}
+                      className={`relative border rounded-xl bg-card p-4 hover:translate-y-[-2px] smooth ${glowClass}`}
+                      style={glowStyle}
                     >
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Calendar className="h-3.5 w-3.5" />
