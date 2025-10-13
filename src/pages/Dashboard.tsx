@@ -8,6 +8,7 @@ import { FileText, Plus, Camera } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { DocumentStats } from "@/components/dashboard/DocumentStats";
+import { ExpiryTimeline } from "@/components/dashboard/ExpiryTimeline";
 
 interface Document {
   id: string;
@@ -116,7 +117,10 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Expiry Timeline removed */}
+        {/* Expiry Timeline */}
+        <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
+          <ExpiryTimeline documents={documents} />
+        </div>
 
         {/* Quick Action */}
         <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
