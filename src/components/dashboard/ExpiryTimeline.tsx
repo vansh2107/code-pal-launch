@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock } from "lucide-react";
@@ -137,8 +138,9 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
                   <div
                     className={`relative ${floatSide} transition-all duration-500 ${baseFade}`}
                   >
-                    <div
-                      className={`relative border rounded-xl bg-card p-4 hover:translate-y-[-2px] smooth ${glowClass}`}
+                    <Link
+                      to={`/document/${item.doc.id}`}
+                      className={`block relative border rounded-xl bg-card p-4 hover:translate-y-[-2px] smooth ${glowClass}`}
                       style={glowStyle}
                     >
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -166,7 +168,7 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
                       {item.isFuture || item.isToday ? (
                         <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-primary/15" />
                       ) : null}
-                    </div>
+                    </Link>
                   </div>
 
                   {item.side === "right" ? (
