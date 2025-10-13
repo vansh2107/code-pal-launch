@@ -39,6 +39,8 @@ export default function Scan() {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<string>("personal");
   
+  const [documentCountry, setDocumentCountry] = useState<string>("");
+  
   const [formData, setFormData] = useState({
     name: "",
     document_type: "",
@@ -127,17 +129,10 @@ export default function Scan() {
     setError("");
     
     try {
-      // Fetch user's country from profile
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('country')
-        .eq('user_id', user?.id)
-        .single();
-
       const { data, error } = await supabase.functions.invoke("scan-document", {
         body: { 
           imageBase64,
-          country: profileData?.country || null
+          country: documentCountry || null
         },
       });
 
@@ -358,6 +353,44 @@ export default function Scan() {
       </header>
 
       <main className="px-4 py-6 space-y-4">
+        {/* Country Selector for Multi-Country Support */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Document Country</CardTitle>
+            <CardDescription>Select the country for country-specific renewal regulations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="documentCountry">Country *</Label>
+              <Select value={documentCountry} onValueChange={setDocumentCountry}>
+                <SelectTrigger id="documentCountry">
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <SelectItem value="India">India</SelectItem>
+                  <SelectItem value="Canada">Canada</SelectItem>
+                  <SelectItem value="United States">United States</SelectItem>
+                  <SelectItem value="United Kingdom">United Kingdom</SelectItem>
+                  <SelectItem value="Australia">Australia</SelectItem>
+                  <SelectItem value="Germany">Germany</SelectItem>
+                  <SelectItem value="France">France</SelectItem>
+                  <SelectItem value="Japan">Japan</SelectItem>
+                  <SelectItem value="China">China</SelectItem>
+                  <SelectItem value="Brazil">Brazil</SelectItem>
+                  <SelectItem value="Mexico">Mexico</SelectItem>
+                  <SelectItem value="South Africa">South Africa</SelectItem>
+                  <SelectItem value="Singapore">Singapore</SelectItem>
+                  <SelectItem value="UAE">UAE</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                AI will use this country's specific renewal timelines and regulations
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Organization Selector */}
         {organizations.length > 0 && (
           <Card>
