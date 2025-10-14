@@ -11,7 +11,6 @@ interface ChecklistItem {
   checked: boolean;
   matchedDocumentId?: string;
   matchedDocumentName?: string;
-  source?: 'auto' | 'manual';
 }
 
 interface ChecklistCategory {
@@ -29,39 +28,37 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
   const [checklistData, setChecklistData] = useState<ChecklistCategory[]>([]);
   const [userDocuments, setUserDocuments] = useState<any[]>([]);
 
-useEffect(() => {
-  if (user) {
-    fetchUserDocuments();
+  useEffect(() => {
+    if (user) {
+      fetchUserDocuments();
+      
+      // Real-time subscription for document changes
+      const channel = supabase
+        .channel('checklist-documents-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'documents',
+            filter: `user_id=eq.${user.id}`
+          },
+          () => {
+            fetchUserDocuments();
+          }
+        )
+        .subscribe();
 
-    // Real-time subscription for document changes
-    const channel = supabase
-      .channel('checklist-documents-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'documents',
-          filter: `user_id=eq.${user.id}`
-        },
-        () => {
-          fetchUserDocuments();
-          // Recompute checklist to update auto matches on new docs
-          initializeChecklist();
-        }
-      )
-      .subscribe();
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user]);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }
-}, [user]);
-
-useEffect(() => {
-  // Initialize checklist with auto-matching and migrate any old state
-  initializeChecklist();
-}, [requiredDocuments, userDocuments]);
+  useEffect(() => {
+    // Initialize checklist with auto-matching
+    initializeChecklist();
+  }, [requiredDocuments, userDocuments]);
 
   const fetchUserDocuments = async () => {
     try {
@@ -77,48 +74,40 @@ useEffect(() => {
     }
   };
 
-const initializeChecklist = () => {
-  // Load saved checklist state from localStorage
-  const savedState = localStorage.getItem(`checklist-${documentId}`);
-  const savedChecklist = savedState ? JSON.parse(savedState) : null;
+  const initializeChecklist = () => {
+    // Load saved checklist state from localStorage
+    const savedState = localStorage.getItem(`checklist-${documentId}`);
+    const savedChecklist = savedState ? JSON.parse(savedState) : null;
 
-  const categories: ChecklistCategory[] = requiredDocuments.map((category, catIndex): ChecklistCategory => {
-    const items: ChecklistItem[] = category.items.map((item, itemIndex): ChecklistItem => {
-      const itemId = `${catIndex}-${itemIndex}`;
+    const categories = requiredDocuments.map((category, catIndex) => {
+      const items = category.items.map((item, itemIndex) => {
+        const itemId = `${catIndex}-${itemIndex}`;
+        
+        // Check if there's a saved state for this item
+        const savedItem = savedChecklist?.find((cat: any) => cat.category === category.category)
+          ?.items.find((i: any) => i.id === itemId);
 
-      const savedItem: ChecklistItem | undefined = savedChecklist?.find((cat: any) => cat.category === category.category)
-        ?.items.find((i: any) => i.id === itemId);
-
-      // Always recompute auto match; keep manual decisions
-      const currentMatch = findMatchingDocument(item);
-      const isManual = savedItem?.source === 'manual';
-
-      const checked = isManual ? !!savedItem?.checked : !!currentMatch;
-      const matchedDocumentId = isManual ? savedItem?.matchedDocumentId : currentMatch?.id;
-      const matchedDocumentName = isManual ? savedItem?.matchedDocumentName : currentMatch?.name;
-
-      const source = (isManual ? 'manual' : (currentMatch ? 'auto' : 'auto')) as 'auto' | 'manual';
+        // Try to auto-match with existing documents (only if not already saved)
+        const matchedDoc = !savedItem ? findMatchingDocument(item) : null;
+        
+        return {
+          id: itemId,
+          text: item,
+          // Use saved state if available, otherwise use auto-match result
+          checked: savedItem ? savedItem.checked : !!matchedDoc,
+          matchedDocumentId: matchedDoc?.id || savedItem?.matchedDocumentId,
+          matchedDocumentName: matchedDoc?.name || savedItem?.matchedDocumentName
+        };
+      });
 
       return {
-        id: itemId,
-        text: item,
-        checked,
-        matchedDocumentId,
-        matchedDocumentName,
-        source,
+        category: category.category,
+        items
       };
     });
 
-    return {
-      category: category.category,
-      items,
-    };
-  });
-
-  setChecklistData(categories);
-  // Persist migrated state
-  localStorage.setItem(`checklist-${documentId}`, JSON.stringify(categories));
-};
+    setChecklistData(categories);
+  };
 
   const findMatchingDocument = (requirement: string) => {
     const reqLower = requirement.toLowerCase();
@@ -172,22 +161,37 @@ const initializeChecklist = () => {
     return highestScore >= 8 ? bestMatch : null;
   };
 
-const handleCheckChange = (categoryIndex: number, itemId: string, checked: boolean) => {
-  const updatedChecklist: ChecklistCategory[] = checklistData.map((cat, catIdx): ChecklistCategory => {
-    if (catIdx === categoryIndex) {
-      const newItems: ChecklistItem[] = cat.items.map((item: ChecklistItem): ChecklistItem =>
-        item.id === itemId ? { ...item, checked, source: 'manual' } : item
-      );
-      return { ...cat, items: newItems };
+  const handleCheckChange = async (categoryIndex: number, itemId: string, checked: boolean) => {
+    const updatedChecklist = checklistData.map((cat, catIdx) => {
+      if (catIdx === categoryIndex) {
+        return {
+          ...cat,
+          items: cat.items.map(item => 
+            item.id === itemId ? { ...item, checked } : item
+          )
+        };
+      }
+      return cat;
+    });
+
+    setChecklistData(updatedChecklist);
+    
+    // Save to both localStorage and database
+    const checklistState = JSON.stringify(updatedChecklist);
+    localStorage.setItem(`checklist-${documentId}`, checklistState);
+    
+    // Save to database for cross-device persistence
+    try {
+      await supabase
+        .from('documents')
+        .update({ 
+          notes: checklistState // Store in notes field temporarily
+        })
+        .eq('id', documentId);
+    } catch (error) {
+      console.error('Error saving checklist state:', error);
     }
-    return cat;
-  });
-
-  setChecklistData(updatedChecklist);
-
-  // Save to localStorage only (avoid overwriting notes)
-  localStorage.setItem(`checklist-${documentId}`, JSON.stringify(updatedChecklist));
-};
+  };
 
   const calculateProgress = () => {
     const totalItems = checklistData.reduce((sum, cat) => sum + cat.items.length, 0);
