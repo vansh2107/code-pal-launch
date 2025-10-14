@@ -16,7 +16,19 @@ import { z } from "zod";
 
 const documentSchema = z.object({
   name: z.string().min(1, "Document name is required"),
-  document_type: z.enum(["license", "passport", "permit", "insurance", "certification", "other"]),
+  document_type: z.enum([
+    "government_documents",
+    "legal_documents", 
+    "immigration_documents",
+    "license_certification",
+    "insurance_policies",
+    "billing_payments",
+    "medical_documents",
+    "education",
+    "tickets_fines",
+    "memberships_subscriptions",
+    "other"
+  ]),
   issuing_authority: z.string().optional(),
   expiry_date: z.string().min(1, "Expiry date is required"),
   renewal_period_days: z.number().min(1, "Renewal period must be at least 1 day").max(365, "Renewal period cannot exceed 365 days"),
@@ -113,7 +125,7 @@ export default function EditDocument() {
         .from('documents')
         .update({
           name: validatedData.name,
-          document_type: validatedData.document_type,
+          document_type: validatedData.document_type as any,
           issuing_authority: validatedData.issuing_authority,
           expiry_date: validatedData.expiry_date,
           renewal_period_days: validatedData.renewal_period_days,
@@ -273,14 +285,26 @@ export default function EditDocument() {
                     <SelectValue placeholder="Select document type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="license">License</SelectItem>
-                    <SelectItem value="passport">Passport</SelectItem>
-                    <SelectItem value="permit">Permit</SelectItem>
-                    <SelectItem value="insurance">Insurance</SelectItem>
-                    <SelectItem value="certification">Certification</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="government_documents">Government Documents</SelectItem>
+                    <SelectItem value="legal_documents">Legal Documents</SelectItem>
+                    <SelectItem value="immigration_documents">Immigration Documents</SelectItem>
+                    <SelectItem value="license_certification">License and Certification</SelectItem>
+                    <SelectItem value="insurance_policies">Insurance Policies</SelectItem>
+                    <SelectItem value="billing_payments">Billing and Payments</SelectItem>
+                    <SelectItem value="medical_documents">
+                      Medical Documents/Appointments <Badge variant="secondary" className="ml-2">Coming Soon</Badge>
+                    </SelectItem>
+                    <SelectItem value="education">
+                      Education <Badge variant="secondary" className="ml-2">Coming Soon</Badge>
+                    </SelectItem>
+                    <SelectItem value="tickets_fines">Tickets and Fines</SelectItem>
+                    <SelectItem value="memberships_subscriptions">Memberships/Subscriptions</SelectItem>
+                    <SelectItem value="other">Others</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-sm text-muted-foreground">
+                  Category is auto-detected by AI during scan, or you can select manually
+                </p>
               </div>
 
               <div className="space-y-2">

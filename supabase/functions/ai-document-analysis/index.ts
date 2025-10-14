@@ -175,7 +175,7 @@ Format your response as a JSON array of objects with this structure:
     const safeNotes = sanitizeInput(documentData.notes || 'None');
 
     if (analysisType === "classify") {
-      systemPrompt = "You are an expert document classification AI with deep knowledge of international document types, legal requirements, and categorization standards.";
+      systemPrompt = "You are an expert document classification AI with deep knowledge of international document types, legal requirements, and categorization standards. You must accurately categorize documents into the following categories: government_documents (official government IDs, licenses, registrations), legal_documents (contracts, deeds, legal papers), immigration_documents (visas, work permits, passports, immigration papers), license_certification (professional licenses, certifications, qualifications), insurance_policies (all types of insurance), billing_payments (bills, invoices, receipts), medical_documents (health records, prescriptions, appointments), education (degrees, transcripts, certificates), tickets_fines (traffic tickets, fines, penalties), memberships_subscriptions (club memberships, subscriptions), other (anything that doesn't fit above).";
       userPrompt = `Analyze this document and provide detailed classification:
 Name: ${safeName}
 Current Type: ${safeType}
@@ -183,10 +183,12 @@ Issuing Authority: ${safeAuthority}
 Notes: ${safeNotes}
 Expiry Date: ${documentData.expiry_date}${countryContext}
 
-Consider: document purpose, legal category, regulatory requirements, and international standards.`;
+You must select from these exact category values: government_documents, legal_documents, immigration_documents, license_certification, insurance_policies, billing_payments, medical_documents, education, tickets_fines, memberships_subscriptions, other
+
+Consider the document's purpose, legal category, regulatory requirements, and international standards. Be as accurate as possible.`;
       
       toolParameters = {
-        suggestedType: { type: "string", description: "Most appropriate document type" },
+        suggestedType: { type: "string", enum: ["government_documents", "legal_documents", "immigration_documents", "license_certification", "insurance_policies", "billing_payments", "medical_documents", "education", "tickets_fines", "memberships_subscriptions", "other"], description: "Most appropriate document category" },
         confidence: { type: "number", description: "Confidence level 0-1" },
         reasoning: { type: "string", description: "Detailed explanation for classification" },
         alternativeTypes: { type: "array", items: { type: "string" }, description: "Other possible classifications" }

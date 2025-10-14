@@ -64,11 +64,24 @@ serve(async (req) => {
             content: `You are a document data extraction and renewal analysis assistant. Extract document information and intelligently determine renewal reminder periods based on document type and country-specific regulations.
 
 Extract the following information:
-- document_type: one of (license, passport, permit, insurance, certification, other)
+- document_type: one of (government_documents, legal_documents, immigration_documents, license_certification, insurance_policies, billing_payments, medical_documents, education, tickets_fines, memberships_subscriptions, other)
 - name: the document name/title
 - issuing_authority: the organization that issued the document
 - expiry_date: expiration date in YYYY-MM-DD format
 - renewal_period_days: INTELLIGENT suggestion for reminder days before expiry
+
+Document Categories:
+- government_documents: Official government IDs, licenses, registrations (e.g., driver's license, national ID, vehicle registration)
+- legal_documents: Contracts, deeds, legal agreements, powers of attorney
+- immigration_documents: Visas, work permits, passports, residence permits
+- license_certification: Professional licenses, certifications, qualifications (e.g., medical license, CPA)
+- insurance_policies: All types of insurance (health, auto, home, life)
+- billing_payments: Bills, invoices, receipts, payment documents
+- medical_documents: Health records, prescriptions, medical appointments
+- education: Degrees, transcripts, certificates, diplomas
+- tickets_fines: Traffic tickets, parking fines, penalties
+- memberships_subscriptions: Club memberships, gym subscriptions, service subscriptions
+- other: Anything that doesn't clearly fit the above
 
 For renewal_period_days, consider:
 1. Document type urgency and processing time
@@ -77,19 +90,18 @@ For renewal_period_days, consider:
 4. Complexity of renewal process
 
 Examples:
-- Passports: 90-180 days (international travel documents need early renewal)
+- Passports/immigration: 90-180 days (international travel documents need early renewal)
+- Professional licenses: 60-90 days (may require exams/courses)
 - Driver's Licenses: 30-60 days (varies by country)
 - Insurance: 30-45 days (need time for quotes comparison)
-- Work Permits/Visas: 60-90 days (government processing delays)
-- Professional Certifications: 60-90 days (may require exams/courses)
-- Vehicle Registration: 30 days
+- Memberships: 30 days
 - Simple permits: 14-30 days
 
 ${safeCountry ? `User is in: ${safeCountry}. Consider this country's specific renewal timelines and regulations.` : 'Country unknown - use general best practices.'}
 
 Respond ONLY with valid JSON:
 {
-  "document_type": "license",
+  "document_type": "government_documents",
   "name": "Driver's License",
   "issuing_authority": "Department of Motor Vehicles",
   "expiry_date": "2025-12-31",
