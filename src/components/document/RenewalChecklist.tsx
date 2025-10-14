@@ -87,15 +87,16 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
         const savedItem = savedChecklist?.find((cat: any) => cat.category === category.category)
           ?.items.find((i: any) => i.id === itemId);
 
-        // Try to auto-match with existing documents
-        const matchedDoc = findMatchingDocument(item);
+        // Try to auto-match with existing documents (only if not already saved)
+        const matchedDoc = !savedItem ? findMatchingDocument(item) : null;
         
         return {
           id: itemId,
           text: item,
-          checked: savedItem?.checked || !!matchedDoc,
-          matchedDocumentId: matchedDoc?.id,
-          matchedDocumentName: matchedDoc?.name
+          // Use saved state if available, otherwise use auto-match result
+          checked: savedItem ? savedItem.checked : !!matchedDoc,
+          matchedDocumentId: matchedDoc?.id || savedItem?.matchedDocumentId,
+          matchedDocumentName: matchedDoc?.name || savedItem?.matchedDocumentName
         };
       });
 
@@ -111,21 +112,56 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
   const findMatchingDocument = (requirement: string) => {
     const reqLower = requirement.toLowerCase();
     
-    // Simple keyword matching algorithm
-    const keywords = reqLower.split(/\s+/).filter(word => word.length > 3);
+    // Extract meaningful keywords (excluding common words)
+    const commonWords = ['card', 'original', 'copy', 'self', 'attested', 'not', 'older', 'than', 'months', 'from', 'another', 'different', 'within', 'same'];
+    const keywords = reqLower
+      .split(/\s+/)
+      .filter(word => word.length > 3 && !commonWords.includes(word));
     
-    return userDocuments.find(doc => {
+    // Find best matching document with confidence scoring
+    let bestMatch = null;
+    let highestScore = 0;
+    
+    for (const doc of userDocuments) {
       const docName = doc.name.toLowerCase();
       const docType = doc.document_type.toLowerCase();
+      let score = 0;
       
-      // Check if requirement keywords match document name or type
-      return keywords.some(keyword => 
+      // Specific document type matches (highest priority)
+      if (reqLower.includes('passport') && docType === 'passport') score += 10;
+      if (reqLower.includes('pan') && (docName.includes('pan') || docType === 'pan')) score += 10;
+      if (reqLower.includes('aadhaar') || reqLower.includes('aadhar')) {
+        if (docName.includes('aadhaar') || docName.includes('aadhar')) score += 10;
+      }
+      if (reqLower.includes('license') || reqLower.includes('licence')) {
+        if (docType === 'license' || docName.includes('license') || docName.includes('licence')) score += 10;
+      }
+      if (reqLower.includes('utility bill') || reqLower.includes('electricity') || reqLower.includes('water')) {
+        if (docName.includes('utility') || docName.includes('electricity') || docName.includes('water') || docName.includes('bill')) score += 8;
+      }
+      if (reqLower.includes('bank') && reqLower.includes('statement')) {
+        if (docName.includes('bank') && docName.includes('statement')) score += 10;
+      }
+      if (reqLower.includes('insurance') && docType === 'insurance') score += 10;
+      
+      // Keyword matching (lower priority)
+      const matchedKeywords = keywords.filter(keyword => 
         docName.includes(keyword) || docType.includes(keyword)
-      ) || reqLower.includes(docType) || docType.includes(reqLower.replace(/\s+/g, '_'));
-    });
+      );
+      score += matchedKeywords.length * 2;
+      
+      // Track highest scoring match
+      if (score > highestScore) {
+        highestScore = score;
+        bestMatch = doc;
+      }
+    }
+    
+    // Only return match if confidence is high enough (score >= 8)
+    return highestScore >= 8 ? bestMatch : null;
   };
 
-  const handleCheckChange = (categoryIndex: number, itemId: string, checked: boolean) => {
+  const handleCheckChange = async (categoryIndex: number, itemId: string, checked: boolean) => {
     const updatedChecklist = checklistData.map((cat, catIdx) => {
       if (catIdx === categoryIndex) {
         return {
@@ -140,8 +176,21 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
 
     setChecklistData(updatedChecklist);
     
-    // Save to localStorage
-    localStorage.setItem(`checklist-${documentId}`, JSON.stringify(updatedChecklist));
+    // Save to both localStorage and database
+    const checklistState = JSON.stringify(updatedChecklist);
+    localStorage.setItem(`checklist-${documentId}`, checklistState);
+    
+    // Save to database for cross-device persistence
+    try {
+      await supabase
+        .from('documents')
+        .update({ 
+          notes: checklistState // Store in notes field temporarily
+        })
+        .eq('id', documentId);
+    } catch (error) {
+      console.error('Error saving checklist state:', error);
+    }
   };
 
   const calculateProgress = () => {
