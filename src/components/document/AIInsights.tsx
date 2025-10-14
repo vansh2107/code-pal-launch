@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Brain, TrendingUp, AlertTriangle, Lightbulb, Loader2, DollarSign, FileCheck, Sparkles } from "lucide-react";
+import { RenewalChecklist } from "./RenewalChecklist";
 
 type Document = {
   id: string;
@@ -388,24 +389,10 @@ export function AIInsights({ document }: { document: Document }) {
             {insights.type === 'renewal_requirements' && (
               <div className="space-y-4">
                 {insights.data.requiredDocuments && insights.data.requiredDocuments.length > 0 && (
-                  <div className="space-y-3">
-                    <h5 className="font-medium text-sm flex items-center gap-2">
-                      📋 Required Documents & Items
-                    </h5>
-                    {insights.data.requiredDocuments.map((category: any, i: number) => (
-                      <div key={i} className="p-3 bg-background rounded border">
-                        <p className="text-sm font-semibold mb-2 text-primary">{category.category}</p>
-                        <ul className="space-y-1.5">
-                          {category.items.map((item: string, j: number) => (
-                            <li key={j} className="text-xs text-muted-foreground flex items-start gap-2">
-                              <span className="text-accent font-bold mt-0.5">✓</span>
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
+                  <RenewalChecklist 
+                    documentId={document.id}
+                    requiredDocuments={insights.data.requiredDocuments}
+                  />
                 )}
 
                 {insights.data.whereToApply && (
