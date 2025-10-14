@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Plus, Search, Filter } from "lucide-react";
+import { FileText, Plus, Search, Filter, Building2, Scale, Plane, Award, Shield, Receipt, Heart, GraduationCap, AlertTriangle, Users, FolderOpen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +21,20 @@ interface Document {
   created_at: string;
 }
 
+const categories = [
+  { id: "government_documents", name: "Government Documents", icon: Building2, color: "bg-blue-500/10 text-blue-500" },
+  { id: "legal_documents", name: "Legal Documents", icon: Scale, color: "bg-purple-500/10 text-purple-500" },
+  { id: "immigration_documents", name: "Immigration Documents", icon: Plane, color: "bg-green-500/10 text-green-500" },
+  { id: "license_certification", name: "License & Certification", icon: Award, color: "bg-amber-500/10 text-amber-500" },
+  { id: "insurance_policies", name: "Insurance Policies", icon: Shield, color: "bg-red-500/10 text-red-500" },
+  { id: "billing_payments", name: "Billing & Payments", icon: Receipt, color: "bg-cyan-500/10 text-cyan-500" },
+  { id: "medical_documents", name: "Medical Documents", icon: Heart, color: "bg-pink-500/10 text-pink-500" },
+  { id: "education", name: "Education", icon: GraduationCap, color: "bg-indigo-500/10 text-indigo-500" },
+  { id: "tickets_fines", name: "Tickets & Fines", icon: AlertTriangle, color: "bg-orange-500/10 text-orange-500" },
+  { id: "memberships_subscriptions", name: "Memberships", icon: Users, color: "bg-teal-500/10 text-teal-500" },
+  { id: "other", name: "Others", icon: FolderOpen, color: "bg-gray-500/10 text-gray-500" },
+];
+
 export default function Documents() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -32,6 +46,7 @@ export default function Documents() {
   const [sortBy, setSortBy] = useState("created_at");
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [showCategories, setShowCategories] = useState(true);
 
   // Set filter from URL params
   useEffect(() => {
@@ -144,6 +159,16 @@ export default function Documents() {
     }
   };
 
+  const getCategoryCount = (categoryId: string) => {
+    return documents.filter(doc => doc.document_type === categoryId).length;
+  };
+
+  const handleCategoryClick = (categoryId: string) => {
+    setFilterType(categoryId);
+    setShowCategories(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const getStatusBadge = (expiryDate: string) => {
     const today = new Date();
     const expiry = new Date(expiryDate);
@@ -204,18 +229,26 @@ export default function Documents() {
               </SelectContent>
             </Select>
             
-            <Select value={filterType} onValueChange={setFilterType}>
+            <Select value={filterType} onValueChange={(value) => {
+              setFilterType(value);
+              if (value === "all") setShowCategories(true);
+            }}>
               <SelectTrigger className="flex-1">
                 <SelectValue placeholder="Filter type" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="license">License</SelectItem>
-                <SelectItem value="passport">Passport</SelectItem>
-                <SelectItem value="permit">Permit</SelectItem>
-                <SelectItem value="insurance">Insurance</SelectItem>
-                <SelectItem value="certification">Certification</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
+                <SelectItem value="government_documents">Government Documents</SelectItem>
+                <SelectItem value="legal_documents">Legal Documents</SelectItem>
+                <SelectItem value="immigration_documents">Immigration Documents</SelectItem>
+                <SelectItem value="license_certification">License & Certification</SelectItem>
+                <SelectItem value="insurance_policies">Insurance Policies</SelectItem>
+                <SelectItem value="billing_payments">Billing & Payments</SelectItem>
+                <SelectItem value="medical_documents">Medical Documents</SelectItem>
+                <SelectItem value="education">Education</SelectItem>
+                <SelectItem value="tickets_fines">Tickets & Fines</SelectItem>
+                <SelectItem value="memberships_subscriptions">Memberships</SelectItem>
+                <SelectItem value="other">Others</SelectItem>
               </SelectContent>
             </Select>
             
@@ -239,6 +272,71 @@ export default function Documents() {
       </header>
 
       <main className="px-4 py-6">
+        {/* Categories Section */}
+        {showCategories && filterType === "all" && documents.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Browse by Category</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCategories(!showCategories)}
+              >
+                {showCategories ? "Hide" : "Show"}
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {categories.map((category) => {
+                const count = getCategoryCount(category.id);
+                const Icon = category.icon;
+                return (
+                  <Card
+                    key={category.id}
+                    className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+                    onClick={() => handleCategoryClick(category.id)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className={`p-2 rounded-lg ${category.color}`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <Badge variant="secondary" className="font-semibold">
+                          {count}
+                        </Badge>
+                      </div>
+                      <h3 className="text-sm font-medium text-foreground leading-tight">
+                        {category.name}
+                      </h3>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Selected Category Header */}
+        {filterType !== "all" && (
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-foreground">
+                {categories.find(c => c.id === filterType)?.name || "Documents"}
+              </h2>
+              <Badge variant="secondary">{filteredDocuments.length}</Badge>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setFilterType("all");
+                setShowCategories(true);
+              }}
+            >
+              View All
+            </Button>
+          </div>
+        )}
+
         {filteredDocuments.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
