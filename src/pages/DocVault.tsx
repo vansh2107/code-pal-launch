@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,16 +6,22 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Upload, Camera, FileText, Search, Filter } from "lucide-react";
+import { Upload, Camera, FileText, Search, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function DocVault() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch all documents
   const { data: documents = [], refetch } = useQuery({
@@ -38,6 +44,82 @@ export default function DocVault() {
     doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     doc.document_type?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setShowCamera(true);
+    } catch (error) {
+      console.error("Camera error:", error);
+      toast.error("Failed to access camera");
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+    }
+    setShowCamera(false);
+    setCapturedImage(null);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        const imageData = canvas.toDataURL("image/jpeg");
+        setCapturedImage(imageData);
+      }
+    }
+  };
+
+  const uploadCapturedImage = async () => {
+    if (!capturedImage || !user) return;
+
+    setIsUploading(true);
+    try {
+      const blob = await (await fetch(capturedImage)).blob();
+      const fileName = `${user.id}/${Date.now()}.jpg`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("document-images")
+        .upload(fileName, blob);
+
+      if (uploadError) throw uploadError;
+
+      const { error: insertError } = await supabase
+        .from("documents")
+        .insert({
+          user_id: user.id,
+          name: `Scanned Document ${format(new Date(), "MMM dd, yyyy HH:mm")}`,
+          document_type: "other",
+          image_path: fileName,
+          expiry_date: format(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"),
+        });
+
+      if (insertError) throw insertError;
+
+      toast.success("Document saved successfully");
+      stopCamera();
+      refetch();
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Failed to save document");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,6 +155,9 @@ export default function DocVault() {
       toast.error("Failed to upload document");
     } finally {
       setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -100,7 +185,7 @@ export default function DocVault() {
           </div>
           <div className="flex gap-2">
             <Button
-              onClick={() => navigate("/scan")}
+              onClick={startCamera}
               variant="outline"
               className="gap-2"
             >
@@ -108,20 +193,21 @@ export default function DocVault() {
               Scan
             </Button>
             <Button
+              onClick={() => fileInputRef.current?.click()}
               variant="default"
-              className="gap-2 relative"
+              className="gap-2"
               disabled={isUploading}
             >
               <Upload className="h-4 w-4" />
               Upload
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-                disabled={isUploading}
-              />
             </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
           </div>
         </div>
 
@@ -160,19 +246,13 @@ export default function DocVault() {
               Start by uploading or scanning your first document
             </p>
             <div className="flex gap-2 justify-center">
-              <Button onClick={() => navigate("/scan")} variant="outline">
+              <Button onClick={startCamera} variant="outline">
                 <Camera className="h-4 w-4 mr-2" />
                 Scan Document
               </Button>
-              <Button variant="default" className="relative">
+              <Button onClick={() => fileInputRef.current?.click()} variant="default">
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Document
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
               </Button>
             </div>
           </Card>
@@ -212,6 +292,64 @@ export default function DocVault() {
           </div>
         )}
       </div>
+
+      {/* Camera Dialog */}
+      <Dialog open={showCamera} onOpenChange={stopCamera}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Scan Document</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {!capturedImage ? (
+              <>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full rounded-lg bg-black"
+                />
+                <div className="flex gap-2 justify-center">
+                  <Button onClick={capturePhoto} size="lg">
+                    <Camera className="h-5 w-5 mr-2" />
+                    Capture
+                  </Button>
+                  <Button onClick={stopCamera} variant="outline" size="lg">
+                    <X className="h-5 w-5 mr-2" />
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <img
+                  src={capturedImage}
+                  alt="Captured"
+                  className="w-full rounded-lg"
+                />
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    onClick={uploadCapturedImage}
+                    disabled={isUploading}
+                    size="lg"
+                  >
+                    <Upload className="h-5 w-5 mr-2" />
+                    {isUploading ? "Saving..." : "Save Document"}
+                  </Button>
+                  <Button
+                    onClick={() => setCapturedImage(null)}
+                    variant="outline"
+                    size="lg"
+                    disabled={isUploading}
+                  >
+                    Retake
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+          <canvas ref={canvasRef} className="hidden" />
+        </DialogContent>
+      </Dialog>
 
       <BottomNavigation />
     </div>
