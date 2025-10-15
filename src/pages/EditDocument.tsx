@@ -18,8 +18,8 @@ const documentSchema = z.object({
   name: z.string().min(1, "Document name is required"),
   document_type: z.string().min(1, "Document type is required"),
   issuing_authority: z.string().optional(),
-  expiry_date: z.string().min(1, "Expiry date is required"),
-  renewal_period_days: z.number().min(1, "Renewal period must be at least 1 day").max(365, "Renewal period cannot exceed 365 days"),
+  expiry_date: z.string().optional(),
+  renewal_period_days: z.number().optional(),
   notes: z.string().optional(),
 });
 
@@ -104,6 +104,22 @@ export default function EditDocument() {
     setError("");
 
     try {
+      const isDocVault = formData.issuing_authority === 'DocVault';
+      
+      // Validate required fields based on document type
+      if (!isDocVault) {
+        if (!formData.expiry_date) {
+          setError("Expiry date is required");
+          setSaving(false);
+          return;
+        }
+        if (!formData.renewal_period_days || formData.renewal_period_days < 1) {
+          setError("Renewal period must be at least 1 day");
+          setSaving(false);
+          return;
+        }
+      }
+
       const validatedData = documentSchema.parse({
         ...formData,
         document_type: formData.document_type as any,
@@ -115,60 +131,63 @@ export default function EditDocument() {
           name: validatedData.name,
           document_type: validatedData.document_type as any,
           issuing_authority: validatedData.issuing_authority,
-          expiry_date: validatedData.expiry_date,
-          renewal_period_days: validatedData.renewal_period_days,
+          expiry_date: isDocVault ? null : validatedData.expiry_date,
+          renewal_period_days: isDocVault ? null : validatedData.renewal_period_days,
           notes: validatedData.notes,
         })
         .eq('id', id);
 
       if (error) throw error;
 
-      // Delete all existing reminders for this document
-      await supabase
-        .from('reminders')
-        .delete()
-        .eq('document_id', id)
-        .eq('user_id', user?.id);
+      // Only handle reminders for non-DocVault documents
+      if (!isDocVault) {
+        // Delete all existing reminders for this document
+        await supabase
+          .from('reminders')
+          .delete()
+          .eq('document_id', id)
+          .eq('user_id', user?.id);
 
-      // Recreate AI-based reminders
-      const renewalDays = validatedData.renewal_period_days;
-      let reminderStages: number[] = [];
-      
-      if (renewalDays >= 90) {
-        reminderStages = [60, 30, 7];
-      } else if (renewalDays >= 30) {
-        reminderStages = [30, 14, 3];
-      } else if (renewalDays >= 14) {
-        reminderStages = [14, 7, 2];
-      } else {
-        reminderStages = [7, 3, 1];
-      }
-      
-      const reminders = reminderStages.map(days => {
-        const reminderDate = new Date(validatedData.expiry_date);
-        reminderDate.setDate(reminderDate.getDate() - days);
-        return {
-          document_id: id,
-          user_id: user?.id,
-          reminder_date: reminderDate.toISOString().split('T')[0],
-          is_sent: false,
-        };
-      });
-      
-      // Add custom reminder if provided
-      if (formData.custom_reminder_date) {
-        reminders.push({
-          document_id: id,
-          user_id: user?.id,
-          reminder_date: formData.custom_reminder_date,
-          is_sent: false,
-          is_custom: true,
-        } as any);
-      }
+        // Recreate AI-based reminders
+        const renewalDays = validatedData.renewal_period_days!;
+        let reminderStages: number[] = [];
+        
+        if (renewalDays >= 90) {
+          reminderStages = [60, 30, 7];
+        } else if (renewalDays >= 30) {
+          reminderStages = [30, 14, 3];
+        } else if (renewalDays >= 14) {
+          reminderStages = [14, 7, 2];
+        } else {
+          reminderStages = [7, 3, 1];
+        }
+        
+        const reminders = reminderStages.map(days => {
+          const reminderDate = new Date(validatedData.expiry_date!);
+          reminderDate.setDate(reminderDate.getDate() - days);
+          return {
+            document_id: id,
+            user_id: user?.id,
+            reminder_date: reminderDate.toISOString().split('T')[0],
+            is_sent: false,
+          };
+        });
+        
+        // Add custom reminder if provided
+        if (formData.custom_reminder_date) {
+          reminders.push({
+            document_id: id,
+            user_id: user?.id,
+            reminder_date: formData.custom_reminder_date,
+            is_sent: false,
+            is_custom: true,
+          } as any);
+        }
 
-      // Insert all reminders
-      if (reminders.length > 0) {
-        await supabase.from('reminders').insert(reminders);
+        // Insert all reminders
+        if (reminders.length > 0) {
+          await supabase.from('reminders').insert(reminders);
+        }
       }
 
       toast({
@@ -222,6 +241,7 @@ export default function EditDocument() {
   };
 
   const aiReminders = calculateReminderDates();
+  const isDocVault = formData.issuing_authority === 'DocVault';
 
   if (loading) {
     return (
@@ -319,47 +339,53 @@ export default function EditDocument() {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="issuing_authority">Issuing Authority</Label>
-                <Input
-                  id="issuing_authority"
-                  value={formData.issuing_authority}
-                  onChange={(e) => handleInputChange("issuing_authority", e.target.value)}
-                  placeholder="e.g., Department of Motor Vehicles"
-                />
-              </div>
+              {!isDocVault && (
+                <div className="space-y-2">
+                  <Label htmlFor="issuing_authority">Issuing Authority</Label>
+                  <Input
+                    id="issuing_authority"
+                    value={formData.issuing_authority}
+                    onChange={(e) => handleInputChange("issuing_authority", e.target.value)}
+                    placeholder="e.g., Department of Motor Vehicles"
+                  />
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <Label htmlFor="expiry_date">Expiry Date *</Label>
-                <Input
-                  id="expiry_date"
-                  type="date"
-                  value={formData.expiry_date}
-                  onChange={(e) => handleInputChange("expiry_date", e.target.value)}
-                  required
-                />
-              </div>
+              {!isDocVault && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="expiry_date">Expiry Date *</Label>
+                    <Input
+                      id="expiry_date"
+                      type="date"
+                      value={formData.expiry_date}
+                      onChange={(e) => handleInputChange("expiry_date", e.target.value)}
+                      required
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="renewal_period_days">
-                  Renewal Period (Days) *
-                </Label>
-                <Input
-                  id="renewal_period_days"
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={formData.renewal_period_days}
-                  onChange={(e) => handleInputChange("renewal_period_days", parseInt(e.target.value))}
-                  required
-                />
-                <p className="text-sm text-muted-foreground">
-                  AI will automatically create smart reminders based on this period
-                </p>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="renewal_period_days">
+                      Renewal Period (Days) *
+                    </Label>
+                    <Input
+                      id="renewal_period_days"
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={formData.renewal_period_days}
+                      onChange={(e) => handleInputChange("renewal_period_days", parseInt(e.target.value))}
+                      required
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      AI will automatically create smart reminders based on this period
+                    </p>
+                  </div>
+                </>
+              )}
 
-              {/* AI-Based Reminders Preview */}
-              {aiReminders.length > 0 && (
+              {/* AI-Based Reminders Preview - Only for non-DocVault */}
+              {!isDocVault && aiReminders.length > 0 && (
                 <div className="space-y-2">
                   <Label className="text-base font-semibold">🤖 AI-Powered Automatic Reminders</Label>
                   <div className="bg-accent/20 border border-accent rounded-lg p-4 space-y-2">
@@ -399,20 +425,22 @@ export default function EditDocument() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="custom_reminder_date">
-                  ➕ Custom Reminder (Optional)
-                </Label>
-                <Input
-                  id="custom_reminder_date"
-                  type="date"
-                  value={formData.custom_reminder_date}
-                  onChange={(e) => handleInputChange("custom_reminder_date", e.target.value)}
-                />
-                <p className="text-sm text-muted-foreground">
-                  For those who forget easily - add your own reminder date in addition to the 3 automatic ones
-                </p>
-              </div>
+              {!isDocVault && (
+                <div className="space-y-2">
+                  <Label htmlFor="custom_reminder_date">
+                    ➕ Custom Reminder (Optional)
+                  </Label>
+                  <Input
+                    id="custom_reminder_date"
+                    type="date"
+                    value={formData.custom_reminder_date}
+                    onChange={(e) => handleInputChange("custom_reminder_date", e.target.value)}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    For those who forget easily - add your own reminder date in addition to the 3 automatic ones
+                  </p>
+                </div>
+              )}
 
               {error && (
                 <Alert variant="destructive">
