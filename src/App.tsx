@@ -15,6 +15,7 @@ import EditDocument from "./pages/EditDocument";
 import Scan from "./pages/Scan";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
+import DocVault from "./pages/DocVault";
 import NotFound from "./pages/NotFound";
 import AuthEventListener from "./components/auth/AuthEventListener";
 
@@ -90,6 +91,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/docvault" 
+              element={
+                <ProtectedRoute>
+                  <DocVault />
                 </ProtectedRoute>
               } 
             />
