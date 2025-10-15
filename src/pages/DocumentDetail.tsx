@@ -179,13 +179,14 @@ export default function DocumentDetail() {
     );
   }
 
-  const statusInfo = getStatusInfo(document.expiry_date);
+  const isDocVault = document.issuing_authority === 'DocVault';
+  const statusInfo = !isDocVault ? getStatusInfo(document.expiry_date) : null;
 
   return (
     <div className="min-h-screen bg-background pb-20">
       <header className="bg-card border-b border-border px-4 py-6">
         <div className="flex items-center gap-4 mb-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/documents')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(isDocVault ? '/docvault' : '/documents')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1">
@@ -194,13 +195,15 @@ export default function DocumentDetail() {
               {document.document_type.replace('_', ' ')}
             </p>
           </div>
-          {statusInfo.badge}
+          {!isDocVault && statusInfo?.badge}
         </div>
         
-        <Alert variant={statusInfo.variant}>
-          <Calendar className="h-4 w-4" />
-          <AlertDescription>{statusInfo.message}</AlertDescription>
-        </Alert>
+        {!isDocVault && statusInfo && (
+          <Alert variant={statusInfo.variant}>
+            <Calendar className="h-4 w-4" />
+            <AlertDescription>{statusInfo.message}</AlertDescription>
+          </Alert>
+        )}
       </header>
 
       <main className="px-4 py-6 space-y-6">
@@ -236,22 +239,26 @@ export default function DocumentDetail() {
                 <p className="text-foreground capitalize">{document.document_type.replace('_', ' ')}</p>
               </div>
               
-              {document.issuing_authority && (
+              {document.issuing_authority && !isDocVault && (
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Issuing Authority</Label>
                   <p className="text-foreground">{document.issuing_authority}</p>
                 </div>
               )}
               
-              <div>
-                <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
-                <p className="text-foreground">{new Date(document.expiry_date).toLocaleDateString()}</p>
-              </div>
-              
-              <div>
-                <Label className="text-sm font-medium text-muted-foreground">Reminder Period</Label>
-                <p className="text-foreground">{document.renewal_period_days} days before expiry</p>
-              </div>
+              {!isDocVault && (
+                <>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
+                    <p className="text-foreground">{new Date(document.expiry_date).toLocaleDateString()}</p>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Reminder Period</Label>
+                    <p className="text-foreground">{document.renewal_period_days} days before expiry</p>
+                  </div>
+                </>
+              )}
             </div>
 
             {document.notes && (
@@ -263,25 +270,27 @@ export default function DocumentDetail() {
           </CardContent>
         </Card>
 
-        {/* Metadata */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Document History
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div>
-              <Label className="text-sm font-medium text-muted-foreground">Created</Label>
-              <p className="text-foreground">{new Date(document.created_at).toLocaleDateString()}</p>
-            </div>
-            <div>
-              <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
-              <p className="text-foreground">{new Date(document.updated_at).toLocaleDateString()}</p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Metadata - Only for non-DocVault documents */}
+        {!isDocVault && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Document History
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Created</Label>
+                <p className="text-foreground">{new Date(document.created_at).toLocaleDateString()}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
+                <p className="text-foreground">{new Date(document.updated_at).toLocaleDateString()}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Actions */}
         <Card>
@@ -308,7 +317,7 @@ export default function DocumentDetail() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete Document</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to delete "{document.name}"? This action cannot be undone and will also remove all associated reminders.
+                    Are you sure you want to delete "{document.name}"? This action cannot be undone{!isDocVault && ' and will also remove all associated reminders'}.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -326,9 +335,9 @@ export default function DocumentDetail() {
           </CardContent>
         </Card>
 
-        {/* Document History */}
-          <AIInsights document={document} />
-          <DocumentHistory documentId={id!} />
+        {/* AI Insights and Document History - Only for non-DocVault */}
+        {!isDocVault && <DocumentHistory documentId={id!} />}
+        <AIInsights document={document} />
       </main>
 
       <BottomNavigation />
