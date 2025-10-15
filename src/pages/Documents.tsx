@@ -196,6 +196,7 @@ export default function Documents() {
         .from('documents')
         .select('*')
         .eq('user_id', user?.id)
+        .neq('issuing_authority', 'DocVault')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
