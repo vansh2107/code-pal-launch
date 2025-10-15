@@ -83,6 +83,7 @@ export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("created_at");
   const [filterType, setFilterType] = useState("all");
+  const [filterSubType, setFilterSubType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [showCategories, setShowCategories] = useState(true);
 
@@ -123,7 +124,7 @@ export default function Documents() {
 
   useEffect(() => {
     applyFilters();
-  }, [documents, searchQuery, filterType, filterStatus, sortBy]);
+  }, [documents, searchQuery, filterType, filterSubType, filterStatus, sortBy]);
 
   const applyFilters = () => {
     let filtered = [...documents];
@@ -136,11 +137,17 @@ export default function Documents() {
       );
     }
 
-    // Type filter
+    // Type filter (main category + subcategory)
     if (filterType !== "all") {
       const category = categories.find(c => c.id === filterType);
       if (category) {
-        filtered = filtered.filter(doc => category.types.includes(doc.document_type));
+        if (filterSubType !== "all") {
+          // Filter by specific subcategory
+          filtered = filtered.filter(doc => doc.document_type === filterSubType);
+        } else {
+          // Filter by main category (all subcategories)
+          filtered = filtered.filter(doc => category.types.includes(doc.document_type));
+        }
       }
     }
 
@@ -209,11 +216,65 @@ export default function Documents() {
   const handleCategoryClick = (categoryId: string) => {
     const category = categories.find(c => c.id === categoryId);
     if (category) {
-      // Set filter to show all documents of this main category
       setFilterType(categoryId);
+      setFilterSubType("all");
       setShowCategories(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+  };
+
+  const handleSubCategoryClick = (subTypeId: string) => {
+    setFilterSubType(subTypeId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const getSubCategoryCount = (subTypeId: string) => {
+    return documents.filter(doc => doc.document_type === subTypeId).length;
+  };
+
+  const getSubCategoryName = (subTypeId: string): string => {
+    const nameMap: Record<string, string> = {
+      passport_renewal: "Passport Renewal",
+      drivers_license: "Driver's License / ID Card",
+      vehicle_registration: "Vehicle Registration / Insurance",
+      health_card: "Health Card Renewal",
+      work_permit_visa: "Work Permit / Visa / Study Permit",
+      permanent_residency: "Permanent Residency",
+      business_license: "Business License",
+      tax_filing: "Tax Filing",
+      voting_registration: "Voting Registration",
+      credit_card: "Credit Card",
+      insurance_policy: "Insurance Policy",
+      utility_bills: "Utility Bills",
+      loan_payment: "Loan / EMI Payment",
+      subscription: "Subscription",
+      bank_card: "Bank Card",
+      health_checkup: "Health Checkup",
+      medication_refill: "Medication Refill",
+      pet_vaccination: "Pet Vaccination",
+      fitness_membership: "Fitness Membership",
+      library_book: "Library Book",
+      warranty: "Warranty",
+      home_maintenance: "Home Maintenance",
+      professional_license: "Professional License",
+      training_certificate: "Training Certificate",
+      software_license: "Software License",
+      student_visa: "Student Visa",
+      course_registration: "Course Registration",
+      children_documents: "Children's Documents",
+      school_enrollment: "School Enrollment",
+      family_insurance: "Family Insurance",
+      joint_subscription: "Joint Subscription",
+      pet_care: "Pet Care",
+      property_lease: "Property Lease",
+      domain_name: "Domain Name",
+      web_hosting: "Web Hosting / SSL",
+      cloud_storage: "Cloud Storage",
+      device_warranty: "Device Warranty",
+      password_security: "Password Security",
+      other: "Other"
+    };
+    return nameMap[subTypeId] || subTypeId;
   };
 
   const getStatusBadge = (expiryDate: string) => {
@@ -356,26 +417,79 @@ export default function Documents() {
           </div>
         )}
 
-        {/* Selected Category Header */}
+        {/* Selected Category Header & Subcategories */}
         {filterType !== "all" && (
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-foreground">
-                {categories.find(c => c.id === filterType)?.name || "Documents"}
-              </h2>
-              <Badge variant="secondary">{filteredDocuments.length}</Badge>
+          <>
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-foreground">
+                  {categories.find(c => c.id === filterType)?.name || "Documents"}
+                </h2>
+                <Badge variant="secondary">
+                  {filterSubType === "all" ? filteredDocuments.length : getSubCategoryCount(filterSubType)}
+                </Badge>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFilterType("all");
+                  setFilterSubType("all");
+                  setShowCategories(true);
+                }}
+              >
+                View All
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setFilterType("all");
-                setShowCategories(true);
-              }}
-            >
-              View All
-            </Button>
-          </div>
+
+            {/* Subcategory Cards */}
+            {filterSubType === "all" && (
+              <div className="mb-6">
+                <div className="grid grid-cols-2 gap-3">
+                  {categories.find(c => c.id === filterType)?.types.map((subType) => {
+                    const count = getSubCategoryCount(subType);
+                    if (count === 0) return null;
+                    return (
+                      <Card
+                        key={subType}
+                        className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+                        onClick={() => handleSubCategoryClick(subType)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <Badge variant="secondary" className="font-semibold">
+                              {count}
+                            </Badge>
+                          </div>
+                          <h3 className="text-sm font-medium text-foreground leading-tight">
+                            {getSubCategoryName(subType)}
+                          </h3>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Back to subcategories button when viewing a specific subcategory */}
+            {filterSubType !== "all" && (
+              <div className="mb-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFilterSubType("all")}
+                >
+                  ← Back to {categories.find(c => c.id === filterType)?.name}
+                </Button>
+                <div className="mt-2">
+                  <h3 className="text-md font-medium text-foreground">
+                    {getSubCategoryName(filterSubType)}
+                  </h3>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {filteredDocuments.length === 0 ? (
