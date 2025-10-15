@@ -23,7 +23,7 @@ export default function DocVault() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch all documents
+  // Fetch only DocVault documents
   const { data: documents = [], refetch } = useQuery({
     queryKey: ["docvault-documents", user?.id],
     queryFn: async () => {
@@ -31,6 +31,7 @@ export default function DocVault() {
         .from("documents")
         .select("*")
         .eq("user_id", user?.id)
+        .eq("issuing_authority", "DocVault")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -105,6 +106,7 @@ export default function DocVault() {
           name: `Scanned Document ${format(new Date(), "MMM dd, yyyy HH:mm")}`,
           document_type: "other",
           image_path: fileName,
+          issuing_authority: "DocVault",
           expiry_date: format(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"),
         });
 
@@ -143,6 +145,7 @@ export default function DocVault() {
           name: file.name,
           document_type: "other",
           image_path: fileName,
+          issuing_authority: "DocVault",
           expiry_date: format(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"),
         });
 
