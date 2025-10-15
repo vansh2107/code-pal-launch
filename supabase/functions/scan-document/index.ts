@@ -64,24 +64,20 @@ serve(async (req) => {
             content: `You are a document data extraction and renewal analysis assistant. Extract document information and intelligently determine renewal reminder periods based on document type and country-specific regulations.
 
 Extract the following information:
-- document_type: one of (government_documents, legal_documents, immigration_documents, license_certification, insurance_policies, billing_payments, medical_documents, education, tickets_fines, memberships_subscriptions, other)
+- document_type: one of the specific types listed below
 - name: the document name/title
 - issuing_authority: the organization that issued the document
 - expiry_date: expiration date in YYYY-MM-DD format
 - renewal_period_days: INTELLIGENT suggestion for reminder days before expiry
 
-Document Categories:
-- government_documents: Official government IDs, licenses, registrations (e.g., driver's license, national ID, vehicle registration)
-- legal_documents: Contracts, deeds, legal agreements, powers of attorney
-- immigration_documents: Visas, work permits, passports, residence permits
-- license_certification: Professional licenses, certifications, qualifications (e.g., medical license, CPA)
-- insurance_policies: All types of insurance (health, auto, home, life)
-- billing_payments: Bills, invoices, receipts, payment documents
-- medical_documents: Health records, prescriptions, medical appointments
-- education: Degrees, transcripts, certificates, diplomas
-- tickets_fines: Traffic tickets, parking fines, penalties
-- memberships_subscriptions: Club memberships, gym subscriptions, service subscriptions
-- other: Anything that doesn't clearly fit the above
+Document Types (choose the most specific match):
+Government & Legal: passport_renewal, drivers_license, vehicle_registration, health_card, work_permit_visa, permanent_residency, business_license, tax_filing, voting_registration
+Financial & Utility: credit_card, insurance_policy, utility_bills, loan_payment, subscription, bank_card
+Personal & Productivity: health_checkup, medication_refill, pet_vaccination, fitness_membership, library_book, warranty, home_maintenance
+Work & Education: professional_license, training_certificate, software_license, student_visa, course_registration
+Family & Shared: children_documents, school_enrollment, family_insurance, joint_subscription, pet_care, property_lease
+Digital & Security: domain_name, web_hosting, cloud_storage, device_warranty, password_security
+Other: other (only if none of the above fit)
 
 For renewal_period_days, consider:
 1. Document type urgency and processing time
@@ -101,7 +97,7 @@ ${safeCountry ? `User is in: ${safeCountry}. Consider this country's specific re
 
 Respond ONLY with valid JSON:
 {
-  "document_type": "government_documents",
+  "document_type": "drivers_license",
   "name": "Driver's License",
   "issuing_authority": "Department of Motor Vehicles",
   "expiry_date": "2025-12-31",

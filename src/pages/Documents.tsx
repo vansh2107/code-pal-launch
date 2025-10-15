@@ -22,17 +22,55 @@ interface Document {
 }
 
 const categories = [
-  { id: "government_documents", name: "Government Documents", icon: Building2, color: "bg-blue-500/10 text-blue-500" },
-  { id: "legal_documents", name: "Legal Documents", icon: Scale, color: "bg-purple-500/10 text-purple-500" },
-  { id: "immigration_documents", name: "Immigration Documents", icon: Plane, color: "bg-green-500/10 text-green-500" },
-  { id: "license_certification", name: "License & Certification", icon: Award, color: "bg-amber-500/10 text-amber-500" },
-  { id: "insurance_policies", name: "Insurance Policies", icon: Shield, color: "bg-red-500/10 text-red-500" },
-  { id: "billing_payments", name: "Billing & Payments", icon: Receipt, color: "bg-cyan-500/10 text-cyan-500" },
-  { id: "medical_documents", name: "Medical Documents", icon: Heart, color: "bg-pink-500/10 text-pink-500" },
-  { id: "education", name: "Education", icon: GraduationCap, color: "bg-indigo-500/10 text-indigo-500" },
-  { id: "tickets_fines", name: "Tickets & Fines", icon: AlertTriangle, color: "bg-orange-500/10 text-orange-500" },
-  { id: "memberships_subscriptions", name: "Memberships", icon: Users, color: "bg-teal-500/10 text-teal-500" },
-  { id: "other", name: "Others", icon: FolderOpen, color: "bg-gray-500/10 text-gray-500" },
+  { 
+    id: "government_legal", 
+    name: "🧾 Government & Legal Renewals", 
+    icon: Building2, 
+    color: "bg-blue-500/10 text-blue-500",
+    types: ["passport_renewal", "drivers_license", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "voting_registration"]
+  },
+  { 
+    id: "financial_utility", 
+    name: "🏦 Financial & Utility Renewals", 
+    icon: Receipt, 
+    color: "bg-green-500/10 text-green-500",
+    types: ["credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card"]
+  },
+  { 
+    id: "personal_productivity", 
+    name: "🧠 Personal Life & Productivity", 
+    icon: Heart, 
+    color: "bg-pink-500/10 text-pink-500",
+    types: ["health_checkup", "medication_refill", "pet_vaccination", "fitness_membership", "library_book", "warranty", "home_maintenance"]
+  },
+  { 
+    id: "work_education", 
+    name: "🧑‍💼 Work & Education", 
+    icon: GraduationCap, 
+    color: "bg-indigo-500/10 text-indigo-500",
+    types: ["professional_license", "training_certificate", "software_license", "student_visa", "course_registration"]
+  },
+  { 
+    id: "family_shared", 
+    name: "🏠 Family & Shared Renewals", 
+    icon: Users, 
+    color: "bg-amber-500/10 text-amber-500",
+    types: ["children_documents", "school_enrollment", "family_insurance", "joint_subscription", "pet_care", "property_lease"]
+  },
+  { 
+    id: "digital_security", 
+    name: "💻 Digital & Security Renewals", 
+    icon: Shield, 
+    color: "bg-purple-500/10 text-purple-500",
+    types: ["domain_name", "web_hosting", "cloud_storage", "device_warranty", "password_security"]
+  },
+  { 
+    id: "other", 
+    name: "Other", 
+    icon: FolderOpen, 
+    color: "bg-gray-500/10 text-gray-500",
+    types: ["other"]
+  },
 ];
 
 export default function Documents() {
@@ -100,7 +138,10 @@ export default function Documents() {
 
     // Type filter
     if (filterType !== "all") {
-      filtered = filtered.filter(doc => doc.document_type === filterType);
+      const category = categories.find(c => c.id === filterType);
+      if (category) {
+        filtered = filtered.filter(doc => category.types.includes(doc.document_type));
+      }
     }
 
     // Status filter
@@ -160,13 +201,19 @@ export default function Documents() {
   };
 
   const getCategoryCount = (categoryId: string) => {
-    return documents.filter(doc => doc.document_type === categoryId).length;
+    const category = categories.find(c => c.id === categoryId);
+    if (!category) return 0;
+    return documents.filter(doc => category.types.includes(doc.document_type)).length;
   };
 
   const handleCategoryClick = (categoryId: string) => {
-    setFilterType(categoryId);
-    setShowCategories(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const category = categories.find(c => c.id === categoryId);
+    if (category) {
+      // Set filter to show all documents of this main category
+      setFilterType(categoryId);
+      setShowCategories(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const getStatusBadge = (expiryDate: string) => {
@@ -238,17 +285,11 @@ export default function Documents() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="government_documents">Government Documents</SelectItem>
-                <SelectItem value="legal_documents">Legal Documents</SelectItem>
-                <SelectItem value="immigration_documents">Immigration Documents</SelectItem>
-                <SelectItem value="license_certification">License & Certification</SelectItem>
-                <SelectItem value="insurance_policies">Insurance Policies</SelectItem>
-                <SelectItem value="billing_payments">Billing & Payments</SelectItem>
-                <SelectItem value="medical_documents">Medical Documents</SelectItem>
-                <SelectItem value="education">Education</SelectItem>
-                <SelectItem value="tickets_fines">Tickets & Fines</SelectItem>
-                <SelectItem value="memberships_subscriptions">Memberships</SelectItem>
-                <SelectItem value="other">Others</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             

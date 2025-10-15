@@ -16,19 +16,7 @@ import { z } from "zod";
 
 const documentSchema = z.object({
   name: z.string().min(1, "Document name is required"),
-  document_type: z.enum([
-    "government_documents",
-    "legal_documents", 
-    "immigration_documents",
-    "license_certification",
-    "insurance_policies",
-    "billing_payments",
-    "medical_documents",
-    "education",
-    "tickets_fines",
-    "memberships_subscriptions",
-    "other"
-  ]),
+  document_type: z.string().min(1, "Document type is required"),
   issuing_authority: z.string().optional(),
   expiry_date: z.string().min(1, "Expiry date is required"),
   renewal_period_days: z.number().min(1, "Renewal period must be at least 1 day").max(365, "Renewal period cannot exceed 365 days"),
@@ -284,22 +272,46 @@ export default function EditDocument() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select document type" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="government_documents">Government Documents</SelectItem>
-                    <SelectItem value="legal_documents">Legal Documents</SelectItem>
-                    <SelectItem value="immigration_documents">Immigration Documents</SelectItem>
-                    <SelectItem value="license_certification">License and Certification</SelectItem>
-                    <SelectItem value="insurance_policies">Insurance Policies</SelectItem>
-                    <SelectItem value="billing_payments">Billing and Payments</SelectItem>
-                    <SelectItem value="medical_documents">
-                      Medical Documents/Appointments <Badge variant="secondary" className="ml-2">Coming Soon</Badge>
-                    </SelectItem>
-                    <SelectItem value="education">
-                      Education <Badge variant="secondary" className="ml-2">Coming Soon</Badge>
-                    </SelectItem>
-                    <SelectItem value="tickets_fines">Tickets and Fines</SelectItem>
-                    <SelectItem value="memberships_subscriptions">Memberships/Subscriptions</SelectItem>
-                    <SelectItem value="other">Others</SelectItem>
+                  <SelectContent className="max-h-80">
+                    <SelectItem value="passport_renewal">Passport Renewal</SelectItem>
+                    <SelectItem value="drivers_license">Driver's License / ID Card</SelectItem>
+                    <SelectItem value="vehicle_registration">Vehicle Registration / Insurance</SelectItem>
+                    <SelectItem value="health_card">Health Card Renewal</SelectItem>
+                    <SelectItem value="work_permit_visa">Work Permit / Visa / Study Permit</SelectItem>
+                    <SelectItem value="permanent_residency">Permanent Residency Renewal</SelectItem>
+                    <SelectItem value="business_license">Business License & Professional Certificate</SelectItem>
+                    <SelectItem value="tax_filing">Tax Filing Reminder</SelectItem>
+                    <SelectItem value="voting_registration">Voting Registration Check</SelectItem>
+                    <SelectItem value="credit_card">Credit Card Renewal / Expiry</SelectItem>
+                    <SelectItem value="insurance_policy">Insurance Policy</SelectItem>
+                    <SelectItem value="utility_bills">Utility Bills</SelectItem>
+                    <SelectItem value="loan_payment">Loan / EMI Payment</SelectItem>
+                    <SelectItem value="subscription">Subscription Renewal</SelectItem>
+                    <SelectItem value="bank_card">Bank Card / Debit Card</SelectItem>
+                    <SelectItem value="health_checkup">Health Checkup / Dentist Appointment</SelectItem>
+                    <SelectItem value="medication_refill">Medication Refill</SelectItem>
+                    <SelectItem value="pet_vaccination">Pet Vaccination / License</SelectItem>
+                    <SelectItem value="fitness_membership">Fitness Membership</SelectItem>
+                    <SelectItem value="library_book">Library Book Return</SelectItem>
+                    <SelectItem value="warranty">Warranty Expiration</SelectItem>
+                    <SelectItem value="home_maintenance">Home Maintenance</SelectItem>
+                    <SelectItem value="professional_license">Professional License</SelectItem>
+                    <SelectItem value="training_certificate">Training Certificate</SelectItem>
+                    <SelectItem value="software_license">Software License</SelectItem>
+                    <SelectItem value="student_visa">Student Visa / Study Permit</SelectItem>
+                    <SelectItem value="course_registration">Course Registration</SelectItem>
+                    <SelectItem value="children_documents">Children's Passport / ID</SelectItem>
+                    <SelectItem value="school_enrollment">School Enrollment / Fee</SelectItem>
+                    <SelectItem value="family_insurance">Family Insurance</SelectItem>
+                    <SelectItem value="joint_subscription">Joint Subscription</SelectItem>
+                    <SelectItem value="pet_care">Pet Care Renewal</SelectItem>
+                    <SelectItem value="property_lease">Property Lease</SelectItem>
+                    <SelectItem value="domain_name">Domain Name</SelectItem>
+                    <SelectItem value="web_hosting">Website Hosting / SSL</SelectItem>
+                    <SelectItem value="cloud_storage">Cloud Storage</SelectItem>
+                    <SelectItem value="device_warranty">Device Warranty</SelectItem>
+                    <SelectItem value="password_security">Password Change / Security Audit</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-sm text-muted-foreground">
