@@ -265,11 +265,19 @@ export default function Profile() {
           </Dialog>
         </SettingsSection>
 
-        {/* Profile Information Section */}
-        <SettingsSection title="Profile Information">
-          <div className="p-4 space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-3 flex-1">
+        {/* Account Settings Section */}
+        <SettingsSection title="Account Settings">
+          <Dialog>
+            <DialogTrigger asChild>
+              <button className="w-full">
+                <SettingsItem icon={User} title="Profile Information" />
+              </button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Profile Information</DialogTitle>
+              </DialogHeader>
+              <div className="pt-4 space-y-4">
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Display Name</p>
                   <p className="text-sm font-medium text-foreground">
@@ -288,70 +296,66 @@ export default function Profile() {
                     {user?.email}
                   </p>
                 </div>
-              </div>
-              <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <User className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Edit Profile</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 pt-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="display_name">Display Name</Label>
-                      <Input
-                        id="display_name"
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder="Enter your display name"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="country">Country</Label>
-                      <Select value={country} onValueChange={setCountry}>
-                        <SelectTrigger id="country">
-                          <SelectValue placeholder="Select your country" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COUNTRIES.map((countryName) => (
-                            <SelectItem key={countryName} value={countryName}>
-                              {countryName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        value={user?.email || ""}
-                        disabled
-                        className="bg-muted"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Email cannot be changed
-                      </p>
-                    </div>
-
-                    <Button onClick={updateProfile} disabled={saving} className="w-full">
-                      {saving ? "Saving..." : "Save Changes"}
+                <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full">
+                      <User className="h-4 w-4 mr-2" />
+                      Edit Profile
                     </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-        </SettingsSection>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Edit Profile</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="display_name">Display Name</Label>
+                        <Input
+                          id="display_name"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          placeholder="Enter your display name"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="country">Country</Label>
+                        <Select value={country} onValueChange={setCountry}>
+                          <SelectTrigger id="country">
+                            <SelectValue placeholder="Select your country" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COUNTRIES.map((countryName) => (
+                              <SelectItem key={countryName} value={countryName}>
+                                {countryName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-        {/* Account Settings Section */}
-        <SettingsSection title="Account Settings">
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                          id="email"
+                          value={user?.email || ""}
+                          disabled
+                          className="bg-muted"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Email cannot be changed
+                        </p>
+                      </div>
+
+                      <Button onClick={updateProfile} disabled={saving} className="w-full">
+                        {saving ? "Saving..." : "Save Changes"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <Dialog>
             <DialogTrigger asChild>
