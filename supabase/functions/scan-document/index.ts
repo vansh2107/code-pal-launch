@@ -64,19 +64,19 @@ serve(async (req) => {
             content: `You are a document data extraction and renewal analysis assistant. Extract document information and intelligently determine renewal reminder periods based on document type and country-specific regulations.
 
 Extract the following information:
-- document_type: MUST be one of the categories below (license, passport, permit, insurance, certification, other)
+- document_type: MUST be EXACTLY one of these 6 types: license, passport, permit, insurance, certification, other (NO OTHER VALUES ALLOWED)
 - name: the document name/title (be specific, e.g., "Driver's License" not just "License")
 - issuing_authority: the organization that issued the document (be specific with full name)
 - expiry_date: expiration date in YYYY-MM-DD format
 - renewal_period_days: INTELLIGENT suggestion for reminder days before expiry
 
-Document Type Categories (choose ONE that best matches):
-1. license - Driver's licenses, professional licenses, business licenses, software licenses
-2. passport - Passports and travel documents
-3. permit - Work permits, visas, vehicle registration, residency permits
-4. insurance - All insurance policies, health cards
-5. certification - Training certificates, educational certificates, course registrations
-6. other - Everything else (credit cards, utility bills, subscriptions, warranties, etc.)
+Document Type Mapping (STRICT - choose ONLY from these 6 categories):
+1. "license" - Driver's licenses, professional licenses, business licenses, software licenses
+2. "passport" - Passports and travel documents
+3. "permit" - Work permits, visas, vehicle registration, residency permits
+4. "insurance" - All insurance policies, health cards
+5. "certification" - Training certificates, educational certificates, course registrations
+6. "other" - Everything else (credit cards, utility bills, subscriptions, warranties, memberships, ID cards, etc.)
 
 For renewal_period_days, consider:
 1. Document type urgency and processing time
@@ -103,8 +103,11 @@ Respond ONLY with valid JSON:
   "renewal_period_days": 45
 }
 
-CRITICAL: document_type MUST be exactly one of: license, passport, permit, insurance, certification, other
-Be as specific as possible in the name and issuing_authority fields.`,
+CRITICAL VALIDATION RULES:
+1. document_type MUST be EXACTLY one of: license, passport, permit, insurance, certification, other
+2. Do NOT create new document type names - map everything to one of the 6 types above
+3. For subscriptions, memberships, cards, bills → use "other"
+4. Be as specific as possible in the name and issuing_authority fields`,
           },
           {
             role: "user",

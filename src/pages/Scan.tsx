@@ -139,9 +139,20 @@ export default function Scan() {
       if (error) throw error;
 
       if (data.success && data.data) {
+        // Validate and map document type to ensure it matches database enum
+        const validTypes = ['license', 'passport', 'permit', 'insurance', 'certification', 'other'];
+        let documentType = data.data.document_type;
+        
+        // If AI returned an invalid type, map it to 'other'
+        if (!validTypes.includes(documentType)) {
+          console.warn(`Invalid document type "${documentType}" returned, mapping to "other"`);
+          documentType = 'other';
+        }
+        
         setFormData(prev => ({
           ...prev,
           ...data.data,
+          document_type: documentType,
         }));
         toast({
           title: "Document Scanned",
