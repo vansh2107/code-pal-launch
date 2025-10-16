@@ -116,13 +116,14 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
     const commonWords = [
       'card', 'original', 'copy', 'self', 'attested', 'not', 'older', 'than', 
       'months', 'from', 'another', 'different', 'within', 'same', 'recent',
-      'document', 'valid', 'current', 'issued', 'certified', 'proof'
+      'document', 'valid', 'current', 'issued', 'certified', 'proof', 'and',
+      'with', 'the', 'for', 'to', 'of', 'in', 'on', 'at', 'by', 'a', 'an'
     ];
     const keywords = reqLower
       .split(/\s+/)
-      .filter(word => word.length > 2 && !commonWords.includes(word));
+      .filter(word => word.length > 3 && !commonWords.includes(word));
     
-    // Find best matching document with improved confidence scoring
+    // Find best matching document with strict confidence scoring
     let bestMatch = null;
     let highestScore = 0;
     
@@ -133,30 +134,23 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
       const combinedText = `${docName} ${docType} ${docAuthority}`;
       let score = 0;
       
-      // Enhanced document type matches (highest priority - exact matches)
+      // Enhanced document type matches (highest priority - exact matches only)
       const exactMatches = [
-        { req: ['passport'], type: 'passport', score: 15 },
-        { req: ['driving', 'driver', 'licence', 'license', 'dl'], type: 'license', score: 15 },
-        { req: ['pan', 'permanent account'], type: 'other', name: 'pan', score: 15 },
-        { req: ['aadhaar', 'aadhar', 'uid'], type: 'other', name: ['aadhaar', 'aadhar'], score: 15 },
-        { req: ['voter', 'election'], type: 'other', name: 'voter', score: 14 },
-        { req: ['bank statement', 'bank account'], type: 'other', name: 'bank', score: 13 },
-        { req: ['utility bill', 'electricity', 'water bill', 'gas bill'], type: 'other', name: ['utility', 'electricity', 'water', 'gas'], score: 12 },
-        { req: ['insurance'], type: 'insurance', score: 14 },
-        { req: ['birth certificate'], type: 'certification', name: 'birth', score: 15 },
-        { req: ['marriage certificate'], type: 'certification', name: 'marriage', score: 15 },
-        { req: ['degree', 'diploma', 'certificate'], type: 'certification', score: 13 },
-        { req: ['visa', 'work permit'], type: 'permit', score: 14 },
-        { req: ['registration', 'vehicle'], type: 'permit', name: ['vehicle', 'registration'], score: 13 },
-        { req: ['property', 'deed', 'title'], type: 'other', name: 'property', score: 13 },
-        { req: ['tax', 'itr', 'return'], type: 'other', name: 'tax', score: 12 },
-        { req: ['salary', 'payslip', 'pay slip'], type: 'other', name: ['salary', 'pay'], score: 12 },
-        { req: ['income', 'proof'], type: 'other', name: 'income', score: 11 },
-        { req: ['address proof', 'residence'], type: 'other', name: 'address', score: 11 },
-        { req: ['id card', 'identity'], type: 'other', name: ['id', 'identity'], score: 12 },
+        { req: ['passport'], type: 'passport', score: 20, requireBoth: true },
+        { req: ['driving', 'driver', 'licence', 'license'], type: 'license', score: 20, requireBoth: true },
+        { req: ['pan', 'permanent account number'], type: 'other', name: 'pan', score: 20, requireBoth: true },
+        { req: ['aadhaar', 'aadhar'], type: 'other', name: ['aadhaar', 'aadhar'], score: 20, requireBoth: true },
+        { req: ['voter'], type: 'other', name: 'voter', score: 18, requireBoth: true },
+        { req: ['bank statement'], type: 'other', name: 'bank', score: 18, requireBoth: true },
+        { req: ['utility bill', 'electricity bill', 'water bill'], type: 'other', name: ['utility', 'electricity', 'water'], score: 18, requireBoth: true },
+        { req: ['insurance'], type: 'insurance', score: 18, requireBoth: true },
+        { req: ['birth certificate'], type: 'certification', name: 'birth', score: 20, requireBoth: true },
+        { req: ['marriage certificate'], type: 'certification', name: 'marriage', score: 20, requireBoth: true },
+        { req: ['visa'], type: 'permit', name: 'visa', score: 20, requireBoth: true },
+        { req: ['work permit'], type: 'permit', name: 'work', score: 18, requireBoth: true },
       ];
 
-      // Check for exact matches
+      // Check for exact matches - VERY STRICT
       for (const match of exactMatches) {
         const reqMatches = match.req.some(term => reqLower.includes(term));
         const typeMatches = docType === match.type;
@@ -166,49 +160,15 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
             : docName.includes(match.name) || docAuthority.includes(match.name)
           : true;
 
+        // ONLY match if BOTH type AND name match, or if no name is required
         if (reqMatches && typeMatches && nameMatches) {
           score += match.score;
           break; // Only count best match
-        } else if (reqMatches && typeMatches) {
-          score += match.score * 0.7; // Partial match
-        } else if (reqMatches && nameMatches) {
-          score += match.score * 0.6; // Name match without type
         }
       }
       
-      // Multi-word phrase matching (bonus points)
-      const phrases = [
-        { phrase: 'bank statement', bonus: 5 },
-        { phrase: 'utility bill', bonus: 5 },
-        { phrase: 'address proof', bonus: 5 },
-        { phrase: 'income proof', bonus: 5 },
-        { phrase: 'birth certificate', bonus: 5 },
-        { phrase: 'marriage certificate', bonus: 5 },
-      ];
-      
-      for (const { phrase, bonus } of phrases) {
-        if (reqLower.includes(phrase) && combinedText.includes(phrase)) {
-          score += bonus;
-        }
-      }
-      
-      // Keyword matching with improved weighting
-      const matchedKeywords = keywords.filter(keyword => {
-        // Escape special regex characters
-        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Exact word boundary matching
-        const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'i');
-        return regex.test(combinedText);
-      });
-      
-      // Progressive scoring: more matches = higher confidence
-      if (matchedKeywords.length >= 3) {
-        score += matchedKeywords.length * 3;
-      } else if (matchedKeywords.length >= 2) {
-        score += matchedKeywords.length * 2;
-      } else if (matchedKeywords.length === 1) {
-        score += 1;
-      }
+      // Don't use keyword matching - it's too unreliable
+      // Only rely on exact document type and name matches above
       
       // Penalty for documents from DocVault (they shouldn't match checklists)
       if (doc.issuing_authority === 'DocVault') {
@@ -222,9 +182,9 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
       }
     }
     
-    // Only return match if confidence is high enough (increased threshold)
+    // Only return match if confidence is very high (strict threshold)
     console.log(`Best match for "${requirement}": ${bestMatch?.name} (score: ${highestScore})`);
-    return highestScore >= 12 ? bestMatch : null;
+    return highestScore >= 18 ? bestMatch : null;
   };
 
   const handleCheckChange = async (categoryIndex: number, itemId: string, checked: boolean) => {
