@@ -119,7 +119,7 @@ export default function Dashboard() {
 
         {/* Expiry Timeline */}
         <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
-          <ExpiryTimeline documents={documents} />
+          <ExpiryTimeline documents={documents.filter(doc => doc.issuing_authority !== 'DocVault')} />
         </div>
 
         {/* Quick Action */}
