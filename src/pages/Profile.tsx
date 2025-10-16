@@ -265,8 +265,8 @@ export default function Profile() {
           </Dialog>
         </SettingsSection>
 
-        {/* Account Settings Section */}
-        <SettingsSection title="Account Settings">
+        {/* Profile Information Section */}
+        <SettingsSection title="Profile Information">
           <div className="p-4 space-y-4">
             <div className="flex items-start justify-between">
               <div className="space-y-3 flex-1">
@@ -348,6 +348,10 @@ export default function Profile() {
               </Dialog>
             </div>
           </div>
+        </SettingsSection>
+
+        {/* Account Settings Section */}
+        <SettingsSection title="Account Settings">
 
           <Dialog>
             <DialogTrigger asChild>
