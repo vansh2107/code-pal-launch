@@ -267,62 +267,87 @@ export default function Profile() {
 
         {/* Account Settings Section */}
         <SettingsSection title="Account Settings">
-          <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
-            <DialogTrigger asChild>
-              <button className="w-full">
-                <SettingsItem icon={User} title="Profile Information" />
-              </button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Edit Profile</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="display_name">Display Name</Label>
-                  <Input
-                    id="display_name"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Enter your display name"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="country">Country</Label>
-                  <Select value={country} onValueChange={setCountry}>
-                    <SelectTrigger id="country">
-                      <SelectValue placeholder="Select your country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COUNTRIES.map((countryName) => (
-                        <SelectItem key={countryName} value={countryName}>
-                          {countryName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    value={user?.email || ""}
-                    disabled
-                    className="bg-muted"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Email cannot be changed
+          <div className="p-4 space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="space-y-3 flex-1">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Display Name</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {profile?.display_name || "Not set"}
                   </p>
                 </div>
-
-                <Button onClick={updateProfile} disabled={saving} className="w-full">
-                  {saving ? "Saving..." : "Save Changes"}
-                </Button>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Country</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {profile?.country || "Not set"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Email</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {user?.email}
+                  </p>
+                </div>
               </div>
-            </DialogContent>
-          </Dialog>
+              <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <User className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Profile</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="display_name">Display Name</Label>
+                      <Input
+                        id="display_name"
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        placeholder="Enter your display name"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="country">Country</Label>
+                      <Select value={country} onValueChange={setCountry}>
+                        <SelectTrigger id="country">
+                          <SelectValue placeholder="Select your country" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COUNTRIES.map((countryName) => (
+                            <SelectItem key={countryName} value={countryName}>
+                              {countryName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        value={user?.email || ""}
+                        disabled
+                        className="bg-muted"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Email cannot be changed
+                      </p>
+                    </div>
+
+                    <Button onClick={updateProfile} disabled={saving} className="w-full">
+                      {saving ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
 
           <Dialog>
             <DialogTrigger asChild>
