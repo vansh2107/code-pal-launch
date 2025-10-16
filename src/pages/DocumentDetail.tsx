@@ -337,7 +337,7 @@ export default function DocumentDetail() {
 
         {/* AI Insights and Document History - Only for non-DocVault */}
         {!isDocVault && <DocumentHistory documentId={id!} />}
-        <AIInsights document={document} />
+        {!isDocVault && <AIInsights document={document} />}
       </main>
 
       <BottomNavigation />
