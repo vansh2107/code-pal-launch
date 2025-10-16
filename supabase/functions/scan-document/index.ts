@@ -64,20 +64,19 @@ serve(async (req) => {
             content: `You are a document data extraction and renewal analysis assistant. Extract document information and intelligently determine renewal reminder periods based on document type and country-specific regulations.
 
 Extract the following information:
-- document_type: one of the specific types listed below
-- name: the document name/title
-- issuing_authority: the organization that issued the document
+- document_type: MUST be one of the categories below (license, passport, permit, insurance, certification, other)
+- name: the document name/title (be specific, e.g., "Driver's License" not just "License")
+- issuing_authority: the organization that issued the document (be specific with full name)
 - expiry_date: expiration date in YYYY-MM-DD format
 - renewal_period_days: INTELLIGENT suggestion for reminder days before expiry
 
-Document Types (choose the most specific match):
-Government & Legal: passport_renewal, drivers_license, vehicle_registration, health_card, work_permit_visa, permanent_residency, business_license, tax_filing, voting_registration
-Financial & Utility: credit_card, insurance_policy, utility_bills, loan_payment, subscription, bank_card
-Personal & Productivity: health_checkup, medication_refill, pet_vaccination, fitness_membership, library_book, warranty, home_maintenance
-Work & Education: professional_license, training_certificate, software_license, student_visa, course_registration
-Family & Shared: children_documents, school_enrollment, family_insurance, joint_subscription, pet_care, property_lease
-Digital & Security: domain_name, web_hosting, cloud_storage, device_warranty, password_security
-Other: other (only if none of the above fit)
+Document Type Categories (choose ONE that best matches):
+1. license - Driver's licenses, professional licenses, business licenses, software licenses
+2. passport - Passports and travel documents
+3. permit - Work permits, visas, vehicle registration, residency permits
+4. insurance - All insurance policies, health cards
+5. certification - Training certificates, educational certificates, course registrations
+6. other - Everything else (credit cards, utility bills, subscriptions, warranties, etc.)
 
 For renewal_period_days, consider:
 1. Document type urgency and processing time
@@ -97,12 +96,15 @@ ${safeCountry ? `User is in: ${safeCountry}. Consider this country's specific re
 
 Respond ONLY with valid JSON:
 {
-  "document_type": "drivers_license",
-  "name": "Driver's License",
-  "issuing_authority": "Department of Motor Vehicles",
+  "document_type": "license",
+  "name": "Driver's License - California",
+  "issuing_authority": "California Department of Motor Vehicles",
   "expiry_date": "2025-12-31",
   "renewal_period_days": 45
-}`,
+}
+
+CRITICAL: document_type MUST be exactly one of: license, passport, permit, insurance, certification, other
+Be as specific as possible in the name and issuing_authority fields.`,
           },
           {
             role: "user",
@@ -157,11 +159,80 @@ Respond ONLY with valid JSON:
       throw new Error("No JSON found in response");
     }
 
-    const extractedData = JSON.parse(jsonMatch[0]);
+const extractedData = JSON.parse(jsonMatch[0]);
     console.log("Extracted data:", extractedData);
 
+    // Map AI-returned document types to valid database enums
+    const documentTypeMap: { [key: string]: string } = {
+      // License types
+      'drivers_license': 'license',
+      'driving_license': 'license',
+      'professional_license': 'license',
+      'software_license': 'license',
+      'business_license': 'license',
+      
+      // Passport types
+      'passport': 'passport',
+      'passport_renewal': 'passport',
+      
+      // Permit types
+      'permit': 'permit',
+      'work_permit': 'permit',
+      'work_permit_visa': 'permit',
+      'permanent_residency': 'permit',
+      'vehicle_registration': 'permit',
+      
+      // Insurance types
+      'insurance': 'insurance',
+      'insurance_policy': 'insurance',
+      'health_card': 'insurance',
+      'family_insurance': 'insurance',
+      
+      // Certification types
+      'certification': 'certification',
+      'training_certificate': 'certification',
+      'course_registration': 'certification',
+      'student_visa': 'certification',
+      
+      // Other catch-all
+      'other': 'other',
+      'credit_card': 'other',
+      'utility_bills': 'other',
+      'loan_payment': 'other',
+      'subscription': 'other',
+      'bank_card': 'other',
+      'health_checkup': 'other',
+      'medication_refill': 'other',
+      'pet_vaccination': 'other',
+      'fitness_membership': 'other',
+      'library_book': 'other',
+      'warranty': 'other',
+      'home_maintenance': 'other',
+      'tax_filing': 'other',
+      'voting_registration': 'other',
+      'children_documents': 'other',
+      'school_enrollment': 'other',
+      'joint_subscription': 'other',
+      'pet_care': 'other',
+      'property_lease': 'other',
+      'domain_name': 'other',
+      'web_hosting': 'other',
+      'cloud_storage': 'other',
+      'device_warranty': 'other',
+      'password_security': 'other',
+    };
+
+    // Map the document type to valid enum, default to 'other'
+    const mappedType = documentTypeMap[extractedData.document_type] || 'other';
+    console.log(`Mapped document type: ${extractedData.document_type} -> ${mappedType}`);
+
+    const mappedData = {
+      ...extractedData,
+      document_type: mappedType
+    };
+
     return new Response(
-      JSON.stringify({ success: true, data: extractedData }),
+      JSON.stringify({ success: true, data: mappedData }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

@@ -112,43 +112,106 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
   const findMatchingDocument = (requirement: string) => {
     const reqLower = requirement.toLowerCase();
     
-    // Extract meaningful keywords (excluding common words)
-    const commonWords = ['card', 'original', 'copy', 'self', 'attested', 'not', 'older', 'than', 'months', 'from', 'another', 'different', 'within', 'same'];
+    // Extract meaningful keywords (excluding common filler words)
+    const commonWords = [
+      'card', 'original', 'copy', 'self', 'attested', 'not', 'older', 'than', 
+      'months', 'from', 'another', 'different', 'within', 'same', 'recent',
+      'document', 'valid', 'current', 'issued', 'certified', 'proof'
+    ];
     const keywords = reqLower
       .split(/\s+/)
-      .filter(word => word.length > 3 && !commonWords.includes(word));
+      .filter(word => word.length > 2 && !commonWords.includes(word));
     
-    // Find best matching document with confidence scoring
+    // Find best matching document with improved confidence scoring
     let bestMatch = null;
     let highestScore = 0;
     
     for (const doc of userDocuments) {
       const docName = doc.name.toLowerCase();
       const docType = doc.document_type.toLowerCase();
+      const docAuthority = (doc.issuing_authority || '').toLowerCase();
+      const combinedText = `${docName} ${docType} ${docAuthority}`;
       let score = 0;
       
-      // Specific document type matches (highest priority)
-      if (reqLower.includes('passport') && docType === 'passport') score += 10;
-      if (reqLower.includes('pan') && (docName.includes('pan') || docType === 'pan')) score += 10;
-      if (reqLower.includes('aadhaar') || reqLower.includes('aadhar')) {
-        if (docName.includes('aadhaar') || docName.includes('aadhar')) score += 10;
+      // Enhanced document type matches (highest priority - exact matches)
+      const exactMatches = [
+        { req: ['passport'], type: 'passport', score: 15 },
+        { req: ['driving', 'driver', 'licence', 'license', 'dl'], type: 'license', score: 15 },
+        { req: ['pan', 'permanent account'], type: 'other', name: 'pan', score: 15 },
+        { req: ['aadhaar', 'aadhar', 'uid'], type: 'other', name: ['aadhaar', 'aadhar'], score: 15 },
+        { req: ['voter', 'election'], type: 'other', name: 'voter', score: 14 },
+        { req: ['bank statement', 'bank account'], type: 'other', name: 'bank', score: 13 },
+        { req: ['utility bill', 'electricity', 'water bill', 'gas bill'], type: 'other', name: ['utility', 'electricity', 'water', 'gas'], score: 12 },
+        { req: ['insurance'], type: 'insurance', score: 14 },
+        { req: ['birth certificate'], type: 'certification', name: 'birth', score: 15 },
+        { req: ['marriage certificate'], type: 'certification', name: 'marriage', score: 15 },
+        { req: ['degree', 'diploma', 'certificate'], type: 'certification', score: 13 },
+        { req: ['visa', 'work permit'], type: 'permit', score: 14 },
+        { req: ['registration', 'vehicle'], type: 'permit', name: ['vehicle', 'registration'], score: 13 },
+        { req: ['property', 'deed', 'title'], type: 'other', name: 'property', score: 13 },
+        { req: ['tax', 'itr', 'return'], type: 'other', name: 'tax', score: 12 },
+        { req: ['salary', 'payslip', 'pay slip'], type: 'other', name: ['salary', 'pay'], score: 12 },
+        { req: ['income', 'proof'], type: 'other', name: 'income', score: 11 },
+        { req: ['address proof', 'residence'], type: 'other', name: 'address', score: 11 },
+        { req: ['id card', 'identity'], type: 'other', name: ['id', 'identity'], score: 12 },
+      ];
+
+      // Check for exact matches
+      for (const match of exactMatches) {
+        const reqMatches = match.req.some(term => reqLower.includes(term));
+        const typeMatches = docType === match.type;
+        const nameMatches = match.name 
+          ? Array.isArray(match.name) 
+            ? match.name.some(n => docName.includes(n) || docAuthority.includes(n))
+            : docName.includes(match.name) || docAuthority.includes(match.name)
+          : true;
+
+        if (reqMatches && typeMatches && nameMatches) {
+          score += match.score;
+          break; // Only count best match
+        } else if (reqMatches && typeMatches) {
+          score += match.score * 0.7; // Partial match
+        } else if (reqMatches && nameMatches) {
+          score += match.score * 0.6; // Name match without type
+        }
       }
-      if (reqLower.includes('license') || reqLower.includes('licence')) {
-        if (docType === 'license' || docName.includes('license') || docName.includes('licence')) score += 10;
-      }
-      if (reqLower.includes('utility bill') || reqLower.includes('electricity') || reqLower.includes('water')) {
-        if (docName.includes('utility') || docName.includes('electricity') || docName.includes('water') || docName.includes('bill')) score += 8;
-      }
-      if (reqLower.includes('bank') && reqLower.includes('statement')) {
-        if (docName.includes('bank') && docName.includes('statement')) score += 10;
-      }
-      if (reqLower.includes('insurance') && docType === 'insurance') score += 10;
       
-      // Keyword matching (lower priority)
-      const matchedKeywords = keywords.filter(keyword => 
-        docName.includes(keyword) || docType.includes(keyword)
-      );
-      score += matchedKeywords.length * 2;
+      // Multi-word phrase matching (bonus points)
+      const phrases = [
+        { phrase: 'bank statement', bonus: 5 },
+        { phrase: 'utility bill', bonus: 5 },
+        { phrase: 'address proof', bonus: 5 },
+        { phrase: 'income proof', bonus: 5 },
+        { phrase: 'birth certificate', bonus: 5 },
+        { phrase: 'marriage certificate', bonus: 5 },
+      ];
+      
+      for (const { phrase, bonus } of phrases) {
+        if (reqLower.includes(phrase) && combinedText.includes(phrase)) {
+          score += bonus;
+        }
+      }
+      
+      // Keyword matching with improved weighting
+      const matchedKeywords = keywords.filter(keyword => {
+        // Exact word boundary matching
+        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+        return regex.test(combinedText);
+      });
+      
+      // Progressive scoring: more matches = higher confidence
+      if (matchedKeywords.length >= 3) {
+        score += matchedKeywords.length * 3;
+      } else if (matchedKeywords.length >= 2) {
+        score += matchedKeywords.length * 2;
+      } else if (matchedKeywords.length === 1) {
+        score += 1;
+      }
+      
+      // Penalty for documents from DocVault (they shouldn't match checklists)
+      if (doc.issuing_authority === 'DocVault') {
+        score = 0;
+      }
       
       // Track highest scoring match
       if (score > highestScore) {
@@ -157,8 +220,9 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
       }
     }
     
-    // Only return match if confidence is high enough (score >= 8)
-    return highestScore >= 8 ? bestMatch : null;
+    // Only return match if confidence is high enough (increased threshold)
+    console.log(`Best match for "${requirement}": ${bestMatch?.name} (score: ${highestScore})`);
+    return highestScore >= 12 ? bestMatch : null;
   };
 
   const handleCheckChange = async (categoryIndex: number, itemId: string, checked: boolean) => {
