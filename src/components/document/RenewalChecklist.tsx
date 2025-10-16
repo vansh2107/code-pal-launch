@@ -194,8 +194,10 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
       
       // Keyword matching with improved weighting
       const matchedKeywords = keywords.filter(keyword => {
+        // Escape special regex characters
+        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         // Exact word boundary matching
-        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+        const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'i');
         return regex.test(combinedText);
       });
       
