@@ -27,14 +27,14 @@ const categories = [
     name: "🧾 Government & Legal Renewals", 
     icon: Building2, 
     color: "bg-blue-500/10 text-blue-500",
-    types: ["passport_renewal", "drivers_license", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "voting_registration"]
+    types: ["passport", "passport_renewal", "license", "drivers_license", "permit", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "voting_registration"]
   },
   { 
     id: "financial_utility", 
     name: "🏦 Financial & Utility Renewals", 
     icon: Receipt, 
     color: "bg-green-500/10 text-green-500",
-    types: ["credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card"]
+    types: ["insurance", "credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card"]
   },
   { 
     id: "personal_productivity", 
@@ -48,7 +48,7 @@ const categories = [
     name: "🧑‍💼 Work & Education", 
     icon: GraduationCap, 
     color: "bg-indigo-500/10 text-indigo-500",
-    types: ["professional_license", "training_certificate", "software_license", "student_visa", "course_registration"]
+    types: ["certification", "professional_license", "training_certificate", "software_license", "student_visa", "course_registration"]
   },
   { 
     id: "family_shared", 
@@ -235,6 +235,11 @@ export default function Documents() {
 
   const getSubCategoryName = (subTypeId: string): string => {
     const nameMap: Record<string, string> = {
+      passport: "Passport",
+      license: "License",
+      permit: "Permit",
+      insurance: "Insurance",
+      certification: "Certification",
       passport_renewal: "Passport Renewal",
       drivers_license: "Driver's License / ID Card",
       vehicle_registration: "Vehicle Registration / Insurance",
