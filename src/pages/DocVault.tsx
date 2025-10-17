@@ -268,9 +268,6 @@ export default function DocVault() {
                 )}
                 <div className="p-4 space-y-2">
                   <h3 className="font-medium truncate">{doc.name}</h3>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {doc.document_type?.replace(/_/g, " ")}
-                  </p>
                   <p className="text-xs text-muted-foreground">
                     Added: {format(new Date(doc.created_at), "MMM dd, yyyy")}
                   </p>

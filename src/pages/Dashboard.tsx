@@ -55,9 +55,12 @@ export default function Dashboard() {
       const thirtyDaysFromNow = new Date();
       thirtyDaysFromNow.setDate(today.getDate() + 30);
 
-      const total = documents?.length || 0;
-      const expired = documents?.filter(doc => new Date(doc.expiry_date) < today).length || 0;
-      const expiringSoon = documents?.filter(doc => {
+      // Filter out DocVault documents from stats
+      const nonDocVaultDocs = documents?.filter(doc => doc.issuing_authority !== 'DocVault') || [];
+      
+      const total = nonDocVaultDocs.length;
+      const expired = nonDocVaultDocs.filter(doc => new Date(doc.expiry_date) < today).length || 0;
+      const expiringSoon = nonDocVaultDocs.filter(doc => {
         const expiryDate = new Date(doc.expiry_date);
         return expiryDate >= today && expiryDate <= thirtyDaysFromNow;
       }).length || 0;
@@ -149,24 +152,31 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {recentDocuments.map((doc, index) => (
-                    <Link
-                      key={doc.id}
-                      to={`/document/${doc.id}`}
-                      className="block p-4 border border-border rounded-xl hover:border-primary/50 smooth hover:shadow-lg"
-                      style={{ animationDelay: `${0.1 * index}s` }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-foreground mb-1">{doc.name}</h3>
-                          <p className="text-sm text-muted-foreground capitalize">
-                            {doc.document_type.replace('_', ' ')} • Expires {new Date(doc.expiry_date).toLocaleDateString()}
-                          </p>
+                  {recentDocuments.map((doc, index) => {
+                    const isDocVault = doc.issuing_authority === 'DocVault';
+                    return (
+                      <Link
+                        key={doc.id}
+                        to={`/document/${doc.id}`}
+                        className="block p-4 border border-border rounded-xl hover:border-primary/50 smooth hover:shadow-lg"
+                        style={{ animationDelay: `${0.1 * index}s` }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-foreground mb-1">{doc.name}</h3>
+                            <p className="text-sm text-muted-foreground capitalize">
+                              {isDocVault ? (
+                                `Added ${new Date(doc.created_at).toLocaleDateString()}`
+                              ) : (
+                                `${doc.document_type.replace('_', ' ')} • Expires ${new Date(doc.expiry_date).toLocaleDateString()}`
+                              )}
+                            </p>
+                          </div>
+                          {!isDocVault && getStatusBadge(doc.expiry_date)}
                         </div>
-                        {getStatusBadge(doc.expiry_date)}
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
