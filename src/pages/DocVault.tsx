@@ -167,16 +167,16 @@ export default function DocVault() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-24 overflow-x-hidden">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-gradient-to-b from-primary/10 to-background backdrop-blur-xl border-b border-border/50">
-        <div className="container py-6">
+        <div className="container py-6 px-4">
           <h1 className="text-3xl font-bold mb-2">DocVault</h1>
           <p className="text-muted-foreground">Your secure document storage</p>
         </div>
       </div>
 
-      <div className="container py-6 space-y-6">
+      <div className="container py-6 px-4 space-y-6 max-w-7xl mx-auto">
         {/* Search and Actions */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -232,20 +232,20 @@ export default function DocVault() {
 
         {/* Documents Grid */}
         {filteredDocuments.length === 0 ? (
-          <Card className="p-12 text-center">
+          <Card className="p-8 text-center">
             <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-lg font-medium mb-2">No documents yet</h3>
-            <p className="text-muted-foreground mb-4">
+            <p className="text-muted-foreground mb-4 text-sm">
               Start by uploading or scanning your first document
             </p>
-            <div className="flex gap-2 justify-center">
-              <Button onClick={startCamera} variant="outline">
+            <div className="flex flex-col sm:flex-row gap-2 justify-center max-w-sm mx-auto">
+              <Button onClick={startCamera} variant="outline" className="w-full sm:w-auto">
                 <Camera className="h-4 w-4 mr-2" />
-                Scan Document
+                Scan
               </Button>
-              <Button onClick={() => fileInputRef.current?.click()} variant="default">
+              <Button onClick={() => fileInputRef.current?.click()} variant="default" className="w-full sm:w-auto">
                 <Upload className="h-4 w-4 mr-2" />
-                Upload Document
+                Upload
               </Button>
             </div>
           </Card>
