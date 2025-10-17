@@ -107,7 +107,8 @@ export default function DocVault() {
           document_type: "other",
           image_path: fileName,
           issuing_authority: "DocVault",
-          expiry_date: format(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"),
+          expiry_date: "9999-12-31", // Far future date for vault documents (no expiry)
+          renewal_period_days: 0,
         });
 
       if (insertError) throw insertError;
@@ -146,7 +147,8 @@ export default function DocVault() {
           document_type: "other",
           image_path: fileName,
           issuing_authority: "DocVault",
-          expiry_date: format(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"),
+          expiry_date: "9999-12-31", // Far future date for vault documents (no expiry)
+          renewal_period_days: 0,
         });
 
       if (insertError) throw insertError;
@@ -215,22 +217,10 @@ export default function DocVault() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <Card className="p-4">
             <div className="text-2xl font-bold">{documents.length}</div>
             <div className="text-xs text-muted-foreground">Total Documents</div>
-          </Card>
-          <Card className="p-4">
-            <div className="text-2xl font-bold">
-              {documents.filter((d) => d.expiry_date && new Date(d.expiry_date) < new Date()).length}
-            </div>
-            <div className="text-xs text-muted-foreground">Expired</div>
-          </Card>
-          <Card className="p-4">
-            <div className="text-2xl font-bold">
-              {documents.filter((d) => d.expiry_date && new Date(d.expiry_date) > new Date()).length}
-            </div>
-            <div className="text-xs text-muted-foreground">Active</div>
           </Card>
           <Card className="p-4">
             <div className="text-2xl font-bold">
@@ -281,11 +271,6 @@ export default function DocVault() {
                   <p className="text-xs text-muted-foreground capitalize">
                     {doc.document_type?.replace(/_/g, " ")}
                   </p>
-                  {doc.expiry_date && (
-                    <p className="text-xs text-muted-foreground">
-                      Expires: {format(new Date(doc.expiry_date), "MMM dd, yyyy")}
-                    </p>
-                  )}
                   <p className="text-xs text-muted-foreground">
                     Added: {format(new Date(doc.created_at), "MMM dd, yyyy")}
                   </p>
