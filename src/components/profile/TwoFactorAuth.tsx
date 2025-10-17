@@ -59,21 +59,33 @@ export function TwoFactorAuth() {
   const enrollMFA = async () => {
     setEnrolling(true);
     try {
-      // Check if user already has an authenticator app factor
-      const existingFactor = factors.find(f => 
-        f.friendly_name === 'Authenticator App' && f.status === 'verified'
+      // Check if user already has a verified authenticator app factor
+      const verifiedFactor = factors.find(f => 
+        f.status === 'verified'
       );
       
-      if (existingFactor) {
+      if (verifiedFactor) {
         toast({
           title: "2FA Already Enabled",
           description: "You already have an authenticator app set up for this account",
           variant: "destructive",
         });
         setEnrolling(false);
-        await loadFactors(); // Refresh the factors list
         return;
       }
+
+      // Clear any unverified factors before enrolling new one
+      const unverifiedFactors = factors.filter(f => f.status !== 'verified');
+      for (const factor of unverifiedFactors) {
+        try {
+          await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        } catch (e) {
+          console.warn('Failed to clear unverified factor:', e);
+        }
+      }
+
+      // Refresh factors list after cleanup
+      await loadFactors();
 
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
@@ -81,17 +93,6 @@ export function TwoFactorAuth() {
       });
 
       if (error) {
-        // Handle specific error cases
-        if (error.message?.includes('already exists')) {
-          toast({
-            title: "2FA Already Enabled",
-            description: "You already have an authenticator app set up for this account",
-            variant: "destructive",
-          });
-          await loadFactors(); // Refresh the factors list
-          setEnrolling(false);
-          return;
-        }
         throw error;
       }
 
