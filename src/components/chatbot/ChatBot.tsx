@@ -150,7 +150,7 @@ export function ChatBot() {
       {/* Floating Action Button */}
       <Button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-20 right-4 md:bottom-6 md:right-6 h-12 w-12 md:h-14 md:w-14 rounded-full shadow-lg z-50"
+        className="fixed bottom-28 right-4 md:bottom-6 md:right-6 h-12 w-12 md:h-14 md:w-14 rounded-full shadow-lg z-50"
         size="icon"
       >
         {isOpen ? <X className="h-5 w-5 md:h-6 md:w-6" /> : <MessageCircle className="h-5 w-5 md:h-6 md:w-6" />}
@@ -158,7 +158,7 @@ export function ChatBot() {
 
       {/* Chat Window */}
       {isOpen && (
-        <Card className="fixed inset-x-2 bottom-[88px] md:bottom-6 md:right-6 md:left-auto md:w-96 h-[calc(100vh-180px)] md:h-[500px] max-h-[500px] shadow-2xl z-50 flex flex-col">
+        <Card className="fixed inset-x-2 bottom-[120px] md:bottom-6 md:right-6 md:left-auto md:w-96 h-[calc(100vh-200px)] md:h-[500px] max-h-[500px] shadow-2xl z-50 flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-3 md:p-4 border-b bg-primary/5">
             <div className="flex items-center gap-2">
