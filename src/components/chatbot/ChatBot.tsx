@@ -160,7 +160,7 @@ export function ChatBot() {
       {isOpen && (
         <Card className="fixed bottom-24 right-6 w-96 h-[600px] shadow-2xl z-50 flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center justify-between p-4 border-b bg-primary/5">
             <div className="flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-primary" />
               <h3 className="font-semibold">DocuTrack Assistant</h3>
@@ -169,8 +169,9 @@ export function ChatBot() {
               variant="ghost"
               size="icon"
               onClick={() => setIsOpen(false)}
+              className="hover:bg-destructive/10"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </Button>
           </div>
 
