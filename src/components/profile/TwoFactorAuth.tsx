@@ -56,6 +56,33 @@ export function TwoFactorAuth() {
     }
   };
 
+  const clearAllFactors = async () => {
+    try {
+      // Unenroll all existing factors
+      for (const factor of factors) {
+        try {
+          await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        } catch (e) {
+          console.warn('Failed to unenroll factor:', e);
+        }
+      }
+      
+      await loadFactors();
+      
+      toast({
+        title: "2FA Reset",
+        description: "All 2FA factors have been cleared. You can now set up 2FA again.",
+      });
+    } catch (error: any) {
+      console.error('Error clearing factors:', error);
+      toast({
+        title: "Error",
+        description: "Failed to clear 2FA factors",
+        variant: "destructive",
+      });
+    }
+  };
+
   const enrollMFA = async () => {
     setEnrolling(true);
     try {
@@ -74,25 +101,24 @@ export function TwoFactorAuth() {
         return;
       }
 
-      // Clear any unverified factors before enrolling new one
-      const unverifiedFactors = factors.filter(f => f.status !== 'verified');
-      for (const factor of unverifiedFactors) {
-        try {
-          await supabase.auth.mfa.unenroll({ factorId: factor.id });
-        } catch (e) {
-          console.warn('Failed to clear unverified factor:', e);
-        }
-      }
-
-      // Refresh factors list after cleanup
-      await loadFactors();
-
+      // Use a unique friendly name to avoid conflicts
+      const timestamp = Date.now();
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
-        friendlyName: 'Authenticator App',
+        friendlyName: `Authenticator ${timestamp}`,
       });
 
       if (error) {
+        // If there's still a conflict, suggest clearing all factors
+        if (error.code === 'mfa_factor_name_conflict') {
+          toast({
+            title: "2FA Setup Conflict",
+            description: "There's a stuck 2FA setup. Please use 'Reset 2FA' button below to clear it.",
+            variant: "destructive",
+          });
+          setEnrolling(false);
+          return;
+        }
         throw error;
       }
 
@@ -382,10 +408,22 @@ export function TwoFactorAuth() {
             </ul>
           </div>
 
-          <Button onClick={enrollMFA} className="w-full">
-            <Shield className="h-4 w-4 mr-2" />
-            Enable 2FA
-          </Button>
+          <div className="space-y-2">
+            <Button onClick={enrollMFA} className="w-full">
+              <Shield className="h-4 w-4 mr-2" />
+              Enable 2FA
+            </Button>
+            
+            {factors.length > 0 && (
+              <Button 
+                onClick={clearAllFactors} 
+                variant="outline" 
+                className="w-full text-destructive hover:text-destructive"
+              >
+                Reset 2FA (Clear stuck setup)
+              </Button>
+            )}
+          </div>
         </>
       )}
     </div>
