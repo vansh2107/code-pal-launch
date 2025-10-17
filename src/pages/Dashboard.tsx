@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { DocumentStats } from "@/components/dashboard/DocumentStats";
 import { ExpiryTimeline } from "@/components/dashboard/ExpiryTimeline";
+import { ChatBot } from "@/components/chatbot/ChatBot";
 
 interface Document {
   id: string;
@@ -184,6 +185,7 @@ export default function Dashboard() {
         </div>
       </main>
 
+      <ChatBot />
       <BottomNavigation />
     </div>
   );
