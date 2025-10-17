@@ -23,6 +23,16 @@ export function TwoFactorAuth() {
     loadFactors();
   }, []);
 
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (qrCodeUrl) {
+        URL.revokeObjectURL(qrCodeUrl);
+      }
+    };
+  }, [qrCodeUrl]);
+
+
   const loadFactors = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -89,9 +99,11 @@ export function TwoFactorAuth() {
         setFactorId(data.id);
         setSecret(data.totp.secret);
         
-        // Generate QR code
-        const qrCode = await QRCode.toDataURL(data.totp.qr_code);
-        setQrCodeUrl(qrCode);
+        // Use the SVG QR code directly from Supabase
+        // Convert SVG string to data URL for display
+        const svgBlob = new Blob([data.totp.qr_code], { type: 'image/svg+xml' });
+        const svgUrl = URL.createObjectURL(svgBlob);
+        setQrCodeUrl(svgUrl);
       }
     } catch (error: any) {
       console.error('Error enrolling MFA:', error);
@@ -221,6 +233,10 @@ export function TwoFactorAuth() {
   };
 
   const cancelEnrollment = () => {
+    // Clean up the object URL to prevent memory leaks
+    if (qrCodeUrl) {
+      URL.revokeObjectURL(qrCodeUrl);
+    }
     setEnrolling(false);
     setQrCodeUrl('');
     setFactorId('');
