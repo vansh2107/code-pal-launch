@@ -67,6 +67,7 @@ When advising about document renewals:
 3. Provide any important deadlines or considerations
 4. Suggest documents the user might already have that can be used
 5. Be specific to the document type mentioned
+6. When asked about renewal timeline, recommend how many days before expiry to start the process
 
 Keep responses clear, organized, and actionable.`;
 
@@ -78,7 +79,12 @@ Keep responses clear, organized, and actionable.`;
     let userPrompt = safeQuestion;
     
     if (!safeQuestion && safeDocType) {
-      userPrompt = `What documents are required to renew a ${safeDocType}${safeDocName ? ` (${safeDocName})` : ''}${expiryDate ? ` that expires on ${new Date(expiryDate).toLocaleDateString()}` : ''}?`;
+      userPrompt = `For a ${safeDocType}${safeDocName ? ` (${safeDocName})` : ''}${expiryDate ? ` expiring on ${new Date(expiryDate).toLocaleDateString()}` : ''}, provide:
+1. How many days before expiry should I start the renewal process? (Consider typical processing times and requirements)
+2. What documents are required?
+3. Key steps and timeline considerations
+
+Start with: "Recommended renewal start: X days before expiry" where X is your recommended number.`;
     }
 
     console.log('Calling Lovable AI Gateway with prompt:', userPrompt);

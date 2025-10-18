@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface RenewalAdvisorProps {
   documentType?: string;
@@ -16,6 +17,7 @@ export function RenewalAdvisor({ documentType, documentName, expiryDate }: Renew
   const [question, setQuestion] = useState("");
   const [advice, setAdvice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [autoLoaded, setAutoLoaded] = useState(false);
   const { toast } = useToast();
 
   const getAdvice = async (customQuestion?: string) => {
@@ -69,12 +71,35 @@ export function RenewalAdvisor({ documentType, documentName, expiryDate }: Renew
     }
   };
 
+  // Auto-load renewal timeline on mount if document info is available
+  useEffect(() => {
+    if (documentType && expiryDate && !autoLoaded) {
+      setAutoLoaded(true);
+      getAdvice();
+    }
+  }, [documentType, expiryDate]);
+
+  const extractRecommendedDays = (adviceText: string): number | null => {
+    const match = adviceText.match(/Recommended renewal start:\s*(\d+)\s*days/i);
+    return match ? parseInt(match[1]) : null;
+  };
+
+  const calculateStartDate = (days: number): string => {
+    if (!expiryDate) return '';
+    const expiry = new Date(expiryDate);
+    const startDate = new Date(expiry);
+    startDate.setDate(startDate.getDate() - days);
+    return startDate.toLocaleDateString();
+  };
+
   const quickQuestions = [
     "What documents do I need for renewal?",
     "How long does the renewal process take?",
     "What are the common renewal mistakes to avoid?",
     "Can I renew online?",
   ];
+
+  const recommendedDays = advice ? extractRecommendedDays(advice) : null;
 
   return (
     <Card>
@@ -85,7 +110,12 @@ export function RenewalAdvisor({ documentType, documentName, expiryDate }: Renew
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!advice ? (
+        {loading && !advice ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-3 text-sm text-muted-foreground">Analyzing renewal timeline...</span>
+          </div>
+        ) : !advice ? (
           <>
             <p className="text-sm text-muted-foreground">
               Ask me anything about document renewal requirements
@@ -139,6 +169,20 @@ export function RenewalAdvisor({ documentType, documentName, expiryDate }: Renew
           </>
         ) : (
           <>
+            {/* Recommended Start Date Alert */}
+            {recommendedDays && expiryDate && (
+              <Alert className="border-primary/50 bg-primary/5">
+                <Calendar className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Start renewal process: {calculateStartDate(recommendedDays)}</strong>
+                  <br />
+                  <span className="text-sm text-muted-foreground">
+                    ({recommendedDays} days before expiry)
+                  </span>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="prose prose-sm max-w-none">
               <div className="bg-muted/50 rounded-lg p-4 whitespace-pre-wrap text-sm">
                 {advice}
@@ -149,6 +193,7 @@ export function RenewalAdvisor({ documentType, documentName, expiryDate }: Renew
               onClick={() => {
                 setAdvice("");
                 setQuestion("");
+                setAutoLoaded(false);
               }}
               className="w-full"
             >
