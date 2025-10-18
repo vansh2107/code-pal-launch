@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import { useLocalNotifications } from "@/hooks/useLocalNotifications";
+import { useWebNotifications } from "@/hooks/useWebNotifications";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
@@ -23,7 +23,7 @@ import AuthEventListener from "./components/auth/AuthEventListener";
 const queryClient = new QueryClient();
 
 const NotificationScheduler = () => {
-  useLocalNotifications();
+  useWebNotifications();
   return null;
 };
 
