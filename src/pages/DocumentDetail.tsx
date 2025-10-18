@@ -261,10 +261,10 @@ export default function DocumentDetail() {
               <Alert className="border-primary/50 bg-primary/5">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <AlertDescription>
-                  <strong>Start renewal: {calculateStartDate(recommendedDays, document.expiry_date)}</strong>
+                  <strong>Start the process in {recommendedDays} days</strong>
                   <br />
                   <span className="text-sm text-muted-foreground">
-                    ({recommendedDays} days before expiry - AI recommended)
+                    (AI recommended - Begin on {calculateStartDate(recommendedDays, document.expiry_date)})
                   </span>
                 </AlertDescription>
               </Alert>
