@@ -80,8 +80,23 @@ export function RenewalAdvisor({ documentType, documentName, expiryDate }: Renew
   }, [documentType, expiryDate]);
 
   const extractRecommendedDays = (adviceText: string): number | null => {
-    const match = adviceText.match(/Recommended renewal start:\s*(\d+)\s*days/i);
-    return match ? parseInt(match[1]) : null;
+    // Try multiple patterns to extract the number
+    const patterns = [
+      /Recommended renewal start:\s*(\d+)\s*days/i,
+      /start.*?(\d+)\s*days\s*before/i,
+      /(\d+)\s*days\s*before\s*expiry/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = adviceText.match(pattern);
+      if (match) {
+        console.log('Extracted days:', match[1], 'using pattern:', pattern);
+        return parseInt(match[1]);
+      }
+    }
+    
+    console.log('Could not extract recommended days from:', adviceText.substring(0, 200));
+    return null;
   };
 
   const calculateStartDate = (days: number): string => {

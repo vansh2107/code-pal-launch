@@ -257,7 +257,7 @@ export default function DocumentDetail() {
                   <span className="text-sm">Analyzing optimal renewal timeline...</span>
                 </AlertDescription>
               </Alert>
-            ) : recommendedDays && (
+            ) : recommendedDays ? (
               <Alert className="border-primary/50 bg-primary/5">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <AlertDescription>
@@ -268,7 +268,14 @@ export default function DocumentDetail() {
                   </span>
                 </AlertDescription>
               </Alert>
-            )}
+            ) : renewalAdvice ? (
+              <Alert className="border-muted">
+                <Sparkles className="h-4 w-4" />
+                <AlertDescription>
+                  <span className="text-sm">AI analysis complete. View full recommendations in AI Insights section below.</span>
+                </AlertDescription>
+              </Alert>
+            ) : null}
           </>
         )}
       </header>

@@ -79,12 +79,19 @@ Keep responses clear, organized, and actionable.`;
     let userPrompt = safeQuestion;
     
     if (!safeQuestion && safeDocType) {
-      userPrompt = `For a ${safeDocType}${safeDocName ? ` (${safeDocName})` : ''}${expiryDate ? ` expiring on ${new Date(expiryDate).toLocaleDateString()}` : ''}, provide:
-1. How many days before expiry should I start the renewal process? (Consider typical processing times and requirements)
-2. What documents are required?
-3. Key steps and timeline considerations
+      userPrompt = `For a ${safeDocType}${safeDocName ? ` (${safeDocName})` : ''}${expiryDate ? ` expiring on ${new Date(expiryDate).toLocaleDateString()}` : ''}:
 
-Start with: "Recommended renewal start: X days before expiry" where X is your recommended number.`;
+CRITICAL: You MUST start your response with EXACTLY this format on the first line:
+"Recommended renewal start: [NUMBER] days before expiry"
+
+Replace [NUMBER] with the specific number of days. This is mandatory.
+
+Then provide:
+1. What documents are required for renewal
+2. Key steps and timeline considerations
+3. Any important deadlines
+
+Example first line: "Recommended renewal start: 30 days before expiry"`;
     }
 
     console.log('Calling Lovable AI Gateway with prompt:', userPrompt);
