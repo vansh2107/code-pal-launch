@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Edit2, Trash2, Calendar, Building, FileText, Clock } from "lucide-react";
+import { ArrowLeft, Edit2, Trash2, Calendar, Building, FileText, Clock, Loader2, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { toast } from "@/hooks/use-toast";
@@ -44,12 +44,55 @@ export default function DocumentDetail() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [renewalAdvice, setRenewalAdvice] = useState<string>("");
+  const [loadingAdvice, setLoadingAdvice] = useState(false);
 
   useEffect(() => {
     if (user && id) {
       fetchDocument();
     }
   }, [user, id]);
+
+  useEffect(() => {
+    if (document && !document.issuing_authority?.includes('DocVault')) {
+      fetchRenewalAdvice();
+    }
+  }, [document]);
+
+  const fetchRenewalAdvice = async () => {
+    if (!document) return;
+    
+    setLoadingAdvice(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('document-renewal-advisor', {
+        body: {
+          documentType: document.document_type,
+          documentName: document.name,
+          expiryDate: document.expiry_date,
+        }
+      });
+
+      if (!error && data?.advice) {
+        setRenewalAdvice(data.advice);
+      }
+    } catch (error) {
+      console.error('Error fetching renewal advice:', error);
+    } finally {
+      setLoadingAdvice(false);
+    }
+  };
+
+  const extractRecommendedDays = (adviceText: string): number | null => {
+    const match = adviceText.match(/Recommended renewal start:\s*(\d+)\s*days/i);
+    return match ? parseInt(match[1]) : null;
+  };
+
+  const calculateStartDate = (days: number, expiryDate: string): string => {
+    const expiry = new Date(expiryDate);
+    const startDate = new Date(expiry);
+    startDate.setDate(startDate.getDate() - days);
+    return startDate.toLocaleDateString();
+  };
 
   const fetchDocument = async () => {
     try {
@@ -181,6 +224,7 @@ export default function DocumentDetail() {
 
   const isDocVault = document.issuing_authority === 'DocVault';
   const statusInfo = !isDocVault ? getStatusInfo(document.expiry_date) : null;
+  const recommendedDays = renewalAdvice ? extractRecommendedDays(renewalAdvice) : null;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -199,10 +243,33 @@ export default function DocumentDetail() {
         </div>
         
         {!isDocVault && statusInfo && (
-          <Alert variant={statusInfo.variant}>
-            <Calendar className="h-4 w-4" />
-            <AlertDescription>{statusInfo.message}</AlertDescription>
-          </Alert>
+          <>
+            <Alert variant={statusInfo.variant}>
+              <Calendar className="h-4 w-4" />
+              <AlertDescription>{statusInfo.message}</AlertDescription>
+            </Alert>
+            
+            {/* AI Renewal Recommendation */}
+            {loadingAdvice ? (
+              <Alert className="border-primary/50 bg-primary/5">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <AlertDescription>
+                  <span className="text-sm">Analyzing optimal renewal timeline...</span>
+                </AlertDescription>
+              </Alert>
+            ) : recommendedDays && (
+              <Alert className="border-primary/50 bg-primary/5">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <AlertDescription>
+                  <strong>Start renewal: {calculateStartDate(recommendedDays, document.expiry_date)}</strong>
+                  <br />
+                  <span className="text-sm text-muted-foreground">
+                    ({recommendedDays} days before expiry - AI recommended)
+                  </span>
+                </AlertDescription>
+              </Alert>
+            )}
+          </>
         )}
       </header>
 
