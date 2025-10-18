@@ -225,6 +225,14 @@ export default function DocumentDetail() {
   const isDocVault = document.issuing_authority === 'DocVault';
   const statusInfo = !isDocVault ? getStatusInfo(document.expiry_date) : null;
   const recommendedDays = renewalAdvice ? extractRecommendedDays(renewalAdvice) : null;
+  
+  // Calculate days until expiry to show countdown
+  const daysUntilExpiry = document.expiry_date 
+    ? Math.ceil((new Date(document.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+  
+  // Use AI recommended days if available, otherwise fall back to document's renewal period
+  const daysToStartProcess = recommendedDays || document.renewal_period_days || null;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -257,22 +265,26 @@ export default function DocumentDetail() {
                   <span className="text-sm">Analyzing optimal renewal timeline...</span>
                 </AlertDescription>
               </Alert>
-            ) : recommendedDays ? (
+            ) : daysToStartProcess && daysUntilExpiry && daysUntilExpiry > daysToStartProcess ? (
               <Alert className="border-primary/50 bg-primary/5">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <AlertDescription>
-                  <strong>Start the process in {recommendedDays} days</strong>
+                  <strong>Start the process in {daysUntilExpiry - daysToStartProcess} days</strong>
                   <br />
                   <span className="text-sm text-muted-foreground">
-                    (AI recommended - Begin on {calculateStartDate(recommendedDays, document.expiry_date)})
+                    ({daysToStartProcess} days before expiry - {recommendedDays ? 'AI recommended' : 'From your settings'})
                   </span>
                 </AlertDescription>
               </Alert>
-            ) : renewalAdvice ? (
-              <Alert className="border-muted">
-                <Sparkles className="h-4 w-4" />
+            ) : daysToStartProcess && daysUntilExpiry && daysUntilExpiry <= daysToStartProcess ? (
+              <Alert className="border-primary/50 bg-primary/5">
+                <Sparkles className="h-4 w-4 text-primary" />
                 <AlertDescription>
-                  <span className="text-sm">AI analysis complete. View full recommendations in AI Insights section below.</span>
+                  <strong>Start the renewal process now</strong>
+                  <br />
+                  <span className="text-sm text-muted-foreground">
+                    (Renewal window is open - {daysToStartProcess} days before expiry recommended)
+                  </span>
                 </AlertDescription>
               </Alert>
             ) : null}
