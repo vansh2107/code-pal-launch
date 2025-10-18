@@ -11,6 +11,7 @@ import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { toast } from "@/hooks/use-toast";
 import { DocumentHistory } from "@/components/document/DocumentHistory";
 import { AIInsights } from "@/components/document/AIInsights";
+import { RenewalAdvisor } from "@/components/ai/RenewalAdvisor";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -424,6 +425,14 @@ export default function DocumentDetail() {
         {/* AI Insights and Document History - Only for non-DocVault */}
         {!isDocVault && <DocumentHistory documentId={id!} />}
         {!isDocVault && <AIInsights document={document} />}
+        {!isDocVault && (
+          <RenewalAdvisor 
+            documentId={document.id}
+            documentType={document.document_type}
+            documentName={document.name}
+            expiryDate={document.expiry_date}
+          />
+        )}
       </main>
 
       <BottomNavigation />

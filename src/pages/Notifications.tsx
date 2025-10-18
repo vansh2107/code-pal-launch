@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Bell, FileText, Calendar, Check } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { toast } from "@/hooks/use-toast";
 
 interface NotificationData {
   id: string;
@@ -33,6 +34,7 @@ export default function Notifications() {
 
   const fetchNotifications = async () => {
     try {
+      console.log('Fetching notifications for user:', user?.id);
       const { data, error } = await supabase
         .from('reminders')
         .select(`
@@ -49,7 +51,12 @@ export default function Notifications() {
         .eq('user_id', user?.id)
         .order('reminder_date', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching reminders:', error);
+        throw error;
+      }
+
+      console.log('Fetched reminders:', data);
 
       // Transform the data to match our interface
       const transformedData: NotificationData[] = (data || []).map(item => ({
@@ -60,9 +67,15 @@ export default function Notifications() {
         document: Array.isArray(item.documents) ? item.documents[0] : item.documents
       }));
 
+      console.log('Transformed notifications:', transformedData);
       setNotifications(transformedData);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      toast({
+        title: "Error loading notifications",
+        description: "Please check your connection and try again.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }

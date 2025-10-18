@@ -2,23 +2,27 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Loader2, Calendar } from "lucide-react";
+import { Sparkles, Loader2, Calendar, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuth } from "@/hooks/useAuth";
 
 interface RenewalAdvisorProps {
+  documentId?: string;
   documentType?: string;
   documentName?: string;
   expiryDate?: string;
 }
 
-export function RenewalAdvisor({ documentType, documentName, expiryDate }: RenewalAdvisorProps) {
+export function RenewalAdvisor({ documentId, documentType, documentName, expiryDate }: RenewalAdvisorProps) {
   const [question, setQuestion] = useState("");
   const [advice, setAdvice] = useState("");
   const [loading, setLoading] = useState(false);
   const [autoLoaded, setAutoLoaded] = useState(false);
+  const [savingReminder, setSavingReminder] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const getAdvice = async (customQuestion?: string) => {
     setLoading(true);
@@ -107,6 +111,57 @@ export function RenewalAdvisor({ documentType, documentName, expiryDate }: Renew
     return startDate.toLocaleDateString();
   };
 
+  const saveAIReminder = async () => {
+    if (!recommendedDays || !expiryDate || !documentId || !user) return;
+    
+    setSavingReminder(true);
+    try {
+      const reminderDate = new Date(expiryDate);
+      reminderDate.setDate(reminderDate.getDate() - recommendedDays);
+      
+      // Check if a similar reminder already exists
+      const { data: existing } = await supabase
+        .from('reminders')
+        .select('id')
+        .eq('document_id', documentId)
+        .eq('reminder_date', reminderDate.toISOString().split('T')[0])
+        .maybeSingle();
+      
+      if (existing) {
+        toast({
+          title: "Reminder already exists",
+          description: "This AI recommendation is already saved as a reminder.",
+        });
+        return;
+      }
+      
+      // Insert the AI-recommended reminder
+      const { error } = await supabase.from('reminders').insert({
+        document_id: documentId,
+        user_id: user.id,
+        reminder_date: reminderDate.toISOString().split('T')[0],
+        is_custom: false,
+        is_sent: false,
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Reminder saved",
+        description: `Notification will be sent ${recommendedDays} days before expiry.`,
+      });
+    } catch (error) {
+      console.error('Error saving reminder:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save reminder. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingReminder(false);
+    }
+  };
+
   const quickQuestions = [
     "What documents do I need for renewal?",
     "How long does the renewal process take?",
@@ -189,11 +244,31 @@ export function RenewalAdvisor({ documentType, documentName, expiryDate }: Renew
               <Alert className="border-primary/50 bg-primary/5">
                 <Calendar className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Start renewal process: {calculateStartDate(recommendedDays)}</strong>
-                  <br />
-                  <span className="text-sm text-muted-foreground">
-                    ({recommendedDays} days before expiry)
-                  </span>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <strong>Start renewal process: {calculateStartDate(recommendedDays)}</strong>
+                      <br />
+                      <span className="text-sm text-muted-foreground">
+                        ({recommendedDays} days before expiry)
+                      </span>
+                    </div>
+                    {documentId && (
+                      <Button 
+                        size="sm" 
+                        onClick={saveAIReminder}
+                        disabled={savingReminder}
+                      >
+                        {savingReminder ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Bell className="h-4 w-4 mr-2" />
+                            Set Reminder
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </AlertDescription>
               </Alert>
             )}
