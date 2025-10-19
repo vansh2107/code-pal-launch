@@ -64,19 +64,26 @@ serve(async (req) => {
             content: `You are a document data extraction and renewal analysis assistant. Extract document information and intelligently determine renewal reminder periods based on document type and country-specific regulations.
 
 Extract the following information:
-- document_type: MUST be EXACTLY one of these 6 types: license, passport, permit, insurance, certification, other (NO OTHER VALUES ALLOWED)
-- name: the document name/title (be specific, e.g., "Driver's License" not just "License")
+- document_type: Choose the MOST SPECIFIC type from the detailed list below
+- name: the document name/title (be specific, e.g., "Indian Union Driving Licence")
 - issuing_authority: the organization that issued the document (be specific with full name)
 - expiry_date: expiration date in YYYY-MM-DD format
 - renewal_period_days: INTELLIGENT suggestion for reminder days before expiry
 
-Document Type Mapping (STRICT - choose ONLY from these 6 categories):
-1. "license" - Driver's licenses, professional licenses, business licenses, software licenses
-2. "passport" - Passports and travel documents
-3. "permit" - Work permits, visas, vehicle registration, residency permits
-4. "insurance" - All insurance policies, health cards
-5. "certification" - Training certificates, educational certificates, course registrations
-6. "other" - Everything else (credit cards, utility bills, subscriptions, warranties, memberships, ID cards, etc.)
+Document Type Options (choose the MOST SPECIFIC match):
+- passport_renewal, drivers_license, vehicle_registration, health_card
+- work_permit_visa, student_visa, permanent_residency
+- business_license, professional_license, software_license
+- training_certificate, course_registration
+- tax_filing, voting_registration
+- credit_card, insurance_policy, family_insurance
+- utility_bills, loan_payment, subscription, joint_subscription
+- bank_card, health_checkup, medication_refill
+- pet_vaccination, pet_care, fitness_membership
+- library_book, warranty, device_warranty, home_maintenance
+- children_documents, school_enrollment, property_lease
+- domain_name, web_hosting, cloud_storage, password_security
+- other (only if none of the above match)
 
 For renewal_period_days, consider:
 1. Document type urgency and processing time
@@ -96,18 +103,17 @@ ${safeCountry ? `User is in: ${safeCountry}. Consider this country's specific re
 
 Respond ONLY with valid JSON:
 {
-  "document_type": "license",
-  "name": "Driver's License - California",
-  "issuing_authority": "California Department of Motor Vehicles",
-  "expiry_date": "2025-12-31",
-  "renewal_period_days": 45
+  "document_type": "drivers_license",
+  "name": "Indian Union Driving Licence",
+  "issuing_authority": "Regional Transport Office, Bangalore",
+  "expiry_date": "2046-07-20",
+  "renewal_period_days": 60
 }
 
 CRITICAL VALIDATION RULES:
-1. document_type MUST be EXACTLY one of: license, passport, permit, insurance, certification, other
-2. Do NOT create new document type names - map everything to one of the 6 types above
-3. For subscriptions, memberships, cards, bills → use "other"
-4. Be as specific as possible in the name and issuing_authority fields`,
+1. document_type MUST be one of the specific types listed above (e.g., "drivers_license" not "license")
+2. Choose the MOST SPECIFIC type that matches the document
+3. Be as specific as possible in the name and issuing_authority fields`,
           },
           {
             role: "user",

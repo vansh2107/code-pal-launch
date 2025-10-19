@@ -120,9 +120,59 @@ export default function EditDocument() {
         }
       }
 
+      // Map detailed document types to database enum values
+      const documentTypeMap: { [key: string]: string } = {
+        'drivers_license': 'license',
+        'professional_license': 'license',
+        'software_license': 'license',
+        'business_license': 'license',
+        'passport': 'passport',
+        'passport_renewal': 'passport',
+        'permit': 'permit',
+        'work_permit_visa': 'permit',
+        'student_visa': 'permit',
+        'permanent_residency': 'permit',
+        'vehicle_registration': 'permit',
+        'insurance': 'insurance',
+        'insurance_policy': 'insurance',
+        'health_card': 'insurance',
+        'family_insurance': 'insurance',
+        'certification': 'certification',
+        'training_certificate': 'certification',
+        'course_registration': 'certification',
+        'license': 'license',
+        'other': 'other',
+        'credit_card': 'other',
+        'utility_bills': 'other',
+        'loan_payment': 'other',
+        'subscription': 'other',
+        'joint_subscription': 'other',
+        'bank_card': 'other',
+        'health_checkup': 'other',
+        'medication_refill': 'other',
+        'pet_vaccination': 'other',
+        'pet_care': 'other',
+        'fitness_membership': 'other',
+        'library_book': 'other',
+        'warranty': 'other',
+        'device_warranty': 'other',
+        'home_maintenance': 'other',
+        'tax_filing': 'other',
+        'voting_registration': 'other',
+        'children_documents': 'other',
+        'school_enrollment': 'other',
+        'property_lease': 'other',
+        'domain_name': 'other',
+        'web_hosting': 'other',
+        'cloud_storage': 'other',
+        'password_security': 'other',
+      };
+
+      const mappedType = documentTypeMap[formData.document_type] || formData.document_type;
+
       const validatedData = documentSchema.parse({
         ...formData,
-        document_type: formData.document_type as any,
+        document_type: mappedType as any,
       });
 
       const { error } = await supabase
@@ -294,12 +344,45 @@ export default function EditDocument() {
                       <SelectValue placeholder="Select document type" />
                     </SelectTrigger>
                     <SelectContent className="max-h-80 bg-background border border-border z-50">
-                      <SelectItem value="license">License (Driver's License, Professional, Business)</SelectItem>
-                      <SelectItem value="passport">Passport & Travel Documents</SelectItem>
-                      <SelectItem value="permit">Permit (Work, Visa, Vehicle Registration)</SelectItem>
-                      <SelectItem value="insurance">Insurance & Health Cards</SelectItem>
-                      <SelectItem value="certification">Certification & Training</SelectItem>
-                      <SelectItem value="other">Other (Cards, Subscriptions, Bills, etc.)</SelectItem>
+                      <SelectItem value="passport_renewal">Passport Renewal</SelectItem>
+                      <SelectItem value="drivers_license">Driver's License / ID Card</SelectItem>
+                      <SelectItem value="vehicle_registration">Vehicle Registration / Insurance</SelectItem>
+                      <SelectItem value="health_card">Health Card Renewal</SelectItem>
+                      <SelectItem value="work_permit_visa">Work Permit / Visa</SelectItem>
+                      <SelectItem value="student_visa">Student Visa / Study Permit</SelectItem>
+                      <SelectItem value="permanent_residency">Permanent Residency Renewal</SelectItem>
+                      <SelectItem value="business_license">Business License</SelectItem>
+                      <SelectItem value="professional_license">Professional License</SelectItem>
+                      <SelectItem value="training_certificate">Training Certificate</SelectItem>
+                      <SelectItem value="course_registration">Course Registration</SelectItem>
+                      <SelectItem value="tax_filing">Tax Filing Reminder</SelectItem>
+                      <SelectItem value="voting_registration">Voting Registration Check</SelectItem>
+                      <SelectItem value="credit_card">Credit Card Renewal / Expiry</SelectItem>
+                      <SelectItem value="insurance_policy">Insurance Policy</SelectItem>
+                      <SelectItem value="family_insurance">Family Insurance</SelectItem>
+                      <SelectItem value="utility_bills">Utility Bills</SelectItem>
+                      <SelectItem value="loan_payment">Loan / EMI Payment</SelectItem>
+                      <SelectItem value="subscription">Subscription Renewal</SelectItem>
+                      <SelectItem value="joint_subscription">Joint Subscription</SelectItem>
+                      <SelectItem value="bank_card">Bank Card / Debit Card</SelectItem>
+                      <SelectItem value="health_checkup">Health Checkup / Dentist Appointment</SelectItem>
+                      <SelectItem value="medication_refill">Medication Refill</SelectItem>
+                      <SelectItem value="pet_vaccination">Pet Vaccination / License</SelectItem>
+                      <SelectItem value="pet_care">Pet Care Renewal</SelectItem>
+                      <SelectItem value="fitness_membership">Fitness Membership</SelectItem>
+                      <SelectItem value="library_book">Library Book Return</SelectItem>
+                      <SelectItem value="warranty">Warranty Expiration</SelectItem>
+                      <SelectItem value="device_warranty">Device Warranty</SelectItem>
+                      <SelectItem value="home_maintenance">Home Maintenance</SelectItem>
+                      <SelectItem value="software_license">Software License</SelectItem>
+                      <SelectItem value="children_documents">Children's Passport / ID</SelectItem>
+                      <SelectItem value="school_enrollment">School Enrollment / Fee</SelectItem>
+                      <SelectItem value="property_lease">Property Lease</SelectItem>
+                      <SelectItem value="domain_name">Domain Name</SelectItem>
+                      <SelectItem value="web_hosting">Website Hosting / SSL</SelectItem>
+                      <SelectItem value="cloud_storage">Cloud Storage</SelectItem>
+                      <SelectItem value="password_security">Password Change / Security Audit</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-sm text-muted-foreground">
