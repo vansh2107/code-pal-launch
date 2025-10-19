@@ -175,17 +175,23 @@ export default function EditDocument() {
         document_type: mappedType as any,
       });
 
+      // Prepare update object - exclude expiry fields for DocVault
+      const updateData: any = {
+        name: validatedData.name,
+        notes: validatedData.notes,
+      };
+
+      if (!isDocVault) {
+        updateData.document_type = validatedData.document_type as any;
+        updateData.category_detail = formData.document_type;
+        updateData.issuing_authority = validatedData.issuing_authority;
+        updateData.expiry_date = validatedData.expiry_date;
+        updateData.renewal_period_days = validatedData.renewal_period_days;
+      }
+
       const { error } = await supabase
         .from('documents')
-        .update({
-          name: validatedData.name,
-          document_type: validatedData.document_type as any,
-          category_detail: formData.document_type,
-          issuing_authority: validatedData.issuing_authority,
-          expiry_date: isDocVault ? null : validatedData.expiry_date,
-          renewal_period_days: isDocVault ? null : validatedData.renewal_period_days,
-          notes: validatedData.notes,
-        })
+        .update(updateData)
         .eq('id', id);
 
       if (error) throw error;
