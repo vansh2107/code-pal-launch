@@ -78,7 +78,7 @@ export default function EditDocument() {
 
       setFormData({
         name: data.name || "",
-        document_type: data.document_type || "",
+        document_type: (data as any).category_detail || data.document_type || "",
         issuing_authority: data.issuing_authority || "",
         expiry_date: data.expiry_date || "",
         renewal_period_days: data.renewal_period_days || 30,
@@ -180,6 +180,7 @@ export default function EditDocument() {
         .update({
           name: validatedData.name,
           document_type: validatedData.document_type as any,
+          category_detail: formData.document_type,
           issuing_authority: validatedData.issuing_authority,
           expiry_date: isDocVault ? null : validatedData.expiry_date,
           renewal_period_days: isDocVault ? null : validatedData.renewal_period_days,

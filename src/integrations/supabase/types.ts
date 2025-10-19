@@ -93,6 +93,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          category_detail: string | null
           created_at: string
           document_type: Database["public"]["Enums"]["document_type"]
           expiry_date: string
@@ -107,6 +108,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          category_detail?: string | null
           created_at?: string
           document_type: Database["public"]["Enums"]["document_type"]
           expiry_date: string
@@ -121,6 +123,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          category_detail?: string | null
           created_at?: string
           document_type?: Database["public"]["Enums"]["document_type"]
           expiry_date?: string

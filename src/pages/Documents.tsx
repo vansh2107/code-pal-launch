@@ -15,7 +15,8 @@ import { exportToCSV } from "@/utils/exportData";
 interface Document {
   id: string;
   name: string;
-  document_type: string;
+  document_type: string; // broad enum
+  category_detail?: string; // fine-grained type for UI/filters
   issuing_authority: string;
   expiry_date: string;
   created_at: string;
@@ -141,13 +142,16 @@ export default function Documents() {
     if (filterType !== "all") {
       const category = categories.find(c => c.id === filterType);
       if (category) {
-        if (filterSubType !== "all") {
-          // Filter by specific subcategory
-          filtered = filtered.filter(doc => doc.document_type === filterSubType);
-        } else {
-          // Filter by main category (all subcategories)
-          filtered = filtered.filter(doc => category.types.includes(doc.document_type));
-        }
+          if (filterSubType !== "all") {
+            // Filter by specific subcategory using detailed type when available
+            filtered = filtered.filter(doc => (doc as any).category_detail ? (doc as any).category_detail === filterSubType : doc.document_type === filterSubType);
+          } else {
+            // Filter by main category (all subcategories)
+            filtered = filtered.filter(doc => {
+              const type = (doc as any).category_detail || doc.document_type;
+              return category.types.includes(type);
+            });
+          }
       }
     }
 
@@ -172,8 +176,11 @@ export default function Documents() {
           return a.name.localeCompare(b.name);
         case "expiry_date":
           return new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime();
-        case "document_type":
-          return a.document_type.localeCompare(b.document_type);
+        case "document_type": {
+          const at = (a as any).category_detail || a.document_type;
+          const bt = (b as any).category_detail || b.document_type;
+          return at.localeCompare(bt);
+        }
         default:
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }
@@ -211,7 +218,10 @@ export default function Documents() {
   const getCategoryCount = (categoryId: string) => {
     const category = categories.find(c => c.id === categoryId);
     if (!category) return 0;
-    return documents.filter(doc => category.types.includes(doc.document_type)).length;
+    return documents.filter(doc => {
+      const type = (doc as any).category_detail || doc.document_type;
+      return category.types.includes(type);
+    }).length;
   };
 
   const handleCategoryClick = (categoryId: string) => {
@@ -230,7 +240,7 @@ export default function Documents() {
   };
 
   const getSubCategoryCount = (subTypeId: string) => {
-    return documents.filter(doc => doc.document_type === subTypeId).length;
+    return documents.filter(doc => ((doc as any).category_detail || doc.document_type) === subTypeId).length;
   };
 
   const getSubCategoryName = (subTypeId: string): string => {
@@ -529,7 +539,7 @@ export default function Documents() {
                       <div className="flex-1">
                         <h3 className="font-semibold text-foreground mb-1">{doc.name}</h3>
                         <p className="text-sm text-muted-foreground capitalize mb-2">
-                          {doc.document_type.replace('_', ' ')}
+                          {getSubCategoryName(((doc as any).category_detail || doc.document_type))}
                           {doc.issuing_authority && ` • ${doc.issuing_authority}`}
                         </p>
                         <p className="text-sm text-muted-foreground">

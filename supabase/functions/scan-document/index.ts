@@ -231,17 +231,19 @@ const extractedData = JSON.parse(jsonMatch[0]);
       'password_security': 'other',
     };
 
-    // Map the document type to valid enum, default to 'other'
-    const mappedType = documentTypeMap[extractedData.document_type] || 'other';
-    console.log(`Mapped document type: ${extractedData.document_type} -> ${mappedType}`);
+    // Map the document type to valid enum for reference, but return detailed type to client
+    const main_type = documentTypeMap[extractedData.document_type] || 'other';
+    console.log(`Mapped document type: ${extractedData.document_type} -> ${main_type}`);
 
-    const mappedData = {
+    const responsePayload = {
       ...extractedData,
-      document_type: mappedType
+      // Keep detailed type in document_type
+      document_type: extractedData.document_type,
+      main_type,
     };
 
     return new Response(
-      JSON.stringify({ success: true, data: mappedData }),
+      JSON.stringify({ success: true, data: responsePayload }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

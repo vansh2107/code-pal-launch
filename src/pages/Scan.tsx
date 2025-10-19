@@ -139,20 +139,11 @@ export default function Scan() {
       if (error) throw error;
 
       if (data.success && data.data) {
-        // Validate and map document type to ensure it matches database enum
-        const validTypes = ['license', 'passport', 'permit', 'insurance', 'certification', 'other'];
-        let documentType = data.data.document_type;
-        
-        // If AI returned an invalid type, map it to 'other'
-        if (!validTypes.includes(documentType)) {
-          console.warn(`Invalid document type "${documentType}" returned, mapping to "other"`);
-          documentType = 'other';
-        }
-        
+        // Use detailed document type from AI as-is; we'll map it to enum on save
         setFormData(prev => ({
           ...prev,
           ...data.data,
-          document_type: documentType,
+          document_type: data.data.document_type,
         }));
         toast({
           title: "Document Scanned",
@@ -300,6 +291,7 @@ export default function Scan() {
         .insert({
           name: validatedData.name,
           document_type: validatedData.document_type as any,
+          category_detail: formData.document_type,
           issuing_authority: validatedData.issuing_authority,
           expiry_date: validatedData.expiry_date,
           renewal_period_days: validatedData.renewal_period_days,
