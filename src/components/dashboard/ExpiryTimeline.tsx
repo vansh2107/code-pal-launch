@@ -140,26 +140,26 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
                   >
                     <Link
                       to={`/document/${item.doc.id}`}
-                      className={`block relative border rounded-lg bg-card p-3 hover:translate-y-[-2px] smooth ${glowClass}`}
+                      className={`block relative border rounded-lg bg-card p-2.5 hover:translate-y-[-2px] smooth ${glowClass}`}
                       style={glowStyle}
                     >
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Calendar className="h-3.5 w-3.5" />
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
                         <span>{item.expiry.toLocaleDateString()}</span>
-                        <Badge variant={item.isPast ? "destructive" : "secondary"} className={item.isFuture ? "bg-accent text-accent-foreground" : ""}>
+                        <Badge variant={item.isPast ? "destructive" : "secondary"} className={`text-[10px] px-1.5 py-0 ${item.isFuture ? "bg-accent text-accent-foreground" : ""}`}>
                           {item.isPast ? "Expired" : item.isToday ? "Today" : "Upcoming"}
                         </Badge>
                       </div>
 
                       <div className="mt-1.5">
-                        <div className="font-medium text-sm text-foreground">{item.doc.name}</div>
-                        <div className="text-xs text-muted-foreground capitalize">
+                        <div className="font-medium text-xs text-foreground line-clamp-1">{item.doc.name}</div>
+                        <div className="text-[11px] text-muted-foreground capitalize">
                           {item.doc.document_type.replace("_", " ")}
                         </div>
                       </div>
 
-                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" />
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Clock className="h-3 w-3" />
                         <span>
                           {diffFromTodayLabel(item.expiry, today)}
                         </span>
