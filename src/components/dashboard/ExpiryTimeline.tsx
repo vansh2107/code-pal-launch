@@ -115,7 +115,7 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
           </div>
         </div>
 
-        <ul className="relative space-y-10 py-6">
+        <ul className="relative space-y-8 py-6">
           {items.map((item) => {
             const isActive = item.index === activeIndex;
             const baseFade = item.isPast ? "opacity-50" : item.isFuture ? "opacity-100" : "opacity-90";
@@ -140,7 +140,7 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
                   >
                     <Link
                       to={`/document/${item.doc.id}`}
-                      className={`block relative border rounded-xl bg-card p-4 hover:translate-y-[-2px] smooth ${glowClass}`}
+                      className={`block relative border rounded-lg bg-card p-3 hover:translate-y-[-2px] smooth ${glowClass}`}
                       style={glowStyle}
                     >
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -151,14 +151,14 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
                         </Badge>
                       </div>
 
-                      <div className="mt-2">
-                        <div className="font-medium text-foreground">{item.doc.name}</div>
+                      <div className="mt-1.5">
+                        <div className="font-medium text-sm text-foreground">{item.doc.name}</div>
                         <div className="text-xs text-muted-foreground capitalize">
                           {item.doc.document_type.replace("_", " ")}
                         </div>
                       </div>
 
-                      <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                         <Clock className="h-3.5 w-3.5" />
                         <span>
                           {diffFromTodayLabel(item.expiry, today)}
