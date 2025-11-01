@@ -495,15 +495,12 @@ export default function Scan() {
             Upload PDF
           </Button>
           <Button
-            variant={scanMode === "camera" ? "default" : "outline"}
-            onClick={() => {
-              setScanMode("camera");
-              setCapturedImage(null);
-            }}
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
             className="flex-1"
           >
-            <Camera className="h-4 w-4 mr-2" />
-            Scan Photo
+            <Upload className="h-4 w-4 mr-2" />
+            Upload Image
           </Button>
           <Button
             variant={scanMode === "manual" ? "default" : "outline"}
