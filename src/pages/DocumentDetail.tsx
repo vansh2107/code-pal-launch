@@ -294,19 +294,43 @@ export default function DocumentDetail() {
       </header>
 
       <main className="px-4 py-6 space-y-6">
-        {/* Document Image */}
+        {/* Document Image/PDF */}
         {document.image_path && imageUrl && (
           <Card>
             <CardContent className="p-4">
-              <img 
-                src={imageUrl}
-                alt={document.name}
-                className="w-full rounded-lg"
-                onError={(e) => {
-                  // Hide image on error
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
+              {document.image_path.toLowerCase().endsWith('.pdf') ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-8 w-8 text-primary" />
+                      <div>
+                        <p className="font-medium">{document.name}</p>
+                        <p className="text-sm text-muted-foreground">PDF Document</p>
+                      </div>
+                    </div>
+                    <Button asChild variant="default">
+                      <a href={imageUrl} target="_blank" rel="noopener noreferrer" download={document.name}>
+                        View PDF
+                      </a>
+                    </Button>
+                  </div>
+                  <embed
+                    src={imageUrl}
+                    type="application/pdf"
+                    className="w-full h-[600px] rounded-lg"
+                  />
+                </div>
+              ) : (
+                <img 
+                  src={imageUrl}
+                  alt={document.name}
+                  className="w-full rounded-lg"
+                  onError={(e) => {
+                    // Hide image on error
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              )}
             </CardContent>
           </Card>
         )}

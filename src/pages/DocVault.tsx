@@ -258,12 +258,19 @@ export default function DocVault() {
                 onClick={() => navigate(`/document/${doc.id}`)}
               >
                 {doc.image_path && (
-                  <div className="aspect-video bg-muted relative overflow-hidden">
-                    <img
-                      src={supabase.storage.from("document-images").getPublicUrl(doc.image_path).data.publicUrl}
-                      alt={doc.name}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
+                    {doc.image_path.toLowerCase().endsWith('.pdf') ? (
+                      <div className="flex flex-col items-center justify-center p-4">
+                        <FileText className="h-16 w-16 text-primary mb-2" />
+                        <span className="text-xs text-muted-foreground text-center">PDF Document</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={supabase.storage.from("document-images").getPublicUrl(doc.image_path).data.publicUrl}
+                        alt={doc.name}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
                   </div>
                 )}
                 <div className="p-4 space-y-2">
