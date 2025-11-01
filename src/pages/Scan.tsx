@@ -484,8 +484,16 @@ export default function Scan() {
           </Card>
         )}
 
-        {/* Mode Toggle */}
+        {/* Mode Toggle - Three Buttons */}
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload PDF
+          </Button>
           <Button
             variant={scanMode === "camera" ? "default" : "outline"}
             onClick={() => {
@@ -495,7 +503,7 @@ export default function Scan() {
             className="flex-1"
           >
             <Camera className="h-4 w-4 mr-2" />
-            Scan
+            Scan Photo
           </Button>
           <Button
             variant={scanMode === "manual" ? "default" : "outline"}
@@ -511,7 +519,7 @@ export default function Scan() {
           </Button>
         </div>
 
-        {/* Camera/Upload Section */}
+        {/* Camera Section */}
         {scanMode === "camera" && !capturedImage && (
           <Card>
             <CardContent className="p-4 space-y-4">
@@ -524,24 +532,18 @@ export default function Scan() {
                   onLoadedMetadata={startCamera}
                 />
               </div>
-              <Button
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Image
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,application/pdf"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
             </CardContent>
           </Card>
         )}
+        
+        {/* Hidden file input for PDF/Image upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={handleFileUpload}
+        />
 
         {/* Captured Image Preview */}
         {capturedImage && (
