@@ -115,7 +115,7 @@ const handler = async (req: Request): Promise<Response> => {
 
       try {
         const emailResponse = await resend.emails.send({
-          from: "Softly Reminder <onboarding@resend.dev>",
+          from: "Document Reminder <remind659@gmail.com>",
           to: [profile.email!],
           subject: `Reminder: ${document.name} expires in ${daysUntilExpiry} days`,
           html: `

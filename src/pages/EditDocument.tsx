@@ -244,13 +244,32 @@ export default function EditDocument() {
 
         // Insert all reminders
         if (reminders.length > 0) {
-          await supabase.from('reminders').insert(reminders);
+          const { data: insertedReminders, error: reminderError } = await supabase
+            .from('reminders')
+            .insert(reminders)
+            .select();
+
+          if (reminderError) throw reminderError;
+
+          // Send immediate confirmation emails for all reminders
+          if (insertedReminders && insertedReminders.length > 0) {
+            for (const reminder of insertedReminders) {
+              try {
+                await supabase.functions.invoke('send-immediate-reminder', {
+                  body: { reminder_id: reminder.id }
+                });
+              } catch (emailError) {
+                console.error('Error sending confirmation email:', emailError);
+                // Don't fail the whole operation if email fails
+              }
+            }
+          }
         }
       }
 
       toast({
         title: "Document updated",
-        description: "Your document has been successfully updated.",
+        description: "Your document has been updated and reminder confirmation emails sent.",
       });
 
       navigate(`/document/${id}`);

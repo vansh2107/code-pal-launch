@@ -136,19 +136,33 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
       }
       
       // Insert the AI-recommended reminder
-      const { error } = await supabase.from('reminders').insert({
-        document_id: documentId,
-        user_id: user.id,
-        reminder_date: reminderDate.toISOString().split('T')[0],
-        is_custom: false,
-        is_sent: false,
-      });
+      const { data: insertedReminder, error } = await supabase
+        .from('reminders')
+        .insert({
+          document_id: documentId,
+          user_id: user.id,
+          reminder_date: reminderDate.toISOString().split('T')[0],
+          is_custom: false,
+          is_sent: false,
+        })
+        .select()
+        .single();
       
       if (error) throw error;
       
+      // Send immediate confirmation email
+      try {
+        await supabase.functions.invoke('send-immediate-reminder', {
+          body: { reminder_id: insertedReminder.id }
+        });
+      } catch (emailError) {
+        console.error('Error sending confirmation email:', emailError);
+        // Don't fail the whole operation if email fails
+      }
+      
       toast({
         title: "Reminder saved",
-        description: `Notification will be sent ${recommendedDays} days before expiry.`,
+        description: `Notification will be sent ${recommendedDays} days before expiry. Check your email for confirmation.`,
       });
     } catch (error) {
       console.error('Error saving reminder:', error);
