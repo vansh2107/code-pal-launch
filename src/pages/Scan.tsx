@@ -532,6 +532,13 @@ export default function Scan() {
                   onLoadedMetadata={startCamera}
                 />
               </div>
+              <Button
+                onClick={captureImage}
+                className="w-full"
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                Capture Photo
+              </Button>
             </CardContent>
           </Card>
         )}
