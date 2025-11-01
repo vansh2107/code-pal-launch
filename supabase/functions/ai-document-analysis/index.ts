@@ -184,7 +184,7 @@ Notes: ${safeNotes}
 Expiry Date: ${documentData.expiry_date}${countryContext}
 
 Select the most specific category from:
-Government & Legal: passport_renewal, drivers_license, vehicle_registration, health_card, work_permit_visa, permanent_residency, business_license, tax_filing, voting_registration
+Government & Legal: passport_renewal, drivers_license, vehicle_registration, health_card, work_permit_visa, permanent_residency, business_license, tax_filing, ticket_fines, voting_registration
 Financial & Utility: credit_card, insurance_policy, utility_bills, loan_payment, subscription, bank_card
 Personal & Productivity: health_checkup, medication_refill, pet_vaccination, fitness_membership, library_book, warranty, home_maintenance
 Work & Education: professional_license, training_certificate, software_license, student_visa, course_registration
@@ -195,7 +195,7 @@ Other: other
 Consider the document's purpose, legal category, regulatory requirements, and international standards. Be as accurate as possible.`;
       
       toolParameters = {
-        suggestedType: { type: "string", enum: ["passport_renewal", "drivers_license", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "voting_registration", "credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card", "health_checkup", "medication_refill", "pet_vaccination", "fitness_membership", "library_book", "warranty", "home_maintenance", "professional_license", "training_certificate", "software_license", "student_visa", "course_registration", "children_documents", "school_enrollment", "family_insurance", "joint_subscription", "pet_care", "property_lease", "domain_name", "web_hosting", "cloud_storage", "device_warranty", "password_security", "other"], description: "Most appropriate specific document type" },
+        suggestedType: { type: "string", enum: ["passport_renewal", "drivers_license", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "ticket_fines", "voting_registration", "credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card", "health_checkup", "medication_refill", "pet_vaccination", "fitness_membership", "library_book", "warranty", "home_maintenance", "professional_license", "training_certificate", "software_license", "student_visa", "course_registration", "children_documents", "school_enrollment", "family_insurance", "joint_subscription", "pet_care", "property_lease", "domain_name", "web_hosting", "cloud_storage", "device_warranty", "password_security", "other"], description: "Most appropriate specific document type" },
         confidence: { type: "number", description: "Confidence level 0-1" },
         reasoning: { type: "string", description: "Detailed explanation for classification" },
         alternativeTypes: { type: "array", items: { type: "string" }, description: "Other possible classifications" }

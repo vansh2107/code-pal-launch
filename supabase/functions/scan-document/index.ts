@@ -218,7 +218,7 @@ const extractedData = JSON.parse(jsonMatch[0]);
       'warranty': 'other',
       'home_maintenance': 'other',
       'tax_filing': 'other',
-      'ticket_fines': 'other',
+      'ticket_fines': 'tickets_and_fines',
       'voting_registration': 'other',
       'children_documents': 'other',
       'school_enrollment': 'other',
