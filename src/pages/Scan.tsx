@@ -242,6 +242,7 @@ export default function Scan() {
         'device_warranty': 'other',
         'home_maintenance': 'other',
         'tax_filing': 'other',
+        'ticket_fines': 'other',
         'voting_registration': 'other',
         'children_documents': 'other',
         'school_enrollment': 'other',
@@ -601,6 +602,7 @@ export default function Scan() {
                     <SelectItem value="training_certificate">Training Certificate</SelectItem>
                     <SelectItem value="course_registration">Course Registration</SelectItem>
                     <SelectItem value="tax_filing">Tax Filing Reminder</SelectItem>
+                    <SelectItem value="ticket_fines">Ticket and Fines</SelectItem>
                     <SelectItem value="voting_registration">Voting Registration Check</SelectItem>
                     <SelectItem value="credit_card">Credit Card Renewal / Expiry</SelectItem>
                     <SelectItem value="insurance_policy">Insurance Policy</SelectItem>

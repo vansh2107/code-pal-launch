@@ -75,7 +75,7 @@ Document Type Options (choose the MOST SPECIFIC match):
 - work_permit_visa, student_visa, permanent_residency
 - business_license, professional_license, software_license
 - training_certificate, course_registration
-- tax_filing, voting_registration
+- tax_filing, ticket_fines, voting_registration
 - credit_card, insurance_policy, family_insurance
 - utility_bills, loan_payment, subscription, joint_subscription
 - bank_card, health_checkup, medication_refill
@@ -218,6 +218,7 @@ const extractedData = JSON.parse(jsonMatch[0]);
       'warranty': 'other',
       'home_maintenance': 'other',
       'tax_filing': 'other',
+      'ticket_fines': 'other',
       'voting_registration': 'other',
       'children_documents': 'other',
       'school_enrollment': 'other',
