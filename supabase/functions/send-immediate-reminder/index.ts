@@ -15,6 +15,26 @@ interface ReminderPayload {
   reminder_id: string;
 }
 
+interface ReminderWithDocument {
+  id: string;
+  reminder_date: string;
+  user_id: string;
+  is_sent: boolean;
+  documents: {
+    id: string;
+    name: string;
+    document_type: string;
+    expiry_date: string;
+    issuing_authority: string | null;
+  };
+  profiles: {
+    email: string | null;
+    display_name: string | null;
+    email_notifications_enabled: boolean;
+    expiry_reminders_enabled: boolean;
+  };
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -54,7 +74,7 @@ const handler = async (req: Request): Promise<Response> => {
         )
       `)
       .eq('id', reminder_id)
-      .maybeSingle();
+      .maybeSingle() as { data: ReminderWithDocument | null, error: any };
 
     if (fetchError) {
       console.error("Error fetching reminder:", fetchError);
