@@ -28,7 +28,7 @@ const categories = [
     name: "🧾 Government & Legal Renewals", 
     icon: Building2, 
     color: "bg-blue-500/10 text-blue-500",
-    types: ["passport", "passport_renewal", "license", "drivers_license", "permit", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "voting_registration"]
+    types: ["passport", "passport_renewal", "license", "drivers_license", "permit", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "ticket_fines", "voting_registration"]
   },
   { 
     id: "financial_utility", 
@@ -258,6 +258,7 @@ export default function Documents() {
       permanent_residency: "Permanent Residency",
       business_license: "Business License",
       tax_filing: "Tax Filing",
+      ticket_fines: "Tickets and Fines",
       voting_registration: "Voting Registration",
       credit_card: "Credit Card",
       insurance_policy: "Insurance Policy",
