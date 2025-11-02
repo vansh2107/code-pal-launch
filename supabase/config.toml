@@ -15,6 +15,9 @@ verify_jwt = false
 [functions.send-bulk-notification]
 verify_jwt = false
 
+[functions.send-expiry-reminders]
+verify_jwt = false
+
 [functions.chatbot]
 verify_jwt = true
 
