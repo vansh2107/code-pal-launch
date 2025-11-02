@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { Resend } from "https://esm.sh/resend@4.0.0";
+import sgMail from "npm:@sendgrid/mail@7.7.0";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+sgMail.setApiKey(Deno.env.get("SENDGRID_API_KEY") as string);
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -120,9 +120,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Sending reminder email for document: ${document.name}`);
 
-    const emailResponse = await resend.emails.send({
-      from: "Document Reminder <remind659@gmail.com>",
-      to: [profile.email!],
+    await sgMail.send({
+      to: profile.email!,
+      from: "remind659@gmail.com",
       subject: `Reminder Set: ${document.name} expires in ${daysUntilExpiry} days`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -155,11 +155,6 @@ const handler = async (req: Request): Promise<Response> => {
         </div>
       `,
     });
-
-    if (emailResponse.error) {
-      console.error(`Error sending email for reminder ${reminder.id}:`, emailResponse.error);
-      throw emailResponse.error;
-    }
 
     console.log(`Successfully sent confirmation email for document: ${document.name}`);
 
