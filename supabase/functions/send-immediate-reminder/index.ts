@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import sgMail from "npm:@sendgrid/mail@7.7.0";
 
-sgMail.setApiKey(Deno.env.get("SENDGRID_API_KEY") as string);
+const sendGridApiKey = Deno.env.get("SENDGRID_API_KEY");
+const sendGridEndpoint = 'https://api.sendgrid.com/v3/mail/send';
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -120,41 +120,61 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Sending reminder email for document: ${document.name}`);
 
-    await sgMail.send({
-      to: profile.email!,
-      from: "remind659@gmail.com",
-      subject: `Reminder Set: ${document.name} expires in ${daysUntilExpiry} days`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1E40AF;">Reminder Confirmation</h2>
-          <p>Hello ${profile.display_name || 'there'},</p>
-          <p>Your reminder has been successfully set for the following document:</p>
-          
-          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #374151;">Document Details</h3>
-            <p><strong>Name:</strong> ${document.name}</p>
-            <p><strong>Type:</strong> ${document.document_type}</p>
-            ${document.issuing_authority ? `<p><strong>Issued by:</strong> ${document.issuing_authority}</p>` : ''}
-            <p><strong>Expiry Date:</strong> ${expiryDate.toLocaleDateString()}</p>
-            <p><strong>Reminder Date:</strong> ${reminderDate.toLocaleDateString()}</p>
-            <p style="color: #059669; font-weight: bold;">You'll be reminded ${daysUntilExpiry} days before expiry</p>
-          </div>
-
-          <p>We'll send you another reminder on <strong>${reminderDate.toLocaleDateString()}</strong> to ensure you don't miss the renewal deadline.</p>
-          
-          <div style="margin-top: 30px;">
-            <a href="https://code-pal-launch.vercel.app/document/${document.id}" 
-               style="background-color: #1E40AF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-              View Document
-            </a>
-          </div>
-
-          <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
-            This is a confirmation from Softly Reminder. You can manage your notification preferences in your profile settings.
-          </p>
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #1E40AF;">Reminder Confirmation</h2>
+        <p>Hello ${profile.display_name || 'there'},</p>
+        <p>Your reminder has been successfully set for the following document:</p>
+        
+        <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0; color: #374151;">Document Details</h3>
+          <p><strong>Name:</strong> ${document.name}</p>
+          <p><strong>Type:</strong> ${document.document_type}</p>
+          ${document.issuing_authority ? `<p><strong>Issued by:</strong> ${document.issuing_authority}</p>` : ''}
+          <p><strong>Expiry Date:</strong> ${expiryDate.toLocaleDateString()}</p>
+          <p><strong>Reminder Date:</strong> ${reminderDate.toLocaleDateString()}</p>
+          <p style="color: #059669; font-weight: bold;">You'll be reminded ${daysUntilExpiry} days before expiry</p>
         </div>
-      `,
+
+        <p>We'll send you another reminder on <strong>${reminderDate.toLocaleDateString()}</strong> to ensure you don't miss the renewal deadline.</p>
+        
+        <div style="margin-top: 30px;">
+          <a href="https://code-pal-launch.vercel.app/document/${document.id}" 
+             style="background-color: #1E40AF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            View Document
+          </a>
+        </div>
+
+        <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
+          This is a confirmation from Softly Reminder. You can manage your notification preferences in your profile settings.
+        </p>
+      </div>
+    `;
+
+    const emailResponse = await fetch(sendGridEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sendGridApiKey}`
+      },
+      body: JSON.stringify({
+        personalizations: [{
+          to: [{ email: profile.email! }]
+        }],
+        from: { email: 'remind659@gmail.com' },
+        subject: `Reminder Set: ${document.name} expires in ${daysUntilExpiry} days`,
+        content: [{
+          type: 'text/html',
+          value: emailHtml
+        }]
+      })
     });
+
+    if (!emailResponse.ok) {
+      const errorText = await emailResponse.text();
+      console.error(`Error sending email for reminder ${reminder.id}:`, errorText);
+      throw new Error(`SendGrid API error: ${errorText}`);
+    }
 
     console.log(`Successfully sent confirmation email for document: ${document.name}`);
 
