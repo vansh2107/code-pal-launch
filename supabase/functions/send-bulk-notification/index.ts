@@ -21,41 +21,62 @@ const handler = async (req: Request): Promise<Response> => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // Fetch all users with email notifications enabled
-    const { data: profiles, error: fetchError } = await supabase
-      .from('profiles')
-      .select('email, display_name, email_notifications_enabled')
-      .eq('email_notifications_enabled', true)
-      .not('email', 'is', null);
+    // Fetch all users from auth.users using admin API
+    const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers();
 
-    if (fetchError) {
-      console.error("Error fetching profiles:", fetchError);
-      throw fetchError;
+    if (usersError) {
+      console.error("Error fetching users:", usersError);
+      throw usersError;
     }
 
-    if (!profiles || profiles.length === 0) {
-      console.log("No users with email notifications enabled");
+    if (!users || users.length === 0) {
+      console.log("No users found");
       return new Response(
         JSON.stringify({ message: "No users to notify", count: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
-    console.log(`Found ${profiles.length} users to notify`);
+    // Fetch profiles to check email notification preferences
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('user_id, email_notifications_enabled, display_name');
+
+    if (profilesError) {
+      console.error("Error fetching profiles:", profilesError);
+      throw profilesError;
+    }
+
+    // Create a map of user preferences
+    const userPrefs = new Map(
+      profiles?.map(p => [p.user_id, { enabled: p.email_notifications_enabled, name: p.display_name }]) || []
+    );
+
+    // Filter users who have email notifications enabled (default to true if not set)
+    const usersToNotify = users.filter(user => {
+      const prefs = userPrefs.get(user.id);
+      const notificationsEnabled = prefs?.enabled !== false; // Default to true
+      return user.email && notificationsEnabled;
+    });
+
+    console.log(`Found ${usersToNotify.length} users to notify out of ${users.length} total users`);
 
     let sentCount = 0;
     let errorCount = 0;
 
-    for (const profile of profiles) {
-      if (!profile.email) {
+    for (const user of usersToNotify) {
+      if (!user.email) {
         continue;
       }
 
       try {
+        const prefs = userPrefs.get(user.id);
+        const displayName = prefs?.name || user.user_metadata?.display_name || user.user_metadata?.full_name || 'there';
+        
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #1E40AF;">Thank You for Using Softly Reminder!</h2>
-            <p>Hello ${profile.display_name || 'there'},</p>
+            <p>Hello ${displayName},</p>
             <p>We wanted to take a moment to thank you for using Softly Reminder. Your trust in our app means the world to us!</p>
             
             <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
@@ -88,7 +109,7 @@ const handler = async (req: Request): Promise<Response> => {
           },
           body: JSON.stringify({
             personalizations: [{
-              to: [{ email: profile.email }]
+              to: [{ email: user.email }]
             }],
             from: { email: 'remind659@gmail.com' },
             subject: 'Thank You for Using Softly Reminder!',
@@ -101,16 +122,16 @@ const handler = async (req: Request): Promise<Response> => {
 
         if (!emailResponse.ok) {
           const errorText = await emailResponse.text();
-          console.error(`Error sending email to ${profile.email}:`, errorText);
+          console.error(`Error sending email to ${user.email}:`, errorText);
           errorCount++;
           continue;
         }
 
-        console.log(`Successfully sent notification to: ${profile.email}`);
+        console.log(`Successfully sent notification to: ${user.email}`);
         sentCount++;
 
       } catch (error) {
-        console.error(`Exception sending email to ${profile.email}:`, error);
+        console.error(`Exception sending email to ${user.email}:`, error);
         errorCount++;
       }
     }
@@ -122,7 +143,7 @@ const handler = async (req: Request): Promise<Response> => {
         message: "Bulk notification complete",
         sent: sentCount,
         errors: errorCount,
-        total: profiles.length
+        total: usersToNotify.length
       }),
       { 
         headers: { ...corsHeaders, "Content-Type": "application/json" }, 
