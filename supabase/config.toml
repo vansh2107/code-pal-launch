@@ -1,13 +1,1 @@
 project_id = "rndunloczfpfbubuwffb"
-
-[functions.scan-document]
-verify_jwt = true
-
-[functions.ai-document-analysis]
-verify_jwt = true
-
-[functions.send-reminder-emails]
-verify_jwt = false
-
-[functions.send-immediate-reminder]
-verify_jwt = false
