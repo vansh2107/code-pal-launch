@@ -127,6 +127,14 @@ All colors MUST be HSL.
   .dark body {
     background: linear-gradient(to bottom right, hsl(var(--background)), hsl(240 15% 10%));
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  * {
+    scroll-behavior: smooth;
+  }
 }
 
 @layer utilities {
