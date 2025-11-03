@@ -415,17 +415,17 @@ export default function Documents() {
                     onClick={() => handleCategoryClick(category.id)}
                   >
                     <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className={`p-2 rounded-lg ${category.color}`}>
-                          <Icon className="h-5 w-5" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">{category.name.split(' ')[0]}</span>
+                          <h3 className="text-sm font-medium text-foreground">
+                            {category.name.split(' ').slice(1).join(' ')}
+                          </h3>
                         </div>
                         <Badge variant="secondary" className="font-semibold">
                           {count}
                         </Badge>
                       </div>
-                      <h3 className="text-sm font-medium text-foreground leading-tight">
-                        {category.name}
-                      </h3>
                     </CardContent>
                   </Card>
                 );
