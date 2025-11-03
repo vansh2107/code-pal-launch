@@ -82,6 +82,9 @@ export default function Documents() {
   const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"expiry" | "name" | "recent">("expiry");
+  const [filterStatus, setFilterStatus] = useState<"all" | "expired" | "expiring" | "valid">("all");
 
 
   useEffect(() => {
@@ -113,12 +116,20 @@ export default function Documents() {
 
   useEffect(() => {
     applyFilters();
-  }, [documents, filterType]);
+  }, [documents, filterType, searchQuery, sortBy, filterStatus]);
 
   const applyFilters = () => {
     let filtered = [...documents];
 
-    // Type filter
+    // Search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(doc => 
+        doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        doc.issuing_authority?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Category filter
     if (filterType !== "all") {
       const category = categories.find(c => c.id === filterType);
       if (category) {
@@ -129,8 +140,28 @@ export default function Documents() {
       }
     }
 
-    // Sort by expiry date
-    filtered.sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
+    // Status filter
+    if (filterStatus !== "all") {
+      const today = new Date();
+      filtered = filtered.filter(doc => {
+        const expiry = new Date(doc.expiry_date);
+        const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (filterStatus === "expired") return daysUntilExpiry < 0;
+        if (filterStatus === "expiring") return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
+        if (filterStatus === "valid") return daysUntilExpiry > 30;
+        return true;
+      });
+    }
+
+    // Sort
+    if (sortBy === "expiry") {
+      filtered.sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
+    } else if (sortBy === "name") {
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "recent") {
+      filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
 
     setFilteredDocuments(filtered);
   };
@@ -267,6 +298,59 @@ export default function Documents() {
       </header>
 
       <main className="px-4 py-6">
+        {/* Filter Options */}
+        <div className="mb-6 space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search documents..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="expiry">Expiry Date</SelectItem>
+                <SelectItem value="name">Name</SelectItem>
+                <SelectItem value="recent">Recently Added</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="expired">Expired</SelectItem>
+                <SelectItem value="expiring">Expiring Soon</SelectItem>
+                <SelectItem value="valid">Valid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {(searchQuery || filterStatus !== "all" || sortBy !== "expiry") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSearchQuery("");
+                setFilterStatus("all");
+                setSortBy("expiry");
+              }}
+              className="w-full"
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
+
         {/* Categories Section */}
         {documents.length > 0 && (
           <div className="mb-6">
@@ -303,6 +387,70 @@ export default function Documents() {
           </div>
         )}
 
+        {/* Filtered Documents */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">
+              {filteredDocuments.length} Document{filteredDocuments.length !== 1 ? 's' : ''}
+            </h2>
+            {documents.length > 0 && (
+              <Button variant="outline" size="sm" onClick={handleExport}>
+                Export CSV
+              </Button>
+            )}
+          </div>
+
+          {filteredDocuments.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  {documents.length === 0 ? "No documents yet" : "No documents match your filters"}
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  {documents.length === 0 
+                    ? "Start by adding your first document"
+                    : "Try adjusting your filters or search query"
+                  }
+                </p>
+                {documents.length === 0 && (
+                  <Link to="/scan">
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Document
+                    </Button>
+                  </Link>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {filteredDocuments.map((doc) => (
+                <Link key={doc.id} to={`/documents/${doc.id}`}>
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-foreground mb-1">{doc.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {getSubCategoryName((doc as any).category_detail || doc.document_type)}
+                          </p>
+                        </div>
+                        {getStatusBadge(doc.expiry_date)}
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">{doc.issuing_authority}</span>
+                        <span className="text-muted-foreground">
+                          Expires: {new Date(doc.expiry_date).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
 
       <BottomNavigation />
