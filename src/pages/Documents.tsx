@@ -25,42 +25,42 @@ interface Document {
 const categories = [
   { 
     id: "government_legal", 
-    name: "🧾 Government & Legal Renewals", 
+    name: "Government & Legal Renewals", 
     icon: FileText, 
     color: "bg-blue-500/10 text-blue-500",
     types: ["passport", "passport_renewal", "license", "drivers_license", "permit", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "ticket_fines", "voting_registration"]
   },
   { 
     id: "financial_utility", 
-    name: "🏦 Financial & Utility Renewals", 
+    name: "Financial & Utility Renewals", 
     icon: DollarSign, 
     color: "bg-green-500/10 text-green-500",
     types: ["insurance", "credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card"]
   },
   { 
     id: "personal_productivity", 
-    name: "💖 Personal Life & Productivity", 
+    name: "Personal Life & Productivity", 
     icon: Heart, 
     color: "bg-pink-500/10 text-pink-500",
     types: ["health_checkup", "medication_refill", "pet_vaccination", "fitness_membership", "library_book", "warranty", "home_maintenance"]
   },
   { 
     id: "work_education", 
-    name: "🎓 Work & Education", 
+    name: "Work & Education", 
     icon: GraduationCap, 
     color: "bg-indigo-500/10 text-indigo-500",
     types: ["certification", "professional_license", "training_certificate", "software_license", "student_visa", "course_registration"]
   },
   { 
     id: "family_shared", 
-    name: "👨‍👩‍👧‍👦 Family & Shared Renewals", 
+    name: "Family & Shared Renewals", 
     icon: Users, 
     color: "bg-amber-500/10 text-amber-500",
     types: ["children_documents", "school_enrollment", "family_insurance", "joint_subscription", "pet_care", "property_lease"]
   },
   { 
     id: "digital_security", 
-    name: "💻 Digital & Security Renewals", 
+    name: "Digital & Security Renewals", 
     icon: Shield, 
     color: "bg-purple-500/10 text-purple-500",
     types: ["domain_name", "web_hosting", "cloud_storage", "device_warranty", "password_security"]
