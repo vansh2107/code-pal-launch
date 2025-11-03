@@ -76,7 +76,7 @@ export function FeedbackDialog() {
         <DialogHeader>
           <DialogTitle>Share Your Feedback</DialogTitle>
           <DialogDescription>
-            Help us improve Softly Reminder by sharing your thoughts and suggestions
+            Help us improve Remonk Reminder by sharing your thoughts and suggestions
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">

@@ -139,7 +139,7 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
 
             <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
-              This is an automated reminder from Softly Reminder. You can manage your notification preferences in your profile settings.
+              This is an automated reminder from Remonk Reminder. You can manage your notification preferences in your profile settings.
             </p>
           </div>
         `;

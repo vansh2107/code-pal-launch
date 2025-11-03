@@ -51,7 +51,7 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = `You are a helpful assistant for DocuTrack, a document management and renewal tracking application.
+    const systemPrompt = `You are a helpful assistant for Remonk Reminder, a document management and renewal tracking application.
 
 Your role is to:
 1. Help users understand how to use the app's features

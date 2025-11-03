@@ -136,8 +136,8 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
 
             <p style="margin-top: 30px; font-size: 14px; color: #6B7280;">
-              Stay organized with Softly Reminder!<br>
-              The Softly Reminder Team
+              Stay organized with Remonk Reminder!<br>
+              The Remonk Reminder Team
             </p>
           </div>
         `;

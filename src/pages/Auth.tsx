@@ -165,7 +165,7 @@ export default function Auth() {
               <Shield className="h-6 w-6 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Softly Reminder</CardTitle>
+          <CardTitle className="text-2xl font-bold">Remonk Reminder</CardTitle>
           <CardDescription>
             Secure document management and reminders
           </CardDescription>

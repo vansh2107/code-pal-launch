@@ -17,7 +17,7 @@ export function ChatBot() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Hi! I\'m here to help you with DocuTrack. Ask me anything about using the app or document renewal requirements.'
+      content: 'Hi! I\'m here to help you with Remonk Reminder. Ask me anything about using the app or document renewal requirements.'
     }
   ]);
   const [input, setInput] = useState('');
@@ -163,7 +163,7 @@ export function ChatBot() {
           <div className="flex items-center justify-between p-3 md:p-4 border-b bg-primary/5">
             <div className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-              <h3 className="font-semibold text-sm md:text-base">DocuTrack Assistant</h3>
+              <h3 className="font-semibold text-sm md:text-base">Remonk Assistant</h3>
             </div>
             <Button
               variant="ghost"

@@ -75,9 +75,9 @@ const handler = async (req: Request): Promise<Response> => {
         
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #1E40AF;">Thank You for Using Softly Reminder!</h2>
+            <h2 style="color: #1E40AF;">Thank You for Using Remonk Reminder!</h2>
             <p>Hello ${displayName},</p>
-            <p>We wanted to take a moment to thank you for using Softly Reminder. Your trust in our app means the world to us!</p>
+            <p>We wanted to take a moment to thank you for using Remonk Reminder. Your trust in our app means the world to us!</p>
             
             <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
               <p style="margin: 0; color: #374151;">
@@ -85,18 +85,18 @@ const handler = async (req: Request): Promise<Response> => {
               </p>
             </div>
 
-            <p>If you have any feedback or suggestions, we'd love to hear from you. Your input helps us make Softly Reminder even better!</p>
+            <p>If you have any feedback or suggestions, we'd love to hear from you. Your input helps us make Remonk Reminder even better!</p>
             
             <div style="margin-top: 30px;">
               <a href="https://code-pal-launch.vercel.app" 
                  style="background-color: #1E40AF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                Open Softly Reminder
+                Open Remonk Reminder
               </a>
             </div>
 
             <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
               Thank you for being part of our community!<br>
-              The Softly Reminder Team
+              The Remonk Reminder Team
             </p>
           </div>
         `;
@@ -112,7 +112,7 @@ const handler = async (req: Request): Promise<Response> => {
               to: [{ email: user.email }]
             }],
             from: { email: 'remind659@gmail.com' },
-            subject: 'Thank You for Using Softly Reminder!',
+            subject: 'Thank You for Using Remonk Reminder!',
             content: [{
               type: 'text/html',
               value: emailHtml

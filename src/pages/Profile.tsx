@@ -443,7 +443,7 @@ export default function Profile() {
                 <div>
                   <h3 className="font-semibold mb-2">Need more help?</h3>
                   <p className="text-sm text-muted-foreground">
-                    Contact us through the feedback form or email support@softlyreminder.com
+                    Contact us through the feedback form or email support@remonkreminder.com
                   </p>
                 </div>
               </div>
@@ -479,8 +479,8 @@ export default function Profile() {
               <div className="pt-4 space-y-4">
                 <div>
                   <p className="text-sm font-medium mb-2">Email Support</p>
-                  <a href="mailto:support@softlyreminder.com" className="text-sm text-primary hover:underline">
-                    support@softlyreminder.com
+                  <a href="mailto:support@remonkreminder.com" className="text-sm text-primary hover:underline">
+                    support@remonkreminder.com
                   </a>
                 </div>
                 <div>
@@ -510,7 +510,7 @@ export default function Profile() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>About Softly Reminder</DialogTitle>
+                <DialogTitle>About Remonk Reminder</DialogTitle>
               </DialogHeader>
               <div className="pt-4 space-y-3">
                 <div className="flex justify-between items-center">
@@ -523,7 +523,7 @@ export default function Profile() {
                 </div>
                 <div className="pt-4 border-t">
                   <p className="text-sm text-muted-foreground">
-                    Softly Reminder helps you manage document expiry dates with AI-powered insights and timely notifications.
+                    Remonk Reminder helps you manage document expiry dates with AI-powered insights and timely notifications.
                   </p>
                 </div>
               </div>
@@ -556,7 +556,7 @@ export default function Profile() {
                 <div>
                   <h3 className="font-semibold mb-2">Terms of Service</h3>
                   <p className="text-sm text-muted-foreground">
-                    By using Softly Reminder, you agree to our terms of service. The app is provided as-is for document management purposes.
+                    By using Remonk Reminder, you agree to our terms of service. The app is provided as-is for document management purposes.
                   </p>
                 </div>
               </div>
