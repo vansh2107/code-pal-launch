@@ -1,13 +1,12 @@
-import { Home, FileText, Camera, User, Vault } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Home", href: "/", icon: Home },
-  { name: "Documents", href: "/documents", icon: FileText },
-  { name: "Scan", href: "/scan", icon: Camera },
-  { name: "DocVault", href: "/docvault", icon: Vault },
-  { name: "Profile", href: "/profile", icon: User },
+  { name: "Home", href: "/", emoji: "🏠" },
+  { name: "Documents", href: "/documents", emoji: "📄" },
+  { name: "Scan", href: "/scan", emoji: "📸" },
+  { name: "DocVault", href: "/docvault", emoji: "🔐" },
+  { name: "Profile", href: "/profile", emoji: "👤" },
 ];
 
 export function BottomNavigation() {
@@ -23,7 +22,7 @@ export function BottomNavigation() {
               key={item.name}
               to={item.href}
               className={cn(
-                "flex flex-col items-center justify-center px-4 py-2 text-xs font-medium rounded-xl smooth relative",
+                "flex flex-row items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-xl smooth relative",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
@@ -32,10 +31,7 @@ export function BottomNavigation() {
               {isActive && (
                 <div className="absolute inset-0 bg-primary/10 rounded-xl -z-10 animate-scale-in" />
               )}
-              <item.icon className={cn(
-                "h-6 w-6 mb-1 smooth",
-                isActive && "scale-110"
-              )} />
+              <span className={cn("text-xl smooth", isActive && "scale-110")}>{item.emoji}</span>
               <span className="font-medium">{item.name}</span>
             </Link>
           );
