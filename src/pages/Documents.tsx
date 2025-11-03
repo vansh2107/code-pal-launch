@@ -387,70 +387,61 @@ export default function Documents() {
           </div>
         )}
 
-        {/* Filtered Documents */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">
-              {filteredDocuments.length} Document{filteredDocuments.length !== 1 ? 's' : ''}
-            </h2>
-            {documents.length > 0 && (
-              <Button variant="outline" size="sm" onClick={handleExport}>
-                Export CSV
-              </Button>
+        {/* Filtered Documents - Only show when filters are active */}
+        {(filterType !== "all" || searchQuery || filterStatus !== "all" || sortBy !== "expiry") && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">
+                {filteredDocuments.length} Document{filteredDocuments.length !== 1 ? 's' : ''}
+              </h2>
+              {documents.length > 0 && (
+                <Button variant="outline" size="sm" onClick={handleExport}>
+                  Export CSV
+                </Button>
+              )}
+            </div>
+
+            {filteredDocuments.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
+                    No documents match your filters
+                  </h3>
+                  <p className="text-muted-foreground mb-4">
+                    Try adjusting your filters or search query
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {filteredDocuments.map((doc) => (
+                  <Link key={doc.id} to={`/documents/${doc.id}`}>
+                    <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-foreground mb-1">{doc.name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {getSubCategoryName((doc as any).category_detail || doc.document_type)}
+                            </p>
+                          </div>
+                          {getStatusBadge(doc.expiry_date)}
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">{doc.issuing_authority}</span>
+                          <span className="text-muted-foreground">
+                            Expires: {new Date(doc.expiry_date).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
-
-          {filteredDocuments.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {documents.length === 0 ? "No documents yet" : "No documents match your filters"}
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  {documents.length === 0 
-                    ? "Start by adding your first document"
-                    : "Try adjusting your filters or search query"
-                  }
-                </p>
-                {documents.length === 0 && (
-                  <Link to="/scan">
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Document
-                    </Button>
-                  </Link>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {filteredDocuments.map((doc) => (
-                <Link key={doc.id} to={`/documents/${doc.id}`}>
-                  <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-foreground mb-1">{doc.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {getSubCategoryName((doc as any).category_detail || doc.document_type)}
-                          </p>
-                        </div>
-                        {getStatusBadge(doc.expiry_date)}
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{doc.issuing_authority}</span>
-                        <span className="text-muted-foreground">
-                          Expires: {new Date(doc.expiry_date).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </main>
 
       <BottomNavigation />
