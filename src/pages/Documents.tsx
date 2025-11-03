@@ -335,7 +335,21 @@ export default function Documents() {
             </Select>
           </div>
 
-          {(searchQuery || filterStatus !== "all" || sortBy !== "expiry") && (
+          <Select value={filterType} onValueChange={(value: string) => setFilterType(value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name.split(' ')[0]} {category.name.split(' ').slice(1).join(' ')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {(searchQuery || filterStatus !== "all" || sortBy !== "expiry" || filterType !== "all") && (
             <Button
               variant="outline"
               size="sm"
@@ -343,6 +357,7 @@ export default function Documents() {
                 setSearchQuery("");
                 setFilterStatus("all");
                 setSortBy("expiry");
+                setFilterType("all");
               }}
               className="w-full"
             >
