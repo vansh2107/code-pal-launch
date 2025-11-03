@@ -431,7 +431,7 @@ export default function Documents() {
             ) : (
               <div className="grid gap-4">
                 {filteredDocuments.map((doc) => (
-                  <Link key={doc.id} to={`/documents/${doc.id}`}>
+                  <Link key={doc.id} to={`/document/${doc.id}`}>
                     <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between mb-2">
