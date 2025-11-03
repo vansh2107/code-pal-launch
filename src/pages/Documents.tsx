@@ -39,21 +39,21 @@ const categories = [
   },
   { 
     id: "personal_productivity", 
-    name: "🧠 Personal Life & Productivity", 
+    name: "💖 Personal Life & Productivity", 
     icon: Heart, 
     color: "bg-pink-500/10 text-pink-500",
     types: ["health_checkup", "medication_refill", "pet_vaccination", "fitness_membership", "library_book", "warranty", "home_maintenance"]
   },
   { 
     id: "work_education", 
-    name: "🧑‍💼 Work & Education", 
+    name: "🎓 Work & Education", 
     icon: GraduationCap, 
     color: "bg-indigo-500/10 text-indigo-500",
     types: ["certification", "professional_license", "training_certificate", "software_license", "student_visa", "course_registration"]
   },
   { 
     id: "family_shared", 
-    name: "🏠 Family & Shared Renewals", 
+    name: "👨‍👩‍👧‍👦 Family & Shared Renewals", 
     icon: Users, 
     color: "bg-amber-500/10 text-amber-500",
     types: ["children_documents", "school_enrollment", "family_insurance", "joint_subscription", "pet_care", "property_lease"]
