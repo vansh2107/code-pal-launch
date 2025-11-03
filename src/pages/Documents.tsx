@@ -81,20 +81,8 @@ export default function Documents() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState("created_at");
   const [filterType, setFilterType] = useState("all");
-  const [filterSubType, setFilterSubType] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [showCategories, setShowCategories] = useState(true);
 
-  // Set filter from URL params
-  useEffect(() => {
-    const statusParam = searchParams.get('status');
-    if (statusParam && ['all', 'valid', 'expiring', 'expired'].includes(statusParam)) {
-      setFilterStatus(statusParam);
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     if (user) {
@@ -125,66 +113,24 @@ export default function Documents() {
 
   useEffect(() => {
     applyFilters();
-  }, [documents, searchQuery, filterType, filterSubType, filterStatus, sortBy]);
+  }, [documents, filterType]);
 
   const applyFilters = () => {
     let filtered = [...documents];
 
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter(doc =>
-        doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        doc.issuing_authority?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Type filter (main category + subcategory)
+    // Type filter
     if (filterType !== "all") {
       const category = categories.find(c => c.id === filterType);
       if (category) {
-          if (filterSubType !== "all") {
-            // Filter by specific subcategory using detailed type when available
-            filtered = filtered.filter(doc => (doc as any).category_detail ? (doc as any).category_detail === filterSubType : doc.document_type === filterSubType);
-          } else {
-            // Filter by main category (all subcategories)
-            filtered = filtered.filter(doc => {
-              const type = (doc as any).category_detail || doc.document_type;
-              return category.types.includes(type);
-            });
-          }
+        filtered = filtered.filter(doc => {
+          const type = (doc as any).category_detail || doc.document_type;
+          return category.types.includes(type);
+        });
       }
     }
 
-    // Status filter
-    if (filterStatus !== "all") {
-      const today = new Date();
-      filtered = filtered.filter(doc => {
-        const expiryDate = new Date(doc.expiry_date);
-        const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        
-        if (filterStatus === "expired") return daysUntilExpiry < 0;
-        if (filterStatus === "expiring") return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
-        if (filterStatus === "valid") return daysUntilExpiry > 30;
-        return true;
-      });
-    }
-
-    // Sort
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "name":
-          return a.name.localeCompare(b.name);
-        case "expiry_date":
-          return new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime();
-        case "document_type": {
-          const at = (a as any).category_detail || a.document_type;
-          const bt = (b as any).category_detail || b.document_type;
-          return at.localeCompare(bt);
-        }
-        default:
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-    });
+    // Sort by expiry date
+    filtered.sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
 
     setFilteredDocuments(filtered);
   };
@@ -225,22 +171,12 @@ export default function Documents() {
   };
 
   const handleCategoryClick = (categoryId: string) => {
-    const category = categories.find(c => c.id === categoryId);
-    if (category) {
+    if (filterType === categoryId) {
+      setFilterType("all");
+    } else {
       setFilterType(categoryId);
-      setFilterSubType("all");
-      setShowCategories(false);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  };
-
-  const handleSubCategoryClick = (subTypeId: string) => {
-    setFilterSubType(subTypeId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const getSubCategoryCount = (subTypeId: string) => {
-    return documents.filter(doc => ((doc as any).category_detail || doc.document_type) === subTypeId).length;
   };
 
   const getSubCategoryName = (subTypeId: string): string => {
@@ -319,7 +255,7 @@ export default function Documents() {
   return (
     <div className="min-h-screen bg-background pb-20">
       <header className="bg-card border-b border-border px-4 py-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Documents</h1>
           <Link to="/scan">
             <Button size="sm">
@@ -328,90 +264,23 @@ export default function Documents() {
             </Button>
           </Link>
         </div>
-        
-        {/* Search and Filters */}
-        <div className="space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search documents..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          
-          <div className="flex gap-3">
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="created_at">Date Added</SelectItem>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="expiry_date">Expiry Date</SelectItem>
-                <SelectItem value="document_type">Type</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Select value={filterType} onValueChange={(value) => {
-              setFilterType(value);
-              if (value === "all") setShowCategories(true);
-            }}>
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Filter type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category.id} value={category.id}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="valid">Valid</SelectItem>
-                <SelectItem value="expiring">Expiring Soon</SelectItem>
-                <SelectItem value="expired">Expired</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <Button onClick={handleExport} variant="outline" className="w-full">
-            Export to CSV
-          </Button>
-        </div>
       </header>
 
       <main className="px-4 py-6">
         {/* Categories Section */}
-        {showCategories && filterType === "all" && documents.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Browse by Category</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCategories(!showCategories)}
-              >
-                {showCategories ? "Hide" : "Show"}
-              </Button>
-            </div>
+        {documents.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Browse by Category</h2>
             <div className="grid grid-cols-1 gap-3">
               {categories.map((category) => {
                 const count = getCategoryCount(category.id);
-                const Icon = category.icon;
+                const isActive = filterType === category.id;
                 return (
                   <Card
                     key={category.id}
-                    className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+                    className={`cursor-pointer transition-all duration-200 hover:scale-[1.02] ${
+                      isActive ? 'ring-2 ring-primary shadow-lg' : 'hover:shadow-lg'
+                    }`}
                     onClick={() => handleCategoryClick(category.id)}
                   >
                     <CardContent className="p-4">
@@ -434,103 +303,29 @@ export default function Documents() {
           </div>
         )}
 
-        {/* Selected Category Header & Subcategories */}
         {filterType !== "all" && (
-          <>
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-foreground">
-                  {categories.find(c => c.id === filterType)?.name || "Documents"}
-                </h2>
-                <Badge variant="secondary">
-                  {filterSubType === "all" ? filteredDocuments.length : getSubCategoryCount(filterSubType)}
-                </Badge>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setFilterType("all");
-                  setFilterSubType("all");
-                  setShowCategories(true);
-                }}
-              >
-                View All
-              </Button>
-            </div>
-
-            {/* Subcategory Cards */}
-            {filterSubType === "all" && (
-              <div className="mb-6">
-                <h3 className="text-md font-medium text-muted-foreground mb-3">Browse by Type</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  {categories.find(c => c.id === filterType)?.types.map((subType) => {
-                    const count = getSubCategoryCount(subType);
-                    return (
-                      <Card
-                        key={subType}
-                        className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
-                        onClick={() => handleSubCategoryClick(subType)}
-                      >
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between mb-1">
-                            <Badge variant="secondary" className="font-semibold">
-                              {count}
-                            </Badge>
-                          </div>
-                          <h3 className="text-sm font-medium text-foreground leading-tight">
-                            {getSubCategoryName(subType)}
-                          </h3>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Back to subcategories button when viewing a specific subcategory */}
-            {filterSubType !== "all" && (
-              <div className="mb-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setFilterSubType("all")}
-                >
-                  ← Back to {categories.find(c => c.id === filterType)?.name}
-                </Button>
-                <div className="mt-2">
-                  <h3 className="text-md font-medium text-foreground">
-                    {getSubCategoryName(filterSubType)}
-                  </h3>
-                </div>
-              </div>
-            )}
-          </>
+          <div className="mb-4">
+            <h3 className="text-md font-semibold text-foreground">
+              {categories.find(c => c.id === filterType)?.name} ({filteredDocuments.length})
+            </h3>
+          </div>
         )}
 
-        {filteredDocuments.length === 0 ? (
+        {documents.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
-            <h2 className="text-xl font-semibold mb-2">
-              {documents.length === 0 ? "No documents yet" : "No documents match your search"}
-            </h2>
+            <h2 className="text-xl font-semibold mb-2">No documents yet</h2>
             <p className="text-muted-foreground mb-6">
-              {documents.length === 0 
-                ? "Add your first document to get started with secure reminders"
-                : "Try adjusting your search or filter criteria"
-              }
+              Add your first document to get started with secure reminders
             </p>
-            {documents.length === 0 && (
-              <Link to="/scan">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Your First Document
-                </Button>
-              </Link>
-            )}
+            <Link to="/scan">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Your First Document
+              </Button>
+            </Link>
           </div>
-        ) : (
+        ) : filteredDocuments.length > 0 && (
           <div className="space-y-3">
             {filteredDocuments.map((doc) => (
               <Link key={doc.id} to={`/document/${doc.id}`}>
