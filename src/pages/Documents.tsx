@@ -367,7 +367,7 @@ export default function Documents() {
         </div>
 
         {/* Categories Section */}
-        {documents.length > 0 && (
+        {documents.length > 0 && !searchQuery && filterStatus === "all" && sortBy === "expiry" && filterType === "all" && (
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Browse by Category</h2>
             <div className="grid grid-cols-1 gap-3">
