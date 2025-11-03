@@ -404,7 +404,7 @@ export default function Documents() {
                 {showCategories ? "Hide" : "Show"}
               </Button>
             </div>
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {categories.map((category) => {
                 const count = getCategoryCount(category.id);
                 const Icon = category.icon;
@@ -463,7 +463,7 @@ export default function Documents() {
             {filterSubType === "all" && (
               <div className="mb-6">
                 <h3 className="text-md font-medium text-muted-foreground mb-3">Browse by Type</h3>
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   {categories.find(c => c.id === filterType)?.types.map((subType) => {
                     const count = getSubCategoryCount(subType);
                     return (
