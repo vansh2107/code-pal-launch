@@ -6,20 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Plus, Search } from "lucide-react";
+import { FileText, Plus, Search, Filter, DollarSign, Shield, Heart, GraduationCap, Users, FolderOpen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { exportToCSV } from "@/utils/exportData";
-
-// Import category icons
-import governmentIcon from "@/assets/category-icons/government-icon.png";
-import financialIcon from "@/assets/category-icons/financial-icon.png";
-import personalIcon from "@/assets/category-icons/personal-icon.png";
-import educationIcon from "@/assets/category-icons/education-icon.png";
-import familyIcon from "@/assets/category-icons/family-icon.png";
-import securityIcon from "@/assets/category-icons/security-icon.png";
-import otherIcon from "@/assets/category-icons/other-icon.png";
 
 interface Document {
   id: string;
@@ -35,49 +26,49 @@ const categories = [
   { 
     id: "government_legal", 
     name: "Government & Legal Renewals", 
-    iconSrc: governmentIcon, 
+    icon: FileText, 
     color: "bg-blue-500/10 text-blue-500",
     types: ["passport", "passport_renewal", "license", "drivers_license", "permit", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "ticket_fines", "voting_registration"]
   },
   { 
     id: "financial_utility", 
     name: "Financial & Utility Renewals", 
-    iconSrc: financialIcon, 
+    icon: DollarSign, 
     color: "bg-green-500/10 text-green-500",
     types: ["insurance", "credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card"]
   },
   { 
     id: "personal_productivity", 
     name: "Personal Life & Productivity", 
-    iconSrc: personalIcon, 
+    icon: Heart, 
     color: "bg-pink-500/10 text-pink-500",
     types: ["health_checkup", "medication_refill", "pet_vaccination", "fitness_membership", "library_book", "warranty", "home_maintenance"]
   },
   { 
     id: "work_education", 
     name: "Work & Education", 
-    iconSrc: educationIcon, 
+    icon: GraduationCap, 
     color: "bg-indigo-500/10 text-indigo-500",
     types: ["certification", "professional_license", "training_certificate", "software_license", "student_visa", "course_registration"]
   },
   { 
     id: "family_shared", 
     name: "Family & Shared Renewals", 
-    iconSrc: familyIcon, 
+    icon: Users, 
     color: "bg-amber-500/10 text-amber-500",
     types: ["children_documents", "school_enrollment", "family_insurance", "joint_subscription", "pet_care", "property_lease"]
   },
   { 
     id: "digital_security", 
     name: "Digital & Security Renewals", 
-    iconSrc: securityIcon, 
+    icon: Shield, 
     color: "bg-purple-500/10 text-purple-500",
     types: ["domain_name", "web_hosting", "cloud_storage", "device_warranty", "password_security"]
   },
   { 
     id: "other", 
     name: "Other", 
-    iconSrc: otherIcon, 
+    icon: FolderOpen, 
     color: "bg-gray-500/10 text-gray-500",
     types: ["other"]
   },
@@ -352,7 +343,7 @@ export default function Documents() {
               <SelectItem value="all">All Categories</SelectItem>
               {categories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
-                  {category.name}
+                  {category.name.split(' ')[0]} {category.name.split(' ').slice(1).join(' ')}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -394,15 +385,9 @@ export default function Documents() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center flex-shrink-0">
-                            <img 
-                              src={category.iconSrc} 
-                              alt={category.name}
-                              className="w-10 h-10 object-contain opacity-60"
-                            />
-                          </div>
+                          <span className="text-2xl">{category.name.split(' ')[0]}</span>
                           <h3 className="text-sm font-medium text-foreground">
-                            {category.name}
+                            {category.name.split(' ').slice(1).join(' ')}
                           </h3>
                         </div>
                         <Badge variant="secondary" className="font-semibold">
