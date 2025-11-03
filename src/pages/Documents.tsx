@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Plus, Search, Filter, Building2, Scale, Plane, Award, Shield, Receipt, Heart, GraduationCap, AlertTriangle, Users, FolderOpen } from "lucide-react";
+import { FileText, Plus, Search, Filter, DollarSign, Shield, Heart, GraduationCap, Users, FolderOpen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
@@ -26,14 +26,14 @@ const categories = [
   { 
     id: "government_legal", 
     name: "🧾 Government & Legal Renewals", 
-    icon: Building2, 
+    icon: FileText, 
     color: "bg-blue-500/10 text-blue-500",
     types: ["passport", "passport_renewal", "license", "drivers_license", "permit", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "ticket_fines", "voting_registration"]
   },
   { 
     id: "financial_utility", 
     name: "🏦 Financial & Utility Renewals", 
-    icon: Receipt, 
+    icon: DollarSign, 
     color: "bg-green-500/10 text-green-500",
     types: ["insurance", "credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card"]
   },
