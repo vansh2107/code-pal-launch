@@ -82,9 +82,6 @@ export default function Documents() {
   const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("all");
-  const [sortBy, setSortBy] = useState("expiry");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
 
 
   useEffect(() => {
@@ -116,18 +113,10 @@ export default function Documents() {
 
   useEffect(() => {
     applyFilters();
-  }, [documents, filterType, sortBy, filterStatus, searchQuery]);
+  }, [documents, filterType]);
 
   const applyFilters = () => {
     let filtered = [...documents];
-
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter(doc => 
-        doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        doc.issuing_authority?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
 
     // Type filter
     if (filterType !== "all") {
@@ -140,31 +129,8 @@ export default function Documents() {
       }
     }
 
-    // Status filter
-    if (filterStatus !== "all") {
-      filtered = filtered.filter(doc => {
-        const today = new Date();
-        const expiry = new Date(doc.expiry_date);
-        const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        
-        if (filterStatus === "expired") return daysUntilExpiry < 0;
-        if (filterStatus === "expiring_soon") return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
-        if (filterStatus === "valid") return daysUntilExpiry > 30;
-        return true;
-      });
-    }
-
-    // Sort
-    filtered.sort((a, b) => {
-      if (sortBy === "expiry") {
-        return new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime();
-      } else if (sortBy === "name") {
-        return a.name.localeCompare(b.name);
-      } else if (sortBy === "recent") {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-      return 0;
-    });
+    // Sort by expiry date
+    filtered.sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
 
     setFilteredDocuments(filtered);
   };
@@ -337,118 +303,6 @@ export default function Documents() {
           </div>
         )}
 
-        {/* Filter Section */}
-        {documents.length > 0 && (
-          <div className="mb-6 space-y-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search documents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="expiry">Expiry Date</SelectItem>
-                  <SelectItem value="name">Name</SelectItem>
-                  <SelectItem value="recent">Most Recent</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="expired">Expired</SelectItem>
-                  <SelectItem value="expiring_soon">Expiring Soon</SelectItem>
-                  <SelectItem value="valid">Valid</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {(filterType !== "all" || filterStatus !== "all" || searchQuery) && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  setFilterType("all");
-                  setFilterStatus("all");
-                  setSearchQuery("");
-                }}
-                className="w-full"
-              >
-                Clear All Filters
-              </Button>
-            )}
-          </div>
-        )}
-
-        {filterType !== "all" && (
-          <div className="mb-4">
-            <h3 className="text-md font-semibold text-foreground">
-              {categories.find(c => c.id === filterType)?.name} ({filteredDocuments.length})
-            </h3>
-          </div>
-        )}
-
-        {documents.length === 0 ? (
-          <div className="text-center py-12">
-            <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
-            <h2 className="text-xl font-semibold mb-2">No documents yet</h2>
-            <p className="text-muted-foreground mb-6">
-              Add your first document to get started with secure reminders
-            </p>
-            <Link to="/scan">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Your First Document
-              </Button>
-            </Link>
-          </div>
-        ) : filteredDocuments.length === 0 ? (
-          <div className="text-center py-12">
-            <Filter className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
-            <h2 className="text-xl font-semibold mb-2">No documents found</h2>
-            <p className="text-muted-foreground mb-6">
-              Try adjusting your filters
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredDocuments.map((doc) => (
-              <Link key={doc.id} to={`/document/${doc.id}`}>
-                <Card className="hover:bg-muted/50 transition-colors">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-foreground mb-1">{doc.name}</h3>
-                        <p className="text-sm text-muted-foreground capitalize mb-2">
-                          {getSubCategoryName(((doc as any).category_detail || doc.document_type))}
-                          {doc.issuing_authority && ` • ${doc.issuing_authority}`}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Expires: {new Date(doc.expiry_date).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="ml-4">
-                        {getStatusBadge(doc.expiry_date)}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        )}
       </main>
 
       <BottomNavigation />
