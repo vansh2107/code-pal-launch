@@ -394,11 +394,13 @@ export default function Documents() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <img 
-                            src={category.iconSrc} 
-                            alt={category.name}
-                            className="w-12 h-12 object-contain"
-                          />
+                          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center flex-shrink-0">
+                            <img 
+                              src={category.iconSrc} 
+                              alt={category.name}
+                              className="w-10 h-10 object-contain opacity-60"
+                            />
+                          </div>
                           <h3 className="text-sm font-medium text-foreground">
                             {category.name}
                           </h3>
