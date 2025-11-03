@@ -303,55 +303,6 @@ export default function Documents() {
           </div>
         )}
 
-        {filterType !== "all" && (
-          <div className="mb-4">
-            <h3 className="text-md font-semibold text-foreground">
-              {categories.find(c => c.id === filterType)?.name} ({filteredDocuments.length})
-            </h3>
-          </div>
-        )}
-
-        {documents.length === 0 ? (
-          <div className="text-center py-12">
-            <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
-            <h2 className="text-xl font-semibold mb-2">No documents yet</h2>
-            <p className="text-muted-foreground mb-6">
-              Add your first document to get started with secure reminders
-            </p>
-            <Link to="/scan">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Your First Document
-              </Button>
-            </Link>
-          </div>
-        ) : filteredDocuments.length > 0 && (
-          <div className="space-y-3">
-            {filteredDocuments.map((doc) => (
-              <Link key={doc.id} to={`/document/${doc.id}`}>
-                <Card className="hover:bg-muted/50 transition-colors">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-foreground mb-1">{doc.name}</h3>
-                        <p className="text-sm text-muted-foreground capitalize mb-2">
-                          {getSubCategoryName(((doc as any).category_detail || doc.document_type))}
-                          {doc.issuing_authority && ` • ${doc.issuing_authority}`}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Expires: {new Date(doc.expiry_date).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="ml-4">
-                        {getStatusBadge(doc.expiry_date)}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        )}
       </main>
 
       <BottomNavigation />
