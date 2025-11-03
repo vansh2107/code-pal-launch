@@ -75,28 +75,31 @@ const handler = async (req: Request): Promise<Response> => {
         
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #1E40AF;">Thank You for Using Remonk Reminder!</h2>
-            <p>Hello ${displayName},</p>
-            <p>We wanted to take a moment to thank you for using Remonk Reminder. Your trust in our app means the world to us!</p>
+            <h2 style="color: #1E40AF;">Your Documents Just Sent a Thank You Note! 📄✨</h2>
+            <p>Hey ${displayName}! 👋</p>
+            <p>We caught your documents gossiping about you... and honestly, they're pretty impressed! 😎</p>
             
             <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 0; color: #374151;">
-                We're constantly working to improve your experience and help you stay on top of your important documents and renewals.
+              <p style="margin: 0; color: #374151; font-size: 18px;">
+                <strong>Your passport won't expire unexpectedly</strong><br>
+                <strong>Your license won't ghost you</strong><br>
+                <strong>Your permits won't pull a disappearing act</strong><br><br>
+                Thanks to you (and us 😉), they're all staying fresh and valid!
               </p>
             </div>
 
-            <p>If you have any feedback or suggestions, we'd love to hear from you. Your input helps us make Remonk Reminder even better!</p>
+            <p>We promise to keep nagging you about renewals so you never have to panic at the last minute. Because let's face it, nobody likes scrambling for expired documents! 🏃‍♂️💨</p>
             
             <div style="margin-top: 30px;">
               <a href="https://code-pal-launch.vercel.app" 
                  style="background-color: #1E40AF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                Open Remonk Reminder
+                Check Your Documents 📱
               </a>
             </div>
 
             <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
-              Thank you for being part of our community!<br>
-              The Remonk Reminder Team
+              Your friendly neighborhood reminder app 🦸‍♂️<br>
+              Team Remonk (We won't let you forget!)
             </p>
           </div>
         `;
@@ -112,7 +115,7 @@ const handler = async (req: Request): Promise<Response> => {
               to: [{ email: user.email }]
             }],
             from: { email: 'remind659@gmail.com' },
-            subject: 'Thank You for Using Remonk Reminder!',
+            subject: 'Your Documents Are Throwing a Party 🎉 (And You\'re Invited!)',
             content: [{
               type: 'text/html',
               value: emailHtml

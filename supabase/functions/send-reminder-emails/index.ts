@@ -116,30 +116,31 @@ const handler = async (req: Request): Promise<Response> => {
       try {
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #1E40AF;">Document Expiry Reminder</h2>
-            <p>Hello ${profile.display_name || 'there'},</p>
-            <p>This is a friendly reminder that your document is expiring soon:</p>
+            <h2 style="color: #1E40AF;">🚨 Your ${document.name} Just Sent an SOS!</h2>
+            <p>Yo ${profile.display_name || 'there'}! 👋</p>
+            <p>Don't panic, but your ${document.document_type} is getting ready to expire. Time to show it some renewal love! 💪</p>
             
-            <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="margin-top: 0; color: #374151;">Document Details</h3>
-              <p><strong>Name:</strong> ${document.name}</p>
+            <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #F59E0B;">
+              <h3 style="margin-top: 0; color: #374151;">⚡ Expiry Alert</h3>
+              <p><strong>Document:</strong> ${document.name}</p>
               <p><strong>Type:</strong> ${document.document_type}</p>
               ${document.issuing_authority ? `<p><strong>Issued by:</strong> ${document.issuing_authority}</p>` : ''}
               <p><strong>Expiry Date:</strong> ${new Date(document.expiry_date).toLocaleDateString()}</p>
-              <p style="color: #EF4444; font-weight: bold;">Days until expiry: ${daysUntilExpiry}</p>
+              <p style="color: #EF4444; font-weight: bold; font-size: 18px;">⏰ Only ${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'} left!</p>
             </div>
 
-            <p>Please make sure to renew this document before it expires.</p>
+            <p>${daysUntilExpiry <= 3 ? '🏃‍♂️ This is your last-minute warning! Time to renew NOW!' : '⏱️ Still got time, but why wait? Get it done and chill!'}</p>
             
             <div style="margin-top: 30px;">
               <a href="https://code-pal-launch.vercel.app/document/${document.id}" 
                  style="background-color: #1E40AF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                View Document
+                Renew Now 🚀
               </a>
             </div>
 
             <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
-              This is an automated reminder from Remonk Reminder. You can manage your notification preferences in your profile settings.
+              Your friendly neighborhood reminder app 🦸‍♂️<br>
+              Team Remonk (We won't let you forget!)
             </p>
           </div>
         `;
@@ -155,7 +156,7 @@ const handler = async (req: Request): Promise<Response> => {
               to: [{ email: profile.email! }]
             }],
             from: { email: 'remind659@gmail.com' },
-            subject: `Reminder: ${document.name} expires in ${daysUntilExpiry} days`,
+            subject: `${daysUntilExpiry <= 3 ? '🚨 URGENT' : '⏰'} Your ${document.name} won't renew itself! (${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'} left)`,
             content: [{
               type: 'text/html',
               value: emailHtml

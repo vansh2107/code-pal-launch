@@ -122,31 +122,32 @@ const handler = async (req: Request): Promise<Response> => {
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1E40AF;">Reminder Confirmation</h2>
-        <p>Hello ${profile.display_name || 'there'},</p>
-        <p>Your reminder has been successfully set for the following document:</p>
+        <h2 style="color: #1E40AF;">Mission Accepted! 🎯 Reminder Locked & Loaded</h2>
+        <p>Hey ${profile.display_name || 'there'}! 👋</p>
+        <p>Consider this your safety net. We've got your back, and your ${document.name} won't be sneaking up on you! 😎</p>
         
         <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="margin-top: 0; color: #374151;">Document Details</h3>
-          <p><strong>Name:</strong> ${document.name}</p>
+          <h3 style="margin-top: 0; color: #374151;">📋 What We're Watching</h3>
+          <p><strong>Document:</strong> ${document.name}</p>
           <p><strong>Type:</strong> ${document.document_type}</p>
           ${document.issuing_authority ? `<p><strong>Issued by:</strong> ${document.issuing_authority}</p>` : ''}
           <p><strong>Expiry Date:</strong> ${expiryDate.toLocaleDateString()}</p>
-          <p><strong>Reminder Date:</strong> ${reminderDate.toLocaleDateString()}</p>
-          <p style="color: #059669; font-weight: bold;">You'll be reminded ${daysUntilExpiry} days before expiry</p>
+          <p><strong>We'll Remind You:</strong> ${reminderDate.toLocaleDateString()}</p>
+          <p style="color: #059669; font-weight: bold; font-size: 16px;">⏰ That's ${daysUntilExpiry} days notice — plenty of time to renew!</p>
         </div>
 
-        <p>We'll send you another reminder on <strong>${reminderDate.toLocaleDateString()}</strong> to ensure you don't miss the renewal deadline.</p>
+        <p>Mark your calendar for <strong>${reminderDate.toLocaleDateString()}</strong> — that's when we'll slide into your inbox again. No document drama on our watch! 🦸‍♂️</p>
         
         <div style="margin-top: 30px;">
           <a href="https://code-pal-launch.vercel.app/document/${document.id}" 
              style="background-color: #1E40AF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-            View Document
+            View Document 📄
           </a>
         </div>
 
         <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
-          This is a confirmation from Remonk Reminder. You can manage your notification preferences in your profile settings.
+          Your friendly neighborhood reminder app 🦸‍♂️<br>
+          Team Remonk (Forgetting stuff? Not on our watch!)
         </p>
       </div>
     `;
@@ -162,7 +163,7 @@ const handler = async (req: Request): Promise<Response> => {
           to: [{ email: profile.email! }]
         }],
         from: { email: 'remind659@gmail.com' },
-        subject: `Reminder Set: ${document.name} expires in ${daysUntilExpiry} days`,
+        subject: `✅ Your ${document.name} is safe with us! (${daysUntilExpiry} days to go)`,
         content: [{
           type: 'text/html',
           value: emailHtml
