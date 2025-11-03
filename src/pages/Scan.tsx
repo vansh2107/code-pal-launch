@@ -420,8 +420,8 @@ export default function Scan() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <header className="bg-card border-b border-border px-4 py-6">
-        <div className="flex items-center gap-4">
+      <header className="bg-card border-b border-border px-3 py-4 md:px-4 md:py-6">
+        <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => {
             stopCamera();
             navigate(-1);
@@ -429,26 +429,26 @@ export default function Scan() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Add Document</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-xl md:text-2xl font-bold text-foreground">Add Document</h1>
+            <p className="text-sm text-muted-foreground">
               {scanMode === "camera" ? "Scan or upload" : "Manual entry"}
             </p>
           </div>
         </div>
       </header>
 
-      <main className="px-4 py-6 space-y-4">
+      <main className="px-3 py-4 space-y-3 md:px-4 md:py-6 md:space-y-4">
         {/* Country Selector for Multi-Country Support */}
         <Card>
-          <CardHeader>
-            <CardTitle>Document Country</CardTitle>
-            <CardDescription>Select the country for country-specific renewal regulations</CardDescription>
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-lg md:text-2xl">Document Country</CardTitle>
+            <CardDescription className="text-xs md:text-sm">Select the country for country-specific renewal regulations</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
             <div className="space-y-2">
-              <Label htmlFor="documentCountry">Country *</Label>
+              <Label htmlFor="documentCountry" className="text-sm">Country *</Label>
               <Select value={documentCountry} onValueChange={setDocumentCountry}>
-                <SelectTrigger id="documentCountry">
+                <SelectTrigger id="documentCountry" className="h-10">
                   <SelectValue placeholder="Select country" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
@@ -469,7 +469,7 @@ export default function Scan() {
                   <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 AI will use this country's specific renewal timelines and regulations
               </p>
             </div>
@@ -479,15 +479,15 @@ export default function Scan() {
         {/* Organization Selector */}
         {organizations.length > 0 && (
           <Card>
-            <CardHeader>
-              <CardTitle>Organization Context</CardTitle>
-              <CardDescription>Choose where to add these documents</CardDescription>
+            <CardHeader className="p-4 md:p-6">
+              <CardTitle className="text-lg md:text-2xl">Organization Context</CardTitle>
+              <CardDescription className="text-xs md:text-sm">Choose where to add these documents</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
               <div className="space-y-2">
-                <Label>Add documents to:</Label>
+                <Label className="text-sm">Add documents to:</Label>
                 <Select value={selectedOrg} onValueChange={setSelectedOrg}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -509,18 +509,22 @@ export default function Scan() {
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
-            className="flex-1"
+            className="flex-1 h-10 text-xs md:text-sm px-2 md:px-4"
+            size="sm"
           >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload PDF
+            <Upload className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">Upload PDF</span>
+            <span className="md:hidden ml-1">PDF</span>
           </Button>
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
-            className="flex-1"
+            className="flex-1 h-10 text-xs md:text-sm px-2 md:px-4"
+            size="sm"
           >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload Image
+            <Upload className="h-4 w-4 md:mr-2" />
+            <span className="hidden md:inline">Upload Image</span>
+            <span className="md:hidden ml-1">Image</span>
           </Button>
           <Button
             variant={scanMode === "manual" ? "default" : "outline"}
@@ -529,17 +533,18 @@ export default function Scan() {
               stopCamera();
               setCapturedImage(null);
             }}
-            className="flex-1"
+            className="flex-1 h-10 text-xs md:text-sm px-2 md:px-4"
+            size="sm"
           >
-            <Save className="h-4 w-4 mr-2" />
-            Manual
+            <Save className="h-4 w-4 md:mr-2" />
+            <span className="ml-1">Manual</span>
           </Button>
         </div>
 
         {/* Camera Section */}
         {scanMode === "camera" && !capturedImage && (
           <Card>
-            <CardContent className="p-4 space-y-4">
+            <CardContent className="p-3 md:p-4">
               <div className="relative aspect-[4/3] bg-muted rounded-lg overflow-hidden">
                 <video
                   ref={videoRef}
@@ -565,13 +570,13 @@ export default function Scan() {
         {/* Captured Image Preview */}
         {capturedImage && (
           <Card>
-            <CardContent className="p-4 space-y-4">
+            <CardContent className="p-3 space-y-3 md:p-4 md:space-y-4">
               {extracting ? (
                 <ScanningEffect imageUrl={capturedImage} />
               ) : (
                 <>
                   <img src={capturedImage} alt="Captured document" className="w-full rounded-lg" />
-                  <Button variant="outline" onClick={retakePhoto} className="w-full">
+                  <Button variant="outline" onClick={retakePhoto} className="w-full h-10">
                     Retake Photo
                   </Button>
                 </>
@@ -583,10 +588,10 @@ export default function Scan() {
         {/* Form Section */}
         {(scanMode === "manual" || capturedImage) && !extracting && (
           <Card>
-          <CardHeader>
-            <CardTitle>Document Information</CardTitle>
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-lg md:text-2xl">Document Information</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0 md:p-6 md:pt-0">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="name">Document Name *</Label>
