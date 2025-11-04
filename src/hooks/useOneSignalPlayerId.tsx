@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import despia from 'despia-native';
+
+// Safely import despia-native (only works in native mobile environment)
+let despia: any = null;
+try {
+  // This will only work in Despia native app environment
+  despia = (window as any).despia;
+} catch (e) {
+  console.log('Despia SDK not available (web environment)');
+}
 
 /**
  * Hook to manage OneSignal Player ID registration using Despia SDK
@@ -10,6 +18,8 @@ import despia from 'despia-native';
  * This hook automatically:
  * 1. Gets the OneSignal Player ID from Despia
  * 2. Registers it in the database for push notifications
+ * 
+ * Note: Only works in Despia native mobile app environment
  */
 export const useOneSignalPlayerId = () => {
   const { user } = useAuth();
@@ -19,6 +29,12 @@ export const useOneSignalPlayerId = () => {
   useEffect(() => {
     const registerPlayerId = async () => {
       if (!user) return;
+
+      // Only try to register if we're in a Despia environment
+      if (!despia || !despia.onesignalplayerid) {
+        console.log('OneSignal Player ID not available (not in Despia app)');
+        return;
+      }
 
       try {
         // Get OneSignal Player ID from Despia SDK
