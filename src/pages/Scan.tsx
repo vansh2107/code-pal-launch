@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ export default function Scan() {
   const [selectedOrg, setSelectedOrg] = useState<string>("personal");
   
   const [documentCountry, setDocumentCountry] = useState<string>("");
+  const [enableCountrySelect, setEnableCountrySelect] = useState(false);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -438,44 +440,6 @@ export default function Scan() {
       </header>
 
       <main className="px-4 py-3 space-y-3 max-w-2xl mx-auto">
-        {/* Country Selector for Multi-Country Support */}
-        <Card>
-          <CardHeader className="p-3 space-y-1">
-            <CardTitle className="text-base font-semibold">Document Country</CardTitle>
-            <CardDescription className="text-xs leading-tight">Select the country for country-specific renewal regulations</CardDescription>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="space-y-1.5">
-              <Label htmlFor="documentCountry" className="text-xs font-medium">Country *</Label>
-              <Select value={documentCountry} onValueChange={setDocumentCountry}>
-                <SelectTrigger id="documentCountry" className="h-9 text-sm">
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  <SelectItem value="India">India</SelectItem>
-                  <SelectItem value="Canada">Canada</SelectItem>
-                  <SelectItem value="United States">United States</SelectItem>
-                  <SelectItem value="United Kingdom">United Kingdom</SelectItem>
-                  <SelectItem value="Australia">Australia</SelectItem>
-                  <SelectItem value="Germany">Germany</SelectItem>
-                  <SelectItem value="France">France</SelectItem>
-                  <SelectItem value="Japan">Japan</SelectItem>
-                  <SelectItem value="China">China</SelectItem>
-                  <SelectItem value="Brazil">Brazil</SelectItem>
-                  <SelectItem value="Mexico">Mexico</SelectItem>
-                  <SelectItem value="South Africa">South Africa</SelectItem>
-                  <SelectItem value="Singapore">Singapore</SelectItem>
-                  <SelectItem value="UAE">UAE</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[10px] text-muted-foreground leading-tight">
-                AI will use this country's specific renewal timelines and regulations
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Organization Selector */}
         {organizations.length > 0 && (
           <Card>
@@ -667,6 +631,61 @@ export default function Scan() {
                   onChange={(e) => handleInputChange("issuing_authority", e.target.value)}
                   placeholder="e.g., Department of Motor Vehicles"
                 />
+              </div>
+
+              {/* Country-Specific Document Toggle */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="country-toggle" className="text-base">
+                      Document from another country?
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Enable country-specific renewal regulations
+                    </p>
+                  </div>
+                  <Switch
+                    id="country-toggle"
+                    checked={enableCountrySelect}
+                    onCheckedChange={(checked) => {
+                      setEnableCountrySelect(checked);
+                      if (!checked) {
+                        setDocumentCountry("");
+                      }
+                    }}
+                  />
+                </div>
+                
+                {enableCountrySelect && (
+                  <div className="space-y-2 pl-0">
+                    <Label htmlFor="documentCountry">Country *</Label>
+                    <Select value={documentCountry} onValueChange={setDocumentCountry}>
+                      <SelectTrigger id="documentCountry">
+                        <SelectValue placeholder="Select country" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        <SelectItem value="India">India</SelectItem>
+                        <SelectItem value="Canada">Canada</SelectItem>
+                        <SelectItem value="United States">United States</SelectItem>
+                        <SelectItem value="United Kingdom">United Kingdom</SelectItem>
+                        <SelectItem value="Australia">Australia</SelectItem>
+                        <SelectItem value="Germany">Germany</SelectItem>
+                        <SelectItem value="France">France</SelectItem>
+                        <SelectItem value="Japan">Japan</SelectItem>
+                        <SelectItem value="China">China</SelectItem>
+                        <SelectItem value="Brazil">Brazil</SelectItem>
+                        <SelectItem value="Mexico">Mexico</SelectItem>
+                        <SelectItem value="South Africa">South Africa</SelectItem>
+                        <SelectItem value="Singapore">Singapore</SelectItem>
+                        <SelectItem value="UAE">UAE</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      AI will use this country's specific renewal timelines
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
