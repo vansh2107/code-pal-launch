@@ -3,23 +3,13 @@ import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
-// Safely import despia-native (only works in native mobile environment)
-let despia: any = null;
-try {
-  // This will only work in Despia native app environment
-  despia = (window as any).despia;
-} catch (e) {
-  console.log('Despia SDK not available (web environment)');
-}
-
 /**
- * Hook to manage OneSignal Player ID registration using Despia SDK
+ * Hook to manage OneSignal Player ID registration
  * 
- * This hook automatically:
- * 1. Gets the OneSignal Player ID from Despia
- * 2. Registers it in the database for push notifications
+ * This hook manages OneSignal Player IDs for push notifications.
+ * In Despia native apps, the Player ID is available via window.despia.onesignalplayerid
  * 
- * Note: Only works in Despia native mobile app environment
+ * Note: Automatic registration only works in Despia native mobile app environment
  */
 export const useOneSignalPlayerId = () => {
   const { user } = useAuth();
@@ -30,8 +20,9 @@ export const useOneSignalPlayerId = () => {
     const registerPlayerId = async () => {
       if (!user) return;
 
-      // Only try to register if we're in a Despia environment
-      if (!despia || !despia.onesignalplayerid) {
+      // Check if we're in a Despia environment
+      const despia = (window as any).despia;
+      if (!despia?.onesignalplayerid) {
         console.log('OneSignal Player ID not available (not in Despia app)');
         return;
       }
@@ -52,7 +43,7 @@ export const useOneSignalPlayerId = () => {
           .from('onesignal_player_ids')
           .select('id')
           .eq('player_id', playerIdFromDespia)
-          .single();
+          .maybeSingle();
 
         if (existingPlayerId) {
           console.log('OneSignal Player ID already registered');
@@ -100,7 +91,7 @@ export const useOneSignalPlayerId = () => {
         .from('onesignal_player_ids')
         .select('id')
         .eq('player_id', playerIdInput)
-        .single();
+        .maybeSingle();
 
       if (existingPlayerId) {
         console.log('OneSignal Player ID already registered');
