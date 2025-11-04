@@ -18,26 +18,17 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('No authorization header');
     }
 
-    console.log('Auth header present:', !!authHeader);
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    
-    // Create client with auth header
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: {
-        headers: { Authorization: authHeader },
-      },
-    });
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get authenticated user - this validates the JWT
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    console.log('User lookup result:', { userId: user?.id, hasError: !!userError, errorMessage: userError?.message });
+    // Extract token and validate user
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
       console.error('Authentication failed:', userError);
-      throw new Error(`Not authenticated: ${userError?.message || 'No user found'}`);
+      throw new Error('Not authenticated');
     }
 
     console.log('Sending test push notification for user:', user.id);
