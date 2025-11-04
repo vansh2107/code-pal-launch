@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { useWebNotifications } from "@/hooks/useWebNotifications";
+import { useWebFCM } from "@/hooks/useWebFCM";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
@@ -26,6 +27,7 @@ const queryClient = new QueryClient();
 
 const NotificationScheduler = () => {
   useWebNotifications();
+  useWebFCM();
   return null;
 };
 
