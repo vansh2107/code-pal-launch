@@ -4,12 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Plus, Camera } from "lucide-react";
+import { FileText, Plus, Camera, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { DocumentStats } from "@/components/dashboard/DocumentStats";
 import { ExpiryTimeline } from "@/components/dashboard/ExpiryTimeline";
 import { ChatBot } from "@/components/chatbot/ChatBot";
+import { useToast } from "@/hooks/use-toast";
 
 interface Document {
   id: string;
@@ -30,10 +31,12 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [stats, setStats] = useState<DashboardStats>({ total: 0, expiringSoon: 0, expired: 0, valid: 0 });
   const [documents, setDocuments] = useState<Document[]>([]);
   const [recentDocuments, setRecentDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -76,6 +79,29 @@ export default function Dashboard() {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sendTestNotification = async () => {
+    setSendingTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('test-push-notification');
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Test Notification Sent!",
+        description: "Check your device for the notification.",
+      });
+    } catch (error: any) {
+      console.error('Error sending test notification:', error);
+      toast({
+        title: "Failed to Send",
+        description: error.message || "Could not send test notification",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -126,14 +152,24 @@ export default function Dashboard() {
           <ExpiryTimeline documents={documents.filter(doc => doc.issuing_authority !== 'DocVault')} />
         </div>
 
-        {/* Quick Action */}
-        <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
+        {/* Quick Actions */}
+        <div className="animate-fade-in space-y-3" style={{ animationDelay: '0.2s' }}>
           <Link to="/scan">
             <Button className="w-full btn-glow" size="lg">
               <Camera className="h-5 w-5 mr-2" />
               Scan New Document
             </Button>
           </Link>
+          <Button 
+            className="w-full" 
+            size="lg" 
+            variant="outline"
+            onClick={sendTestNotification}
+            disabled={sendingTest}
+          >
+            <Bell className="h-5 w-5 mr-2" />
+            {sendingTest ? "Sending..." : "Send Test Notification"}
+          </Button>
         </div>
 
         {/* Recent Documents */}
