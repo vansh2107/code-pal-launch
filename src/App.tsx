@@ -19,6 +19,7 @@ import Profile from "./pages/Profile";
 import DocVault from "./pages/DocVault";
 import NotFound from "./pages/NotFound";
 import TestEmails from "./pages/TestEmails";
+import TestPushNotification from "./pages/TestPushNotification";
 import AuthEventListener from "./components/auth/AuthEventListener";
 
 const queryClient = new QueryClient();
@@ -110,6 +111,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <TestEmails />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/test-push" 
+              element={
+                <ProtectedRoute>
+                  <TestPushNotification />
                 </ProtectedRoute>
               } 
             />

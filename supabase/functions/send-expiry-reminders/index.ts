@@ -71,7 +71,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Get user preferences
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('user_id, email_notifications_enabled, expiry_reminders_enabled, display_name');
+      .select('user_id, email_notifications_enabled, expiry_reminders_enabled, display_name, push_notifications_enabled');
 
     const userPrefsMap = new Map(
       profiles?.map(p => [p.user_id, p]) || []
@@ -169,6 +169,32 @@ const handler = async (req: Request): Promise<Response> => {
         }
 
         console.log(`Successfully sent reminder email to: ${userEmail} for document: ${document.name}`);
+        
+        // Also send push notification if user has push enabled
+        if (userPrefs?.push_notifications_enabled) {
+          try {
+            const pushResponse = await supabase.functions.invoke('send-push-notification', {
+              body: {
+                userId: reminder.user_id,
+                title: `Document Expiring Soon`,
+                body: `${document.name} expires in ${daysUntilExpiry} days`,
+                data: {
+                  documentId: reminder.document_id,
+                  type: 'expiry_reminder'
+                }
+              }
+            });
+            
+            if (pushResponse.error) {
+              console.error('Error sending push notification:', pushResponse.error);
+            } else {
+              console.log('Push notification sent successfully');
+            }
+          } catch (pushError) {
+            console.error('Exception sending push notification:', pushError);
+          }
+        }
+        
         processedReminders.push(reminder.id);
         sentCount++;
 
