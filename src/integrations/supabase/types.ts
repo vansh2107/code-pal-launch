@@ -174,6 +174,33 @@ export type Database = {
         }
         Relationships: []
       }
+      onesignal_player_ids: {
+        Row: {
+          created_at: string
+          device_info: string | null
+          id: string
+          player_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_info?: string | null
+          id?: string
+          player_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_info?: string | null
+          id?: string
+          player_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       organization_members: {
         Row: {
           created_at: string

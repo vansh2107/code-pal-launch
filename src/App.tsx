@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { useWebNotifications } from "@/hooks/useWebNotifications";
 import { useWebFCM } from "@/hooks/useWebFCM";
+import { useOneSignalPlayerId } from "@/hooks/useOneSignalPlayerId";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
@@ -21,6 +22,7 @@ import DocVault from "./pages/DocVault";
 import NotFound from "./pages/NotFound";
 import TestEmails from "./pages/TestEmails";
 import TestPushNotification from "./pages/TestPushNotification";
+import TestOneSignal from "./pages/TestOneSignal";
 import AuthEventListener from "./components/auth/AuthEventListener";
 
 const queryClient = new QueryClient();
@@ -28,6 +30,7 @@ const queryClient = new QueryClient();
 const NotificationScheduler = () => {
   useWebNotifications();
   useWebFCM();
+  useOneSignalPlayerId();
   return null;
 };
 
@@ -121,6 +124,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <TestPushNotification />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/test-onesignal" 
+              element={
+                <ProtectedRoute>
+                  <TestOneSignal />
                 </ProtectedRoute>
               } 
             />

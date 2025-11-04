@@ -177,6 +177,36 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        {/* Developer & Testing */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Developer & Testing</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start" 
+              onClick={() => navigate('/test-push')}
+            >
+              Test Firebase Push Notifications
+            </Button>
+            <Button 
+              variant="outline" 
+              className="w-full justify-start" 
+              onClick={() => navigate('/test-onesignal')}
+            >
+              Test OneSignal Push Notifications (Despia)
+            </Button>
+            <Button 
+              variant="outline" 
+              className="w-full justify-start" 
+              onClick={() => navigate('/test-emails')}
+            >
+              Test Email Notifications
+            </Button>
+          </CardContent>
+        </Card>
+
         {/* Save Button */}
         <Button onClick={updateProfile} disabled={saving} className="w-full" size="lg">
           {saving ? (
