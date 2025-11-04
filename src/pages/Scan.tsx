@@ -59,6 +59,16 @@ export default function Scan() {
     }
   }, [user]);
 
+  // Start camera automatically when in camera mode
+  useEffect(() => {
+    if (scanMode === "camera" && !capturedImage) {
+      startCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [scanMode, capturedImage]);
+
   const fetchOrganizations = async () => {
     const { data } = await supabase
       .from('organizations')
@@ -513,9 +523,22 @@ export default function Scan() {
                   autoPlay
                   playsInline
                   className="w-full h-full object-cover"
-                  onLoadedMetadata={startCamera}
                 />
+                {!stream && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                    <div className="text-center space-y-2">
+                      <Camera className="h-12 w-12 mx-auto text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Starting camera...</p>
+                    </div>
+                  </div>
+                )}
               </div>
+              {stream && (
+                <Button onClick={captureImage} className="w-full mt-3">
+                  <Camera className="h-4 w-4 mr-2" />
+                  Capture Document
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
