@@ -443,7 +443,7 @@ export default function Profile() {
                 <div>
                   <h3 className="font-semibold mb-2">Need more help?</h3>
                   <p className="text-sm text-muted-foreground">
-                    Contact us through the feedback form or email support@remonkreminder.com
+                    Contact us through the feedback form or email remind659@gmail.com
                   </p>
                 </div>
               </div>
@@ -479,8 +479,8 @@ export default function Profile() {
               <div className="pt-4 space-y-4">
                 <div>
                   <p className="text-sm font-medium mb-2">Email Support</p>
-                  <a href="mailto:support@remonkreminder.com" className="text-sm text-primary hover:underline">
-                    support@remonkreminder.com
+                  <a href="mailto:remind659@gmail.com" className="text-sm text-primary hover:underline">
+                    remind659@gmail.com
                   </a>
                 </div>
                 <div>
