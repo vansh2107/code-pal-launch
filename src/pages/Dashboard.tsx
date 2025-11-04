@@ -85,7 +85,22 @@ export default function Dashboard() {
   const sendTestNotification = async () => {
     setSendingTest(true);
     try {
-      const { data, error } = await supabase.functions.invoke('test-push-notification');
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({
+          title: "Not Authenticated",
+          description: "Please log in to send test notifications",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('test-push-notification', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
       
       if (error) throw error;
       
