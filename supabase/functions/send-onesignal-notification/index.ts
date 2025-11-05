@@ -70,8 +70,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log('Sending OneSignal request for', playerIds.length, 'player IDs');
 
-    // OneSignal REST API uses "Key" prefix (not "Basic")
-    const oneSignalResponse = await fetch('https://onesignal.com/api/v1/notifications', {
+    // OneSignal REST API uses "Key" prefix and api.onesignal.com endpoint
+    const oneSignalResponse = await fetch('https://api.onesignal.com/notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
