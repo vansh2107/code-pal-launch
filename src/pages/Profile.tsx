@@ -384,29 +384,7 @@ export default function Profile() {
             </DialogContent>
           </Dialog>
 
-          <Dialog>
-            <DialogTrigger asChild>
-              <button className="w-full">
-                <SettingsItem icon={Bell} title="Notification Preferences" />
-              </button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Notification Settings</DialogTitle>
-              </DialogHeader>
-              <div className="pt-4">
-                <p className="text-sm text-muted-foreground">
-                  Notification customization coming soon. You'll be able to configure:
-                </p>
-                <ul className="mt-4 space-y-2 text-sm text-muted-foreground list-disc pl-5">
-                  <li>Email notifications</li>
-                  <li>Push notifications</li>
-                  <li>Reminder timing preferences</li>
-                  <li>Notification frequency</li>
-                </ul>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <SettingsItem icon={Bell} title="Notification Preferences" to="/notification-settings" />
 
           <DeleteAccountDialog>
             <button className="w-full">
