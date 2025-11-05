@@ -173,25 +173,26 @@ const handler = async (req: Request): Promise<Response> => {
         // Also send push notification if user has push enabled
         if (userPrefs?.push_notifications_enabled) {
           try {
-            const pushResponse = await supabase.functions.invoke('send-push-notification', {
+            const pushResponse = await supabase.functions.invoke('send-onesignal-notification', {
               body: {
                 userId: reminder.user_id,
-                title: `Document Expiring Soon`,
-                body: `${document.name} expires in ${daysUntilExpiry} days`,
+                title: `📅 Document Expiring Soon`,
+                message: `${document.name} expires in ${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'}`,
                 data: {
                   documentId: reminder.document_id,
-                  type: 'expiry_reminder'
+                  type: 'expiry_reminder',
+                  expiryDate: document.expiry_date
                 }
               }
             });
             
             if (pushResponse.error) {
-              console.error('Error sending push notification:', pushResponse.error);
+              console.error('Error sending OneSignal push notification:', pushResponse.error);
             } else {
-              console.log('Push notification sent successfully');
+              console.log('OneSignal push notification sent successfully');
             }
           } catch (pushError) {
-            console.error('Exception sending push notification:', pushError);
+            console.error('Exception sending OneSignal push notification:', pushError);
           }
         }
         
