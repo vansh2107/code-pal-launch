@@ -31,14 +31,14 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('Not authenticated');
     }
 
-    console.log('Sending test push notification for user:', user.id);
+    console.log('Sending test OneSignal notification for user:', user.id);
 
-    // Call the send-push-notification function
-    const { data, error } = await supabase.functions.invoke('send-push-notification', {
+    // Call the send-onesignal-notification function
+    const { data, error } = await supabase.functions.invoke('send-onesignal-notification', {
       body: {
         userId: user.id,
         title: '📅 Test: Document Reminder',
-        body: 'Your document reminder for November 4, 2025 is working! Push notifications are now enabled.',
+        message: 'Your document reminder for November 4, 2025 is working! OneSignal push notifications are now enabled.',
         data: {
           type: 'test',
           date: '2025-11-04'
