@@ -51,48 +51,70 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("reminder_id is required");
     }
 
-    // Fetch the specific reminder with document and profile details
-    const { data: reminder, error: fetchError } = await supabase
+    // Fetch the specific reminder with document details
+    const { data: reminderData, error: fetchError } = await supabase
       .from('reminders')
       .select(`
         id,
         reminder_date,
         user_id,
         is_sent,
-        documents!inner (
+        document_id,
+        documents (
           id,
           name,
           document_type,
           expiry_date,
           issuing_authority
-        ),
-        profiles!inner (
-          email,
-          display_name,
-          email_notifications_enabled,
-          expiry_reminders_enabled
         )
       `)
       .eq('id', reminder_id)
-      .maybeSingle() as { data: ReminderWithDocument | null, error: any };
+      .maybeSingle();
 
     if (fetchError) {
       console.error("Error fetching reminder:", fetchError);
       throw fetchError;
     }
 
-    if (!reminder) {
-      console.log("Reminder not found:", reminder_id);
+    if (!reminderData || !reminderData.documents) {
+      console.log("Reminder or document not found:", reminder_id);
       return new Response(
         JSON.stringify({ message: "Reminder not found" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
       );
     }
 
+    const reminder = {
+      ...reminderData,
+      documents: Array.isArray(reminderData.documents) ? reminderData.documents[0] : reminderData.documents
+    };
+
+
+    // Fetch profile separately
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('email, display_name, email_notifications_enabled, expiry_reminders_enabled')
+      .eq('user_id', reminder.user_id)
+      .maybeSingle() as { data: ReminderWithDocument['profiles'] | null, error: any };
+
+
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+      throw profileError;
+    }
+
+    if (!profile) {
+      console.log("Profile not found for user:", reminder.user_id);
+      return new Response(
+        JSON.stringify({ message: "Profile not found" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+      );
+    }
+
     // Check if user has email notifications enabled
-    if (!reminder.profiles.email_notifications_enabled || 
-        !reminder.profiles.expiry_reminders_enabled ||
-        !reminder.profiles.email) {
+    if (!profile.email_notifications_enabled || 
+        !profile.expiry_reminders_enabled ||
+        !profile.email) {
       console.log(`Skipping reminder ${reminder.id} - notifications disabled or no email`);
       return new Response(
         JSON.stringify({ message: "Notifications disabled for user" }),
@@ -110,7 +132,6 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const document = reminder.documents;
-    const profile = reminder.profiles;
     
     const reminderDate = new Date(reminder.reminder_date);
     const expiryDate = new Date(document.expiry_date);
