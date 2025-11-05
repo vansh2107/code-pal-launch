@@ -53,9 +53,77 @@ const handler = async (req: Request): Promise<Response> => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
+    const nowUtc = new Date();
+    const currentUtcHour = nowUtc.getUTCHours();
+    const currentUtcMinute = nowUtc.getUTCMinutes();
+    
+    console.log(`Current UTC time: ${currentUtcHour}:${currentUtcMinute.toString().padStart(2, '0')}`);
+    
+    // Fetch all profiles with their timezone and notification preferences
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('user_id, email, display_name, email_notifications_enabled, expiry_reminders_enabled, push_notifications_enabled, timezone, preferred_notification_time');
+
+    if (profilesError) {
+      console.error("Error fetching profiles:", profilesError);
+      throw profilesError;
+    }
+
+    if (!profiles || profiles.length === 0) {
+      console.log("No profiles found");
+      return new Response(
+        JSON.stringify({ message: "No profiles found", count: 0 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    // Filter users whose local time matches their preferred notification time
+    const eligibleUserIds: string[] = [];
+    
+    for (const profile of profiles) {
+      // Skip if notifications are disabled
+      if (!profile.email_notifications_enabled || !profile.expiry_reminders_enabled || !profile.email) {
+        continue;
+      }
+
+      const timezone = profile.timezone || 'UTC';
+      const preferredTime = profile.preferred_notification_time || '09:00:00';
+      const [preferredHour] = preferredTime.split(':').map(Number);
+
+      // Calculate user's local time
+      try {
+        const userLocalTime = new Date(nowUtc.toLocaleString('en-US', { timeZone: timezone }));
+        const userLocalHour = userLocalTime.getHours();
+        
+        console.log(`User ${profile.user_id}: timezone=${timezone}, preferred=${preferredHour}:00, current=${userLocalHour}:00`);
+        
+        // Check if current hour matches preferred hour (with 1 hour window to account for cron frequency)
+        if (userLocalHour === preferredHour) {
+          eligibleUserIds.push(profile.user_id);
+          console.log(`✓ User ${profile.user_id} eligible for notifications`);
+        }
+      } catch (tzError) {
+        console.error(`Error processing timezone ${timezone} for user ${profile.user_id}:`, tzError);
+        // Fallback to UTC
+        if (currentUtcHour === 9) {
+          eligibleUserIds.push(profile.user_id);
+        }
+      }
+    }
+
+    if (eligibleUserIds.length === 0) {
+      console.log("No users eligible for notifications at this time");
+      return new Response(
+        JSON.stringify({ message: "No users eligible at this time", count: 0 }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    console.log(`Found ${eligibleUserIds.length} eligible users`);
+
+    // Fetch reminders for eligible users
     const today = new Date().toISOString().split('T')[0];
     
-    // Fetch reminders that are due today and haven't been sent
     const { data: reminders, error: fetchError } = await supabase
       .from('reminders')
       .select(`
@@ -69,16 +137,11 @@ const handler = async (req: Request): Promise<Response> => {
           document_type,
           expiry_date,
           issuing_authority
-        ),
-        profiles!inner (
-          email,
-          display_name,
-          email_notifications_enabled,
-          expiry_reminders_enabled
         )
       `)
       .eq('reminder_date', today)
-      .eq('is_sent', false);
+      .eq('is_sent', false)
+      .in('user_id', eligibleUserIds);
 
     if (fetchError) {
       console.error("Error fetching reminders:", fetchError);
@@ -86,7 +149,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (!reminders || reminders.length === 0) {
-      console.log("No reminders to send today");
+      console.log("No reminders to send for eligible users");
       return new Response(
         JSON.stringify({ message: "No reminders to send", count: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
@@ -97,18 +160,19 @@ const handler = async (req: Request): Promise<Response> => {
 
     let sentCount = 0;
     let errorCount = 0;
+    
+    // Create a map of profiles for quick lookup
+    const profileMap = new Map(profiles.map(p => [p.user_id, p]));
 
-    for (const reminder of reminders as unknown as ReminderWithDocument[]) {
-      // Check if user has email notifications enabled
-      if (!reminder.profiles.email_notifications_enabled || 
-          !reminder.profiles.expiry_reminders_enabled ||
-          !reminder.profiles.email) {
-        console.log(`Skipping reminder ${reminder.id} - notifications disabled or no email`);
+    for (const reminder of reminders as any[]) {
+      const profile = profileMap.get(reminder.user_id);
+      
+      if (!profile) {
+        console.log(`Skipping reminder ${reminder.id} - no profile found`);
         continue;
       }
 
       const document = reminder.documents;
-      const profile = reminder.profiles;
       const daysUntilExpiry = Math.ceil(
         (new Date(document.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -172,14 +236,7 @@ const handler = async (req: Request): Promise<Response> => {
         }
 
         // Also send push notification if user has push enabled
-        // Get user preferences
-        const { data: userProfile } = await supabase
-          .from('profiles')
-          .select('push_notifications_enabled')
-          .eq('user_id', reminder.user_id)
-          .single();
-
-        if (userProfile?.push_notifications_enabled) {
+        if (profile.push_notifications_enabled) {
           try {
             const pushResponse = await supabase.functions.invoke('send-onesignal-notification', {
               body: {
