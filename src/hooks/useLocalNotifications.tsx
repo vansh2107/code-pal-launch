@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import despia from 'despia-native';
 
 interface Reminder {
   id: string;
@@ -30,7 +29,9 @@ export const useLocalNotifications = () => {
       const url = `/document/${reminder.document_id}`;
 
       // Schedule local push notification using Despia SDK
-      despia(`sendlocalpushmsg://push.send?s=${secondsUntilReminder}=msg!${encodeURIComponent(message)}&!#${encodeURIComponent(title)}&!#${encodeURIComponent(url)}`);
+      if (typeof window !== 'undefined' && (window as any).despia) {
+        (window as any).despia(`sendlocalpushmsg://push.send?s=${secondsUntilReminder}=msg!${encodeURIComponent(message)}&!#${encodeURIComponent(title)}&!#${encodeURIComponent(url)}`);
+      }
       
       console.log(`Scheduled notification for ${reminder.documents.name} in ${secondsUntilReminder} seconds`);
     }

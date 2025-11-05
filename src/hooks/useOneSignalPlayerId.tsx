@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import despia from 'despia-native';
 
 /**
  * Hook to manage OneSignal Player ID registration
@@ -19,13 +20,6 @@ export const useOneSignalPlayerId = () => {
   useEffect(() => {
     const registerPlayerId = async () => {
       if (!user) return;
-
-      // Check if we're in a Despia environment
-      const despia = (window as any).despia;
-      if (!despia?.onesignalplayerid) {
-        console.log('OneSignal Player ID not available (not in Despia app)');
-        return;
-      }
 
       try {
         // Get OneSignal Player ID from Despia SDK
