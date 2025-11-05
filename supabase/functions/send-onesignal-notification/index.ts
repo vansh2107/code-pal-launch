@@ -49,6 +49,10 @@ const handler = async (req: Request): Promise<Response> => {
     const oneSignalAppId = Deno.env.get('ONESIGNAL_APP_ID');
     const oneSignalRestApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
 
+    console.log('OneSignal App ID:', oneSignalAppId?.substring(0, 10) + '...');
+    console.log('OneSignal API Key exists:', !!oneSignalRestApiKey);
+    console.log('OneSignal API Key length:', oneSignalRestApiKey?.length);
+
     if (!oneSignalAppId || !oneSignalRestApiKey) {
       throw new Error('OneSignal credentials not configured');
     }
@@ -64,11 +68,12 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log('Sending OneSignal request for', playerIds.length, 'player IDs');
 
+    // OneSignal REST API requires "Basic " prefix with the REST API Key
     const oneSignalResponse = await fetch('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${oneSignalRestApiKey}`,
+        'Authorization': `Basic ${oneSignalRestApiKey.trim()}`,
       },
       body: JSON.stringify(oneSignalPayload),
     });
