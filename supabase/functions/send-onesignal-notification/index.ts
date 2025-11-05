@@ -52,6 +52,8 @@ const handler = async (req: Request): Promise<Response> => {
     console.log('OneSignal App ID:', oneSignalAppId?.substring(0, 10) + '...');
     console.log('OneSignal API Key exists:', !!oneSignalRestApiKey);
     console.log('OneSignal API Key length:', oneSignalRestApiKey?.length);
+    console.log('OneSignal API Key first 20 chars:', oneSignalRestApiKey?.substring(0, 20));
+    console.log('OneSignal API Key last 10 chars:', oneSignalRestApiKey?.substring(oneSignalRestApiKey.length - 10));
 
     if (!oneSignalAppId || !oneSignalRestApiKey) {
       throw new Error('OneSignal credentials not configured');
