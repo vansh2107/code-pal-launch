@@ -266,8 +266,10 @@ export type Database = {
           email_notifications_enabled: boolean | null
           expiry_reminders_enabled: boolean | null
           id: string
+          preferred_notification_time: string | null
           push_notifications_enabled: boolean | null
           renewal_reminders_enabled: boolean | null
+          timezone: string | null
           updated_at: string
           user_id: string
           weekly_digest_enabled: boolean | null
@@ -280,8 +282,10 @@ export type Database = {
           email_notifications_enabled?: boolean | null
           expiry_reminders_enabled?: boolean | null
           id?: string
+          preferred_notification_time?: string | null
           push_notifications_enabled?: boolean | null
           renewal_reminders_enabled?: boolean | null
+          timezone?: string | null
           updated_at?: string
           user_id: string
           weekly_digest_enabled?: boolean | null
@@ -294,8 +298,10 @@ export type Database = {
           email_notifications_enabled?: boolean | null
           expiry_reminders_enabled?: boolean | null
           id?: string
+          preferred_notification_time?: string | null
           push_notifications_enabled?: boolean | null
           renewal_reminders_enabled?: boolean | null
+          timezone?: string | null
           updated_at?: string
           user_id?: string
           weekly_digest_enabled?: boolean | null

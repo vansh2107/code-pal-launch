@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Bell } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Bell, Clock, Globe } from "lucide-react";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +22,8 @@ export default function NotificationSettings() {
   const [expiryReminders, setExpiryReminders] = useState(true);
   const [renewalReminders, setRenewalReminders] = useState(true);
   const [weeklyDigest, setWeeklyDigest] = useState(false);
+  const [timezone, setTimezone] = useState("UTC");
+  const [notificationTime, setNotificationTime] = useState("09:00");
 
   useEffect(() => {
     if (user) {
@@ -32,7 +35,7 @@ export default function NotificationSettings() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('email_notifications_enabled, push_notifications_enabled, expiry_reminders_enabled, renewal_reminders_enabled, weekly_digest_enabled')
+        .select('email_notifications_enabled, push_notifications_enabled, expiry_reminders_enabled, renewal_reminders_enabled, weekly_digest_enabled, timezone, preferred_notification_time')
         .eq('user_id', user?.id)
         .single();
 
@@ -44,6 +47,8 @@ export default function NotificationSettings() {
         setExpiryReminders(data.expiry_reminders_enabled ?? true);
         setRenewalReminders(data.renewal_reminders_enabled ?? true);
         setWeeklyDigest(data.weekly_digest_enabled ?? false);
+        setTimezone(data.timezone ?? "UTC");
+        setNotificationTime(data.preferred_notification_time?.substring(0, 5) ?? "09:00");
       }
     } catch (error) {
       console.error('Error loading preferences:', error);
@@ -65,6 +70,8 @@ export default function NotificationSettings() {
           expiry_reminders_enabled: expiryReminders,
           renewal_reminders_enabled: renewalReminders,
           weekly_digest_enabled: weeklyDigest,
+          timezone: timezone,
+          preferred_notification_time: `${notificationTime}:00`,
         })
         .eq('user_id', user.id);
 
@@ -85,6 +92,33 @@ export default function NotificationSettings() {
       setSaving(false);
     }
   };
+
+  const timezones = [
+    "UTC",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "America/Toronto",
+    "America/Mexico_City",
+    "Europe/London",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "Europe/Rome",
+    "Europe/Madrid",
+    "Asia/Dubai",
+    "Asia/Kolkata",
+    "Asia/Shanghai",
+    "Asia/Tokyo",
+    "Asia/Singapore",
+    "Australia/Sydney",
+    "Pacific/Auckland",
+  ];
+
+  const timeOptions = Array.from({ length: 24 }, (_, i) => {
+    const hour = i.toString().padStart(2, '0');
+    return `${hour}:00`;
+  });
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -178,6 +212,58 @@ export default function NotificationSettings() {
                 checked={weeklyDigest}
                 onCheckedChange={setWeeklyDigest}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Time & Timezone Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Notification Timing
+            </CardTitle>
+            <CardDescription>Set your preferred time and timezone for notifications</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="timezone" className="flex items-center gap-2">
+                <Globe className="h-4 w-4" />
+                Timezone
+              </Label>
+              <Select value={timezone} onValueChange={setTimezone}>
+                <SelectTrigger id="timezone">
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {timezones.map((tz) => (
+                    <SelectItem key={tz} value={tz}>
+                      {tz}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">Choose your local timezone</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notification-time" className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Preferred Notification Time
+              </Label>
+              <Select value={notificationTime} onValueChange={setNotificationTime}>
+                <SelectTrigger id="notification-time">
+                  <SelectValue placeholder="Select time" />
+                </SelectTrigger>
+                <SelectContent>
+                  {timeOptions.map((time) => (
+                    <SelectItem key={time} value={time}>
+                      {time}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">When do you want to receive daily notifications?</p>
             </div>
           </CardContent>
         </Card>
