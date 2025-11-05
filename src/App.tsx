@@ -15,6 +15,7 @@ import DocumentDetail from "./pages/DocumentDetail";
 import EditDocument from "./pages/EditDocument";
 import Scan from "./pages/Scan";
 import Notifications from "./pages/Notifications";
+import NotificationSettings from "./pages/NotificationSettings";
 import Profile from "./pages/Profile";
 import DocVault from "./pages/DocVault";
 import NotFound from "./pages/NotFound";
@@ -87,6 +88,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Notifications />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/notification-settings" 
+              element={
+                <ProtectedRoute>
+                  <NotificationSettings />
                 </ProtectedRoute>
               } 
             />
