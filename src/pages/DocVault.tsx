@@ -6,11 +6,28 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Upload, Camera, FileText, Search, X } from "lucide-react";
+import { Upload, Camera, FileText, Search, X, Trash2, MoreVertical } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function DocVault() {
   const { user } = useAuth();
@@ -19,6 +36,7 @@ export default function DocVault() {
   const [isUploading, setIsUploading] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +100,33 @@ export default function DocVault() {
         const imageData = canvas.toDataURL("image/jpeg");
         setCapturedImage(imageData);
       }
+    }
+  };
+
+  const handleDelete = async (docId: string, imagePath: string | null) => {
+    setDeletingId(docId);
+    try {
+      // Delete document image from storage if exists
+      if (imagePath) {
+        await supabase.storage
+          .from('document-images')
+          .remove([imagePath]);
+      }
+
+      const { error } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', docId);
+
+      if (error) throw error;
+
+      toast.success("Document deleted successfully");
+      refetch();
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      toast.error(error?.message || "Failed to delete document");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -254,30 +299,78 @@ export default function DocVault() {
             {filteredDocuments.map((doc) => (
               <Card
                 key={doc.id}
-                className="overflow-hidden hover:shadow-lg smooth cursor-pointer"
-                onClick={() => navigate(`/document/${doc.id}`)}
+                className="group relative overflow-hidden hover:shadow-lg transition-all"
               >
-                {doc.image_path && (
-                  <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
-                    {doc.image_path.toLowerCase().endsWith('.pdf') ? (
-                      <div className="flex flex-col items-center justify-center p-4">
-                        <FileText className="h-16 w-16 text-primary mb-2" />
-                        <span className="text-xs text-muted-foreground text-center">PDF Document</span>
-                      </div>
-                    ) : (
-                      <img
-                        src={supabase.storage.from("document-images").getPublicUrl(doc.image_path).data.publicUrl}
-                        alt={doc.name}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
+                <div 
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/document/${doc.id}`)}
+                >
+                  {doc.image_path && (
+                    <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
+                      {doc.image_path.toLowerCase().endsWith('.pdf') ? (
+                        <div className="flex flex-col items-center justify-center p-4">
+                          <FileText className="h-16 w-16 text-primary mb-2" />
+                          <span className="text-xs text-muted-foreground text-center">PDF Document</span>
+                        </div>
+                      ) : (
+                        <img
+                          src={supabase.storage.from("document-images").getPublicUrl(doc.image_path).data.publicUrl}
+                          alt={doc.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
+                  )}
+                  <div className="p-4 space-y-2">
+                    <h3 className="font-medium truncate">{doc.name}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Added: {format(new Date(doc.created_at), "MMM dd, yyyy")}
+                    </p>
                   </div>
-                )}
-                <div className="p-4 space-y-2">
-                  <h3 className="font-medium truncate">{doc.name}</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Added: {format(new Date(doc.created_at), "MMM dd, yyyy")}
-                  </p>
+                </div>
+                
+                {/* Action Menu */}
+                <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                  <AlertDialog>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <AlertDialogTrigger asChild>
+                          <DropdownMenuItem className="text-destructive focus:text-destructive">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </AlertDialogTrigger>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Document</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete "{doc.name}"? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(doc.id, doc.image_path)}
+                          disabled={deletingId === doc.id}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {deletingId === doc.id ? "Deleting..." : "Delete"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </Card>
             ))}
