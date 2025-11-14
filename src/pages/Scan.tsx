@@ -379,55 +379,33 @@ export default function Scan() {
 
       if (error) throw error;
 
-      // Create 3 AI-based intelligent reminders based on renewal period
-      const renewalDays = validatedData.renewal_period_days;
-      let reminderStages: number[] = [];
-      
-      // AI-based logic: Create smart reminders based on renewal period
-      if (renewalDays >= 90) {
-        // Long renewal periods: 60, 30, 7 days
-        reminderStages = [60, 30, 7];
-      } else if (renewalDays >= 30) {
-        // Medium renewal periods: 30, 14, 3 days
-        reminderStages = [30, 14, 3];
-      } else if (renewalDays >= 14) {
-        // Short renewal periods: 14, 7, 2 days
-        reminderStages = [14, 7, 2];
-      } else {
-        // Very short: 7, 3, 1 days
-        reminderStages = [7, 3, 1];
-      }
-      
-      const reminders = reminderStages.map(days => {
-        const reminderDate = new Date(validatedData.expiry_date);
-        reminderDate.setDate(reminderDate.getDate() - days);
-        return {
-          document_id: data.id,
-          user_id: user?.id,
-          reminder_date: reminderDate.toISOString().split('T')[0],
-        };
-      });
-      
-      // Add custom reminder if provided
+      // Database trigger automatically creates reminders based on renewal_period_days
+      // Only add custom reminder if user provided one
       if (formData.custom_reminder_date) {
-        reminders.push({
-          document_id: data.id,
-          user_id: user?.id,
-          reminder_date: formData.custom_reminder_date,
-          is_custom: true,
-        } as any);
+        const { error: customReminderError } = await supabase
+          .from('reminders')
+          .insert({
+            document_id: data.id,
+            user_id: user?.id,
+            reminder_date: formData.custom_reminder_date,
+            is_custom: true,
+          });
+
+        if (customReminderError) {
+          console.error('Error creating custom reminder:', customReminderError);
+          // Don't fail the whole operation if custom reminder fails
+        }
       }
 
-      const { data: insertedReminders, error: reminderError } = await supabase
+      // Fetch all reminders for this document (auto-created by trigger + custom)
+      const { data: allReminders } = await supabase
         .from('reminders')
-        .insert(reminders)
-        .select();
-
-      if (reminderError) throw reminderError;
+        .select('*')
+        .eq('document_id', data.id);
 
       // Send immediate confirmation emails for all reminders
-      if (insertedReminders && insertedReminders.length > 0) {
-        for (const reminder of insertedReminders) {
+      if (allReminders && allReminders.length > 0) {
+        for (const reminder of allReminders) {
           try {
             await supabase.functions.invoke('send-immediate-reminder', {
               body: { reminder_id: reminder.id }
