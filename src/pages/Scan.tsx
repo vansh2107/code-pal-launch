@@ -133,8 +133,8 @@ export default function Scan() {
       if (file.type === 'application/pdf') {
         setExtracting(true);
         
-        // Configure PDF.js worker
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        // Configure PDF.js worker with jsdelivr CDN
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
         
         // Read PDF file
         const arrayBuffer = await file.arrayBuffer();
