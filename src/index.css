@@ -8,42 +8,42 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Light background with warm tone */
-    --background: 30 20% 98%;
-    --foreground: 0 0% 15%;
+    /* Darker background with warm tone */
+    --background: 30 15% 92%;
+    --foreground: 0 0% 0%;
 
-    /* Clean cards */
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 15%;
+    /* Darker cards */
+    --card: 30 10% 96%;
+    --card-foreground: 0 0% 0%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 15%;
+    --popover: 30 10% 96%;
+    --popover-foreground: 0 0% 0%;
 
     /* Brand Orange - Primary color from logo */
-    --primary: 16 100% 60%;
+    --primary: 16 100% 55%;
     --primary-foreground: 0 0% 100%;
 
-    /* Status Colors */
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
+    /* Status Colors - darker */
+    --success: 142 70% 30%;
+    --success-foreground: 0 0% 0%;
     
-    --expired: 0 84% 60%;
-    --expired-foreground: 0 0% 100%;
+    --expired: 0 80% 50%;
+    --expired-foreground: 0 0% 0%;
     
-    --expiring: 45 93% 47%;
-    --expiring-foreground: 0 0% 15%;
+    --expiring: 45 90% 40%;
+    --expiring-foreground: 0 0% 0%;
 
-    /* Soft secondary with warm tint */
-    --secondary: 30 15% 95%;
-    --secondary-foreground: 0 0% 25%;
+    /* Darker secondary */
+    --secondary: 30 12% 88%;
+    --secondary-foreground: 0 0% 0%;
 
-    /* Subtle muted */
-    --muted: 30 10% 96%;
-    --muted-foreground: 0 0% 50%;
+    /* Darker muted */
+    --muted: 30 8% 85%;
+    --muted-foreground: 0 0% 20%;
 
-    /* Accent - Lighter orange */
-    --accent: 16 90% 70%;
-    --accent-foreground: 0 0% 15%;
+    /* Accent - Darker orange */
+    --accent: 16 85% 60%;
+    --accent-foreground: 0 0% 0%;
 
     /* Warm warning - matching brand orange */
     --warning: 38 92% 50%;
@@ -53,10 +53,10 @@ All colors MUST be HSL.
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Subtle borders with warm tone */
-    --border: 30 10% 90%;
-    --input: 30 10% 94%;
-    --ring: 16 100% 60%;
+    /* Darker borders with warm tone */
+    --border: 30 8% 75%;
+    --input: 30 10% 88%;
+    --ring: 16 100% 55%;
 
     --radius: 1rem;
 
@@ -141,7 +141,7 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground antialiased;
-    background: linear-gradient(to bottom right, hsl(var(--background)), hsl(30 15% 95%));
+    background: linear-gradient(to bottom right, hsl(var(--background)), hsl(30 12% 85%));
   }
 
   .dark body {

@@ -19,30 +19,30 @@ export const getDocumentStatus = (expiryDate: string): DocumentStatusInfo => {
     return {
       status: 'expired',
       label: 'Expired',
-      colorClass: 'text-red-600 dark:text-red-400',
-      bgClass: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900',
-      borderClass: 'border-red-200 dark:border-red-900',
-      textClass: 'text-red-700 dark:text-red-300',
+      colorClass: 'text-expired dark:text-red-400',
+      bgClass: 'bg-expired/20 dark:bg-red-950/30 border-expired/40 dark:border-red-900',
+      borderClass: 'border-expired/40 dark:border-red-900',
+      textClass: 'text-expired-foreground dark:text-red-300',
       badgeVariant: 'destructive',
     };
   } else if (daysUntilExpiry <= 30) {
     return {
       status: 'expiring',
       label: `Expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? 's' : ''}`,
-      colorClass: 'text-yellow-600 dark:text-yellow-400',
-      bgClass: 'bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-900',
-      borderClass: 'border-yellow-200 dark:border-yellow-900',
-      textClass: 'text-yellow-700 dark:text-yellow-300',
+      colorClass: 'text-expiring dark:text-yellow-400',
+      bgClass: 'bg-expiring/20 dark:bg-yellow-950/30 border-expiring/40 dark:border-yellow-900',
+      borderClass: 'border-expiring/40 dark:border-yellow-900',
+      textClass: 'text-expiring-foreground dark:text-yellow-300',
       badgeVariant: 'secondary',
     };
   } else {
     return {
       status: 'valid',
       label: 'Valid',
-      colorClass: 'text-green-600 dark:text-green-400',
-      bgClass: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900',
-      borderClass: 'border-green-200 dark:border-green-900',
-      textClass: 'text-green-700 dark:text-green-300',
+      colorClass: 'text-success dark:text-green-400',
+      bgClass: 'bg-success/20 dark:bg-green-950/30 border-success/40 dark:border-green-900',
+      borderClass: 'border-success/40 dark:border-green-900',
+      textClass: 'text-success-foreground dark:text-green-300',
       badgeVariant: 'default',
     };
   }
