@@ -29,6 +29,7 @@ interface Document {
   id: string;
   name: string;
   document_type: string;
+  category_detail?: string;
   issuing_authority: string;
   expiry_date: string;
   renewal_period_days: number;
@@ -87,6 +88,57 @@ export default function DocumentDetail() {
   const extractRecommendedDays = (adviceText: string): number | null => {
     const match = adviceText.match(/Recommended renewal start:\s*(\d+)\s*days/i);
     return match ? parseInt(match[1]) : null;
+  };
+
+  const getSubCategoryName = (subTypeId: string): string => {
+    const nameMap: Record<string, string> = {
+      passport: "Passport",
+      license: "License",
+      permit: "Permit",
+      insurance: "Insurance",
+      certification: "Certification",
+      passport_renewal: "Passport Renewal",
+      drivers_license: "Driver's License / ID Card",
+      vehicle_registration: "Vehicle Registration / Insurance",
+      health_card: "Health Card Renewal",
+      work_permit_visa: "Work Permit / Visa / Study Permit",
+      permanent_residency: "Permanent Residency",
+      business_license: "Business License",
+      tax_filing: "Tax Filing",
+      ticket_fines: "Tickets and Fines",
+      voting_registration: "Voting Registration",
+      credit_card: "Credit Card",
+      insurance_policy: "Insurance Policy",
+      utility_bills: "Utility Bills",
+      loan_payment: "Loan / EMI Payment",
+      subscription: "Subscription",
+      bank_card: "Bank Card",
+      health_checkup: "Health Checkup",
+      medication_refill: "Medication Refill",
+      pet_vaccination: "Pet Vaccination",
+      fitness_membership: "Fitness Membership",
+      library_book: "Library Book",
+      warranty: "Warranty",
+      home_maintenance: "Home Maintenance",
+      professional_license: "Professional License",
+      training_certificate: "Training Certificate",
+      software_license: "Software License",
+      student_visa: "Student Visa",
+      course_registration: "Course Registration",
+      children_documents: "Children's Documents",
+      school_enrollment: "School Enrollment",
+      family_insurance: "Family Insurance",
+      joint_subscription: "Joint Subscription",
+      pet_care: "Pet Care",
+      property_lease: "Property Lease",
+      domain_name: "Domain Name",
+      web_hosting: "Web Hosting / SSL",
+      cloud_storage: "Cloud Storage",
+      device_warranty: "Device Warranty",
+      password_security: "Password Security",
+      other: "Other"
+    };
+    return nameMap[subTypeId] || subTypeId.replace('_', ' ');
   };
 
   const calculateStartDate = (days: number, expiryDate: string): string => {
@@ -245,8 +297,8 @@ export default function DocumentDetail() {
           </Button>
           <div className="flex-1">
             <h1 className={`text-2xl font-bold ${statusInfo?.textClass || 'text-foreground'}`}>{document.name}</h1>
-            <p className="text-muted-foreground capitalize">
-              {document.document_type.replace('_', ' ')}
+            <p className="text-muted-foreground">
+              {getSubCategoryName(document.category_detail || document.document_type)}
             </p>
           </div>
           {!isDocVault && statusInfo && (
@@ -357,7 +409,9 @@ export default function DocumentDetail() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">Document Type</Label>
-                <p className={statusInfo?.textClass || 'text-foreground'}>{document.document_type.replace('_', ' ')}</p>
+                <p className={statusInfo?.textClass || 'text-foreground'}>
+                  {getSubCategoryName(document.category_detail || document.document_type)}
+                </p>
               </div>
               
               {document.issuing_authority && !isDocVault && (
