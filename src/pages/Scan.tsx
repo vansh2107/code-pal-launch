@@ -16,7 +16,10 @@ import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
-import * as pdfjsLib from "pdfjs-dist";
+// PDF.js imports for Vite: use worker URL provided by bundler
+// @ts-ignore - path is provided by pdfjs-dist package
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 
 const documentSchema = z.object({
   name: z.string().min(1, "Document name is required"),
@@ -133,28 +136,40 @@ export default function Scan() {
       if (file.type === 'application/pdf') {
         setExtracting(true);
         
-        // Read PDF file (run without Web Worker to avoid CDN worker issues)
+        // Prepare PDF.js worker via bundler-provided URL
+        GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
+        // Read PDF file and load with worker, fallback to no-worker
         const arrayBuffer = await file.arrayBuffer();
-        const pdf = await (pdfjsLib as any).getDocument({ data: arrayBuffer, disableWorker: true }).promise;
-        
+        let pdfDoc: any;
+        try {
+          pdfDoc = await getDocument({ data: arrayBuffer }).promise;
+        } catch (wErr) {
+          console.warn('PDF worker failed, retrying without worker...', wErr);
+          pdfDoc = await (getDocument as any)({ data: arrayBuffer, disableWorker: true }).promise;
+        }
+
         // Get first page
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: 2.0 });
+        const page = await pdfDoc.getPage(1);
+        // Determine a safe scale to keep image under ~10MB
+        const baseViewport = page.getViewport({ scale: 1.0 });
+        const maxWidth = 1600; // cap width for size safety
+        const scale = Math.min(2.0, Math.max(0.5, maxWidth / baseViewport.width));
+        const viewport = page.getViewport({ scale });
         
         // Create canvas and render PDF page
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
         
         if (context) {
           await page.render({
             canvasContext: context,
-            viewport: viewport,
+            viewport,
           } as any).promise;
           
-          // Convert canvas to base64 image
-          const imageData = canvas.toDataURL('image/jpeg', 0.8);
+          // Convert canvas to base64 image with compression
+          const imageData = canvas.toDataURL('image/jpeg', 0.75);
           setCapturedImage(imageData);
           extractDocumentData(imageData);
         }
@@ -173,9 +188,10 @@ export default function Scan() {
     } catch (error) {
       console.error('Error processing file:', error);
       setExtracting(false);
+      const message = (error as Error)?.message || 'Failed to process the uploaded file. Please try again.';
       toast({
         title: "Upload Error",
-        description: "Failed to process the uploaded file. Please try again.",
+        description: message,
         variant: "destructive",
       });
     }
