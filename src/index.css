@@ -39,7 +39,7 @@ All colors MUST be HSL.
 
     /* Darker muted */
     --muted: 30 8% 85%;
-    --muted-foreground: 0 0% 20%;
+    --muted-foreground: 0 0% 0%;
 
     /* Accent - Darker orange */
     --accent: 16 85% 60%;
@@ -62,11 +62,11 @@ All colors MUST be HSL.
 
     /* Sidebar styling with brand colors */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 20%;
+    --sidebar-foreground: 0 0% 0%;
     --sidebar-primary: 16 100% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 30 15% 95%;
-    --sidebar-accent-foreground: 16 100% 60%;
+    --sidebar-accent-foreground: 0 0% 0%;
     --sidebar-border: 30 10% 92%;
     --sidebar-ring: 16 100% 60%;
   }
