@@ -162,14 +162,46 @@ CRITICAL VALIDATION RULES:
       throw new Error("No content in AI response");
     }
 
+    // Check if AI refused to extract (not a valid document)
+    if (content.toLowerCase().includes("cannot extract") || 
+        content.toLowerCase().includes("unable to extract") ||
+        content.toLowerCase().includes("not a document")) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "The image does not appear to be a valid document. Please upload a clear photo of an official document like a passport, license, permit, or certificate."
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Parse JSON from the response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error("No JSON found in response");
+      console.error("No JSON found in AI response. Content:", content);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Could not extract document information. Please ensure the image is clear and contains a valid document."
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-const extractedData = JSON.parse(jsonMatch[0]);
-    console.log("Extracted data:", extractedData);
+    let extractedData;
+    try {
+      extractedData = JSON.parse(jsonMatch[0]);
+      console.log("Extracted data:", extractedData);
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Could not parse document information. Please try again with a clearer image."
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Map AI-returned document types to valid database enums
     const documentTypeMap: { [key: string]: string } = {
