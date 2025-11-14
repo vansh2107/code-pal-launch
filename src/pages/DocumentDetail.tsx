@@ -447,9 +447,9 @@ export default function DocumentDetail() {
 
         {/* Metadata - Only for non-DocVault documents */}
         {!isDocVault && (
-          <Card>
+          <Card className={`border-2 ${statusInfo?.bgClass || ''} ${statusInfo?.borderClass || 'border-border'}`}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className={`flex items-center gap-2 ${statusInfo?.textClass || 'text-foreground'}`}>
                 <Clock className="h-5 w-5" />
                 Document History
               </CardTitle>
@@ -457,24 +457,30 @@ export default function DocumentDetail() {
             <CardContent className="space-y-2">
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">Created</Label>
-                <p className="text-foreground">{new Date(document.created_at).toLocaleDateString()}</p>
+                <p className={statusInfo?.textClass || 'text-foreground'}>{new Date(document.created_at).toLocaleDateString()}</p>
               </div>
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
-                <p className="text-foreground">{new Date(document.updated_at).toLocaleDateString()}</p>
+                <p className={statusInfo?.textClass || 'text-foreground'}>{new Date(document.updated_at).toLocaleDateString()}</p>
               </div>
             </CardContent>
           </Card>
         )}
 
         {/* Actions */}
-        <Card>
+        <Card className={`border-2 ${statusInfo?.bgClass || ''} ${statusInfo?.borderClass || 'border-border'}`}>
           <CardHeader>
-            <CardTitle>Actions</CardTitle>
+            <CardTitle className={statusInfo?.textClass || 'text-foreground'}>Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <Button 
-              className="w-full justify-start gap-2" 
+              className={`w-full justify-start gap-2 ${
+                statusInfo?.status === 'expired' 
+                  ? 'bg-red-600 hover:bg-red-700 text-white' 
+                  : statusInfo?.status === 'expiring'
+                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}
               onClick={() => navigate(`/document/${id}/edit`)}
             >
               <Edit2 className="h-4 w-4" />
@@ -483,7 +489,15 @@ export default function DocumentDetail() {
             
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="w-full justify-start gap-2">
+                <Button 
+                  className={`w-full justify-start gap-2 ${
+                    statusInfo?.status === 'expired' 
+                      ? 'bg-red-700 hover:bg-red-800 text-white' 
+                      : statusInfo?.status === 'expiring'
+                      ? 'bg-yellow-700 hover:bg-yellow-800 text-white'
+                      : 'bg-green-700 hover:bg-green-800 text-white'
+                  }`}
+                >
                   <Trash2 className="h-4 w-4" />
                   Delete Document
                 </Button>
