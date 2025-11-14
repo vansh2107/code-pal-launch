@@ -133,12 +133,9 @@ export default function Scan() {
       if (file.type === 'application/pdf') {
         setExtracting(true);
         
-        // Configure PDF.js worker with jsdelivr CDN
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
-        
-        // Read PDF file
+        // Read PDF file (run without Web Worker to avoid CDN worker issues)
         const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pdf = await (pdfjsLib as any).getDocument({ data: arrayBuffer, disableWorker: true }).promise;
         
         // Get first page
         const page = await pdf.getPage(1);
