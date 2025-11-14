@@ -12,6 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import { DocumentHistory } from "@/components/document/DocumentHistory";
 import { AIInsights } from "@/components/document/AIInsights";
 import { RenewalAdvisor } from "@/components/ai/RenewalAdvisor";
+import { getDocumentStatus } from "@/utils/documentStatus";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -224,7 +225,7 @@ export default function DocumentDetail() {
   }
 
   const isDocVault = document.issuing_authority === 'DocVault';
-  const statusInfo = !isDocVault ? getStatusInfo(document.expiry_date) : null;
+  const statusInfo = !isDocVault ? getDocumentStatus(document.expiry_date) : null;
   const recommendedDays = renewalAdvice ? extractRecommendedDays(renewalAdvice) : null;
   
   // Calculate days until expiry to show countdown
@@ -237,37 +238,46 @@ export default function DocumentDetail() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <header className="bg-card border-b border-border px-4 py-6">
+      <header className={`border-b px-4 py-6 border-2 ${statusInfo?.bgClass || 'bg-card'} ${statusInfo?.borderClass || 'border-border'}`}>
         <div className="flex items-center gap-4 mb-4">
           <Button variant="ghost" size="sm" onClick={() => navigate(isDocVault ? '/docvault' : '/documents')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-foreground">{document.name}</h1>
+            <h1 className={`text-2xl font-bold ${statusInfo?.textClass || 'text-foreground'}`}>{document.name}</h1>
             <p className="text-muted-foreground capitalize">
               {document.document_type.replace('_', ' ')}
             </p>
           </div>
-          {!isDocVault && statusInfo?.badge}
+          {!isDocVault && statusInfo && (
+            <Badge variant={statusInfo.badgeVariant} className={statusInfo.colorClass}>
+              {statusInfo.label}
+            </Badge>
+          )}
         </div>
         
         {!isDocVault && statusInfo && (
           <>
-            <Alert variant={statusInfo.variant}>
+            <Alert className={`${statusInfo.bgClass} ${statusInfo.borderClass} border-2`}>
               <Calendar className="h-4 w-4" />
-              <AlertDescription>{statusInfo.message}</AlertDescription>
+              <AlertDescription className={statusInfo.textClass}>
+                {statusInfo.status === 'expired' 
+                  ? `Expired ${Math.abs(daysUntilExpiry || 0)} day${Math.abs(daysUntilExpiry || 0) !== 1 ? 's' : ''} ago`
+                  : `Expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? 's' : ''}`
+                }
+              </AlertDescription>
             </Alert>
             
             {/* AI Renewal Recommendation */}
             {loadingAdvice ? (
-              <Alert className="border-primary/50 bg-primary/5">
+              <Alert className="border-primary/50 bg-primary/5 mt-3">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <AlertDescription>
                   <span className="text-sm">Analyzing optimal renewal timeline...</span>
                 </AlertDescription>
               </Alert>
             ) : daysToStartProcess && daysUntilExpiry && daysUntilExpiry > daysToStartProcess ? (
-              <Alert className="border-primary/50 bg-primary/5">
+              <Alert className="border-primary/50 bg-primary/5 mt-3">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <AlertDescription>
                   <strong>Start the process in {daysUntilExpiry - daysToStartProcess} days</strong>
@@ -278,7 +288,7 @@ export default function DocumentDetail() {
                 </AlertDescription>
               </Alert>
             ) : daysToStartProcess && daysUntilExpiry && daysUntilExpiry <= daysToStartProcess ? (
-              <Alert className="border-primary/50 bg-primary/5">
+              <Alert className="border-primary/50 bg-primary/5 mt-3">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <AlertDescription>
                   <strong>Start the renewal process now</strong>
@@ -336,9 +346,9 @@ export default function DocumentDetail() {
         )}
 
         {/* Document Information */}
-        <Card>
+        <Card className={`border-2 ${statusInfo?.bgClass || ''} ${statusInfo?.borderClass || 'border-border'}`}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className={`flex items-center gap-2 ${statusInfo?.textClass || 'text-foreground'}`}>
               <FileText className="h-5 w-5" />
               Document Details
             </CardTitle>
@@ -347,13 +357,13 @@ export default function DocumentDetail() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">Document Type</Label>
-                <p className="text-foreground capitalize">{document.document_type.replace('_', ' ')}</p>
+                <p className={statusInfo?.textClass || 'text-foreground'}>{document.document_type.replace('_', ' ')}</p>
               </div>
               
               {document.issuing_authority && !isDocVault && (
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Issuing Authority</Label>
-                  <p className="text-foreground">{document.issuing_authority}</p>
+                  <p className={statusInfo?.textClass || 'text-foreground'}>{document.issuing_authority}</p>
                 </div>
               )}
               
@@ -361,12 +371,12 @@ export default function DocumentDetail() {
                 <>
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
-                    <p className="text-foreground">{new Date(document.expiry_date).toLocaleDateString()}</p>
+                    <p className={statusInfo?.textClass || 'text-foreground'}>{new Date(document.expiry_date).toLocaleDateString()}</p>
                   </div>
                   
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Reminder Period</Label>
-                    <p className="text-foreground">{document.renewal_period_days} days before expiry</p>
+                    <p className={statusInfo?.textClass || 'text-foreground'}>{document.renewal_period_days} days before expiry</p>
                   </div>
                 </>
               )}

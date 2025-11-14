@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { exportToCSV } from "@/utils/exportData";
+import { getDocumentStatus } from "@/utils/documentStatus";
 import governmentIcon from "@/assets/category-icons/government-icon.png";
 import financialIcon from "@/assets/category-icons/financial-icon.png";
 import personalIcon from "@/assets/category-icons/personal-icon.png";
@@ -441,29 +442,34 @@ export default function Documents() {
               </Card>
             ) : (
               <div className="grid gap-4">
-                {filteredDocuments.map((doc) => (
-                  <Link key={doc.id} to={`/document/${doc.id}`}>
-                    <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-foreground mb-1">{doc.name}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {getSubCategoryName((doc as any).category_detail || doc.document_type)}
-                            </p>
+                {filteredDocuments.map((doc) => {
+                  const statusInfo = getDocumentStatus(doc.expiry_date);
+                  return (
+                    <Link key={doc.id} to={`/document/${doc.id}`}>
+                      <Card className={`hover:shadow-lg transition-shadow cursor-pointer border-2 ${statusInfo.bgClass} ${statusInfo.borderClass}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <h3 className={`font-semibold mb-1 ${statusInfo.textClass}`}>{doc.name}</h3>
+                              <p className="text-sm text-muted-foreground">
+                                {getSubCategoryName((doc as any).category_detail || doc.document_type)}
+                              </p>
+                            </div>
+                            <Badge variant={statusInfo.badgeVariant} className={statusInfo.colorClass}>
+                              {statusInfo.label}
+                            </Badge>
                           </div>
-                          {getStatusBadge(doc.expiry_date)}
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">{doc.issuing_authority}</span>
-                          <span className="text-muted-foreground">
-                            Expires: {new Date(doc.expiry_date).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">{doc.issuing_authority}</span>
+                            <span className={`font-medium ${statusInfo.textClass}`}>
+                              Expires: {new Date(doc.expiry_date).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </div>
