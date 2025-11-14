@@ -19,30 +19,30 @@ export const getDocumentStatus = (expiryDate: string): DocumentStatusInfo => {
     return {
       status: 'expired',
       label: 'Expired',
-      colorClass: 'text-red-700 dark:text-red-400',
+      colorClass: 'text-black dark:text-black',
       bgClass: 'bg-red-100 dark:bg-red-950/30 border-red-300 dark:border-red-900',
       borderClass: 'border-red-300 dark:border-red-900',
-      textClass: 'text-red-800 dark:text-red-300',
+      textClass: 'text-black dark:text-black',
       badgeVariant: 'destructive',
     };
   } else if (daysUntilExpiry <= 30) {
     return {
       status: 'expiring',
       label: `Expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? 's' : ''}`,
-      colorClass: 'text-yellow-700 dark:text-yellow-400',
+      colorClass: 'text-black dark:text-black',
       bgClass: 'bg-yellow-100 dark:bg-yellow-950/30 border-yellow-300 dark:border-yellow-900',
       borderClass: 'border-yellow-300 dark:border-yellow-900',
-      textClass: 'text-yellow-800 dark:text-yellow-300',
+      textClass: 'text-black dark:text-black',
       badgeVariant: 'secondary',
     };
   } else {
     return {
       status: 'valid',
       label: 'Valid',
-      colorClass: 'text-green-700 dark:text-green-400',
+      colorClass: 'text-black dark:text-black',
       bgClass: 'bg-green-100 dark:bg-green-950/30 border-green-300 dark:border-green-900',
       borderClass: 'border-green-300 dark:border-green-900',
-      textClass: 'text-green-800 dark:text-green-300',
+      textClass: 'text-black dark:text-black',
       badgeVariant: 'default',
     };
   }
