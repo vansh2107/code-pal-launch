@@ -517,6 +517,36 @@ export default function Scan() {
           </Card>
         )}
 
+        {/* Camera Section */}
+        {scanMode === "camera" && !capturedImage && (
+          <Card>
+            <CardContent className="p-3 md:p-4">
+              <div className="relative aspect-[4/3] bg-muted rounded-lg overflow-hidden">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+                {!stream && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                    <div className="text-center space-y-2">
+                      <Camera className="h-12 w-12 mx-auto text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Starting camera...</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {stream && (
+                <Button onClick={captureImage} className="w-full mt-3">
+                  <Camera className="h-4 w-4 mr-2" />
+                  Capture Document
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Mode Toggle - Three Buttons */}
         <div className="flex gap-1.5 w-full">
           <Button
@@ -551,36 +581,6 @@ export default function Scan() {
             <span className="text-[10px]">Manual</span>
           </Button>
         </div>
-
-        {/* Camera Section */}
-        {scanMode === "camera" && !capturedImage && (
-          <Card>
-            <CardContent className="p-3 md:p-4">
-              <div className="relative aspect-[4/3] bg-muted rounded-lg overflow-hidden">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-                {!stream && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-muted">
-                    <div className="text-center space-y-2">
-                      <Camera className="h-12 w-12 mx-auto text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Starting camera...</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-              {stream && (
-                <Button onClick={captureImage} className="w-full mt-3">
-                  <Camera className="h-4 w-4 mr-2" />
-                  Capture Document
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        )}
         
         {/* Hidden file input for PDF/Image upload */}
         <input
