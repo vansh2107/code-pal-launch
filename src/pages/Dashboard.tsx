@@ -11,6 +11,7 @@ import { DocumentStats } from "@/components/dashboard/DocumentStats";
 import { ExpiryTimeline } from "@/components/dashboard/ExpiryTimeline";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import { useToast } from "@/hooks/use-toast";
+import { getDocumentStatus } from "@/utils/documentStatus";
 
 interface Document {
   id: string;
@@ -192,16 +193,17 @@ export default function Dashboard() {
                 <div className="space-y-3">
                   {recentDocuments.map((doc, index) => {
                     const isDocVault = doc.issuing_authority === 'DocVault';
+                    const statusInfo = getDocumentStatus(doc.expiry_date);
                     return (
                       <Link
                         key={doc.id}
                         to={`/document/${doc.id}`}
-                        className="block p-4 border border-border rounded-xl hover:border-primary/50 smooth hover:shadow-lg"
+                        className={`block p-4 rounded-xl smooth hover:shadow-lg border-2 ${statusInfo.bgClass} ${statusInfo.borderClass}`}
                         style={{ animationDelay: `${0.1 * index}s` }}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
-                            <h3 className="font-semibold text-foreground mb-1">{doc.name}</h3>
+                            <h3 className={`font-semibold mb-1 ${statusInfo.textClass}`}>{doc.name}</h3>
                             <p className="text-sm text-muted-foreground capitalize">
                               {isDocVault ? (
                                 `Added ${new Date(doc.created_at).toLocaleDateString()}`
@@ -210,7 +212,11 @@ export default function Dashboard() {
                               )}
                             </p>
                           </div>
-                          {!isDocVault && getStatusBadge(doc.expiry_date)}
+                          {!isDocVault && (
+                            <Badge variant={statusInfo.badgeVariant} className={statusInfo.colorClass}>
+                              {statusInfo.label}
+                            </Badge>
+                          )}
                         </div>
                       </Link>
                     );
