@@ -16,6 +16,7 @@ import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
+import { PDFPageSelector } from "@/components/scan/PDFPageSelector";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -46,6 +47,7 @@ export default function Scan() {
   
   const [documentCountry, setDocumentCountry] = useState<string>("");
   const [enableCountrySelect, setEnableCountrySelect] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -238,8 +240,15 @@ export default function Scan() {
     }
   };
 
+  const handlePDFPageSelect = (pageImageBase64: string) => {
+    setPdfFile(null);
+    setCapturedImage(pageImageBase64);
+    extractDocumentData(pageImageBase64);
+  };
+
   const retakePhoto = () => {
     setCapturedImage(null);
+    setPdfFile(null);
     setFormData({
       name: "",
       document_type: "",
@@ -590,6 +599,18 @@ export default function Scan() {
           className="hidden"
           onChange={handleFileUpload}
         />
+
+        {/* PDF Page Selector */}
+        {pdfFile && (
+          <PDFPageSelector
+            file={pdfFile}
+            onPageSelect={handlePDFPageSelect}
+            onCancel={() => {
+              setPdfFile(null);
+              setExtracting(false);
+            }}
+          />
+        )}
 
         {/* Captured Image Preview */}
         {capturedImage && (
