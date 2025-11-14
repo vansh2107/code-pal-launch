@@ -16,6 +16,7 @@ import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
+import * as pdfjsLib from "pdfjs-dist";
 
 const documentSchema = z.object({
   name: z.string().min(1, "Document name is required"),
@@ -123,16 +124,63 @@ export default function Scan() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setCapturedImage(result);
-        extractDocumentData(result);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    try {
+      // Check if file is a PDF
+      if (file.type === 'application/pdf') {
+        setExtracting(true);
+        
+        // Configure PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        
+        // Read PDF file
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        
+        // Get first page
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 2.0 });
+        
+        // Create canvas and render PDF page
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        
+        if (context) {
+          await page.render({
+            canvasContext: context,
+            viewport: viewport,
+          } as any).promise;
+          
+          // Convert canvas to base64 image
+          const imageData = canvas.toDataURL('image/jpeg', 0.8);
+          setCapturedImage(imageData);
+          extractDocumentData(imageData);
+        }
+        
+        setExtracting(false);
+      } else {
+        // Handle image files
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          setCapturedImage(result);
+          extractDocumentData(result);
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (error) {
+      console.error('Error processing file:', error);
+      setExtracting(false);
+      toast({
+        title: "Upload Error",
+        description: "Failed to process the uploaded file. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
