@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Brain, TrendingUp, AlertTriangle, Lightbulb, Loader2, DollarSign, FileCheck, Sparkles } from "lucide-react";
 import { RenewalChecklist } from "./RenewalChecklist";
+import { DocumentStatusInfo } from "@/utils/documentStatus";
 
 type Document = {
   id: string;
@@ -18,7 +19,7 @@ type Document = {
   renewal_period_days: number | null;
 };
 
-export function AIInsights({ document }: { document: Document }) {
+export function AIInsights({ document, statusInfo }: { document: Document; statusInfo: DocumentStatusInfo | null }) {
   const { toast } = useToast();
   const [loadingType, setLoadingType] = useState<string | null>(null);
   const [insights, setInsights] = useState<any>(null);
@@ -79,10 +80,10 @@ export function AIInsights({ document }: { document: Document }) {
   };
 
   return (
-    <Card>
+    <Card className={`border-2 ${statusInfo?.bgClass || ''} ${statusInfo?.borderClass || 'border-border'}`}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="h-5 w-5 text-primary" />
+        <CardTitle className={`flex items-center gap-2 ${statusInfo?.textClass || 'text-foreground'}`}>
+          <Brain className="h-5 w-5" />
           AI-Powered Insights
         </CardTitle>
         <CardDescription>
@@ -92,10 +93,15 @@ export function AIInsights({ document }: { document: Document }) {
       <CardContent className="space-y-4">
         {/* Prominent Renewal Requirements Button */}
         <Button
-          variant="default"
           onClick={() => analyzeDocument('renewal_requirements')}
           disabled={loadingType !== null}
-          className="w-full bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
+          className={`w-full ${
+            statusInfo?.status === 'expired' 
+              ? 'bg-red-600 hover:bg-red-700 text-white' 
+              : statusInfo?.status === 'expiring'
+              ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+              : 'bg-green-600 hover:bg-green-700 text-white'
+          }`}
           size="lg"
         >
           {loadingType === 'renewal_requirements' ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <FileCheck className="h-5 w-5 mr-2" />}
