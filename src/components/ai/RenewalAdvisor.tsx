@@ -7,15 +7,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/useAuth";
+import { DocumentStatusInfo } from "@/utils/documentStatus";
 
 interface RenewalAdvisorProps {
   documentId?: string;
   documentType?: string;
   documentName?: string;
   expiryDate?: string;
+  statusInfo?: DocumentStatusInfo | null;
 }
 
-export function RenewalAdvisor({ documentId, documentType, documentName, expiryDate }: RenewalAdvisorProps) {
+export function RenewalAdvisor({ documentId, documentType, documentName, expiryDate, statusInfo }: RenewalAdvisorProps) {
   const [question, setQuestion] = useState("");
   const [advice, setAdvice] = useState("");
   const [loading, setLoading] = useState(false);
@@ -186,10 +188,10 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
   const recommendedDays = advice ? extractRecommendedDays(advice) : null;
 
   return (
-    <Card>
+    <Card className={`border-2 ${statusInfo?.bgClass || ''} ${statusInfo?.borderClass || 'border-border'}`}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
+        <CardTitle className={`flex items-center gap-2 ${statusInfo?.textClass || 'text-foreground'}`}>
+          <Sparkles className="h-5 w-5" />
           AI Renewal Advisor
         </CardTitle>
       </CardHeader>
@@ -271,6 +273,13 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
                         size="sm" 
                         onClick={saveAIReminder}
                         disabled={savingReminder}
+                        className={`${
+                          statusInfo?.status === 'expired' 
+                            ? 'bg-red-600 hover:bg-red-700 text-white' 
+                            : statusInfo?.status === 'expiring'
+                            ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                            : 'bg-green-600 hover:bg-green-700 text-white'
+                        }`}
                       >
                         {savingReminder ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
