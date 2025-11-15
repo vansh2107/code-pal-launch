@@ -159,7 +159,7 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
                       </div>
 
                       <div className="transition-all duration-300">
-                        <div className="font-semibold text-sm text-foreground line-clamp-1 transition-colors duration-300 group-hover:text-primary mb-1">{item.doc.name}</div>
+                        <div className="font-semibold text-sm text-foreground line-clamp-1 mb-1">{item.doc.name}</div>
                         <div className="text-xs text-muted-foreground capitalize line-clamp-1 transition-all duration-300">{item.doc.document_type.replace("_", " ")}</div>
                       </div>
 
