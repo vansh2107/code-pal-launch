@@ -2,118 +2,82 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface OTPRequest {
-  userId: string;
-  phoneNumber: string;
+interface SendOTPRequest {
+  phone_number: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { userId, phoneNumber }: OTPRequest = await req.json();
+    const { phone_number }: SendOTPRequest = await req.json();
+    console.log("Sending OTP to:", phone_number);
 
-    if (!userId || !phoneNumber) {
-      return new Response(
-        JSON.stringify({ error: 'userId and phoneNumber are required' }),
-        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
+    const normalizedPhone = phone_number.replace(/[\s\-()]/g, "");
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Generate 6-digit OTP
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Store OTP in database
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Set OTP expiration to 10 minutes from now
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
     const { error: dbError } = await supabase
-      .from('otp_codes')
+      .from("otp_codes")
       .insert({
-        user_id: userId,
-        phone_number: phoneNumber,
-        otp_code: otpCode,
-        expires_at: expiresAt,
-        is_verified: false
+        phone_number: normalizedPhone,
+        otp_code: otp,
+        expires_at: expiresAt.toISOString(),
+        is_verified: false,
       });
 
     if (dbError) {
-      console.error('Database error:', dbError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to store OTP' }),
-        { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
+      console.error("Database error:", dbError);
+      throw new Error("Failed to store OTP");
     }
 
-    // Send OTP via OneSignal SMS
-    const oneSignalAppId = Deno.env.get('ONE_SIGNAL_APP_ID');
-    const oneSignalRestApiKey = Deno.env.get('ONE_SIGNAL_REST_API_KEY');
+    const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+    const twilioPhone = Deno.env.get("TWILIO_PHONE_NUMBER");
 
-    if (!oneSignalAppId || !oneSignalRestApiKey) {
-      console.error('OneSignal credentials not configured');
-      return new Response(
-        JSON.stringify({ error: 'SMS service not configured' }),
-        { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const twilioAuth = btoa(`${accountSid}:${authToken}`);
 
-    const smsMessage = `Your verification code is: ${otpCode}. This code will expire in 10 minutes.`;
-
-    const oneSignalResponse = await fetch('https://onesignal.com/api/v1/notifications', {
-      method: 'POST',
+    const twilioResponse = await fetch(twilioUrl, {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${oneSignalRestApiKey}`
+        "Authorization": `Basic ${twilioAuth}`,
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: JSON.stringify({
-        app_id: oneSignalAppId,
-        include_phone_numbers: [phoneNumber],
-        contents: { en: smsMessage },
-        name: 'OTP Verification',
-        sms_from: 'DocGuard' // You can customize this
-      })
+      body: new URLSearchParams({
+        To: normalizedPhone,
+        From: twilioPhone!,
+        Body: `Your Remonk Reminder verification code is: ${otp}. Valid for 10 minutes.`,
+      }),
     });
 
-    const oneSignalResult = await oneSignalResponse.json();
-
-    if (!oneSignalResponse.ok) {
-      console.error('OneSignal error:', oneSignalResult);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Failed to send SMS',
-          details: oneSignalResult
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
+    if (!twilioResponse.ok) {
+      const errorText = await twilioResponse.text();
+      console.error("Twilio error:", errorText);
+      throw new Error("Failed to send SMS");
     }
 
-    console.log('OTP sent successfully:', { userId, phoneNumber: phoneNumber.substring(0, 5) + '***' });
+    console.log("OTP sent successfully");
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'OTP sent successfully',
-        expiresAt 
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      JSON.stringify({ success: true, message: "OTP sent successfully" }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
-
   } catch (error: any) {
-    console.error('Error in send-otp-sms function:', error);
+    console.error("Error in send-otp-sms:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 };
