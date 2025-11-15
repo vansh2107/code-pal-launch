@@ -98,7 +98,9 @@ export default function Auth() {
     setSuccess("");
 
     try {
-      const validation = signUpSchema.parse({ email, password, phone_number: phoneNumber });
+      // Remove spaces from phone number before validation
+      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
+      const validation = signUpSchema.parse({ email, password, phone_number: cleanedPhoneNumber });
       
       if (!country) {
         setError("Please select your country");
@@ -154,7 +156,9 @@ export default function Auth() {
     setError("");
 
     try {
-      const validation = signInSchema.parse({ email, password, phone_number: phoneNumber });
+      // Remove spaces from phone number before validation
+      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
+      const validation = signInSchema.parse({ email, password, phone_number: cleanedPhoneNumber });
 
       const { error, data } = await supabase.auth.signInWithPassword({
         email: validation.email,
