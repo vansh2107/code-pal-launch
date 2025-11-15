@@ -15,6 +15,7 @@ interface Profile {
   id: string;
   display_name: string | null;
   country: string | null;
+  phone_number: string | null;
 }
 
 const COUNTRIES = [
@@ -37,6 +38,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [country, setCountry] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -60,6 +62,7 @@ export default function Settings() {
         setProfile(data);
         setDisplayName(data.display_name || "");
         setCountry(data.country || "");
+        setPhoneNumber(data.phone_number || "");
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -82,7 +85,8 @@ export default function Settings() {
         .from("profiles")
         .update({ 
           display_name: displayName,
-          country: country || null
+          country: country || null,
+          phone_number: phoneNumber || null
         })
         .eq("user_id", user.id);
 
@@ -157,6 +161,20 @@ export default function Settings() {
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Enter your display name"
               />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="phoneNumber">Phone Number</Label>
+              <Input
+                id="phoneNumber"
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="+1234567890"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter with country code (e.g., +1234567890)
+              </p>
             </div>
             
             <div className="space-y-2">
