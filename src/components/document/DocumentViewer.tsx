@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from "lucide-react";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
@@ -28,8 +28,9 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
   const loadDocument = async () => {
     setLoading(true);
     try {
-      // Check if it's a PDF by file extension or trying to load it
-      const isPdfFile = fileUrl.toLowerCase().endsWith('.pdf');
+      // Detect PDF via filename or URL before query params
+      const cleanUrl = (fileUrl?.split('?')[0] || '').toLowerCase();
+      const isPdfFile = (fileName?.toLowerCase().endsWith('.pdf')) || cleanUrl.endsWith('.pdf');
       setIsPdf(isPdfFile);
 
       if (isPdfFile) {
@@ -115,14 +116,14 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b">
-            <h3 id="document-viewer-title" className="font-semibold truncate flex-1">{fileName}</h3>
+            <DialogTitle className="font-semibold truncate flex-1">{fileName}</DialogTitle>
             <Button variant="ghost" size="icon" onClick={onClose}>
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <p id="document-viewer-description" className="sr-only">
+          <DialogDescription className="sr-only">
             Document viewer for {fileName}. {pages.length > 1 ? `${pages.length} pages` : '1 page'}
-          </p>
+          </DialogDescription>
 
           {/* Viewer */}
           <div className="flex-1 overflow-auto bg-muted p-4">
