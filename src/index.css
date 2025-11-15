@@ -45,7 +45,7 @@ All colors MUST be HSL.
 
     /* Muted */
     --muted: 30 15% 92%;
-    --muted-foreground: 24 8% 45%;
+    --muted-foreground: 24 10% 20%;
 
     /* Accent - brighter orange */
     --accent: 35 100% 60%;
@@ -112,7 +112,7 @@ All colors MUST be HSL.
 
     /* Dark muted */
     --muted: 24 6% 18%;
-    --muted-foreground: 30 5% 60%;
+    --muted-foreground: 30 5% 90%;
 
     /* Accent */
     --accent: 35 100% 62%;
