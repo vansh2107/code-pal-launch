@@ -111,29 +111,44 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0" aria-describedby="document-viewer-description">
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b">
-            <h3 className="font-semibold truncate flex-1">{fileName}</h3>
+            <h3 id="document-viewer-title" className="font-semibold truncate flex-1">{fileName}</h3>
             <Button variant="ghost" size="icon" onClick={onClose}>
               <X className="h-4 w-4" />
             </Button>
           </div>
+          <p id="document-viewer-description" className="sr-only">
+            Document viewer for {fileName}. {pages.length > 1 ? `${pages.length} pages` : '1 page'}
+          </p>
 
           {/* Viewer */}
           <div className="flex-1 overflow-auto bg-muted p-4">
             {loading ? (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex flex-col items-center justify-center h-full gap-4">
                 <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+                <p className="text-sm text-muted-foreground">Loading document...</p>
+              </div>
+            ) : pages.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-sm text-muted-foreground">Failed to load document</p>
               </div>
             ) : (
-              <div className="flex items-center justify-center min-h-full">
+              <div className="flex items-center justify-center min-h-full p-4">
                 <img
                   src={pages[currentPage]}
-                  alt={`Page ${currentPage + 1}`}
-                  className="max-w-full h-auto"
-                  style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}
+                  alt={`Page ${currentPage + 1} of ${pages.length}`}
+                  className="max-w-full h-auto shadow-lg"
+                  style={{ 
+                    transform: `scale(${zoom})`, 
+                    transformOrigin: 'center',
+                    transition: 'transform 0.2s ease-in-out'
+                  }}
+                  onError={(e) => {
+                    console.error('Failed to load page image:', e);
+                  }}
                 />
               </div>
             )}
