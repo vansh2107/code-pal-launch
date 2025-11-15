@@ -159,8 +159,14 @@ export default function Auth() {
 
       console.log("OTP verified:", data);
       
-      // Store the verified email and proceed to password
-      setVerifiedEmail(data.email);
+      // Store the verified email (or use the one from the form if null)
+      const emailToUse = data.email || email;
+      if (!emailToUse) {
+        setError("Unable to retrieve your email. Please try again or contact support.");
+        return;
+      }
+      
+      setVerifiedEmail(emailToUse);
       setSuccess("Phone verified! Please enter your password.");
     } catch (err: any) {
       console.error("Error:", err);

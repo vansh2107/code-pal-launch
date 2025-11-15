@@ -96,10 +96,21 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Fetch email from auth.users if profile email is null
+    let userEmail = profile.email;
+    if (!userEmail) {
+      const { data: authUser } = await supabase.auth.admin.getUserById(profile.user_id);
+      userEmail = authUser?.user?.email ?? null;
+    }
+
     console.log("OTP verified successfully for user:", profile.user_id);
 
     return new Response(
-      JSON.stringify({ success: true, user_id: profile.user_id, email: profile.email }),
+      JSON.stringify({
+        success: true,
+        user_id: profile.user_id,
+        email: userEmail,
+      }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
