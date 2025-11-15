@@ -12,11 +12,11 @@ interface ProfileMenuItemProps {
 export function ProfileMenuItem({ label, onClick, href, className }: ProfileMenuItemProps) {
   const content = (
     <div className={cn(
-      "flex items-center justify-between py-4 px-4 smooth hover:bg-muted/50 cursor-pointer",
+      "flex items-center justify-between py-4 px-4 smooth hover:bg-primary/5 cursor-pointer group",
       className
     )}>
-      <span className="text-foreground font-normal">{label}</span>
-      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+      <span className="text-foreground font-medium transition-colors group-hover:text-primary">{label}</span>
+      <ChevronRight className="h-5 w-5 text-muted-foreground transition-all group-hover:text-primary group-hover:translate-x-0.5" />
     </div>
   );
 

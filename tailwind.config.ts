@@ -61,6 +61,21 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        expired: {
+          DEFAULT: "hsl(var(--expired))",
+          foreground: "hsl(var(--expired-foreground))",
+          bg: "hsl(var(--expired-bg))",
+        },
+        expiring: {
+          DEFAULT: "hsl(var(--expiring))",
+          foreground: "hsl(var(--expiring-foreground))",
+          bg: "hsl(var(--expiring-bg))",
+        },
+        valid: {
+          DEFAULT: "hsl(var(--valid))",
+          foreground: "hsl(var(--valid-foreground))",
+          bg: "hsl(var(--valid-bg))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

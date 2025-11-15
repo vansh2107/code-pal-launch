@@ -8,129 +8,138 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Darker background with warm tone */
-    --background: 30 15% 92%;
-    --foreground: 0 0% 0%;
+    /* Warm neutral background - #FFF7F0 */
+    --background: 30 100% 97%;
+    --foreground: 24 10% 20%;
 
-    /* Darker cards */
-    --card: 30 10% 96%;
-    --card-foreground: 0 0% 0%;
+    /* Card styling with warm tone */
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 20%;
 
-    --popover: 30 10% 96%;
-    --popover-foreground: 0 0% 0%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 10% 20%;
 
-    /* Vibrant Orange - Primary color */
+    /* Brand Orange - #FF9506 */
     --primary: 35 100% 51%;
-    --primary-foreground: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Status Colors - darker */
-    --success: 142 70% 30%;
-    --success-foreground: 0 0% 0%;
+    /* Status Colors */
+    /* Expired Red - #D64545 bg #FFE5E5 */
+    --expired: 0 65% 56%;
+    --expired-foreground: 0 62% 35%;
+    --expired-bg: 0 100% 95%;
     
-    --expired: 0 80% 50%;
-    --expired-foreground: 0 0% 0%;
+    /* Expiring Yellow - #A87800 bg #FFF7C9 */
+    --expiring: 45 100% 33%;
+    --expiring-foreground: 45 100% 24%;
+    --expiring-bg: 48 100% 90%;
     
-    --expiring: 45 90% 40%;
-    --expiring-foreground: 0 0% 0%;
+    /* Valid Green - #2F7D32 bg #E9FBE6 */
+    --valid: 122 46% 34%;
+    --valid-foreground: 122 48% 21%;
+    --valid-bg: 115 68% 94%;
 
-    /* Darker secondary */
-    --secondary: 35 15% 88%;
-    --secondary-foreground: 0 0% 0%;
+    /* Secondary */
+    --secondary: 30 20% 95%;
+    --secondary-foreground: 24 10% 20%;
 
-    /* Darker muted */
-    --muted: 35 12% 85%;
-    --muted-foreground: 0 0% 0%;
+    /* Muted */
+    --muted: 30 15% 92%;
+    --muted-foreground: 24 8% 45%;
 
-    /* Accent - Vibrant Orange */
+    /* Accent - brighter orange */
     --accent: 35 100% 60%;
-    --accent-foreground: 0 0% 0%;
+    --accent-foreground: 0 0% 100%;
 
-    /* Warm warning - matching orange theme */
+    /* Warning - matches brand */
     --warning: 35 100% 51%;
-    --warning-foreground: 0 0% 0%;
+    --warning-foreground: 0 0% 100%;
 
-    /* Softer destructive */
-    --destructive: 0 72% 51%;
+    /* Destructive */
+    --destructive: 0 65% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Darker borders with warm tone */
-    --border: 35 8% 75%;
-    --input: 35 10% 88%;
+    /* Borders with subtle warm tone */
+    --border: 24 15% 88%;
+    --input: 24 15% 92%;
     --ring: 35 100% 51%;
 
-    --radius: 1rem;
+    --radius: 0.875rem;
 
-    /* Sidebar styling with brand colors */
+    /* Sidebar */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 0%;
+    --sidebar-foreground: 24 10% 20%;
     --sidebar-primary: 35 100% 51%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 35 15% 95%;
-    --sidebar-accent-foreground: 0 0% 0%;
-    --sidebar-border: 35 10% 92%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 20% 96%;
+    --sidebar-accent-foreground: 35 100% 51%;
+    --sidebar-border: 24 15% 90%;
     --sidebar-ring: 35 100% 51%;
   }
 
   .dark {
-    /* Dark background matching logo black */
-    --background: 0 0% 10%;
-    --foreground: 0 0% 95%;
+    /* Dark warm background */
+    --background: 24 8% 12%;
+    --foreground: 30 5% 90%;
 
-    /* Dark cards with slight warm tone */
-    --card: 0 0% 14%;
-    --card-foreground: 0 0% 95%;
+    /* Dark cards */
+    --card: 24 6% 16%;
+    --card-foreground: 30 5% 90%;
 
-    --popover: 0 0% 14%;
-    --popover-foreground: 0 0% 95%;
+    --popover: 24 6% 16%;
+    --popover-foreground: 30 5% 90%;
 
-    /* Vibrant orange in dark mode */
-    --primary: 35 100% 60%;
-    --primary-foreground: 0 0% 0%;
+    /* Brand Orange brighter for dark */
+    --primary: 35 100% 58%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Status Colors - brighter in dark mode */
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
+    /* Status Colors - adjusted for dark mode */
+    --expired: 0 70% 65%;
+    --expired-foreground: 0 100% 80%;
+    --expired-bg: 0 60% 20%;
     
-    --expired: 0 84% 65%;
-    --expired-foreground: 0 0% 100%;
+    --expiring: 45 95% 60%;
+    --expiring-foreground: 45 100% 85%;
+    --expiring-bg: 45 50% 20%;
     
-    --expiring: 45 93% 55%;
-    --expiring-foreground: 0 0% 10%;
+    --valid: 122 50% 55%;
+    --valid-foreground: 122 70% 80%;
+    --valid-bg: 122 40% 18%;
 
     /* Dark secondary */
-    --secondary: 0 0% 18%;
-    --secondary-foreground: 0 0% 90%;
+    --secondary: 24 6% 20%;
+    --secondary-foreground: 30 5% 85%;
 
     /* Dark muted */
-    --muted: 0 0% 16%;
-    --muted-foreground: 0 0% 65%;
+    --muted: 24 6% 18%;
+    --muted-foreground: 30 5% 60%;
 
-    /* Vibrant accent orange in dark */
-    --accent: 35 100% 65%;
-    --accent-foreground: 0 0% 0%;
+    /* Accent */
+    --accent: 35 100% 62%;
+    --accent-foreground: 0 0% 100%;
 
-    /* Warm warning */
-    --warning: 35 100% 60%;
-    --warning-foreground: 0 0% 0%;
+    /* Warning */
+    --warning: 35 100% 58%;
+    --warning-foreground: 0 0% 100%;
 
-    /* Softer destructive */
-    --destructive: 0 72% 56%;
+    /* Destructive */
+    --destructive: 0 70% 65%;
     --destructive-foreground: 0 0% 100%;
 
     /* Dark borders */
-    --border: 0 0% 22%;
-    --input: 0 0% 18%;
-    --ring: 35 100% 60%;
+    --border: 24 8% 25%;
+    --input: 24 6% 20%;
+    --ring: 35 100% 58%;
 
-    /* Dark sidebar with orange theme */
-    --sidebar-background: 0 0% 12%;
-    --sidebar-foreground: 0 0% 90%;
-    --sidebar-primary: 35 100% 60%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 0 0% 18%;
-    --sidebar-accent-foreground: 35 100% 60%;
-    --sidebar-border: 0 0% 22%;
-    --sidebar-ring: 35 100% 60%;
+    /* Dark sidebar */
+    --sidebar-background: 24 8% 14%;
+    --sidebar-foreground: 30 5% 88%;
+    --sidebar-primary: 35 100% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 24 6% 20%;
+    --sidebar-accent-foreground: 35 100% 58%;
+    --sidebar-border: 24 8% 22%;
+    --sidebar-ring: 35 100% 58%;
   }
 }
 
@@ -141,11 +150,11 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground antialiased;
-    background: linear-gradient(to bottom right, hsl(var(--background)), hsl(35 12% 85%));
+    background: linear-gradient(135deg, hsl(30 100% 97%), hsl(30 60% 94%));
   }
 
   .dark body {
-    background: linear-gradient(to bottom right, hsl(var(--background)), hsl(0 0% 8%));
+    background: linear-gradient(135deg, hsl(24 8% 12%), hsl(24 10% 8%));
   }
 
   html {
@@ -169,17 +178,17 @@ All colors MUST be HSL.
 
   /* Smooth transitions */
   .smooth {
-    @apply transition-all duration-300 ease-out;
+    @apply transition-all duration-200 ease-out;
   }
 
-  /* Card hover effects */
+  /* Premium card hover - subtle */
   .card-hover {
-    @apply smooth hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1;
+    @apply smooth hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] hover:scale-[1.01];
   }
 
-  /* Button effects */
+  /* Premium button shadow */
   .btn-glow {
-    @apply shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/40;
+    @apply shadow-[0_4px_14px_rgba(255,149,6,0.28)] hover:shadow-[0_6px_20px_rgba(255,149,6,0.35)] smooth;
   }
 
   /* Text gradients */
