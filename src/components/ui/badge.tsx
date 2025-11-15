@@ -8,9 +8,9 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-valid text-valid-foreground",
-        secondary: "bg-expiring text-expiring-foreground",
-        destructive: "bg-expired text-expired-foreground",
+        default: "bg-valid text-foreground",
+        secondary: "bg-expiring text-foreground",
+        destructive: "bg-expired text-foreground",
         outline: "text-foreground border border-border",
       },
     },
