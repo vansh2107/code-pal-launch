@@ -21,6 +21,11 @@ const authSchema = z.object({
     .regex(/[A-Z]/, "Password must contain at least 1 uppercase letter")
     .regex(/[0-9]/, "Password must contain at least 1 number")
     .regex(/[^A-Za-z0-9]/, "Password must contain at least 1 special character"),
+  phone_number: z.string()
+    .trim()
+    .min(10, "Phone number must be at least 10 digits")
+    .max(15, "Phone number cannot exceed 15 digits")
+    .regex(/^\+?[0-9]+$/, "Phone number must contain only digits and optional + prefix"),
 });
 
 const COUNTRIES = [
@@ -34,6 +39,7 @@ const COUNTRIES = [
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [country, setCountry] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -84,7 +90,7 @@ export default function Auth() {
     setSuccess("");
 
     try {
-      const validation = authSchema.parse({ email, password });
+      const validation = authSchema.parse({ email, password, phone_number: phoneNumber });
       
       if (!country) {
         setError("Please select your country");
@@ -94,16 +100,25 @@ export default function Auth() {
 
       const redirectUrl = `https://code-pal-launch.vercel.app/`;
 
-      const { error } = await supabase.auth.signUp({
+      const { error, data } = await supabase.auth.signUp({
         email: validation.email,
         password: validation.password,
         options: {
           emailRedirectTo: redirectUrl,
           data: {
-            country: country
+            country: country,
+            phone_number: validation.phone_number
           }
         }
       });
+
+      // Store phone number in profiles table
+      if (data.user && !error) {
+        await supabase
+          .from("profiles")
+          .update({ phone_number: validation.phone_number })
+          .eq("user_id", data.user.id);
+      }
 
       if (error) {
         if (error.message.includes("already registered")) {
@@ -257,6 +272,21 @@ export default function Auth() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Must be at least 12 characters with 1 uppercase, 1 number, and 1 special character
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone-number">Phone Number</Label>
+                  <Input
+                    id="phone-number"
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="+1234567890"
+                    required
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter with country code (e.g., +1234567890)
                   </p>
                 </div>
                 <div className="space-y-2">

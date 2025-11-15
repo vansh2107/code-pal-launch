@@ -257,6 +257,36 @@ export type Database = {
         }
         Relationships: []
       }
+      otp_codes: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          is_verified: boolean | null
+          otp_code: string
+          phone_number: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          is_verified?: boolean | null
+          otp_code: string
+          phone_number: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          is_verified?: boolean | null
+          otp_code?: string
+          phone_number?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           country: string | null
@@ -266,6 +296,7 @@ export type Database = {
           email_notifications_enabled: boolean | null
           expiry_reminders_enabled: boolean | null
           id: string
+          phone_number: string | null
           preferred_notification_time: string | null
           push_notifications_enabled: boolean | null
           renewal_reminders_enabled: boolean | null
@@ -282,6 +313,7 @@ export type Database = {
           email_notifications_enabled?: boolean | null
           expiry_reminders_enabled?: boolean | null
           id?: string
+          phone_number?: string | null
           preferred_notification_time?: string | null
           push_notifications_enabled?: boolean | null
           renewal_reminders_enabled?: boolean | null
@@ -298,6 +330,7 @@ export type Database = {
           email_notifications_enabled?: boolean | null
           expiry_reminders_enabled?: boolean | null
           id?: string
+          phone_number?: string | null
           preferred_notification_time?: string | null
           push_notifications_enabled?: boolean | null
           renewal_reminders_enabled?: boolean | null
@@ -351,6 +384,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_expired_otps: { Args: never; Returns: undefined }
       get_user_org_role: {
         Args: { _org_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
