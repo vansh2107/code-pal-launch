@@ -14,13 +14,16 @@ import { z } from "zod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const authSchema = z.object({
+const signInSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   password: z.string()
     .min(12, "Password must be at least 12 characters")
     .regex(/[A-Z]/, "Password must contain at least 1 uppercase letter")
     .regex(/[0-9]/, "Password must contain at least 1 number")
     .regex(/[^A-Za-z0-9]/, "Password must contain at least 1 special character"),
+});
+
+const signUpSchema = signInSchema.extend({
   phone_number: z.string()
     .trim()
     .min(10, "Phone number must be at least 10 digits")
@@ -90,7 +93,7 @@ export default function Auth() {
     setSuccess("");
 
     try {
-      const validation = authSchema.parse({ email, password, phone_number: phoneNumber });
+      const validation = signUpSchema.parse({ email, password, phone_number: phoneNumber });
       
       if (!country) {
         setError("Please select your country");
@@ -146,7 +149,7 @@ export default function Auth() {
     setError("");
 
     try {
-      const validation = authSchema.parse({ email, password });
+      const validation = signInSchema.parse({ email, password });
 
       const { error } = await supabase.auth.signInWithPassword({
         email: validation.email,

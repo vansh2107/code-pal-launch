@@ -19,6 +19,7 @@ interface Profile {
   id: string;
   display_name: string | null;
   country: string | null;
+  phone_number: string | null;
 }
 
 const COUNTRIES = [
@@ -89,6 +90,7 @@ export default function Profile() {
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [country, setCountry] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -111,6 +113,7 @@ export default function Profile() {
       setProfile(data);
       setDisplayName(data.display_name || "");
       setCountry(data.country || "");
+      setPhoneNumber(data.phone_number || "");
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
@@ -127,7 +130,8 @@ export default function Profile() {
         .from("profiles")
         .update({ 
           display_name: displayName,
-          country: country || null
+          country: country || null,
+          phone_number: phoneNumber || null
         })
         .eq("user_id", user.id);
 
@@ -291,6 +295,12 @@ export default function Profile() {
                   </p>
                 </div>
                 <div>
+                  <p className="text-xs text-muted-foreground mb-1">Phone Number</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {profile?.phone_number || "Not set"}
+                  </p>
+                </div>
+                <div>
                   <p className="text-xs text-muted-foreground mb-1">Email</p>
                   <p className="text-sm font-medium text-foreground">
                     {user?.email}
@@ -332,6 +342,20 @@ export default function Profile() {
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="phone_number">Phone Number</Label>
+                        <Input
+                          id="phone_number"
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          placeholder="+1234567890"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter with country code (e.g., +1234567890)
+                        </p>
                       </div>
 
                       <div className="space-y-2">
