@@ -188,7 +188,8 @@ export default function Auth() {
           return;
         }
 
-        if (profile.phone_number !== validation.phone_number) {
+        const normalize = (s: string) => (s ?? "").replace(/[\s\-()]/g, "");
+        if (normalize(profile.phone_number) !== normalize(validation.phone_number)) {
           setError("Phone number does not match our records");
           await supabase.auth.signOut();
           return;
