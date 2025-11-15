@@ -23,12 +23,29 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 
 const documentSchema = z.object({
-  name: z.string().min(1, "Document name is required"),
-  document_type: z.string().min(1, "Document type is required"),
-  issuing_authority: z.string().optional(),
-  expiry_date: z.string().min(1, "Expiry date is required"),
-  renewal_period_days: z.number().min(1, "Renewal period must be at least 1 day").max(365, "Renewal period cannot exceed 365 days"),
-  notes: z.string().optional(),
+  name: z.string()
+    .trim()
+    .min(1, "Document name is required")
+    .max(200, "Document name cannot exceed 200 characters"),
+  document_type: z.string()
+    .trim()
+    .min(1, "Document type is required"),
+  issuing_authority: z.string()
+    .trim()
+    .max(200, "Issuing authority cannot exceed 200 characters")
+    .optional()
+    .or(z.literal("")),
+  expiry_date: z.string()
+    .min(1, "Expiry date is required")
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
+  renewal_period_days: z.number()
+    .min(1, "Renewal period must be at least 1 day")
+    .max(365, "Renewal period cannot exceed 365 days"),
+  notes: z.string()
+    .trim()
+    .max(5000, "Notes cannot exceed 5000 characters")
+    .optional()
+    .or(z.literal("")),
 });
 
 export default function Scan() {
@@ -274,11 +291,6 @@ export default function Scan() {
     setError("");
 
     try {
-      // Validate notes length
-      if (formData.notes && formData.notes.length > 5000) {
-        throw new Error('Notes cannot exceed 5000 characters');
-      }
-      
       // Map specific document types to database enum types
       const documentTypeMap: { [key: string]: string } = {
         // License types
@@ -342,10 +354,18 @@ export default function Scan() {
       const mappedType = documentTypeMap[formData.document_type] || 'other';
       console.log(`Mapping document type: ${formData.document_type} -> ${mappedType}`);
       
-      const validatedData = documentSchema.parse({
+      // Validate all input data with zod schema
+      const validationResult = documentSchema.safeParse({
         ...formData,
         document_type: mappedType,
       });
+
+      if (!validationResult.success) {
+        const errors = validationResult.error.errors.map(err => err.message).join(', ');
+        throw new Error(errors);
+      }
+
+      const validatedData = validationResult.data;
       
       // Upload original PDF if available, else fallback to image
       let imagePath = null;
