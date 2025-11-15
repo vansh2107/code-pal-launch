@@ -92,8 +92,8 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
 
   return (
     <Card className="p-0 overflow-hidden animate-fade-in">
-      <div className="px-4 pt-6 pb-2 animate-scale-in">
-        <h2 className="text-lg font-semibold">Expiry Timeline</h2>
+      <div className="px-4 pt-4 pb-2 animate-scale-in">
+        <h2 className="text-lg font-bold">Expiry Timeline</h2>
         <p className="text-sm text-muted-foreground">Scroll to explore past and upcoming expiries</p>
       </div>
 
@@ -101,8 +101,8 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
         ref={containerRef}
         className="relative max-h-[420px] overflow-y-auto px-6 pb-6 scroll-smooth"
       >
-        {/* Vertical glowing line */}
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 h-full w-[2px] bg-gradient-to-b from-primary/40 via-primary to-primary/40 animate-fade-in" style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.5)', animationDelay: '100ms' }} />
+        {/* Vertical line with warm brand color */}
+        <div className="absolute left-1/2 top-0 -translate-x-1/2 h-full w-[2px] bg-gradient-to-b from-primary/30 via-primary/60 to-primary/30 animate-fade-in" style={{ animationDelay: '100ms' }} />
 
         {/* Moving current-date marker */}
         <div
@@ -110,26 +110,30 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
           style={{ top: `calc(${markerOffset * 100}%)` }}
         >
           <div className="relative animate-scale-in" style={{ animationDelay: '200ms' }}>
-            <div className="h-3 w-3 rounded-full bg-background border border-primary transition-all duration-300" style={{ boxShadow: '0 0 12px hsl(var(--primary) / 0.8)' }} />
-            <div className="absolute -left-2 -right-2 -top-2 -bottom-2 rounded-full blur-md bg-primary/30 animate-pulse" />
+            <div className="h-3 w-3 rounded-full bg-primary border-2 border-primary-foreground/20 transition-all duration-300 shadow-[0_0_8px_rgba(255,149,6,0.4)]" />
           </div>
         </div>
 
         <ul className="relative space-y-8 py-6">
           {items.map((item, idx) => {
             const isActive = item.index === activeIndex;
-            const baseFade = item.isPast ? "opacity-50" : item.isFuture ? "opacity-100" : "opacity-90";
-            const glowClass = item.isFuture || isActive ? "border-primary/50" : "border-border";
-            const glowStyle = item.isFuture || isActive ? { boxShadow: '0 0 24px hsl(var(--primary) / 0.35)' } : {};
+            const baseFade = item.isPast ? "opacity-60" : "opacity-100";
             const sideClass = item.side === "left" ? "pr-12 md:pr-24" : "pl-12 md:pl-24";
             const align = item.side === "left" ? "md:items-end" : "md:items-start";
             const floatSide = item.side === "left" ? "md:mr-auto md:pr-6" : "md:ml-auto md:pl-6";
             const animationDelay = `${(idx * 80) + 300}ms`;
+            
+            // Determine status color for dot
+            const dotColorClass = item.isPast 
+              ? "bg-expired border-expired" 
+              : item.isToday 
+              ? "bg-expiring border-expiring" 
+              : "bg-valid border-valid";
 
             return (
               <li key={item.doc.id} className="relative animate-fade-in" style={{ animationDelay }}>
-                {/* Connector dot */}
-                <div className="absolute left-1/2 top-1.5 -translate-x-1/2 h-3 w-3 rounded-full bg-primary border border-primary/60 animate-scale-in transition-all duration-300 hover:scale-125" style={{ animationDelay }} />
+                {/* Connector dot with status color */}
+                <div className={`absolute left-1/2 top-1.5 -translate-x-1/2 h-3 w-3 rounded-full ${dotColorClass} animate-scale-in transition-all duration-300 hover:scale-125`} style={{ animationDelay }} />
 
                 <div className={`grid grid-cols-1 md:grid-cols-2 ${sideClass} ${align}`} data-tl-card data-index={item.index}>
                   {item.side === "left" ? (
@@ -141,34 +145,28 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
                   >
                     <Link
                       to={`/document/${item.doc.id}`}
-                      className={`group block relative border rounded-lg bg-card p-2.5 hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 ease-out ${glowClass}`}
-                      style={glowStyle}
+                      className="group block relative border border-border/80 rounded-[14px] bg-card p-4 card-hover shadow-[0_3px_10px_rgba(0,0,0,0.06)]"
                     >
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground transition-all duration-300">
-                        <Calendar className="h-3 w-3 transition-transform duration-300 group-hover:scale-110" />
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground transition-all duration-300 mb-2">
+                        <Calendar className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
                         <span className="transition-all duration-300">{item.expiry.toLocaleDateString()}</span>
-                        <Badge variant={item.isPast ? "destructive" : "secondary"} className={`text-[10px] px-1.5 py-0 transition-all duration-300 ${item.isFuture ? "bg-accent text-accent-foreground" : ""}`}>
+                        <Badge 
+                          variant={item.isPast ? "destructive" : item.isToday ? "secondary" : "default"} 
+                          className="text-xs px-2 py-0.5"
+                        >
                           {item.isPast ? "Expired" : item.isToday ? "Today" : "Upcoming"}
                         </Badge>
                       </div>
 
-                      <div className="mt-1.5 transition-all duration-300">
-                        <div className="font-medium text-xs text-foreground line-clamp-1 transition-colors duration-300 group-hover:text-primary">{item.doc.name}</div>
-                        <div className="text-[11px] text-muted-foreground capitalize transition-all duration-300">
-                          {item.doc.document_type.replace("_", " ")}
-                        </div>
+                      <div className="transition-all duration-300">
+                        <div className="font-semibold text-sm text-foreground line-clamp-1 transition-colors duration-300 group-hover:text-primary mb-1">{item.doc.name}</div>
+                        <div className="text-xs text-muted-foreground capitalize line-clamp-1 transition-all duration-300">{item.doc.document_type.replace("_", " ")}</div>
                       </div>
 
-                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground transition-all duration-300">
+                      <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground transition-all duration-300">
                         <Clock className="h-3 w-3 transition-transform duration-300 group-hover:scale-110" />
-                        <span className="transition-all duration-300">
-                          {diffFromTodayLabel(item.expiry, today)}
-                        </span>
+                        <span className="transition-all duration-300">{diffFromTodayLabel(item.expiry, today)}</span>
                       </div>
-
-                      {item.isFuture || item.isToday ? (
-                        <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-primary/15 transition-all duration-300" />
-                      ) : null}
                     </Link>
                   </div>
 
