@@ -137,6 +137,7 @@ export default function Scan() {
       // Check if file is a PDF
       if (file.type === 'application/pdf') {
         setExtracting(true);
+        setPdfFile(file);
         
         // Prepare PDF.js worker via bundler-provided URL
         GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
@@ -344,27 +345,33 @@ export default function Scan() {
         document_type: mappedType,
       });
       
-      // Upload image to storage if available
+      // Upload original PDF if available, else fallback to image
       let imagePath = null;
-      if (capturedImage) {
-        const blob = await fetch(capturedImage).then(r => r.blob());
-        const fileExt = blob.type.split('/')[1];
-        const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('document-images')
-          .upload(fileName, blob);
-          
-        if (uploadError) {
-          console.error('Error uploading image:', uploadError);
-          toast({
-            title: "Warning",
-            description: "Failed to upload document image, but document will be saved.",
-            variant: "default",
-          });
-        } else {
+      try {
+        if (pdfFile) {
+          const pdfName = `${user.id}/${crypto.randomUUID()}.pdf`;
+          const { error: pdfUploadError } = await supabase.storage
+            .from('document-images')
+            .upload(pdfName, pdfFile);
+          if (pdfUploadError) throw pdfUploadError;
+          imagePath = pdfName;
+        } else if (capturedImage) {
+          const blob = await fetch(capturedImage).then(r => r.blob());
+          const fileExt = (blob.type.split('/')[1]) || 'jpg';
+          const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+          const { error: uploadError } = await supabase.storage
+            .from('document-images')
+            .upload(fileName, blob);
+          if (uploadError) throw uploadError;
           imagePath = fileName;
         }
+      } catch (uploadErr) {
+        console.error('Error uploading document file:', uploadErr);
+        toast({
+          title: "Warning",
+          description: "Failed to upload document file, but document will be saved.",
+          variant: "default",
+        });
       }
 
       const selectedOrgId = selectedOrg === "personal" ? null : selectedOrg;
