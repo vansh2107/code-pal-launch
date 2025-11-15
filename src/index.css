@@ -10,54 +10,54 @@ All colors MUST be HSL.
   :root {
     /* Warm neutral background - #FFF7F0 */
     --background: 30 100% 97%;
-    --foreground: 24 10% 20%;
+    --foreground: 0 0% 0%;
 
     /* Card styling with warm tone */
     --card: 0 0% 100%;
-    --card-foreground: 24 10% 20%;
+    --card-foreground: 0 0% 0%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 24 10% 20%;
+    --popover-foreground: 0 0% 0%;
 
     /* Brand Orange - #FF9506 */
     --primary: 35 100% 51%;
-    --primary-foreground: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
 
     /* Status Colors */
     /* Expired Red - #D64545 bg #FFE5E5 */
     --expired: 0 65% 56%;
-    --expired-foreground: 0 62% 35%;
+    --expired-foreground: 0 0% 0%;
     --expired-bg: 0 100% 95%;
     
     /* Expiring Yellow - #A87800 bg #FFF7C9 */
     --expiring: 45 100% 33%;
-    --expiring-foreground: 45 100% 24%;
+    --expiring-foreground: 0 0% 0%;
     --expiring-bg: 48 100% 90%;
     
     /* Valid Green - #2F7D32 bg #E9FBE6 */
     --valid: 122 46% 34%;
-    --valid-foreground: 122 48% 21%;
+    --valid-foreground: 0 0% 0%;
     --valid-bg: 115 68% 94%;
 
     /* Secondary */
     --secondary: 30 20% 95%;
-    --secondary-foreground: 24 10% 20%;
+    --secondary-foreground: 0 0% 0%;
 
     /* Muted */
     --muted: 30 15% 92%;
-    --muted-foreground: 24 10% 20%;
+    --muted-foreground: 0 0% 0%;
 
     /* Accent - brighter orange */
     --accent: 35 100% 60%;
-    --accent-foreground: 0 0% 100%;
+    --accent-foreground: 0 0% 0%;
 
     /* Warning - matches brand */
     --warning: 35 100% 51%;
-    --warning-foreground: 0 0% 100%;
+    --warning-foreground: 0 0% 0%;
 
     /* Destructive */
     --destructive: 0 65% 56%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 0 0% 0%;
 
     /* Borders with subtle warm tone */
     --border: 24 15% 88%;
@@ -68,11 +68,11 @@ All colors MUST be HSL.
 
     /* Sidebar */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 24 10% 20%;
+    --sidebar-foreground: 0 0% 0%;
     --sidebar-primary: 35 100% 51%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary-foreground: 0 0% 0%;
     --sidebar-accent: 30 20% 96%;
-    --sidebar-accent-foreground: 35 100% 51%;
+    --sidebar-accent-foreground: 0 0% 0%;
     --sidebar-border: 24 15% 90%;
     --sidebar-ring: 35 100% 51%;
   }
