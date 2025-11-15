@@ -70,14 +70,26 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to verify OTP");
     }
 
-    const { data: profile, error: profileError } = await supabase
+    // Lookup user by phone, tolerant to spaces/dashes/parentheses
+    let { data: profile } = await supabase
       .from("profiles")
-      .select("user_id, email")
+      .select("user_id, email, phone_number")
       .eq("phone_number", normalizedPhone)
-      .single();
+      .maybeSingle();
 
-    if (profileError || !profile) {
-      console.error("User not found:", profileError);
+    if (!profile) {
+      const wildcard = `%${normalizedPhone.split("").join("%")}%`;
+      const { data: profileWild } = await supabase
+        .from("profiles")
+        .select("user_id, email, phone_number")
+        .ilike("phone_number", wildcard)
+        .limit(1)
+        .maybeSingle();
+      profile = profileWild ?? null;
+    }
+
+    if (!profile) {
+      console.error("User not found with this phone number", { normalizedPhone });
       return new Response(
         JSON.stringify({ error: "User not found with this phone number" }),
         { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
