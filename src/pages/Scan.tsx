@@ -48,6 +48,7 @@ export default function Scan() {
   const [documentCountry, setDocumentCountry] = useState<string>("");
   const [enableCountrySelect, setEnableCountrySelect] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [showPdfSelector, setShowPdfSelector] = useState(false);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -138,6 +139,7 @@ export default function Scan() {
       if (file.type === 'application/pdf') {
         setExtracting(true);
         setPdfFile(file);
+        setShowPdfSelector(true);
         
         // Prepare PDF.js worker via bundler-provided URL
         GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
@@ -242,7 +244,7 @@ export default function Scan() {
   };
 
   const handlePDFPageSelect = (pageImageBase64: string) => {
-    setPdfFile(null);
+    setShowPdfSelector(false);
     setCapturedImage(pageImageBase64);
     extractDocumentData(pageImageBase64);
   };
@@ -608,11 +610,12 @@ export default function Scan() {
         />
 
         {/* PDF Page Selector */}
-        {pdfFile && (
+        {pdfFile && showPdfSelector && (
           <PDFPageSelector
             file={pdfFile}
             onPageSelect={handlePDFPageSelect}
             onCancel={() => {
+              setShowPdfSelector(false);
               setPdfFile(null);
               setExtracting(false);
             }}
