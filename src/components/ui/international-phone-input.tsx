@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
 import { cn } from '@/lib/utils';
@@ -18,20 +18,20 @@ export function InternationalPhoneInput({
   disabled = false,
   className,
 }: InternationalPhoneInputProps) {
-  // When country prop changes, update the phone input accordingly
-  // The library handles the country code automatically
-  
   return (
     <div className={cn("international-phone-input", className)}>
       <PhoneInput
         international
         countryCallingCodeEditable={false}
+        withCountryCallingCode
         country={country as any}
+        defaultCountry={country as any}
         value={value}
         onChange={onChange}
         disabled={disabled}
         className="phone-input-container"
         placeholder="Enter phone number"
+        countrySelectComponent={() => null}
       />
     </div>
   );
