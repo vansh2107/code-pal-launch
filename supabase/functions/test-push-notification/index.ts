@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,12 +34,18 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log('Sending test OneSignal notification for user:', user.id);
 
+    // Get a funny test notification
+    const testNotification = getFunnyNotification('document_expiring', {
+      documentName: 'Test Document',
+      daysUntilExpiry: 5,
+    });
+
     // Call the send-onesignal-notification function
     const { data, error } = await supabase.functions.invoke('send-onesignal-notification', {
       body: {
         userId: user.id,
-        title: '📅 Test: Document Reminder',
-        message: 'Your document reminder for November 4, 2025 is working! OneSignal push notifications are now enabled.',
+        title: testNotification.title,
+        message: testNotification.message + ' (This is a test notification - OneSignal is working! 🎉)',
         data: {
           type: 'test',
           date: '2025-11-04'

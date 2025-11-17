@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.78.0';
 import { format } from 'npm:date-fns@3.6.0';
 import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
+import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -141,8 +142,12 @@ async function sendUserNotifications(profile: Profile): Promise<void> {
     .eq('task_date', today)
     .neq('status', 'completed');
 
+  // Get funny daily summary notification
+  const dailyNotification = getFunnyNotification('daily_summary');
+
   // Build notification message
-  let message = `Good morning${profile.display_name ? ', ' + profile.display_name : ''}! 🌅\n\n`;
+  let message = `${dailyNotification.message}\n\n`;
+  message += `Hey${profile.display_name ? ' ' + profile.display_name : ''}! 👋\n\n`;
   
   if (documents && documents.length > 0) {
     message += `📄 Documents expiring soon:\n`;
@@ -165,7 +170,7 @@ async function sendUserNotifications(profile: Profile): Promise<void> {
   if (!documents?.length && !tasks?.length) {
     message += `You're all caught up! No urgent items today. 🎉`;
   } else {
-    message += `Stay organized and have a great day! 💪`;
+    message += `Let's crush it today! 💪🚀`;
   }
 
   // Send push notification if enabled
@@ -174,7 +179,7 @@ async function sendUserNotifications(profile: Profile): Promise<void> {
       supabase.functions.invoke('send-onesignal-notification', {
         body: {
           user_id: profile.user_id,
-          title: 'Daily Reminder 🔔',
+          title: dailyNotification.title,
           message: message,
           data: { type: 'daily_reminder' },
         },
@@ -186,7 +191,7 @@ async function sendUserNotifications(profile: Profile): Promise<void> {
   if (profile.email_notifications_enabled && profile.email) {
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #FF9506;">Daily Reminder 🔔</h2>
+        <h2 style="color: #FF9506;">${dailyNotification.title}</h2>
         <div style="white-space: pre-line; line-height: 1.6; color: #333;">
           ${message}
         </div>
@@ -203,7 +208,7 @@ async function sendUserNotifications(profile: Profile): Promise<void> {
       supabase.functions.invoke('send-reminder-emails', {
         body: {
           to: [profile.email],
-          subject: 'Daily Reminder 🔔',
+          subject: dailyNotification.title,
           html: emailHtml,
         },
       })

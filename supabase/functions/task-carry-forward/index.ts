@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.78.0";
+import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,18 +56,12 @@ serve(async (req) => {
 
       // Send notifications
       const profile = task.profiles;
-      let notificationMessage = "";
       
-      if (newConsecutiveDays >= 3) {
-        const funnyMessages = [
-          "Brooo… 3 days? Even your alarm gave up on you 😭😂",
-          "Your task is crying… finish it 😭😂",
-          "3 days later... still waiting 😴",
-        ];
-        notificationMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
-      } else {
-        notificationMessage = "You still have pending tasks from yesterday! 📋";
-      }
+      const notificationType = newConsecutiveDays >= 3 ? "task_lazy_3days" : "task_incomplete";
+      const funnyMessage = getFunnyNotification(notificationType, {
+        taskTitle: task.title,
+        consecutiveDays: newConsecutiveDays,
+      });
 
       // Send push notification
       if (profile.push_notifications_enabled) {
@@ -74,8 +69,8 @@ serve(async (req) => {
           await supabase.functions.invoke("send-onesignal-notification", {
             body: {
               userId: task.user_id,
-              title: newConsecutiveDays >= 3 ? "🚨 Task Overdue!" : "📋 Pending Task",
-              message: notificationMessage,
+              title: funnyMessage.title,
+              message: funnyMessage.message,
               data: { taskId: task.id, type: "task_carry_forward" },
             },
           });
@@ -98,7 +93,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 email: profile.email,
                 taskTitle: task.title,
-                message: notificationMessage,
+                message: funnyMessage.message,
                 consecutiveDays: newConsecutiveDays,
               }),
             }

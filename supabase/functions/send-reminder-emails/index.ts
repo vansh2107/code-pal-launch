@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 const sendGridApiKey = Deno.env.get("SENDGRID_API_KEY");
 const sendGridEndpoint = 'https://api.sendgrid.com/v3/mail/send';
@@ -178,11 +179,17 @@ const handler = async (req: Request): Promise<Response> => {
       );
 
       try {
+        const notificationType = daysUntilExpiry <= 0 ? "document_expired" : "document_expiring";
+        const funnyNotification = getFunnyNotification(notificationType, {
+          documentName: document.name,
+          daysUntilExpiry: Math.abs(daysUntilExpiry),
+        });
+
         const emailHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #1E40AF;">🚨 Your ${document.name} Just Sent an SOS!</h2>
+            <h2 style="color: #1E40AF;">${funnyNotification.title}</h2>
             <p>Yo ${profile.display_name || 'there'}! 👋</p>
-            <p>Don't panic, but your ${document.document_type} is getting ready to expire. Time to show it some renewal love! 💪</p>
+            <p>${funnyNotification.message}</p>
             
             <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #F59E0B;">
               <h3 style="margin-top: 0; color: #374151;">⚡ Expiry Alert</h3>
@@ -190,7 +197,7 @@ const handler = async (req: Request): Promise<Response> => {
               <p><strong>Type:</strong> ${document.document_type}</p>
               ${document.issuing_authority ? `<p><strong>Issued by:</strong> ${document.issuing_authority}</p>` : ''}
               <p><strong>Expiry Date:</strong> ${new Date(document.expiry_date).toLocaleDateString()}</p>
-              <p style="color: #EF4444; font-weight: bold; font-size: 18px;">⏰ Only ${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'} left!</p>
+              <p style="color: #EF4444; font-weight: bold; font-size: 18px;">⏰ ${daysUntilExpiry <= 0 ? 'EXPIRED!' : `Only ${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'} left!`}</p>
             </div>
 
             <p>${daysUntilExpiry <= 3 ? '🏃‍♂️ This is your last-minute warning! Time to renew NOW!' : '⏱️ Still got time, but why wait? Get it done and chill!'}</p>
@@ -220,7 +227,7 @@ const handler = async (req: Request): Promise<Response> => {
               to: [{ email: profile.email! }]
             }],
             from: { email: 'remind659@gmail.com' },
-            subject: `${daysUntilExpiry <= 3 ? '🚨 URGENT' : '⏰'} Your ${document.name} won't renew itself! (${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'} left)`,
+            subject: `${funnyNotification.title} - ${document.name}`,
             content: [{
               type: 'text/html',
               value: emailHtml
@@ -238,11 +245,16 @@ const handler = async (req: Request): Promise<Response> => {
         // Also send push notification if user has push enabled
         if (profile.push_notifications_enabled) {
           try {
+            const pushNotification = getFunnyNotification(notificationType, {
+              documentName: document.name,
+              daysUntilExpiry: Math.abs(daysUntilExpiry),
+            });
+
             const pushResponse = await supabase.functions.invoke('send-onesignal-notification', {
               body: {
                 userId: reminder.user_id,
-                title: `📅 Document Expiring Soon`,
-                message: `${document.name} expires in ${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'}`,
+                title: pushNotification.title,
+                message: pushNotification.message,
                 data: {
                   documentId: document.id,
                   type: 'expiry_reminder',
