@@ -41,29 +41,24 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to store OTP");
     }
 
-    const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-    const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-    const twilioPhone = Deno.env.get("TWILIO_PHONE_NUMBER");
+    const twoFactorApiKey = Deno.env.get("TWOFACTOR_API_KEY");
+    
+    if (!twoFactorApiKey) {
+      console.error("2Factor API key not configured");
+      throw new Error("SMS service not configured");
+    }
 
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const twilioAuth = btoa(`${accountSid}:${authToken}`);
+    // 2factor.in API endpoint - using auto-generated OTP
+    const twoFactorUrl = `https://2factor.in/API/V1/${twoFactorApiKey}/SMS/${normalizedPhone}/${otp}`;
 
-    const twilioResponse = await fetch(twilioUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${twilioAuth}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        To: normalizedPhone,
-        From: twilioPhone!,
-        Body: `Your Remonk Reminder verification code is: ${otp}. Valid for 10 minutes.`,
-      }),
+    const smsResponse = await fetch(twoFactorUrl, {
+      method: "GET",
     });
 
-    if (!twilioResponse.ok) {
-      const errorText = await twilioResponse.text();
-      console.error("Twilio error:", errorText);
+    const responseData = await smsResponse.json();
+
+    if (!smsResponse.ok || responseData.Status !== "Success") {
+      console.error("2Factor.in error:", responseData);
       throw new Error("Failed to send SMS");
     }
 
