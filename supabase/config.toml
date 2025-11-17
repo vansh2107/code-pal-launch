@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.task-carry-forward]
 verify_jwt = false
+
+[functions.timezone-notification-scheduler]
+verify_jwt = false
