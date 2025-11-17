@@ -21,14 +21,16 @@ const signInSchema = z.object({
     .regex(/[A-Z]/, "Password must contain at least 1 uppercase letter")
     .regex(/[0-9]/, "Password must contain at least 1 number")
     .regex(/[^A-Za-z0-9]/, "Password must contain at least 1 special character"),
-  phone_number: z.string()
-    .trim()
-    .min(10, "Phone number must be at least 10 digits")
-    .max(15, "Phone number cannot exceed 15 digits")
-    .regex(/^\+?[0-9]+$/, "Phone number must contain only digits and optional + prefix"),
 });
 
-const signUpSchema = signInSchema.extend({
+const signUpSchema = z.object({
+  name: z.string().trim().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string()
+    .min(12, "Password must be at least 12 characters")
+    .regex(/[A-Z]/, "Password must contain at least 1 uppercase letter")
+    .regex(/[0-9]/, "Password must contain at least 1 number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least 1 special character"),
   phone_number: z.string()
     .trim()
     .min(10, "Phone number must be at least 10 digits")
@@ -47,6 +49,7 @@ const COUNTRIES = [
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [country, setCountry] = useState("");
   const [loading, setLoading] = useState(false);
@@ -54,9 +57,12 @@ export default function Auth() {
   const [success, setSuccess] = useState("");
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
-  const [verifiedEmail, setVerifiedEmail] = useState("");
+  
+  // Sign-up OTP states
+  const [signupOtpSent, setSignupOtpSent] = useState(false);
+  const [signupOtpCode, setSignupOtpCode] = useState("");
+  const [signupOtpVerified, setSignupOtpVerified] = useState(false);
+  
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -94,34 +100,86 @@ export default function Auth() {
     }
   };
 
-  const handleSendOTP = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const validation = signInSchema.parse({ email, password });
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: validation.email,
+        password: validation.password,
+      });
+
+      if (error) {
+        if (error.message.includes("Invalid login credentials")) {
+          setError("Invalid email or password. Please try again.");
+        } else if (error.message.includes("Email not confirmed")) {
+          setError("Please check your email and confirm your account before signing in.");
+        } else {
+          setError(error.message);
+        }
+        return;
+      }
+
+      // Success - user will be redirected by useEffect
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        setError(err.errors[0].message);
+      } else {
+        setError("An unexpected error occurred");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendSignupOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setSuccess("");
 
     try {
+      // Validate initial fields
+      if (!name.trim() || name.trim().length < 2) {
+        setError("Name must be at least 2 characters");
+        setLoading(false);
+        return;
+      }
+
+      if (!country) {
+        setError("Please select your country");
+        setLoading(false);
+        return;
+      }
+
       const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
       
-      if (!cleanedPhoneNumber || cleanedPhoneNumber.length < 10) {
-        setError("Please enter a valid phone number");
+      // Validate phone number format
+      if (!/^\+?[0-9]{10,15}$/.test(cleanedPhoneNumber)) {
+        setError("Please enter a valid phone number with country code (e.g., +1234567890)");
         setLoading(false);
         return;
       }
 
       const { data, error } = await supabase.functions.invoke("send-otp-sms", {
-        body: { phone_number: cleanedPhoneNumber },
+        body: {
+          phone_number: cleanedPhoneNumber,
+        },
       });
 
-      if (error) {
-        console.error("Error sending OTP:", error);
-        setError("Failed to send OTP. Please try again.");
+      if (error || !data?.success) {
+        console.error("Failed to send OTP:", error);
+        setError(data?.error || "Failed to send OTP. Please try again.");
         return;
       }
 
       console.log("OTP sent:", data);
-      setOtpSent(true);
-      setSuccess("OTP sent to your phone number!");
+      setSignupOtpSent(true);
+      setSuccess("OTP sent to your phone!");
     } catch (err: any) {
       console.error("Error:", err);
       setError("An unexpected error occurred");
@@ -130,24 +188,18 @@ export default function Auth() {
     }
   };
 
-  const handleVerifyOTP = async (e: React.FormEvent) => {
+  const handleVerifySignupOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
       const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
-
-      if (!otpCode || otpCode.length !== 6) {
-        setError("Please enter a valid 6-digit OTP");
-        setLoading(false);
-        return;
-      }
-
+      
       const { data, error } = await supabase.functions.invoke("verify-otp", {
         body: {
           phone_number: cleanedPhoneNumber,
-          otp_code: otpCode,
+          otp_code: signupOtpCode,
         },
       });
 
@@ -157,17 +209,12 @@ export default function Auth() {
         return;
       }
 
-      console.log("OTP verified:", data);
+      console.log("OTP verified successfully");
+      setSignupOtpVerified(true);
+      setSuccess("Phone verified! Creating your account...");
       
-      // Store the verified email (or use the one from the form if null)
-      const emailToUse = data.email || email;
-      if (!emailToUse) {
-        setError("Unable to retrieve your email. Please try again or contact support.");
-        return;
-      }
-      
-      setVerifiedEmail(emailToUse);
-      setSuccess("Phone verified! Please enter your password.");
+      // Automatically proceed to sign up
+      await completeSignUp();
     } catch (err: any) {
       console.error("Error:", err);
       setError("An unexpected error occurred");
@@ -176,53 +223,17 @@ export default function Auth() {
     }
   };
 
-  const handleFinalSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
+  const completeSignUp = async () => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: verifiedEmail,
-        password: password,
+      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
+      const validation = signUpSchema.parse({ 
+        name, 
+        email, 
+        password, 
+        phone_number: cleanedPhoneNumber 
       });
 
-      if (error) {
-        if (error.message.includes("Invalid login credentials")) {
-          setError("Invalid password. Please try again.");
-        } else {
-          setError(error.message);
-        }
-        return;
-      }
-
-      // Success - user will be redirected by useEffect
-    } catch (err: any) {
-      console.error("Error:", err);
-      setError("An unexpected error occurred");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      // Remove spaces from phone number before validation
-      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
-      const validation = signUpSchema.parse({ email, password, phone_number: cleanedPhoneNumber });
-      
-      if (!country) {
-        setError("Please select your country");
-        setLoading(false);
-        return;
-      }
-
-      const redirectUrl = `https://code-pal-launch.vercel.app/`;
+      const redirectUrl = `${window.location.origin}/`;
 
       const { error, data } = await supabase.auth.signUp({
         email: validation.email,
@@ -230,6 +241,7 @@ export default function Auth() {
         options: {
           emailRedirectTo: redirectUrl,
           data: {
+            display_name: validation.name,
             country: country,
             phone_number: validation.phone_number
           }
@@ -240,7 +252,11 @@ export default function Auth() {
       if (data.user && !error) {
         await supabase
           .from("profiles")
-          .update({ phone_number: validation.phone_number })
+          .update({ 
+            phone_number: validation.phone_number,
+            display_name: validation.name,
+            country: country
+          })
           .eq("user_id", data.user.id);
       }
 
@@ -251,7 +267,18 @@ export default function Auth() {
           setError(error.message);
         }
       } else {
-        setSuccess("Check your email for the confirmation link!");
+        setSuccess("Account created! Check your email for the confirmation link.");
+        // Reset form
+        setTimeout(() => {
+          setName("");
+          setEmail("");
+          setPassword("");
+          setPhoneNumber("");
+          setCountry("");
+          setSignupOtpSent(false);
+          setSignupOtpCode("");
+          setSignupOtpVerified(false);
+        }, 2000);
       }
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -259,64 +286,6 @@ export default function Auth() {
       } else {
         setError("An unexpected error occurred");
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      // Remove spaces from phone number before validation
-      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
-      const validation = signInSchema.parse({ email, password, phone_number: cleanedPhoneNumber });
-
-      const { error, data } = await supabase.auth.signInWithPassword({
-        email: validation.email,
-        password: validation.password,
-      });
-
-      if (error) {
-        if (error.message.includes("Invalid login credentials")) {
-          setError("Invalid email or password. Please check your credentials.");
-        } else {
-          setError(error.message);
-        }
-        return;
-      }
-
-      // Verify phone number matches profile
-      if (data.user) {
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("phone_number")
-          .eq("user_id", data.user.id)
-          .single();
-
-        if (profileError || !profile) {
-          setError("Unable to verify phone number");
-          await supabase.auth.signOut();
-          return;
-        }
-
-        const normalize = (s: string) => (s ?? "").replace(/[\s\-()]/g, "");
-        if (normalize(profile.phone_number) !== normalize(validation.phone_number)) {
-          setError("Phone number does not match our records");
-          await supabase.auth.signOut();
-          return;
-        }
-      }
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        setError(err.errors[0].message);
-      } else {
-        setError("An unexpected error occurred");
-      }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -329,7 +298,7 @@ export default function Auth() {
               <Shield className="h-6 w-6 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Remonk Reminder</CardTitle>
+          <CardTitle className="text-2xl font-bold">Softly Reminder</CardTitle>
           <CardDescription>
             Secure document management and reminders
           </CardDescription>
@@ -342,12 +311,106 @@ export default function Auth() {
             </TabsList>
             
             <TabsContent value="signin">
-              {!otpSent && !verifiedEmail && (
-                <form onSubmit={handleSendOTP} className="space-y-4">
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signin-email">Email</Label>
+                  <Input
+                    id="signin-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signin-password">Password</Label>
+                  <Input
+                    id="signin-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                {success && (
+                  <Alert>
+                    <AlertDescription>{success}</AlertDescription>
+                  </Alert>
+                )}
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Sign In
+                </Button>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="w-full text-sm"
+                  onClick={() => {
+                    setForgotPasswordOpen(true);
+                    setError("");
+                    setSuccess("");
+                  }}
+                >
+                  Forgot password?
+                </Button>
+              </form>
+            </TabsContent>
+            
+            <TabsContent value="signup">
+              {!signupOtpSent && (
+                <form onSubmit={handleSendSignupOTP} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signin-phone-number">Phone Number</Label>
+                    <Label htmlFor="signup-name">Name</Label>
                     <Input
-                      id="signin-phone-number"
+                      id="signup-name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Your full name"
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Password</Label>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Create a strong password (min 12 characters)"
+                      required
+                      disabled={loading}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Must be at least 12 characters with 1 uppercase, 1 number, and 1 special character
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone-number">Phone Number</Label>
+                    <Input
+                      id="phone-number"
                       type="tel"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
@@ -358,6 +421,21 @@ export default function Auth() {
                     <p className="text-xs text-muted-foreground">
                       Enter with country code (e.g., +1234567890)
                     </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Country</Label>
+                    <Select value={country} onValueChange={setCountry} disabled={loading}>
+                      <SelectTrigger id="country">
+                        <SelectValue placeholder="Select your country" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COUNTRIES.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   {error && (
                     <Alert variant="destructive">
@@ -376,15 +454,15 @@ export default function Auth() {
                 </form>
               )}
 
-              {otpSent && !verifiedEmail && (
-                <form onSubmit={handleVerifyOTP} className="space-y-4">
+              {signupOtpSent && !signupOtpVerified && (
+                <form onSubmit={handleVerifySignupOTP} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="otp-code">Enter OTP</Label>
+                    <Label htmlFor="signup-otp-code">Enter OTP</Label>
                     <Input
-                      id="otp-code"
+                      id="signup-otp-code"
                       type="text"
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      value={signupOtpCode}
+                      onChange={(e) => setSignupOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       placeholder="123456"
                       maxLength={6}
                       required
@@ -407,15 +485,15 @@ export default function Auth() {
                   )}
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Verify OTP
+                    Verify OTP & Create Account
                   </Button>
                   <Button
                     type="button"
                     variant="link"
                     className="w-full text-sm"
                     onClick={() => {
-                      setOtpSent(false);
-                      setOtpCode("");
+                      setSignupOtpSent(false);
+                      setSignupOtpCode("");
                       setError("");
                       setSuccess("");
                     }}
@@ -425,122 +503,11 @@ export default function Auth() {
                 </form>
               )}
 
-              {verifiedEmail && (
-                <form onSubmit={handleFinalSignIn} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      required
-                      disabled={loading}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Must be at least 12 characters with 1 uppercase, 1 number, and 1 special character
-                    </p>
-                  </div>
-                  {error && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Sign In
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="w-full text-sm"
-                    onClick={() => {
-                      setForgotPasswordOpen(true);
-                      setError("");
-                      setSuccess("");
-                    }}
-                  >
-                    Forgot password?
-                  </Button>
-                </form>
+              {signupOtpVerified && (
+                <Alert>
+                  <AlertDescription>{success}</AlertDescription>
+                </Alert>
               )}
-            </TabsContent>
-            
-            <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    required
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Create a strong password (min 12 characters)"
-                    required
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Must be at least 12 characters with 1 uppercase, 1 number, and 1 special character
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone-number">Phone Number</Label>
-                  <Input
-                    id="phone-number"
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="+1234567890"
-                    required
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enter with country code (e.g., +1234567890)
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="country">Country</Label>
-                  <Select value={country} onValueChange={setCountry} disabled={loading}>
-                    <SelectTrigger id="country">
-                      <SelectValue placeholder="Select your country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COUNTRIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                {success && (
-                  <Alert>
-                    <AlertDescription>{success}</AlertDescription>
-                  </Alert>
-                )}
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Create Account
-                </Button>
-              </form>
             </TabsContent>
           </Tabs>
         </CardContent>
