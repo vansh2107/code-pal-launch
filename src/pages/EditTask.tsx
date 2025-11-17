@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -296,6 +297,7 @@ export default function EditTask() {
           {loading ? "Updating..." : "Update Task"}
         </Button>
       </form>
+      <BottomNavigation />
     </div>
   );
 }

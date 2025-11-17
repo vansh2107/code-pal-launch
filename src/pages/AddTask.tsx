@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
+import { BottomNavigation } from "@/components/layout/BottomNavigation";
 
 export default function AddTask() {
   const navigate = useNavigate();
@@ -180,6 +181,7 @@ export default function AddTask() {
           {loading ? "Creating..." : "Create Task"}
         </Button>
       </form>
+      <BottomNavigation />
     </div>
   );
 }

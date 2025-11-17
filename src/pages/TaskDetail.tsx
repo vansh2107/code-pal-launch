@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
+import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -262,6 +263,7 @@ export default function TaskDetail() {
           )}
         </Card>
       </div>
+      <BottomNavigation />
     </div>
   );
 }

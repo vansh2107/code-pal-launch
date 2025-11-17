@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format, subDays } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BottomNavigation } from "@/components/layout/BottomNavigation";
 
 interface Task {
   id: string;
@@ -184,6 +185,7 @@ export default function TaskHistory() {
           </div>
         )}
       </div>
+      <BottomNavigation />
     </div>
   );
 }
