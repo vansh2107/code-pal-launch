@@ -225,7 +225,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background overflow-y-auto">
       {/* Header */}
       <header className="bg-card border-b border-border/50 px-4 py-6 sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -241,7 +241,7 @@ export default function Profile() {
         </div>
       </header>
 
-      <main className="px-4 py-6">
+      <main className="px-4 py-6 pb-32">
         {/* Documents Section */}
         <SettingsSection title="Documents">
           <SettingsItem icon={FileText} title="My Documents" to="/documents" />
