@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, isToday } from "date-fns";
 import { TaskCard } from "@/components/tasks/TaskCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BottomNavigation } from "@/components/layout/BottomNavigation";
 
 interface Task {
   id: string;
@@ -198,6 +199,7 @@ export default function Tasks() {
       >
         <Plus className="h-6 w-6" />
       </Button>
+      <BottomNavigation />
     </div>
   );
 }
