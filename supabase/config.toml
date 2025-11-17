@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.timezone-notification-scheduler]
 verify_jwt = false
+
+[functions.task-incomplete-reminder]
+verify_jwt = false
