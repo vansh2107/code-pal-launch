@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Trash2, Clock, Calendar } from "lucide-react";
+import { ArrowLeft, Trash2, Clock, Calendar, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,10 +27,27 @@ export default function TaskDetail() {
   const [task, setTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [imageUrl, setImageUrl] = useState<string>("");
+  const [timezone, setTimezone] = useState("UTC");
 
   useEffect(() => {
+    fetchUserTimezone();
     fetchTask();
   }, [id]);
+
+  const fetchUserTimezone = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("timezone")
+        .eq("user_id", user.id)
+        .single();
+      
+      if (profile?.timezone) {
+        setTimezone(profile.timezone);
+      }
+    }
+  };
 
   const fetchTask = async () => {
     try {
@@ -62,6 +80,13 @@ export default function TaskDetail() {
 
   const handleDelete = async () => {
     try {
+      // Delete image if exists
+      if (task.image_path) {
+        await supabase.storage
+          .from("task-images")
+          .remove([task.image_path]);
+      }
+
       const { error } = await supabase
         .from("tasks")
         .delete()
@@ -82,6 +107,11 @@ export default function TaskDetail() {
         variant: "destructive",
       });
     }
+  };
+
+  const formatTimeInTimezone = (utcTime: string) => {
+    const zonedTime = toZonedTime(new Date(utcTime), timezone);
+    return format(zonedTime, "h:mm a");
   };
 
   if (loading || !task) {
@@ -109,25 +139,36 @@ export default function TaskDetail() {
               <h1 className="text-2xl font-bold text-foreground">Task Details</h1>
             </div>
           </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="icon">
-                <Trash2 className="h-5 w-5" />
+          <div className="flex items-center gap-2">
+            {task?.status === "pending" && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => navigate(`/tasks/${id}/edit`)}
+              >
+                <Edit className="h-5 w-5" />
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Task?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="icon">
+                  <Trash2 className="h-5 w-5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Task?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete your task.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </div>
 
@@ -179,7 +220,7 @@ export default function TaskDetail() {
               <div>
                 <p className="text-sm font-medium">Start Time</p>
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(task.start_time), "h:mm a")}
+                  {formatTimeInTimezone(task.start_time)} ({timezone})
                 </p>
               </div>
             </div>
@@ -190,7 +231,7 @@ export default function TaskDetail() {
                 <div>
                   <p className="text-sm font-medium">Completed At</p>
                   <p className="text-sm text-muted-foreground">
-                    {format(new Date(task.end_time), "h:mm a")}
+                    {formatTimeInTimezone(task.end_time)} ({timezone})
                   </p>
                 </div>
               </div>
