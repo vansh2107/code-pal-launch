@@ -19,7 +19,7 @@ export function BottomNavigation() {
       className="fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-xl border-t border-border/50 z-50 pb-[env(safe-area-inset-bottom)]"
       style={{ height: 'calc(70px + env(safe-area-inset-bottom))' }}
     >
-      <div className="w-full h-full flex justify-around items-center px-2">
+      <div className="grid grid-cols-6 w-full h-full py-3 px-2">
         {navigation.map((item) => {
           const isActive = location.pathname === item.href;
           return (
