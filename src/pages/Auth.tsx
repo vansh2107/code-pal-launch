@@ -13,6 +13,8 @@ import { useEffect } from "react";
 import { z } from "zod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { getCountryCode } from "@/utils/countryMapping";
 
 const signInSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -409,18 +411,12 @@ export default function Auth() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone-number">Phone Number</Label>
-                    <Input
-                      id="phone-number"
-                      type="tel"
+                    <InternationalPhoneInput
                       value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      placeholder="+1234567890"
-                      required
+                      onChange={(val) => setPhoneNumber(val || "")}
+                      country={getCountryCode(country)}
                       disabled={loading}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Enter with country code (e.g., +1234567890)
-                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="country">Country</Label>
