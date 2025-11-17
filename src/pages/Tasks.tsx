@@ -185,6 +185,7 @@ export default function Tasks() {
                 statusInfo={statusInfo}
                 funnyMessage={funnyMessage}
                 onRefresh={fetchTasks}
+                userTimezone={userTimezone}
               />
             );
           })

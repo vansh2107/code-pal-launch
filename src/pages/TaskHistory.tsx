@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format, subDays } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 
@@ -28,10 +29,27 @@ export default function TaskHistory() {
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userTimezone, setUserTimezone] = useState("UTC");
 
   useEffect(() => {
+    fetchUserTimezone();
     fetchHistory();
   }, []);
+
+  const fetchUserTimezone = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("timezone")
+        .eq("user_id", user.id)
+        .single();
+      
+      if (profile?.timezone) {
+        setUserTimezone(profile.timezone);
+      }
+    }
+  };
 
   const fetchHistory = async () => {
     try {
@@ -157,7 +175,9 @@ export default function TaskHistory() {
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          <span>{format(new Date(task.start_time), "h:mm a")}</span>
+                          <span>
+                            {format(toZonedTime(new Date(task.start_time), userTimezone), "h:mm a")}
+                          </span>
                         </div>
                         {task.total_time_minutes && (
                           <div className="flex items-center gap-1">
