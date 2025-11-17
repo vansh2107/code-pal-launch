@@ -54,6 +54,7 @@ export function SwipeableDocumentCard({
     },
     onSwipedLeft: () => {
       setSwipeOffset(80);
+      setShowDeleteConfirm(true);
     },
     onSwipedRight: () => {
       setSwipeOffset(0);
