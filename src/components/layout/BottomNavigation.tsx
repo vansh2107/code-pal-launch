@@ -15,8 +15,8 @@ export function BottomNavigation() {
   const location = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-xl border-t border-border/50 z-50 shadow-2xl">
-      <div className="flex justify-around py-3 px-2">
+    <nav className="fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-xl border-t border-border/50 z-50 shadow-2xl pb-[env(safe-area-inset-bottom)]">
+      <div className="flex justify-around py-3 px-2" style={{ paddingBottom: 'var(--safe-bottom, 0px)' }}>
         {navigation.map((item) => {
           const isActive = location.pathname === item.href;
           return (
