@@ -19,8 +19,14 @@ import NotificationSettings from "./pages/NotificationSettings";
 import Profile from "./pages/Profile";
 import DocVault from "./pages/DocVault";
 import NotFound from "./pages/NotFound";
+import Teams from "./pages/Teams";
 import TestEmails from "./pages/TestEmails";
 import TestOneSignal from "./pages/TestOneSignal";
+import Tasks from "./pages/Tasks";
+import AddTask from "./pages/AddTask";
+import TaskHistory from "./pages/TaskHistory";
+import TaskDetail from "./pages/TaskDetail";
+import Settings from "./pages/Settings";
 import AuthEventListener from "./components/auth/AuthEventListener";
 
 const queryClient = new QueryClient();
@@ -112,6 +118,46 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <DocVault />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/tasks" 
+              element={
+                <ProtectedRoute>
+                  <Tasks />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/tasks/add" 
+              element={
+                <ProtectedRoute>
+                  <AddTask />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/tasks/history" 
+              element={
+                <ProtectedRoute>
+                  <TaskHistory />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/tasks/:id" 
+              element={
+                <ProtectedRoute>
+                  <TaskDetail />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               } 
             />
