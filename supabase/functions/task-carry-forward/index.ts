@@ -1,0 +1,131 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.78.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+    // Fetch all pending tasks from yesterday
+    const { data: pendingTasks, error: fetchError } = await supabase
+      .from("tasks")
+      .select("*, profiles!inner(email, push_notifications_enabled, email_notifications_enabled, timezone)")
+      .eq("task_date", yesterdayStr)
+      .eq("status", "pending");
+
+    if (fetchError) throw fetchError;
+
+    const today = new Date().toISOString().split("T")[0];
+    const carriedTasks = [];
+    const notificationsSent = [];
+
+    for (const task of pendingTasks || []) {
+      const newConsecutiveDays = task.consecutive_missed_days + 1;
+
+      // Update task: carry forward to today
+      const { error: updateError } = await supabase
+        .from("tasks")
+        .update({
+          task_date: today,
+          consecutive_missed_days: newConsecutiveDays,
+          status: "carried",
+        })
+        .eq("id", task.id);
+
+      if (updateError) {
+        console.error(`Error updating task ${task.id}:`, updateError);
+        continue;
+      }
+
+      carriedTasks.push(task.id);
+
+      // Send notifications
+      const profile = task.profiles;
+      let notificationMessage = "";
+      
+      if (newConsecutiveDays >= 3) {
+        const funnyMessages = [
+          "Brooo… 3 days? Even your alarm gave up on you 😭😂",
+          "Your task is crying… finish it 😭😂",
+          "3 days later... still waiting 😴",
+        ];
+        notificationMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
+      } else {
+        notificationMessage = "You still have pending tasks from yesterday! 📋";
+      }
+
+      // Send push notification
+      if (profile.push_notifications_enabled) {
+        try {
+          await supabase.functions.invoke("send-onesignal-notification", {
+            body: {
+              userId: task.user_id,
+              title: newConsecutiveDays >= 3 ? "🚨 Task Overdue!" : "📋 Pending Task",
+              message: notificationMessage,
+              data: { taskId: task.id, type: "task_carry_forward" },
+            },
+          });
+        } catch (err) {
+          console.error("Push notification error:", err);
+        }
+      }
+
+      // Send email notification
+      if (profile.email_notifications_enabled && profile.email) {
+        try {
+          await fetch(
+            `${supabaseUrl}/functions/v1/send-task-notification-email`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({
+                email: profile.email,
+                taskTitle: task.title,
+                message: notificationMessage,
+                consecutiveDays: newConsecutiveDays,
+              }),
+            }
+          );
+        } catch (err) {
+          console.error("Email notification error:", err);
+        }
+      }
+
+      notificationsSent.push(task.id);
+    }
+
+    console.log(`Carried forward ${carriedTasks.length} tasks, sent ${notificationsSent.length} notifications`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        carriedTasks: carriedTasks.length,
+        notificationsSent: notificationsSent.length,
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    console.error("Error in task-carry-forward:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});

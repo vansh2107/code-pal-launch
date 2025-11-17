@@ -379,6 +379,60 @@ export type Database = {
           },
         ]
       }
+      tasks: {
+        Row: {
+          consecutive_missed_days: number | null
+          created_at: string | null
+          description: string | null
+          end_time: string | null
+          id: string
+          image_path: string | null
+          original_date: string
+          start_time: string
+          status: string
+          task_date: string
+          timezone: string
+          title: string
+          total_time_minutes: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          consecutive_missed_days?: number | null
+          created_at?: string | null
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          image_path?: string | null
+          original_date: string
+          start_time: string
+          status?: string
+          task_date: string
+          timezone?: string
+          title: string
+          total_time_minutes?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          consecutive_missed_days?: number | null
+          created_at?: string | null
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          image_path?: string | null
+          original_date?: string
+          start_time?: string
+          status?: string
+          task_date?: string
+          timezone?: string
+          title?: string
+          total_time_minutes?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

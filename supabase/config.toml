@@ -1,1 +1,13 @@
 project_id = "rndunloczfpfbubuwffb"
+
+[functions.send-otp-sms]
+verify_jwt = false
+
+[functions.verify-otp]
+verify_jwt = false
+
+[functions.task-ai-recommendations]
+verify_jwt = true
+
+[functions.task-carry-forward]
+verify_jwt = false
