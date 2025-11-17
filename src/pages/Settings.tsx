@@ -10,6 +10,8 @@ import { ArrowLeft, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { getCountryCode } from "@/utils/countryMapping";
 
 interface Profile {
   id: string;
@@ -165,16 +167,11 @@ export default function Settings() {
             
             <div className="space-y-2">
               <Label htmlFor="phoneNumber">Phone Number</Label>
-              <Input
-                id="phoneNumber"
-                type="tel"
+              <InternationalPhoneInput
                 value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="+1234567890"
+                onChange={(val) => setPhoneNumber(val || "")}
+                country={getCountryCode(country)}
               />
-              <p className="text-xs text-muted-foreground">
-                Enter with country code (e.g., +1234567890)
-              </p>
             </div>
             
             <div className="space-y-2">
