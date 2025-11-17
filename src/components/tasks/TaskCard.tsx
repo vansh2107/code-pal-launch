@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AIRecommendations } from "./AIRecommendations";
@@ -37,9 +38,10 @@ interface TaskCardProps {
   };
   funnyMessage: string | null;
   onRefresh: () => void;
+  userTimezone: string;
 }
 
-export function TaskCard({ task, statusInfo, funnyMessage, onRefresh }: TaskCardProps) {
+export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezone }: TaskCardProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
@@ -48,6 +50,10 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh }: TaskCard
   );
   const [uploadingImage, setUploadingImage] = useState(false);
   const [completionImage, setCompletionImage] = useState<File | null>(null);
+
+  // Convert UTC start time to user's timezone for display
+  const startTimeInUserTz = toZonedTime(new Date(task.start_time), userTimezone);
+  const displayStartTime = format(startTimeInUserTz, "h:mm a");
 
   const handleComplete = async () => {
     try {
@@ -129,7 +135,7 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh }: TaskCard
         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
           <div className="flex items-center gap-1">
             <Clock className="h-4 w-4" />
-            <span>{format(new Date(task.start_time), "h:mm a")}</span>
+            <span>{displayStartTime}</span>
           </div>
           {task.total_time_minutes && (
             <div className="flex items-center gap-1">
