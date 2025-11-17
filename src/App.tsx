@@ -24,6 +24,7 @@ import TestEmails from "./pages/TestEmails";
 import TestOneSignal from "./pages/TestOneSignal";
 import Tasks from "./pages/Tasks";
 import AddTask from "./pages/AddTask";
+import EditTask from "./pages/EditTask";
 import TaskHistory from "./pages/TaskHistory";
 import TaskDetail from "./pages/TaskDetail";
 import Settings from "./pages/Settings";
@@ -150,6 +151,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <TaskDetail />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/tasks/:id/edit" 
+              element={
+                <ProtectedRoute>
+                  <EditTask />
                 </ProtectedRoute>
               } 
             />

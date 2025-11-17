@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { fromZonedTime } from "date-fns-tz";
 
 export default function AddTask() {
   const navigate = useNavigate();
@@ -49,6 +50,10 @@ export default function AddTask() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Convert local time to UTC for storage
+      const localTime = new Date(formData.startTime);
+      const utcTime = fromZonedTime(localTime, timezone);
+
       let imagePath = null;
 
       // Upload image if provided
@@ -64,13 +69,13 @@ export default function AddTask() {
         imagePath = fileName;
       }
 
-      const taskDate = formData.startTime.split("T")[0];
+      const taskDate = format(utcTime, "yyyy-MM-dd");
 
       const { error } = await supabase.from("tasks").insert({
         user_id: user.id,
         title: formData.title,
         description: formData.description || null,
-        start_time: formData.startTime,
+        start_time: utcTime.toISOString(),
         timezone: timezone,
         image_path: imagePath,
         task_date: taskDate,
@@ -151,7 +156,7 @@ export default function AddTask() {
               required
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Timezone: {timezone}
+              Your timezone: {timezone}
             </p>
           </div>
 
