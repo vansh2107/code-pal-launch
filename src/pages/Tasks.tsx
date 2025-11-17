@@ -194,7 +194,7 @@ export default function Tasks() {
       {/* Floating Add Button */}
       <Button
         onClick={() => navigate("/tasks/add")}
-        className="fixed bottom-24 right-6 h-14 w-14 rounded-full shadow-lg btn-glow"
+        className="fixed bottom-24 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full shadow-lg btn-glow"
         size="icon"
       >
         <Plus className="h-6 w-6" />
