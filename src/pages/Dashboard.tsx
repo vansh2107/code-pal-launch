@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Plus, Camera, Bell } from "lucide-react";
+import { FileText, Plus, Camera } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { DocumentStats } from "@/components/dashboard/DocumentStats";
@@ -37,7 +37,6 @@ export default function Dashboard() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [recentDocuments, setRecentDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -80,30 +79,6 @@ export default function Dashboard() {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const sendTestNotification = async () => {
-    setSendingTest(true);
-    try {
-      // Supabase client automatically passes auth header
-      const { data, error } = await supabase.functions.invoke('test-push-notification');
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Test Notification Sent!",
-        description: data?.message || "Check your device for the notification.",
-      });
-    } catch (error: any) {
-      console.error('Error sending test notification:', error);
-      toast({
-        title: "Failed to Send",
-        description: error.message || "Could not send test notification",
-        variant: "destructive",
-      });
-    } finally {
-      setSendingTest(false);
     }
   };
 
@@ -162,16 +137,6 @@ export default function Dashboard() {
               Scan New Document
             </Button>
           </Link>
-          <Button 
-            className="w-full" 
-            size="lg" 
-            variant="outline"
-            onClick={sendTestNotification}
-            disabled={sendingTest}
-          >
-            <Bell className="h-5 w-5 mr-2" />
-            {sendingTest ? "Sending..." : "Send Test Notification"}
-          </Button>
         </div>
 
         {/* Recent Documents */}
