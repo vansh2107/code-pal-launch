@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.78.0';
 import { format } from 'npm:date-fns@3.6.0';
 import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
+import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -136,19 +137,25 @@ async function sendTaskReminders(profile: Profile): Promise<void> {
 
   console.log(`Found ${incompleteTasks.length} incomplete task(s) for user ${profile.user_id}`);
 
-  // Build notification message
+  // Get funny notification message
+  const funnyMessage = getFunnyNotification('task_reminder', {
+    taskCount: incompleteTasks.length,
+    taskTitle: incompleteTasks.length === 1 ? incompleteTasks[0].title : undefined,
+  });
+
+  // Build detailed task list for multi-task notifications
   const taskTitles = incompleteTasks.map(t => `• ${t.title}`).join('\n');
-  const message = incompleteTasks.length === 1
-    ? `You still have a pending task: ${incompleteTasks[0].title}. Don't forget to complete it! 💪`
-    : `You have ${incompleteTasks.length} incomplete tasks waiting for you. Stay consistent! 💪\n\n${taskTitles}`;
+  const detailedMessage = incompleteTasks.length > 1 
+    ? `${funnyMessage.message}\n\n${taskTitles}` 
+    : funnyMessage.message;
 
   // Send push notification
   try {
     const { data, error } = await supabase.functions.invoke('send-onesignal-notification', {
       body: {
         userId: profile.user_id,
-        title: '⏰ Task Reminder',
-        message: message,
+        title: funnyMessage.title,
+        message: detailedMessage,
         data: { 
           type: 'task_reminder',
           task_count: incompleteTasks.length 
