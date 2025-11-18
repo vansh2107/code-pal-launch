@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.task-incomplete-reminder]
 verify_jwt = false
+
+[functions.task-two-hour-reminder]
+verify_jwt = false

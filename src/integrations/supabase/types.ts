@@ -387,7 +387,9 @@ export type Database = {
           end_time: string | null
           id: string
           image_path: string | null
+          last_reminder_sent_at: string | null
           original_date: string
+          reminder_active: boolean | null
           start_time: string
           status: string
           task_date: string
@@ -404,7 +406,9 @@ export type Database = {
           end_time?: string | null
           id?: string
           image_path?: string | null
+          last_reminder_sent_at?: string | null
           original_date: string
+          reminder_active?: boolean | null
           start_time: string
           status?: string
           task_date: string
@@ -421,7 +425,9 @@ export type Database = {
           end_time?: string | null
           id?: string
           image_path?: string | null
+          last_reminder_sent_at?: string | null
           original_date?: string
+          reminder_active?: boolean | null
           start_time?: string
           status?: string
           task_date?: string

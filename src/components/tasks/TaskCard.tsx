@@ -98,6 +98,7 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
           end_time: completionUtc,
           total_time_minutes: durationMinutes,
           image_path: imagePath,
+          reminder_active: false,
         })
         .eq("id", task.id);
 

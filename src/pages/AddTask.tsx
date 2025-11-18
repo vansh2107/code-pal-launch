@@ -85,6 +85,8 @@ export default function AddTask() {
         original_date: dateStr,
         status: "pending",
         consecutive_missed_days: 0,
+        reminder_active: true,
+        last_reminder_sent_at: null,
       });
 
       if (error) throw error;
