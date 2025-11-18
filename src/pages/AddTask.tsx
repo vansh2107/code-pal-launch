@@ -103,6 +103,7 @@ export default function AddTask() {
         status: "pending",
         consecutive_missed_days: 0,
         reminder_active: true,
+        start_notified: false,
         last_reminder_sent_at: null,
       });
 

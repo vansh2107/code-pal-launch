@@ -2,7 +2,7 @@ import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/data
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
 import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
-import { addHours, format } from 'npm:date-fns@3.6.0';
+import { addHours, format, isAfter, isSameMinute } from 'npm:date-fns@3.6.0';
 
 /**
  * Task Two-Hour Reminder Function
@@ -23,6 +23,8 @@ interface Task {
   last_reminder_sent_at: string | null;
   timezone: string;
   reminder_active: boolean;
+  start_notified: boolean;
+  local_date: string;
 }
 
 Deno.serve(async (req) => {
@@ -51,38 +53,38 @@ Deno.serve(async (req) => {
 
         const { data: tasks, error: tasksError } = await supabase
           .from('tasks')
-          .select('id, user_id, title, start_time, status, last_reminder_sent_at, timezone, reminder_active, local_date')
+          .select('id, user_id, title, start_time, status, last_reminder_sent_at, timezone, reminder_active, start_notified, local_date')
           .eq('user_id', profile.user_id)
           .eq('status', 'pending')
           .eq('reminder_active', true)
-          .eq('local_date', todayLocal); // Only process today's tasks
+          .eq('local_date', todayLocal);
 
         if (tasksError) throw tasksError;
         if (!tasks || tasks.length === 0) continue;
 
         for (const task of tasks) {
           try {
-            // FIRST NOTIFICATION: Only if last_reminder_sent_at is NULL
-            if (!task.last_reminder_sent_at) {
-              const startLocal = toZonedTime(new Date(task.start_time), task.timezone);
-              
-              // Check if current time >= start time
-              if (nowLocal >= startLocal) {
+            // Convert start_time to user's timezone for comparison
+            const startLocal = toZonedTime(new Date(task.start_time), task.timezone);
+            
+            // FIRST NOTIFICATION: Send at exact start time
+            if (!task.start_notified) {
+              // Check if current time matches start time (within same minute)
+              if (isSameMinute(nowLocal, startLocal) || isAfter(nowLocal, startLocal)) {
                 const sent = await sendNotification(supabase, task, 'first');
                 if (sent) {
-                  await updateReminder(supabase, task.id);
+                  await updateStartNotified(supabase, task.id);
                   sentCount++;
                 }
               }
-            } else {
-              // 2-HOUR RECURRING REMINDERS
-              // Add 2 hours to last_reminder_sent_at (in UTC)
-              const lastReminderUtc = new Date(task.last_reminder_sent_at);
-              const nextReminderUtc = addHours(lastReminderUtc, 2);
-              const nowUtc = new Date();
-
-              // Only send if 2 hours have passed
-              if (nowUtc >= nextReminderUtc) {
+            } else if (task.last_reminder_sent_at) {
+              // RECURRING 2-HOUR REMINDERS
+              // Convert last reminder to user timezone and add 2 hours
+              const lastReminderLocal = toZonedTime(new Date(task.last_reminder_sent_at), task.timezone);
+              const nextReminderLocal = addHours(lastReminderLocal, 2);
+              
+              // Check if it's time for next reminder (within same minute or after)
+              if (isSameMinute(nowLocal, nextReminderLocal) || isAfter(nowLocal, nextReminderLocal)) {
                 const sent = await sendNotification(supabase, task, 'recurring');
                 if (sent) {
                   await updateReminder(supabase, task.id);
@@ -134,6 +136,20 @@ async function sendNotification(supabase: any, task: Task, type: 'first' | 'recu
   } catch (error) {
     console.error('Error sending notification:', error);
     return false;
+  }
+}
+
+async function updateStartNotified(supabase: any, taskId: string): Promise<void> {
+  const { error } = await supabase
+    .from('tasks')
+    .update({ 
+      start_notified: true,
+      last_reminder_sent_at: new Date().toISOString()
+    })
+    .eq('id', taskId);
+
+  if (error) {
+    console.error(`Error updating start notification for task ${taskId}:`, error);
   }
 }
 
