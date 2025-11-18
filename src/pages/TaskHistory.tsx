@@ -67,7 +67,8 @@ export default function TaskHistory() {
         .eq("user_id", user.id)
         .or(`original_date.gte.${sevenDaysAgo},end_time.gte.${sevenDaysAgo}T00:00:00`)
         .order("original_date", { ascending: false })
-        .order("start_time", { ascending: false });
+        .order("start_time", { ascending: false })
+        .limit(200); // Add limit for performance
 
       if (error) throw error;
       setTasks(data || []);

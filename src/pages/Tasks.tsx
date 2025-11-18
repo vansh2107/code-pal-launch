@@ -110,7 +110,8 @@ export default function Tasks() {
         .select("*")
         .eq("user_id", user.id)
         .eq("task_date", today)
-        .order("start_time", { ascending: true });
+        .order("start_time", { ascending: true })
+        .limit(100); // Add limit for performance
 
       if (error) throw error;
       setTasks(data || []);

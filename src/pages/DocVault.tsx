@@ -136,6 +136,13 @@ export default function DocVault() {
     setIsUploading(true);
     try {
       const blob = await (await fetch(capturedImage)).blob();
+      
+      // Validate file size (max 20MB)
+      const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+      if (blob.size > maxSize) {
+        throw new Error("File size exceeds 20MB limit");
+      }
+      
       const fileName = `${user.id}/${Date.now()}.jpg`;
 
       const { error: uploadError } = await supabase.storage
@@ -172,6 +179,13 @@ export default function DocVault() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
+
+    // Validate file size (max 20MB)
+    const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+    if (file.size > maxSize) {
+      toast.error("File size exceeds 20MB limit");
+      return;
+    }
 
     setIsUploading(true);
     try {

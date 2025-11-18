@@ -371,6 +371,12 @@ export default function Scan() {
       let imagePath = null;
       try {
         if (pdfFile) {
+          // Validate PDF file size (max 20MB)
+          const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+          if (pdfFile.size > maxSize) {
+            throw new Error("PDF file size exceeds 20MB limit");
+          }
+          
           const pdfName = `${user.id}/${crypto.randomUUID()}.pdf`;
           const { error: pdfUploadError } = await supabase.storage
             .from('document-images')
@@ -379,6 +385,13 @@ export default function Scan() {
           imagePath = pdfName;
         } else if (capturedImage) {
           const blob = await fetch(capturedImage).then(r => r.blob());
+          
+          // Validate image blob size (max 20MB)
+          const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+          if (blob.size > maxSize) {
+            throw new Error("Image file size exceeds 20MB limit");
+          }
+          
           const fileExt = (blob.type.split('/')[1]) || 'jpg';
           const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
           const { error: uploadError } = await supabase.storage
@@ -391,7 +404,7 @@ export default function Scan() {
         console.error('Error uploading document file:', uploadErr);
         toast({
           title: "Warning",
-          description: "Failed to upload document file, but document will be saved.",
+          description: uploadErr instanceof Error ? uploadErr.message : "Failed to upload document file, but document will be saved.",
           variant: "default",
         });
       }
