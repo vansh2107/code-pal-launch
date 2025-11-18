@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
+import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
+import { format } from 'npm:date-fns@3.6.0';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,21 +34,10 @@ serve(async (req) => {
       const profile = task.profiles;
       if (!profile || !profile.timezone) continue;
 
-      // Compute user's local "today" in yyyy-MM-dd using Intl.DateTimeFormat
+      // Convert current UTC time to user's local timezone
       const now = new Date();
-      const formatter = new Intl.DateTimeFormat("en-CA", {
-        timeZone: profile.timezone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      });
-
-      const parts = formatter.formatToParts(now);
-      const y = parts.find((p) => p.type === "year")?.value;
-      const m = parts.find((p) => p.type === "month")?.value;
-      const d = parts.find((p) => p.type === "day")?.value;
-
-      const todayLocal = `${y}-${m}-${d}`;
+      const userLocalNow = toZonedTime(now, profile.timezone);
+      const todayLocal = format(userLocalNow, 'yyyy-MM-dd');
 
       // Skip if not actually overdue in user's timezone
       if (task.task_date >= todayLocal) {
