@@ -105,7 +105,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-24" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       <header className="bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 border-b border-border/50 px-4 py-8 animate-fade-in">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold text-gradient mb-2">Dashboard</h1>
