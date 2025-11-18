@@ -46,9 +46,11 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
   const navigate = useNavigate();
   const { toast } = useToast();
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
-  const [completionTime, setCompletionTime] = useState(
-    format(new Date(), "yyyy-MM-dd'T'HH:mm")
-  );
+  const [completionTime, setCompletionTime] = useState(() => {
+    const now = new Date();
+    const zoned = toZonedTime(now, userTimezone);
+    return format(zoned, "yyyy-MM-dd'T'HH:mm");
+  });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [completionImage, setCompletionImage] = useState<File | null>(null);
 
@@ -58,11 +60,16 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
 
   const handleComplete = async () => {
     try {
-      // Calculate duration in user's local timezone
+      // Convert local completionTime to UTC ISO before saving
+      const completionLocal = new Date(completionTime);
+      const completionUtc = new Date(
+        completionLocal.getTime() - completionLocal.getTimezoneOffset() * 60000
+      ).toISOString();
+
+      // Calculate duration using UTC timestamps
       const durationMinutes = calculateTaskDuration(
         task.start_time,
-        completionTime,
-        userTimezone
+        completionUtc
       );
 
       let imagePath = task.image_path;
@@ -88,7 +95,7 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
         .from("tasks")
         .update({
           status: "completed",
-          end_time: completionTime,
+          end_time: completionUtc,
           total_time_minutes: durationMinutes,
           image_path: imagePath,
         })
