@@ -66,6 +66,12 @@ export default function AddTask() {
 
       // Upload image if provided
       if (imageFile) {
+        // Validate file size (max 20MB)
+        const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+        if (imageFile.size > maxSize) {
+          throw new Error("File size exceeds 20MB limit");
+        }
+        
         const fileExt = imageFile.name.split(".").pop();
         const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 

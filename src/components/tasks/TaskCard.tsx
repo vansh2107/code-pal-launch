@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { toZonedTime, fromZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AIRecommendations } from "./AIRecommendations";
@@ -60,11 +60,14 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
 
   const handleComplete = async () => {
     try {
-      // Convert local completionTime to UTC ISO before saving
-      const completionLocal = new Date(completionTime);
-      const completionUtc = new Date(
-        completionLocal.getTime() - completionLocal.getTimezoneOffset() * 60000
-      ).toISOString();
+      // Parse the datetime-local input and convert from user's timezone to UTC
+      const [dateStr, timeStr] = completionTime.split("T");
+      const [hours, minutes] = timeStr.split(":");
+      const [year, month, day] = dateStr.split("-").map(Number);
+      const localDateTime = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes));
+      
+      // Convert from user's local timezone to UTC for storage
+      const completionUtc = fromZonedTime(localDateTime, userTimezone).toISOString();
 
       // Calculate duration using UTC timestamps
       const durationMinutes = calculateTaskDuration(
@@ -76,6 +79,12 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
 
       // Upload completion image if provided
       if (completionImage) {
+        // Validate file size (max 20MB)
+        const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+        if (completionImage.size > maxSize) {
+          throw new Error("File size exceeds 20MB limit");
+        }
+        
         setUploadingImage(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Not authenticated");

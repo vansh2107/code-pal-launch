@@ -17,16 +17,20 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
+    
+    // Guard against null values
+    const safeTitle = taskTitle ?? "";
+    const safeDesc = taskDescription ?? "";
 
     let systemPrompt = "You are a witty productivity coach. Analyze the task and give highly specific, actionable advice in 1-2 sentences. Avoid generic suggestions like 'break it down' unless truly relevant. Focus on task-specific strategies, time management, or motivation based on what the task actually requires.";
     let userPrompt = "";
 
     if (missedDays >= 3) {
-      userPrompt = `Task: "${taskTitle}"${taskDescription ? ` (Details: ${taskDescription})` : ""}. This has been pending ${missedDays} days. Give specific, encouraging advice to complete THIS exact task - consider what type of task it is and suggest concrete next steps with humor.`;
+      userPrompt = `Task: "${safeTitle}"${safeDesc ? ` (Details: ${safeDesc})` : ""}. This has been pending ${missedDays} days. Give specific, encouraging advice to complete THIS exact task - consider what type of task it is and suggest concrete next steps with humor.`;
     } else if (missedDays > 0) {
-      userPrompt = `Task: "${taskTitle}"${taskDescription ? ` (Details: ${taskDescription})` : ""}. Carried forward ${missedDays} time(s). Suggest specific ways to tackle THIS particular task today - focus on what the task actually needs.`;
+      userPrompt = `Task: "${safeTitle}"${safeDesc ? ` (Details: ${safeDesc})` : ""}. Carried forward ${missedDays} time(s). Suggest specific ways to tackle THIS particular task today - focus on what the task actually needs.`;
     } else {
-      userPrompt = `Task: "${taskTitle}"${taskDescription ? ` (Details: ${taskDescription})` : ""}. Analyze this specific task and provide a targeted productivity tip that matches what this task requires - be specific, not generic.`;
+      userPrompt = `Task: "${safeTitle}"${safeDesc ? ` (Details: ${safeDesc})` : ""}. Analyze this specific task and provide a targeted productivity tip that matches what this task requires - be specific, not generic.`;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
