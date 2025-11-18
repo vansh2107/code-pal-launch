@@ -260,7 +260,12 @@ export default function Tasks() {
 
       <Button
         onClick={() => navigate("/add-task")}
-        className="fixed bottom-24 right-6 h-14 w-14 rounded-full shadow-lg hover:scale-110 smooth z-40"
+        className="fixed h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-transform z-40"
+        style={{
+          bottom: '80px',
+          left: '50%',
+          transform: 'translateX(-50%)'
+        }}
         size="icon"
       >
         <Plus className="h-6 w-6" />
