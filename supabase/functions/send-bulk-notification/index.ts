@@ -1,65 +1,55 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createSupabaseClient } from '../_shared/database.ts';
+import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
 
-const sendGridApiKey = Deno.env.get("SENDGRID_API_KEY");
-const sendGridEndpoint = 'https://api.sendgrid.com/v3/mail/send';
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const handler = async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return handleCorsOptions();
   }
 
-  console.log("Starting bulk notification send...");
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
   try {
-    // Fetch all users from auth.users using admin API
+    console.log('📧 Starting bulk notification send...');
+
+    const supabase = createSupabaseClient();
+    const sendGridApiKey = Deno.env.get('SENDGRID_API_KEY');
+
+    if (!sendGridApiKey) {
+      throw new Error('SendGrid API key not configured');
+    }
+
+    // Fetch all users
     const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers();
 
     if (usersError) {
-      console.error("Error fetching users:", usersError);
+      console.error('Error fetching users:', usersError);
       throw usersError;
     }
 
     if (!users || users.length === 0) {
-      console.log("No users found");
-      return new Response(
-        JSON.stringify({ message: "No users to notify", count: 0 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-      );
+      return createJsonResponse({ message: 'No users to notify', count: 0 });
     }
 
-    // Fetch profiles to check email notification preferences
+    // Fetch profiles
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('user_id, email_notifications_enabled, display_name');
 
     if (profilesError) {
-      console.error("Error fetching profiles:", profilesError);
+      console.error('Error fetching profiles:', profilesError);
       throw profilesError;
     }
 
-    // Create a map of user preferences
     const userPrefs = new Map(
       profiles?.map(p => [p.user_id, { enabled: p.email_notifications_enabled, name: p.display_name }]) || []
     );
 
-    // Filter users who have email notifications enabled (default to true if not set)
+    // Filter users with email notifications enabled
     const usersToNotify = users.filter(user => {
       const prefs = userPrefs.get(user.id);
-      const notificationsEnabled = prefs?.enabled !== false; // Default to true
+      const notificationsEnabled = prefs?.enabled !== false;
       return user.email && notificationsEnabled;
     });
 
-    console.log(`Found ${usersToNotify.length} users to notify out of ${users.length} total users`);
+    console.log(`Sending to ${usersToNotify.length} users out of ${users.length} total`);
 
     let sentCount = 0;
     let errorCount = 0;

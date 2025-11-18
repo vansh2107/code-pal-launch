@@ -1,89 +1,61 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
+import { sendPushNotification } from '../_shared/notifications.ts';
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-const handler = async (req: Request): Promise<Response> => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions();
   }
 
   try {
-    // Get auth token from request
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
-      throw new Error('No authorization header');
+      return createErrorResponse('No authorization header', 401);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Extract token and validate user
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
       console.error('Authentication failed:', userError);
-      throw new Error('Not authenticated');
+      return createErrorResponse('Not authenticated', 401);
     }
 
     console.log('Sending test OneSignal notification for user:', user.id);
 
-    // Get a funny test notification
     const testNotification = getFunnyNotification('document_expiring', {
       documentName: 'Test Document',
       daysUntilExpiry: 5,
     });
 
-    // Call the send-onesignal-notification function
-    const { data, error } = await supabase.functions.invoke('send-onesignal-notification', {
-      body: {
-        userId: user.id,
-        title: testNotification.title,
-        message: testNotification.message + ' (This is a test notification - OneSignal is working! 🎉)',
-        data: {
-          type: 'test',
-          date: '2025-11-04'
-        }
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const serviceSupabase = createClient(supabaseUrl, serviceRoleKey);
+
+    const sent = await sendPushNotification(serviceSupabase, {
+      userId: user.id,
+      title: testNotification.title,
+      message: testNotification.message + ' (This is a test notification - OneSignal is working! 🎉)',
+      data: {
+        type: 'test',
+        date: new Date().toISOString(),
       }
     });
 
-    if (error) {
-      console.error('Error sending test notification:', error);
-      throw error;
+    if (!sent) {
+      return createErrorResponse('Failed to send test notification', 500);
     }
 
-    console.log('Test notification result:', data);
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Test push notification sent!',
-        details: data
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      }
-    );
-  } catch (error: any) {
-    console.error('Error in test-push-notification function:', error);
-    return new Response(
-      JSON.stringify({ 
-        success: false,
-        error: error.message 
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      }
-    );
+    return createJsonResponse({ 
+      success: true, 
+      message: 'Test push notification sent!',
+    });
+  } catch (error) {
+    console.error('Error in test-push-notification:', error);
+    return createErrorResponse(error as Error);
   }
-};
-
-serve(handler);
+});
