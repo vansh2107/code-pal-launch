@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { format } from 'npm:date-fns@3.6.0';
 import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
