@@ -1,74 +1,36 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { format } from 'npm:date-fns@3.6.0';
-import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
+import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/database.ts';
+import { getCurrentLocalTimeString } from '../_shared/timezone.ts';
+import { sendPushNotification, sendEmailNotification } from '../_shared/notifications.ts';
+import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-interface Profile {
-  user_id: string;
-  display_name: string | null;
-  email: string | null;
-  timezone: string;
-  preferred_notification_time: string;
-  push_notifications_enabled: boolean;
-  email_notifications_enabled: boolean;
-}
+import type { Profile } from '../_shared/types.ts';
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions();
   }
 
   try {
     console.log('🕐 Timezone notification scheduler starting...');
     
-    // Get current UTC time
-    const now = new Date();
-    console.log(`Current UTC time: ${format(now, 'HH:mm')}`);
-
-    // Fetch all users with their timezone settings
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('user_id, display_name, email, timezone, preferred_notification_time, push_notifications_enabled, email_notifications_enabled')
-      .not('timezone', 'is', null)
-      .not('preferred_notification_time', 'is', null);
-
-    if (profilesError) {
-      console.error('Error fetching profiles:', profilesError);
-      throw profilesError;
-    }
-
-    if (!profiles || profiles.length === 0) {
-      console.log('No profiles with timezone settings found');
-      return new Response(
-        JSON.stringify({ message: 'No profiles to process' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-      );
+    const supabase = createSupabaseClient();
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    const profiles = await fetchProfilesWithTimezone(supabase, false);
+    
+    if (profiles.length === 0) {
+      return createJsonResponse({ message: 'No profiles to process', processed: 0 });
     }
 
     console.log(`Processing ${profiles.length} users...`);
     
     const notificationsToSend: Profile[] = [];
 
-    // Check each user's local time
-    for (const profile of profiles as Profile[]) {
+    for (const profile of profiles) {
       try {
-        // Convert current UTC time to user's timezone
-        const userLocalTime = toZonedTime(now, profile.timezone);
-        const userLocalTimeString = format(userLocalTime, 'HH:mm');
-
-        console.log(`User ${profile.user_id}: Local time ${userLocalTimeString} in ${profile.timezone}, Preferred: ${profile.preferred_notification_time}`);
-
-        // Compare using local time strings
+        const userLocalTimeString = getCurrentLocalTimeString(profile.timezone, 'HH:mm');
+        
         if (userLocalTimeString === profile.preferred_notification_time) {
           console.log(`✅ Match found for user ${profile.user_id}!`);
           notificationsToSend.push(profile);
@@ -80,49 +42,38 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${notificationsToSend.length} users to notify`);
 
-    // Send notifications to matched users
-    const results = await Promise.allSettled(
-      notificationsToSend.map(async (profile) => {
-        return sendUserNotifications(profile);
-      })
-    );
-
-    const successCount = results.filter(r => r.status === 'fulfilled').length;
-    const failureCount = results.filter(r => r.status === 'rejected').length;
-
-    console.log(`✅ Notifications sent: ${successCount} successful, ${failureCount} failed`);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        processed: profiles.length,
-        matched: notificationsToSend.length,
-        sent: successCount,
-        failed: failureCount,
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+    let successCount = 0;
+    
+    for (const profile of notificationsToSend) {
+      try {
+        await sendUserNotifications(supabase, supabaseUrl, supabaseKey, profile);
+        successCount++;
+      } catch (error) {
+        console.error(`Error sending notifications to ${profile.user_id}:`, error);
       }
-    );
-  } catch (error: any) {
+    }
+
+    console.log(`✅ Notifications sent: ${successCount} successful`);
+
+    return createJsonResponse({
+      success: true,
+      processed: profiles.length,
+      matched: notificationsToSend.length,
+      sent: successCount,
+    });
+  } catch (error) {
     console.error('Error in timezone-notification-scheduler:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
-    );
+    return createErrorResponse(error as Error);
   }
 });
 
-async function sendUserNotifications(profile: Profile): Promise<void> {
-  console.log(`📤 Sending notifications to user ${profile.user_id}`);
-
-  const notifications: Promise<any>[] = [];
-
-  // Get upcoming documents expiring soon
+async function sendUserNotifications(
+  supabase: any,
+  supabaseUrl: string,
+  supabaseKey: string,
+  profile: Profile
+): Promise<void> {
+  // Get upcoming documents
   const { data: documents } = await supabase
     .from('documents')
     .select('name, expiry_date, document_type')
@@ -132,7 +83,7 @@ async function sendUserNotifications(profile: Profile): Promise<void> {
     .order('expiry_date', { ascending: true })
     .limit(5);
 
-  // Get pending tasks for today
+  // Get pending tasks
   const today = new Date().toISOString().split('T')[0];
   const { data: tasks } = await supabase
     .from('tasks')
@@ -141,16 +92,14 @@ async function sendUserNotifications(profile: Profile): Promise<void> {
     .eq('task_date', today)
     .neq('status', 'completed');
 
-  // Get funny daily summary notification
   const dailyNotification = getFunnyNotification('daily_summary');
 
-  // Build notification message
   let message = `${dailyNotification.message}\n\n`;
   message += `Hey${profile.display_name ? ' ' + profile.display_name : ''}! 👋\n\n`;
   
   if (documents && documents.length > 0) {
     message += `📄 Documents expiring soon:\n`;
-    documents.forEach(doc => {
+    documents.forEach((doc: any) => {
       const daysUntil = Math.ceil((new Date(doc.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       message += `• ${doc.name} - ${daysUntil} day${daysUntil !== 1 ? 's' : ''}\n`;
     });
@@ -159,7 +108,7 @@ async function sendUserNotifications(profile: Profile): Promise<void> {
 
   if (tasks && tasks.length > 0) {
     message += `✅ Tasks for today:\n`;
-    tasks.forEach(task => {
+    tasks.forEach((task: any) => {
       const emoji = task.consecutive_missed_days >= 3 ? '🔴' : task.consecutive_missed_days > 0 ? '⚠️' : '📋';
       message += `${emoji} ${task.title}\n`;
     });
@@ -172,21 +121,17 @@ async function sendUserNotifications(profile: Profile): Promise<void> {
     message += `Let's crush it today! 💪🚀`;
   }
 
-  // Send push notification if enabled
+  // Send push notification
   if (profile.push_notifications_enabled) {
-    notifications.push(
-      supabase.functions.invoke('send-onesignal-notification', {
-        body: {
-          user_id: profile.user_id,
-          title: dailyNotification.title,
-          message: message,
-          data: { type: 'daily_reminder' },
-        },
-      })
-    );
+    await sendPushNotification(supabase, {
+      userId: profile.user_id,
+      title: dailyNotification.title,
+      message: message,
+      data: { type: 'daily_reminder' },
+    });
   }
 
-  // Send email notification if enabled
+  // Send email notification
   if (profile.email_notifications_enabled && profile.email) {
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -197,23 +142,16 @@ async function sendUserNotifications(profile: Profile): Promise<void> {
         <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;" />
         <p style="font-size: 12px; color: #999;">
           This is your daily reminder sent at ${profile.preferred_notification_time} ${profile.timezone}.
-          <br/>
-          You can change your notification settings in your profile.
         </p>
       </div>
     `;
 
-    notifications.push(
-      supabase.functions.invoke('send-reminder-emails', {
-        body: {
-          to: [profile.email],
-          subject: dailyNotification.title,
-          html: emailHtml,
-        },
-      })
+    await sendEmailNotification(
+      supabaseUrl,
+      supabaseKey,
+      profile.email,
+      dailyNotification.title,
+      emailHtml
     );
   }
-
-  await Promise.all(notifications);
-  console.log(`✅ Notifications sent to user ${profile.user_id}`);
 }

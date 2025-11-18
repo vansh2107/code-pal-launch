@@ -1,24 +1,9 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { format } from 'npm:date-fns@3.6.0';
-import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
+import { createSupabaseClient, fetchProfilesWithTimezone, fetchActiveTasksForUser } from '../_shared/database.ts';
+import { getCurrentLocalTime, formatInTimezone } from '../_shared/timezone.ts';
+import { sendPushNotification } from '../_shared/notifications.ts';
+import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-interface Profile {
-  user_id: string;
-  display_name: string | null;
-  timezone: string;
-  push_notifications_enabled: boolean;
-  preferred_notification_time: string | null;
-}
+import { format } from 'npm:date-fns@3.6.0';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {

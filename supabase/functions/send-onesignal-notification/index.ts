@@ -1,117 +1,81 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createSupabaseClient } from '../_shared/database.ts';
+import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
+import { getOneSignalPlayerIds, sanitizeInput } from '../_shared/notifications.ts';
+import type { NotificationPayload } from '../_shared/types.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-interface OneSignalNotificationRequest {
-  userId: string;
-  title: string;
-  message: string;
-  data?: Record<string, string>;
-}
-
-const handler = async (req: Request): Promise<Response> => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions();
   }
 
   try {
-    const { userId, title, message, data }: OneSignalNotificationRequest = await req.json();
-    console.log('Sending OneSignal notification to user:', userId);
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get user's OneSignal player IDs
-    const { data: playerIds, error: playerIdsError } = await supabase
-      .from('onesignal_player_ids')
-      .select('player_id')
-      .eq('user_id', userId);
-
-    if (playerIdsError) {
-      console.error('Error fetching OneSignal player IDs:', playerIdsError);
-      throw playerIdsError;
+    const { userId, title, message, data }: NotificationPayload = await req.json();
+    
+    if (!userId || !title || !message) {
+      return createErrorResponse('Missing required fields: userId, title, message', 400);
     }
 
-    if (!playerIds || playerIds.length === 0) {
-      console.log('No OneSignal player IDs found for user:', userId);
-      return new Response(
-        JSON.stringify({ success: false, message: 'No OneSignal player IDs registered' }),
-        { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
+    const sanitizedTitle = sanitizeInput(title);
+    const sanitizedMessage = sanitizeInput(message);
+
+    const supabase = createSupabaseClient();
+    const playerIds = await getOneSignalPlayerIds(supabase, userId);
+
+    if (playerIds.length === 0) {
+      return createJsonResponse({ 
+        success: false, 
+        message: 'No OneSignal player IDs registered for user' 
+      });
     }
 
     const oneSignalAppId = Deno.env.get('ONESIGNAL_APP_ID');
     const oneSignalRestApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
 
-    console.log('OneSignal App ID:', oneSignalAppId?.substring(0, 10) + '...');
-    console.log('OneSignal API Key exists:', !!oneSignalRestApiKey);
-    console.log('OneSignal API Key length:', oneSignalRestApiKey?.length);
-    console.log('OneSignal API Key first 20 chars:', oneSignalRestApiKey?.substring(0, 20));
-    console.log('OneSignal API Key last 10 chars:', oneSignalRestApiKey?.substring(oneSignalRestApiKey.length - 10));
-
     if (!oneSignalAppId || !oneSignalRestApiKey) {
       throw new Error('OneSignal credentials not configured');
     }
 
-    // Send notification to all player IDs
-    const oneSignalPayload = {
+    const payload = {
       app_id: oneSignalAppId,
-      include_player_ids: playerIds.map(p => p.player_id),
-      headings: { en: title },
-      contents: { en: message },
+      include_player_ids: playerIds,
+      headings: { en: sanitizedTitle },
+      contents: { en: sanitizedMessage },
       data: data || {},
     };
 
-    console.log('Sending OneSignal request for', playerIds.length, 'player IDs');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    // OneSignal REST API uses "Key" prefix and api.onesignal.com endpoint
-    const oneSignalResponse = await fetch('https://api.onesignal.com/notifications', {
+    const response = await fetch('https://api.onesignal.com/notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Key ${oneSignalRestApiKey.trim()}`,
       },
-      body: JSON.stringify(oneSignalPayload),
+      body: JSON.stringify(payload),
+      signal: controller.signal,
     });
 
-    const oneSignalResult = await oneSignalResponse.json();
-    console.log('OneSignal response:', oneSignalResult);
+    clearTimeout(timeoutId);
 
-    if (!oneSignalResponse.ok) {
-      console.error('OneSignal error:', oneSignalResult);
-      throw new Error(oneSignalResult.errors?.join(', ') || 'Failed to send OneSignal notification');
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('OneSignal error:', result);
+      throw new Error(result.errors?.join(', ') || 'Failed to send notification');
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Sent to ${oneSignalResult.recipients || playerIds.length} devices`,
-        details: oneSignalResult
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      }
-    );
-  } catch (error: any) {
-    console.error('Error in send-onesignal-notification function:', error);
-    return new Response(
-      JSON.stringify({ 
-        success: false,
-        error: error.message 
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      }
-    );
+    return createJsonResponse({ 
+      success: true, 
+      message: `Sent to ${result.recipients || playerIds.length} devices`,
+      details: result
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('OneSignal request timeout');
+      return createErrorResponse('OneSignal request timeout', 504);
+    }
+    console.error('Error in send-onesignal-notification:', error);
+    return createErrorResponse(error as Error);
   }
-};
-
-serve(handler);
+});
