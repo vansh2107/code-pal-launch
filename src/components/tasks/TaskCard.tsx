@@ -9,6 +9,7 @@ import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AIRecommendations } from "./AIRecommendations";
+import { calculateTaskDuration, formatDuration } from "@/utils/taskDuration";
 import {
   Dialog,
   DialogContent,
@@ -57,9 +58,12 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
 
   const handleComplete = async () => {
     try {
-      const startTime = new Date(task.start_time);
-      const endTime = new Date(completionTime);
-      const minutesTaken = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+      // Calculate duration in user's local timezone
+      const durationMinutes = calculateTaskDuration(
+        task.start_time,
+        completionTime,
+        userTimezone
+      );
 
       let imagePath = task.image_path;
 
@@ -85,7 +89,7 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
         .update({
           status: "completed",
           end_time: completionTime,
-          total_time_minutes: minutesTaken,
+          total_time_minutes: durationMinutes,
           image_path: imagePath,
         })
         .eq("id", task.id);
@@ -94,7 +98,7 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
 
       toast({
         title: "Task completed! 🎉",
-        description: `Great job! You took ${minutesTaken} minutes.`,
+        description: `Great job! You took ${formatDuration(durationMinutes)}.`,
       });
 
       setShowCompleteDialog(false);
@@ -140,7 +144,7 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
           {task.total_time_minutes && (
             <div className="flex items-center gap-1">
               <CheckCircle2 className="h-4 w-4" />
-              <span>{task.total_time_minutes} min</span>
+              <span>{formatDuration(task.total_time_minutes)}</span>
             </div>
           )}
           {task.image_path && (

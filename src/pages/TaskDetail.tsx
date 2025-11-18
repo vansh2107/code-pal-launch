@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
+import { formatDuration } from "@/utils/taskDuration";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import {
   AlertDialog,
@@ -244,7 +245,7 @@ export default function TaskDetail() {
                 <div>
                   <p className="text-sm font-medium">Time Taken</p>
                   <p className="text-sm text-muted-foreground">
-                    {task.total_time_minutes} minutes
+                    {formatDuration(task.total_time_minutes)}
                   </p>
                 </div>
               </div>

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format, subDays } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
+import { formatDuration } from "@/utils/taskDuration";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 
@@ -194,7 +195,7 @@ export default function TaskHistory() {
                         {task.total_time_minutes && (
                           <div className="flex items-center gap-1">
                             <CheckCircle2 className="h-3 w-3" />
-                            <span>{task.total_time_minutes} min</span>
+                            <span>{formatDuration(task.total_time_minutes)}</span>
                           </div>
                         )}
                         {task.image_path && (
