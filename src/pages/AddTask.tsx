@@ -29,17 +29,21 @@ export default function AddTask() {
   }, []);
 
   const fetchUserTimezone = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("timezone")
-        .eq("user_id", user.id)
-        .single();
-      
-      if (profile?.timezone) {
-        setTimezone(profile.timezone);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("timezone")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        
+        if (profile?.timezone) {
+          setTimezone(profile.timezone);
+        }
       }
+    } catch (error) {
+      console.error("Error fetching timezone:", error);
     }
   };
 

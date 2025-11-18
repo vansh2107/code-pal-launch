@@ -37,17 +37,21 @@ export default function TaskDetail() {
   }, [id]);
 
   const fetchUserTimezone = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("timezone")
-        .eq("user_id", user.id)
-        .single();
-      
-      if (profile?.timezone) {
-        setTimezone(profile.timezone);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("timezone")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        
+        if (profile?.timezone) {
+          setTimezone(profile.timezone);
+        }
       }
+    } catch (error) {
+      console.error("Error fetching timezone:", error);
     }
   };
 
@@ -57,9 +61,20 @@ export default function TaskDetail() {
         .from("tasks")
         .select("*")
         .eq("id", id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      
+      if (!data) {
+        toast({
+          title: "Task not found",
+          description: "The requested task could not be found.",
+          variant: "destructive",
+        });
+        navigate("/tasks");
+        return;
+      }
+
       setTask(data);
 
       if (data.image_path) {
@@ -71,7 +86,7 @@ export default function TaskDetail() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to fetch task",
         variant: "destructive",
       });
       navigate("/tasks");

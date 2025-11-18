@@ -194,8 +194,13 @@ export default function Documents() {
 
       if (error) throw error;
       setDocuments(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching documents:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch documents",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
