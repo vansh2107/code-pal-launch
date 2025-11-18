@@ -144,7 +144,7 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
                     className={`relative ${floatSide} transition-all duration-500 ease-out ${baseFade}`}
                   >
                     <Link
-                      to={`/document/${item.doc.id}`}
+                      to={`/documents/${item.doc.id}`}
                       className="group block relative border border-border/80 rounded-[14px] bg-card p-4 card-hover shadow-[0_3px_10px_rgba(0,0,0,0.06)]"
                     >
                       <div className="flex items-center gap-2 text-xs text-muted-foreground transition-all duration-300 mb-2">

@@ -135,7 +135,7 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
     <>
       <Card
         className={`p-4 smooth ${statusInfo.bgClass} border cursor-pointer hover:scale-[1.02]`}
-        onClick={() => navigate(`/tasks/${task.id}`)}
+        onClick={() => navigate(`/task/${task.id}`)}
       >
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">

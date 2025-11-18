@@ -174,7 +174,7 @@ export default function EditTask() {
         description: "Your task has been updated successfully.",
       });
 
-      navigate(`/tasks/${id}`);
+      navigate(`/task/${id}`);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -229,7 +229,7 @@ export default function EditTask() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(`/tasks/${id}`)}
+              onClick={() => navigate(`/task/${id}`)}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>

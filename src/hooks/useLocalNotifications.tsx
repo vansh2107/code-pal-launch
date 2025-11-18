@@ -26,7 +26,7 @@ export const useLocalNotifications = () => {
     if (secondsUntilReminder > 0) {
       const message = `Your ${reminder.documents.document_type} "${reminder.documents.name}" is expiring soon on ${new Date(reminder.documents.expiry_date).toLocaleDateString()}`;
       const title = `Document Expiry Reminder`;
-      const url = `/document/${reminder.document_id}`;
+      const url = `/documents/${reminder.document_id}`;
 
       // Schedule local push notification using Despia SDK
       if (typeof window !== 'undefined' && (window as any).despia) {

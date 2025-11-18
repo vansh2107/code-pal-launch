@@ -69,7 +69,7 @@ const App = () => (
               } 
             />
             <Route 
-              path="/document/:id" 
+              path="/documents/:id" 
               element={
                 <ProtectedRoute>
                   <DocumentDetail />
@@ -77,7 +77,7 @@ const App = () => (
               } 
             />
             <Route 
-              path="/document/:id/edit" 
+              path="/documents/:id/edit" 
               element={
                 <ProtectedRoute>
                   <EditDocument />
@@ -133,15 +133,7 @@ const App = () => (
               } 
             />
             <Route 
-              path="/tasks/add" 
-              element={
-                <ProtectedRoute>
-                  <AddTask />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/tasks/history" 
+              path="/task-history" 
               element={
                 <ProtectedRoute>
                   <TaskHistory />
@@ -157,7 +149,7 @@ const App = () => (
               } 
             />
             <Route 
-              path="/tasks/:id" 
+              path="/task/:id" 
               element={
                 <ProtectedRoute>
                   <TaskDetail />
@@ -165,7 +157,7 @@ const App = () => (
               } 
             />
             <Route 
-              path="/tasks/:id/edit" 
+              path="/edit-task/:id" 
               element={
                 <ProtectedRoute>
                   <EditTask />

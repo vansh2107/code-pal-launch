@@ -161,7 +161,7 @@ export default function TaskDetail() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => navigate(`/tasks/${id}/edit`)}
+                onClick={() => navigate(`/edit-task/${id}`)}
               >
                 <Edit className="h-5 w-5" />
               </Button>

@@ -97,7 +97,7 @@ export function SwipeableDocumentCard({
           className="relative transition-transform duration-200 ease-out"
           style={{ transform: `translateX(-${swipeOffset}px)` }}
         >
-          <Link to={`/document/${doc.id}`}>
+          <Link to={`/documents/${doc.id}`}>
             <Card
               className={`hover:shadow-lg transition-shadow cursor-pointer border-2 ${statusInfo.bgClass} ${statusInfo.borderClass}`}
             >

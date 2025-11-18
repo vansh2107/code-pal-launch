@@ -473,7 +473,7 @@ export default function Scan() {
         description: "Your document has been saved and reminder confirmation emails sent.",
       });
 
-      navigate(`/document/${data.id}`);
+      navigate(`/documents/${data.id}`);
     } catch (err) {
       if (err instanceof z.ZodError) {
         setError(err.errors[0].message);
