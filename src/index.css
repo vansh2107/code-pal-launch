@@ -151,7 +151,7 @@ html, body, #root {
   padding: 0;
   margin: 0;
   height: 100%;
-  padding-bottom: var(--safe-bottom);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
   * {

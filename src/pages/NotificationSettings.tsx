@@ -121,7 +121,7 @@ export default function NotificationSettings() {
   });
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-24" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       <header className="bg-card border-b border-border px-4 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -148,7 +148,7 @@ export default function NotificationSettings() {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label htmlFor="email-notifications">Email Notifications</Label>
-                <p className="text-sm text-muted-foreground">Receive notifications via email</p>
+                <p className="text-sm text-muted-foreground">Document & task reminders via email</p>
               </div>
               <Switch
                 id="email-notifications"
@@ -160,7 +160,7 @@ export default function NotificationSettings() {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label htmlFor="push-notifications">Push Notifications</Label>
-                <p className="text-sm text-muted-foreground">Receive push notifications on this device</p>
+                <p className="text-sm text-muted-foreground">Real-time push alerts for tasks & documents</p>
               </div>
               <Switch
                 id="push-notifications"
@@ -181,7 +181,7 @@ export default function NotificationSettings() {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label htmlFor="expiry-reminders">Document Expiry Reminders</Label>
-                <p className="text-sm text-muted-foreground">Get notified when documents are about to expire</p>
+                <p className="text-sm text-muted-foreground">Notified exactly when documents are about to expire</p>
               </div>
               <Switch
                 id="expiry-reminders"
@@ -192,8 +192,8 @@ export default function NotificationSettings() {
             
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="renewal-reminders">Renewal Reminders</Label>
-                <p className="text-sm text-muted-foreground">Get notified when it's time to renew documents</p>
+                <Label htmlFor="renewal-reminders">Task Reminders</Label>
+                <p className="text-sm text-muted-foreground">Start time + every 2 hours for active tasks</p>
               </div>
               <Switch
                 id="renewal-reminders"
@@ -204,8 +204,8 @@ export default function NotificationSettings() {
             
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="weekly-digest">Weekly Digest</Label>
-                <p className="text-sm text-muted-foreground">Receive a weekly summary of your documents</p>
+                <Label htmlFor="weekly-digest">Incomplete Task Alerts</Label>
+                <p className="text-sm text-muted-foreground">Daily reminder for pending tasks</p>
               </div>
               <Switch
                 id="weekly-digest"
