@@ -23,6 +23,7 @@ export interface Task {
   consecutive_missed_days: number;
   last_reminder_sent_at: string | null;
   reminder_active: boolean;
+  start_notified: boolean;
   total_time_minutes: number | null;
   image_path: string | null;
   created_at: string;

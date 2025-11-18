@@ -391,6 +391,7 @@ export type Database = {
           local_date: string | null
           original_date: string
           reminder_active: boolean | null
+          start_notified: boolean | null
           start_time: string
           status: string
           task_date: string
@@ -411,6 +412,7 @@ export type Database = {
           local_date?: string | null
           original_date: string
           reminder_active?: boolean | null
+          start_notified?: boolean | null
           start_time: string
           status?: string
           task_date: string
@@ -431,6 +433,7 @@ export type Database = {
           local_date?: string | null
           original_date?: string
           reminder_active?: boolean | null
+          start_notified?: boolean | null
           start_time?: string
           status?: string
           task_date?: string
