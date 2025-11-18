@@ -149,6 +149,14 @@ const App = () => (
               } 
             />
             <Route 
+              path="/add-task" 
+              element={
+                <ProtectedRoute>
+                  <AddTask />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/tasks/:id" 
               element={
                 <ProtectedRoute>
