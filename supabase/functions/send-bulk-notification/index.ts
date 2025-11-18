@@ -16,144 +16,87 @@ Deno.serve(async (req) => {
       throw new Error('SendGrid API key not configured');
     }
 
-    // Fetch all users
     const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers();
 
-    if (usersError) {
-      console.error('Error fetching users:', usersError);
-      throw usersError;
-    }
-
+    if (usersError) throw usersError;
     if (!users || users.length === 0) {
       return createJsonResponse({ message: 'No users to notify', count: 0 });
     }
 
-    // Fetch profiles
-    const { data: profiles, error: profilesError } = await supabase
+    const { data: profiles } = await supabase
       .from('profiles')
       .select('user_id, email_notifications_enabled, display_name');
-
-    if (profilesError) {
-      console.error('Error fetching profiles:', profilesError);
-      throw profilesError;
-    }
 
     const userPrefs = new Map(
       profiles?.map(p => [p.user_id, { enabled: p.email_notifications_enabled, name: p.display_name }]) || []
     );
 
-    // Filter users with email notifications enabled
     const usersToNotify = users.filter(user => {
       const prefs = userPrefs.get(user.id);
-      const notificationsEnabled = prefs?.enabled !== false;
-      return user.email && notificationsEnabled;
+      return user.email && prefs?.enabled !== false;
     });
 
-    console.log(`Sending to ${usersToNotify.length} users out of ${users.length} total`);
-
     let sentCount = 0;
-    let errorCount = 0;
 
     for (const user of usersToNotify) {
-      if (!user.email) {
-        continue;
-      }
-
       try {
+        if (!user.email) continue;
+
         const prefs = userPrefs.get(user.id);
-        const displayName = prefs?.name || user.user_metadata?.display_name || user.user_metadata?.full_name || 'there';
+        const displayName = prefs?.name || 'there';
         
         const emailHtml = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #1E40AF;">Your Documents Just Sent a Thank You Note! 📄✨</h2>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #FF9506;">Your Documents Just Sent a Thank You Note! 📄✨</h2>
             <p>Hey ${displayName}! 👋</p>
             <p>We caught your documents gossiping about you... and honestly, they're pretty impressed! 😎</p>
-            
-            <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 0; color: #374151; font-size: 18px;">
-                <strong>Your passport won't expire unexpectedly</strong><br>
-                <strong>Your license won't ghost you</strong><br>
-                <strong>Your permits won't pull a disappearing act</strong><br><br>
-                Thanks to you (and us 😉), they're all staying fresh and valid!
+            <div style="background-color: #FFF7F0; padding: 20px; border-radius: 14px; margin: 20px 0;">
+              <p style="margin: 0; color: #374151;">
+                <strong>Your documents are all staying fresh and valid!</strong>
               </p>
             </div>
-
-            <p>We promise to keep nagging you about renewals so you never have to panic at the last minute. Because let's face it, nobody likes scrambling for expired documents! 🏃‍♂️💨</p>
-            
             <div style="margin-top: 30px;">
               <a href="https://code-pal-launch.vercel.app" 
-                 style="background-color: #1E40AF; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                 style="background-color: #FF9506; color: white; padding: 12px 24px; text-decoration: none; border-radius: 12px; display: inline-block;">
                 Check Your Documents 📱
               </a>
             </div>
-
-            <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
-              Your friendly neighborhood reminder app 🦸‍♂️<br>
-              Team Remonk (We won't let you forget!)
-            </p>
           </div>
         `;
 
-        const emailResponse = await fetch(sendGridEndpoint, {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
           method: 'POST',
           headers: {
+            'Authorization': `Bearer ${sendGridApiKey}`,
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sendGridApiKey}`
           },
           body: JSON.stringify({
-            personalizations: [{
-              to: [{ email: user.email }]
-            }],
-            from: { email: 'remind659@gmail.com' },
-            subject: 'Your Documents Are Throwing a Party 🎉 (And You\'re Invited!)',
-            content: [{
-              type: 'text/html',
-              value: emailHtml
-            }]
-          })
+            personalizations: [{ to: [{ email: user.email }] }],
+            from: { email: 'notifications@softlyreminder.app', name: 'Softly Reminder' },
+            subject: 'Your Documents Are Grateful! 📄✨',
+            content: [{ type: 'text/html', value: emailHtml }],
+          }),
+          signal: controller.signal,
         });
 
-        if (!emailResponse.ok) {
-          const errorText = await emailResponse.text();
-          console.error(`Error sending email to ${user.email}:`, errorText);
-          errorCount++;
-          continue;
-        }
-
-        console.log(`Successfully sent notification to: ${user.email}`);
-        sentCount++;
-
-      } catch (error) {
-        console.error(`Exception sending email to ${user.email}:`, error);
-        errorCount++;
+        clearTimeout(timeoutId);
+        if (response.ok) sentCount++;
+      } catch (emailError) {
+        console.error(`Error sending email:`, emailError);
       }
     }
 
-    console.log(`Bulk notification complete. Sent: ${sentCount}, Errors: ${errorCount}`);
-
-    return new Response(
-      JSON.stringify({ 
-        message: "Bulk notification complete",
-        sent: sentCount,
-        errors: errorCount,
-        total: usersToNotify.length
-      }),
-      { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }, 
-        status: 200 
-      }
-    );
-
-  } catch (error: any) {
-    console.error("Error in send-bulk-notification function:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return createJsonResponse({
+      success: true,
+      message: `Sent ${sentCount} emails`,
+      totalUsers: users.length,
+      notifiedUsers: sentCount,
+    });
+  } catch (error) {
+    console.error('Error in send-bulk-notification:', error);
+    return createErrorResponse(error as Error);
   }
-};
-
-serve(handler);
+});
