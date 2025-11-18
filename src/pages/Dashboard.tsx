@@ -162,7 +162,7 @@ export default function Dashboard() {
                     return (
                       <Link
                         key={doc.id}
-                        to={`/document/${doc.id}`}
+                        to={`/documents/${doc.id}`}
                         className={`block p-4 rounded-xl smooth hover:shadow-lg border-2 ${statusInfo.bgClass} ${statusInfo.borderClass}`}
                         style={{ animationDelay: `${0.1 * index}s` }}
                       >

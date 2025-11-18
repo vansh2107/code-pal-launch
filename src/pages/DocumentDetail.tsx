@@ -504,7 +504,7 @@ export default function DocumentDetail() {
                   ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
                   : 'bg-green-600 hover:bg-green-700 text-white'
               }`}
-              onClick={() => navigate(`/document/${id}/edit`)}
+              onClick={() => navigate(`/documents/${id}/edit`)}
             >
               <Edit2 className="h-4 w-4" />
               Edit Document

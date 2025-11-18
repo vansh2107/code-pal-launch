@@ -181,7 +181,7 @@ export default function TaskHistory() {
                     <Card
                       key={task.id}
                       className="p-4 smooth hover:scale-[1.02] cursor-pointer"
-                      onClick={() => navigate(`/tasks/${task.id}`)}
+                      onClick={() => navigate(`/task/${task.id}`)}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="font-semibold text-sm">{task.title}</h4>

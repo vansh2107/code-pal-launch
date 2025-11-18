@@ -317,7 +317,7 @@ export default function DocVault() {
               >
                 <div 
                   className="cursor-pointer"
-                  onClick={() => navigate(`/document/${doc.id}`)}
+                  onClick={() => navigate(`/documents/${doc.id}`)}
                 >
                   {doc.image_path && (
                     <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">

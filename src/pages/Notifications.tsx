@@ -138,7 +138,7 @@ export default function Notifications() {
               {active.map((notification) => {
                 const status = getNotificationStatus(notification.reminder_date, notification.document.expiry_date);
                 return (
-                  <Link key={notification.id} to={`/document/${notification.document_id}`}>
+                  <Link key={notification.id} to={`/documents/${notification.document_id}`}>
                     <Card className="hover:bg-muted/50 transition-colors">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
@@ -180,7 +180,7 @@ export default function Notifications() {
             </h2>
             <div className="space-y-3">
               {upcoming.map((notification) => (
-                <Link key={notification.id} to={`/document/${notification.document_id}`}>
+                <Link key={notification.id} to={`/documents/${notification.document_id}`}>
                   <Card className="hover:bg-muted/50 transition-colors">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">

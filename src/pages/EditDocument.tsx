@@ -272,7 +272,7 @@ export default function EditDocument() {
         description: "Your document has been updated and reminder confirmation emails sent.",
       });
 
-      navigate(`/document/${id}`);
+      navigate(`/documents/${id}`);
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         setError(err.errors[0].message);
@@ -332,7 +332,7 @@ export default function EditDocument() {
     <div className="min-h-screen bg-background pb-20">
       <header className="bg-card border-b border-border px-4 py-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/document/${id}`)}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/documents/${id}`)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -532,7 +532,7 @@ export default function EditDocument() {
                 <Button 
                   type="button" 
                   variant="outline" 
-                  onClick={() => navigate(`/document/${id}`)}
+                  onClick={() => navigate(`/documents/${id}`)}
                   className="flex-1"
                 >
                   Cancel
