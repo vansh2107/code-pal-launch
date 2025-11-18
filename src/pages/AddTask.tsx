@@ -70,7 +70,7 @@ export default function AddTask() {
         imagePath = fileName;
       }
 
-      const taskDate = format(utcTime, "yyyy-MM-dd");
+      const today = new Date().toISOString().split("T")[0];
 
       const { error } = await supabase.from("tasks").insert({
         user_id: user.id,
@@ -79,9 +79,10 @@ export default function AddTask() {
         start_time: utcTime.toISOString(),
         timezone: timezone,
         image_path: imagePath,
-        task_date: taskDate,
-        original_date: taskDate,
+        task_date: today,
+        original_date: today,
         status: "pending",
+        consecutive_missed_days: 0,
       });
 
       if (error) throw error;

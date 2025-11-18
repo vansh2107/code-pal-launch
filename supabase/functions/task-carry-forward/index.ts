@@ -17,33 +17,35 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
 
-    // Fetch all pending tasks from yesterday
+    // Fetch all pending tasks with task_date < today
     const { data: pendingTasks, error: fetchError } = await supabase
       .from("tasks")
       .select("*, profiles!inner(email, push_notifications_enabled, email_notifications_enabled, timezone)")
-      .eq("task_date", yesterdayStr)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .lt("task_date", today);
 
     if (fetchError) throw fetchError;
 
-    const today = new Date().toISOString().split("T")[0];
     const carriedTasks = [];
     const notificationsSent = [];
 
     for (const task of pendingTasks || []) {
-      const newConsecutiveDays = task.consecutive_missed_days + 1;
+      // Calculate days missed
+      const daysMissed = Math.floor(
+        (new Date(today).getTime() - new Date(task.task_date).getTime()) / 
+        (1000 * 60 * 60 * 24)
+      );
+      
+      const newConsecutiveDays = (task.consecutive_missed_days || 0) + daysMissed;
 
-      // Update task: carry forward to today
+      // Update task: carry forward to today (NOT duplicate, just UPDATE)
       const { error: updateError } = await supabase
         .from("tasks")
         .update({
           task_date: today,
           consecutive_missed_days: newConsecutiveDays,
-          status: "carried",
         })
         .eq("id", task.id);
 
