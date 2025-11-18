@@ -68,14 +68,13 @@ Deno.serve(async (req) => {
 
         console.log(`User ${profile.user_id}: Local time ${userLocalTimeString} in ${profile.timezone}, Preferred: ${profile.preferred_notification_time}`);
 
-        // Compare with user's preferred notification time
+        // Compare using local time strings
         if (userLocalTimeString === profile.preferred_notification_time) {
           console.log(`✅ Match found for user ${profile.user_id}!`);
           notificationsToSend.push(profile);
         }
       } catch (error) {
         console.error(`Error processing user ${profile.user_id}:`, error);
-        // Continue with next user
       }
     }
 

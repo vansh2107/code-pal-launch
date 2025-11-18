@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
-import { toZonedTime, fromZonedTime } from 'npm:date-fns-tz@3.2.0';
-import { format, addDays } from 'npm:date-fns@3.6.0';
+import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
+import { format } from 'npm:date-fns@3.6.0';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,17 +56,11 @@ serve(async (req) => {
       const newConsecutiveDays =
         (task.consecutive_missed_days || 0) + daysMissed;
 
-      // Convert original start time to local timezone, add the missed days, then convert back to UTC
-      const originalStartLocal = toZonedTime(new Date(task.start_time), profile.timezone);
-      const newStartLocal = addDays(originalStartLocal, daysMissed);
-      const newStartUtc = fromZonedTime(newStartLocal, profile.timezone);
-
-      // Update the task's date to the user's local today and preserve start time
+      // Only update task_date - preserve original start_time
       const { error: updateError } = await supabase
         .from("tasks")
         .update({
           task_date: todayLocal,
-          start_time: newStartUtc.toISOString(),
           consecutive_missed_days: newConsecutiveDays,
         })
         .eq("id", task.id);
