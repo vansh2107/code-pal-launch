@@ -33,9 +33,14 @@ export default function Tasks() {
   const [userTimezone, setUserTimezone] = useState("UTC");
 
   useEffect(() => {
-    fetchUserTimezone();
-    fetchTasks();
+    initializeTasks();
   }, []);
+
+  const initializeTasks = async () => {
+    await fetchUserTimezone();
+    await carryForwardTasks();
+    await fetchTasks();
+  };
 
   const fetchUserTimezone = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -49,6 +54,47 @@ export default function Tasks() {
       if (profile?.timezone) {
         setUserTimezone(profile.timezone);
       }
+    }
+  };
+
+  const carryForwardTasks = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const today = new Date().toISOString().split("T")[0];
+      
+      // Find all pending tasks with scheduledDate < today
+      const { data: pendingTasks, error: fetchError } = await supabase
+        .from("tasks")
+        .select("id, task_date, consecutive_missed_days")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .lt("task_date", today);
+
+      if (fetchError) throw fetchError;
+
+      // Update each task's scheduledDate to today
+      if (pendingTasks && pendingTasks.length > 0) {
+        const updates = pendingTasks.map((task) => {
+          const daysMissed = Math.floor(
+            (new Date(today).getTime() - new Date(task.task_date).getTime()) / 
+            (1000 * 60 * 60 * 24)
+          );
+          
+          return supabase
+            .from("tasks")
+            .update({
+              task_date: today,
+              consecutive_missed_days: (task.consecutive_missed_days || 0) + daysMissed,
+            })
+            .eq("id", task.id);
+        });
+
+        await Promise.all(updates);
+      }
+    } catch (error: any) {
+      console.error("Carry-forward error:", error);
     }
   };
 
