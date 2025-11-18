@@ -68,17 +68,12 @@ export default function EditTask() {
 
       if (error) throw error;
 
-      // Extract time from stored timestamp without timezone conversion
-      // Just parse the ISO string and extract the time components directly
-      const startTimeISO = data.start_time; // e.g., "2024-01-15T19:00:00.000Z"
-      const datePart = data.task_date; // e.g., "2024-01-15"
+      // Convert UTC timestamp to user's local timezone for display
+      const startTimeUtc = new Date(data.start_time);
+      const startTimeLocal = toZonedTime(startTimeUtc, data.timezone || timezone);
       
-      // Extract hours and minutes from the ISO string directly
-      const timeMatch = startTimeISO.match(/T(\d{2}:\d{2})/);
-      const timePart = timeMatch ? timeMatch[1] : "00:00";
-      
-      // Combine date and time for the datetime-local input
-      const formattedTime = `${datePart}T${timePart}`;
+      // Format for datetime-local input (YYYY-MM-DDTHH:mm)
+      const formattedTime = format(startTimeLocal, "yyyy-MM-dd'T'HH:mm");
 
       setFormData({
         title: data.title,
@@ -104,12 +99,15 @@ export default function EditTask() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Parse the datetime-local input (already in user's local timezone)
+      // Parse the datetime-local input and convert from user's timezone to UTC
       const [dateStr, timeStr] = formData.startTime.split("T");
+      const [hours, minutes] = timeStr.split(":");
       
-      // Create a date object representing this time in the user's local timezone
-      // and convert to UTC for storage
-      const localDateTime = new Date(formData.startTime);
+      // Create date object in user's local timezone (not browser timezone)
+      const [year, month, day] = dateStr.split("-").map(Number);
+      const localDateTime = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes));
+      
+      // Convert from user's local timezone to UTC for storage
       const utcTime = fromZonedTime(localDateTime, timezone);
 
       let imagePath = existingImagePath;

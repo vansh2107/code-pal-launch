@@ -17,6 +17,7 @@ interface Profile {
   display_name: string | null;
   timezone: string;
   push_notifications_enabled: boolean;
+  preferred_notification_time: string | null;
 }
 
 Deno.serve(async (req) => {
@@ -33,7 +34,7 @@ Deno.serve(async (req) => {
     // Fetch all users with timezone settings and push notifications enabled
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('user_id, display_name, timezone, push_notifications_enabled')
+      .select('user_id, display_name, timezone, push_notifications_enabled, preferred_notification_time')
       .not('timezone', 'is', null)
       .eq('push_notifications_enabled', true);
 
@@ -54,20 +55,24 @@ Deno.serve(async (req) => {
     
     const usersToNotify: Profile[] = [];
 
-    // Check each user's local time
+    // Check each user's preferred notification time
     for (const profile of profiles as Profile[]) {
       try {
         const userLocalTime = toZonedTime(now, profile.timezone);
-        const userLocalHour = parseInt(format(userLocalTime, 'HH'));
-        const userLocalMinute = parseInt(format(userLocalTime, 'mm'));
-
-        console.log(`User ${profile.user_id}: Local time ${format(userLocalTime, 'HH:mm')} in ${profile.timezone}`);
-
-        // Check if it's an even hour (0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22)
-        // and within the first 2 minutes to avoid multiple sends
-        if (userLocalHour % 2 === 0 && userLocalMinute < 2) {
-          console.log(`✅ 2-hour reminder time for user ${profile.user_id}!`);
-          usersToNotify.push(profile);
+        
+        // If user has a preferred notification time, check if it matches
+        if (profile.preferred_notification_time) {
+          const [preferredHour, preferredMinute] = profile.preferred_notification_time.split(':').map(Number);
+          const userHour = userLocalTime.getHours();
+          const userMinute = userLocalTime.getMinutes();
+          
+          console.log(`User ${profile.user_id}: Local time ${format(userLocalTime, 'HH:mm')} in ${profile.timezone}, Preferred: ${profile.preferred_notification_time}`);
+          
+          // Check if current time matches preferred time (within 2-minute window)
+          if (userHour === preferredHour && userMinute >= preferredMinute && userMinute < preferredMinute + 2) {
+            console.log(`✅ Preferred notification time for user ${profile.user_id}!`);
+            usersToNotify.push(profile);
+          }
         }
       } catch (error) {
         console.error(`Error processing user ${profile.user_id}:`, error);
@@ -116,13 +121,16 @@ Deno.serve(async (req) => {
 async function sendTaskReminders(profile: Profile): Promise<void> {
   console.log(`📤 Checking incomplete tasks for user ${profile.user_id}`);
 
-  // Get all incomplete tasks for today
-  const today = new Date().toISOString().split('T')[0];
+  // Convert current time to user's local timezone to get today's date
+  const now = new Date();
+  const userLocalNow = toZonedTime(now, profile.timezone);
+  const todayLocal = format(userLocalNow, 'yyyy-MM-dd');
+  
   const { data: incompleteTasks, error: tasksError } = await supabase
     .from('tasks')
     .select('id, title, status, task_date')
     .eq('user_id', profile.user_id)
-    .eq('task_date', today)
+    .eq('task_date', todayLocal)
     .neq('status', 'completed');
 
   if (tasksError) {

@@ -51,12 +51,15 @@ export default function AddTask() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Parse the datetime-local input (already in user's local timezone)
+      // Parse the datetime-local input and convert from user's timezone to UTC
       const [dateStr, timeStr] = formData.startTime.split("T");
+      const [hours, minutes] = timeStr.split(":");
       
-      // Create a date object representing this time in the user's local timezone
-      // and convert to UTC for storage
-      const localDateTime = new Date(formData.startTime);
+      // Create date object in user's local timezone (not browser timezone)
+      const [year, month, day] = dateStr.split("-").map(Number);
+      const localDateTime = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes));
+      
+      // Convert from user's local timezone to UTC for storage
       const utcTime = fromZonedTime(localDateTime, timezone);
 
       let imagePath = null;
