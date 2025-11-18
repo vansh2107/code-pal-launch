@@ -144,6 +144,8 @@ export default function EditTask() {
           timezone: timezone,
           image_path: imagePath,
           task_date: dateStr,
+          reminder_active: true,
+          last_reminder_sent_at: null,
         })
         .eq("id", id);
 
