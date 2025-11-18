@@ -1,43 +1,44 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
-import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
+import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/database.ts';
+import { sendPushNotification } from '../_shared/notifications.ts';
+import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
+import { getCurrentLocalTime, getFunnyNotification } from '../_shared/timezone.ts';
 import { format } from 'npm:date-fns@3.6.0';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+/**
+ * Task Incomplete Reminder Function
+ * 
+ * Sends ONE notification per day for incomplete/overdue tasks.
+ * - Runs every morning via cron
+ * - Sends notification only if task is overdue (task_date < today)
+ * - Prevents spam: max 1 notification per task per day
+ * - Special "funny red alert" for tasks overdue 3+ days
+ */
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions();
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('user_id, timezone, push_notifications_enabled')
-      .eq('push_notifications_enabled', true)
-      .not('timezone', 'is', null);
-
-    if (profilesError) throw profilesError;
-    if (!profiles || profiles.length === 0) {
-      return new Response(JSON.stringify({ message: 'No users to process' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    console.log('📋 Task incomplete reminder starting...');
+    
+    const supabase = createSupabaseClient();
+    const profiles = await fetchProfilesWithTimezone(supabase, true);
+    
+    if (profiles.length === 0) {
+      return createJsonResponse({ message: 'No users to process', sent: 0 });
     }
+
+    console.log(`Processing ${profiles.length} users...`);
 
     let sentCount = 0;
 
     for (const profile of profiles) {
       try {
-        const nowLocal = toZonedTime(new Date(), profile.timezone);
+        const nowLocal = getCurrentLocalTime(profile.timezone);
         const todayLocal = format(nowLocal, 'yyyy-MM-dd');
 
+        // Find all pending tasks where task_date is before today
         const { data: tasks, error: tasksError } = await supabase
           .from('tasks')
           .select('id, user_id, title, task_date, consecutive_missed_days, status')
@@ -48,27 +49,49 @@ Deno.serve(async (req) => {
         if (tasksError) throw tasksError;
         if (!tasks || tasks.length === 0) continue;
 
+        // Group tasks by urgency
         const urgentTasks = tasks.filter(t => (t.consecutive_missed_days || 0) >= 3);
+        const normalOverdue = tasks.filter(t => (t.consecutive_missed_days || 0) < 3);
         
-        if (tasks.length > 0) {
-          const title = urgentTasks.length > 0 
-            ? '🚨 Urgent: Tasks Overdue 3+ Days!' 
-            : '📋 Incomplete Tasks Reminder';
-          
-          const message = urgentTasks.length > 0
-            ? `You have ${urgentTasks.length} task${urgentTasks.length > 1 ? 's' : ''} overdue for 3+ days. Time to tackle them! 💪`
-            : `You have ${tasks.length} incomplete task${tasks.length > 1 ? 's' : ''} from previous days. Let's complete them today! 🚀`;
+        if (urgentTasks.length > 0) {
+          // 3+ day overdue - FUNNY RED ALERT
+          const funnyAlert = getFunnyNotification('task_3day_overdue');
+          const title = '🚨 URGENT: Tasks REALLY Overdue!';
+          const message = `${funnyAlert.message}\n\n` +
+            `You have ${urgentTasks.length} task${urgentTasks.length > 1 ? 's' : ''} overdue for 3+ days:\n` +
+            urgentTasks.map(t => `• ${t.title} (${t.consecutive_missed_days} day${t.consecutive_missed_days > 1 ? 's' : ''} overdue)`).join('\n');
 
-          const { error: notifError } = await supabase.functions.invoke('send-onesignal-notification', {
-            body: {
-              userId: profile.user_id,
-              title,
-              message,
-              data: { type: 'task_incomplete_reminder' },
+          const sent = await sendPushNotification(supabase, {
+            userId: profile.user_id,
+            title,
+            message,
+            data: { 
+              type: 'task_incomplete_urgent',
+              task_count: urgentTasks.length.toString(),
             },
           });
 
-          if (!notifError) {
+          if (sent) {
+            console.log(`✅ Sent urgent reminder to user ${profile.user_id}`);
+            sentCount++;
+          }
+        } else if (normalOverdue.length > 0) {
+          // Less than 3 days - normal incomplete reminder
+          const title = '📋 Incomplete Tasks Reminder';
+          const message = `You have ${normalOverdue.length} incomplete task${normalOverdue.length > 1 ? 's' : ''} from previous days. Let's complete them today! 🚀`;
+
+          const sent = await sendPushNotification(supabase, {
+            userId: profile.user_id,
+            title,
+            message,
+            data: { 
+              type: 'task_incomplete_reminder',
+              task_count: normalOverdue.length.toString(),
+            },
+          });
+
+          if (sent) {
+            console.log(`✅ Sent incomplete reminder to user ${profile.user_id}`);
             sentCount++;
           }
         }
@@ -77,15 +100,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({ success: true, sent: sentCount }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.log(`✅ Incomplete reminders sent: ${sentCount} successful`);
+
+    return createJsonResponse({
+      success: true,
+      sent: sentCount,
+    });
   } catch (error) {
     console.error('Error in task-incomplete-reminder:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: (error as Error).message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return createErrorResponse(error as Error);
   }
 });
