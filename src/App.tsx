@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { useOneSignalPlayerId } from "@/hooks/useOneSignalPlayerId";
 import { ChatBot } from "@/components/chatbot/ChatBot";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -38,7 +39,8 @@ const NotificationScheduler = () => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
@@ -193,6 +195,7 @@ const App = () => (
       </TooltipProvider>
     </AuthProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

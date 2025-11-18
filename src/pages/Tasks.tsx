@@ -1,14 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Calendar, Clock, Image as ImageIcon, ClipboardList } from "lucide-react";
+import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { format, isToday } from "date-fns";
 import { TaskCard } from "@/components/tasks/TaskCard";
-import { Skeleton } from "@/components/ui/skeleton";
+import { TaskListSkeleton } from "@/components/ui/loading-skeleton";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 
 interface Task {
@@ -42,29 +39,32 @@ export default function Tasks() {
     await fetchTasks();
   };
 
-  const fetchUserTimezone = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("timezone")
-        .eq("user_id", user.id)
-        .single();
-      
-      if (profile?.timezone) {
-        setUserTimezone(profile.timezone);
+  const fetchUserTimezone = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("timezone")
+          .eq("user_id", user.id)
+          .single();
+        
+        if (profile?.timezone) {
+          setUserTimezone(profile.timezone);
+        }
       }
+    } catch (error) {
+      console.error("Error fetching timezone:", error);
     }
-  };
+  }, []);
 
-  const carryForwardTasks = async () => {
+  const carryForwardTasks = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const today = new Date().toISOString().split("T")[0];
       
-      // Find all pending tasks with scheduledDate < today
       const { data: pendingTasks, error: fetchError } = await supabase
         .from("tasks")
         .select("id, task_date, consecutive_missed_days")
@@ -74,7 +74,6 @@ export default function Tasks() {
 
       if (fetchError) throw fetchError;
 
-      // Update each task's scheduledDate to today
       if (pendingTasks && pendingTasks.length > 0) {
         const updates = pendingTasks.map((task) => {
           const daysMissed = Math.floor(
@@ -93,12 +92,12 @@ export default function Tasks() {
 
         await Promise.all(updates);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Carry-forward error:", error);
     }
-  };
+  }, []);
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -111,20 +110,20 @@ export default function Tasks() {
         .eq("user_id", user.id)
         .eq("task_date", today)
         .order("start_time", { ascending: true })
-        .limit(100); // Add limit for performance
+        .limit(100);
 
       if (error) throw error;
       setTasks(data || []);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Failed to fetch tasks",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   const getTaskStatusInfo = (task: Task) => {
     if (task.status === "completed") {
@@ -171,14 +170,17 @@ export default function Tasks() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background pb-20">
-        <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6">
+        <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
           <h1 className="text-2xl font-bold text-foreground mb-2">Daily Tasks</h1>
           <p className="text-sm text-muted-foreground">Track your daily activities</p>
         </div>
-        <div className="p-4 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-32 w-full rounded-[14px]" />
-          ))}
+        <div className="p-4">
+          <TaskListSkeleton />
+        </div>
+        <BottomNavigation />
+      </div>
+    );
+  }
         </div>
       </div>
     );

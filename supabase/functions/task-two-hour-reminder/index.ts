@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { format } from 'npm:date-fns@3.6.0';
+import { format, addHours } from 'npm:date-fns@3.6.0';
 import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -55,31 +55,28 @@ Deno.serve(async (req) => {
     
     const remindersToSend: Task[] = [];
 
-    // Check each task to see if a reminder is due
     for (const task of tasks as Task[]) {
       try {
-        // Convert UTC start time to user's local timezone
-        const startTimeUtc = new Date(task.start_time);
-        const startTimeLocal = toZonedTime(startTimeUtc, task.timezone);
         const userLocalNow = toZonedTime(now, task.timezone);
         
         let nextReminderLocal: Date;
         
         if (!task.last_reminder_sent_at) {
-          // First reminder: send exactly at start time
-          nextReminderLocal = startTimeLocal;
+          // First reminder: trigger EXACTLY at start time in user's local timezone
+          const startTimeUtc = new Date(task.start_time);
+          nextReminderLocal = toZonedTime(startTimeUtc, task.timezone);
           console.log(`Task ${task.id}: First reminder due at ${format(nextReminderLocal, 'yyyy-MM-dd HH:mm')} (${task.timezone})`);
         } else {
-          // Subsequent reminders: add 2 hours to last reminder (in UTC), then convert to local
+          // Subsequent reminders: add 2 hours to last reminder in local time
           const lastReminderUtc = new Date(task.last_reminder_sent_at);
-          const nextReminderUtc = new Date(lastReminderUtc.getTime() + 2 * 60 * 60 * 1000);
-          nextReminderLocal = toZonedTime(nextReminderUtc, task.timezone);
+          const lastReminderLocal = toZonedTime(lastReminderUtc, task.timezone);
+          nextReminderLocal = addHours(lastReminderLocal, 2);
           console.log(`Task ${task.id}: Next reminder due at ${format(nextReminderLocal, 'yyyy-MM-dd HH:mm')} (${task.timezone})`);
         }
         
         console.log(`Task ${task.id}: Current time ${format(userLocalNow, 'yyyy-MM-dd HH:mm')} (${task.timezone})`);
         
-        // Check if current time has passed the next reminder time
+        // Check if current local time >= next reminder local time
         if (userLocalNow >= nextReminderLocal) {
           console.log(`✅ Reminder due for task ${task.id}!`);
           remindersToSend.push(task);
