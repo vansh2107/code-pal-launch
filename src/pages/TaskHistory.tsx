@@ -24,6 +24,7 @@ interface Task {
   consecutive_missed_days: number;
   task_date: string;
   original_date: string;
+  local_date: string;
 }
 
 export default function TaskHistory() {
@@ -96,17 +97,9 @@ export default function TaskHistory() {
     return <Badge variant="outline">Pending</Badge>;
   };
 
-  // Group by createdDate (original_date) for pending, completedDate for completed
+  // Group by local_date
   const groupedTasks = tasks.reduce((acc, task) => {
-    let groupDate: string;
-    
-    if (task.status === "completed" && task.end_time) {
-      // For completed tasks, group by completion date
-      groupDate = task.end_time.split("T")[0];
-    } else {
-      // For pending/carried tasks, group by creation date
-      groupDate = task.original_date;
-    }
+    const groupDate = task.local_date || task.original_date;
     
     if (!acc[groupDate]) acc[groupDate] = [];
     acc[groupDate].push(task);

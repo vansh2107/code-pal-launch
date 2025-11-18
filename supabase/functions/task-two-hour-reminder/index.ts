@@ -51,11 +51,11 @@ Deno.serve(async (req) => {
 
         const { data: tasks, error: tasksError } = await supabase
           .from('tasks')
-          .select('id, user_id, title, start_time, status, last_reminder_sent_at, timezone, reminder_active, task_date')
+          .select('id, user_id, title, start_time, status, last_reminder_sent_at, timezone, reminder_active, local_date')
           .eq('user_id', profile.user_id)
           .eq('status', 'pending')
           .eq('reminder_active', true)
-          .eq('task_date', todayLocal); // Only process today's tasks
+          .eq('local_date', todayLocal); // Only process today's tasks
 
         if (tasksError) throw tasksError;
         if (!tasks || tasks.length === 0) continue;

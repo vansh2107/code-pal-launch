@@ -20,6 +20,7 @@ interface Task {
   consecutive_missed_days: number;
   task_date: string;
   original_date: string;
+  local_date: string;
 }
 
 export default function Tasks() {
@@ -63,27 +64,28 @@ export default function Tasks() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("en-CA");
       
       const { data: pendingTasks, error: fetchError } = await supabase
         .from("tasks")
-        .select("id, task_date, consecutive_missed_days")
+        .select("id, local_date, consecutive_missed_days")
         .eq("user_id", user.id)
         .eq("status", "pending")
-        .lt("task_date", today);
+        .lt("local_date", today);
 
       if (fetchError) throw fetchError;
 
       if (pendingTasks && pendingTasks.length > 0) {
         const updates = pendingTasks.map((task) => {
           const daysMissed = Math.floor(
-            (new Date(today).getTime() - new Date(task.task_date).getTime()) / 
+            (new Date(today).getTime() - new Date(task.local_date).getTime()) / 
             (1000 * 60 * 60 * 24)
           );
           
           return supabase
             .from("tasks")
             .update({
+              local_date: today,
               task_date: today,
               consecutive_missed_days: (task.consecutive_missed_days || 0) + daysMissed,
             })
@@ -102,13 +104,13 @@ export default function Tasks() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date().toLocaleDateString("en-CA");
       
       const { data, error } = await supabase
         .from("tasks")
         .select("*")
         .eq("user_id", user.id)
-        .eq("task_date", today)
+        .eq("local_date", today)
         .order("start_time", { ascending: true })
         .limit(100);
 

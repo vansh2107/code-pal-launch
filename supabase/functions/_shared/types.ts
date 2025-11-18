@@ -18,6 +18,7 @@ export interface Task {
   end_time: string | null;
   task_date: string;
   original_date: string;
+  local_date: string;
   timezone: string;
   consecutive_missed_days: number;
   last_reminder_sent_at: string | null;

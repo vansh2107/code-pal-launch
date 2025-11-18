@@ -65,6 +65,9 @@ export default function AddTask() {
       
       // Convert from user's local timezone to UTC for storage
       const utcTime = fromZonedTime(localDateTime, timezone);
+      
+      // Calculate local_date in yyyy-mm-dd format for filtering
+      const localDate = dateStr;
 
       let imagePath = null;
 
@@ -94,8 +97,9 @@ export default function AddTask() {
         start_time: utcTime.toISOString(),
         timezone: timezone,
         image_path: imagePath,
-        task_date: dateStr,
-        original_date: dateStr,
+        local_date: localDate,
+        task_date: localDate,
+        original_date: localDate,
         status: "pending",
         consecutive_missed_days: 0,
         reminder_active: true,
