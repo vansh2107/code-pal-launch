@@ -1,11 +1,18 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/database.ts';
+import { sendPushNotification } from '../_shared/notifications.ts';
+import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
 import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
 import { addHours, format } from 'npm:date-fns@3.6.0';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+/**
+ * Task Two-Hour Reminder Function
+ * 
+ * Sends notifications for tasks at start time and every 2 hours after.
+ * - First notification: exactly at start time (user local)
+ * - Recurring: every 2 hours from last notification
+ * - Stops when: task completed OR day changes
+ * - Uses user's local timezone for all comparisons
+ */
 
 interface Task {
   id: string;
@@ -20,43 +27,38 @@ interface Task {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions();
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('user_id, timezone, push_notifications_enabled')
-      .eq('push_notifications_enabled', true)
-      .not('timezone', 'is', null);
-
-    if (profilesError) throw profilesError;
-    if (!profiles || profiles.length === 0) {
-      return new Response(JSON.stringify({ message: 'No users to process' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    console.log('⏰ Task two-hour reminder starting...');
+    
+    const supabase = createSupabaseClient();
+    const profiles = await fetchProfilesWithTimezone(supabase, true);
+    
+    if (profiles.length === 0) {
+      return createJsonResponse({ message: 'No users to process', processed: 0 });
     }
+
+    console.log(`Processing ${profiles.length} users...`);
 
     let sentCount = 0;
 
     for (const profile of profiles) {
       try {
+        const nowLocal = toZonedTime(new Date(), profile.timezone);
+        const todayLocal = format(nowLocal, 'yyyy-MM-dd');
+
         const { data: tasks, error: tasksError } = await supabase
           .from('tasks')
-          .select('id, user_id, title, start_time, status, last_reminder_sent_at, timezone, reminder_active')
+          .select('id, user_id, title, start_time, status, last_reminder_sent_at, timezone, reminder_active, task_date')
           .eq('user_id', profile.user_id)
           .eq('status', 'pending')
-          .eq('reminder_active', true);
+          .eq('reminder_active', true)
+          .eq('task_date', todayLocal); // Only process today's tasks
 
         if (tasksError) throw tasksError;
         if (!tasks || tasks.length === 0) continue;
-
-        const nowLocal = toZonedTime(new Date(), profile.timezone);
 
         for (const task of tasks) {
           try {
@@ -64,6 +66,7 @@ Deno.serve(async (req) => {
             if (!task.last_reminder_sent_at) {
               const startLocal = toZonedTime(new Date(task.start_time), task.timezone);
               
+              // Check if current time >= start time
               if (nowLocal >= startLocal) {
                 const sent = await sendNotification(supabase, task, 'first');
                 if (sent) {
@@ -72,12 +75,14 @@ Deno.serve(async (req) => {
                 }
               }
             } else {
-              // 2-HOUR REMINDERS: Add 2 hours to last_reminder_sent_at
+              // 2-HOUR RECURRING REMINDERS
+              // Add 2 hours to last_reminder_sent_at (in UTC)
               const lastReminderUtc = new Date(task.last_reminder_sent_at);
               const nextReminderUtc = addHours(lastReminderUtc, 2);
-              const nextReminderLocal = toZonedTime(nextReminderUtc, task.timezone);
+              const nowUtc = new Date();
 
-              if (nowLocal >= nextReminderLocal) {
+              // Only send if 2 hours have passed
+              if (nowUtc >= nextReminderUtc) {
                 const sent = await sendNotification(supabase, task, 'recurring');
                 if (sent) {
                   await updateReminder(supabase, task.id);
@@ -94,16 +99,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({ success: true, sent: sentCount }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.log(`✅ Task reminders sent: ${sentCount} successful`);
+
+    return createJsonResponse({
+      success: true,
+      sent: sentCount,
+    });
   } catch (error) {
     console.error('Error in task-two-hour-reminder:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: (error as Error).message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return createErrorResponse(error as Error);
   }
 });
 
@@ -112,20 +116,21 @@ async function sendNotification(supabase: any, task: Task, type: 'first' | 'recu
     const startLocal = toZonedTime(new Date(task.start_time), task.timezone);
     const formattedTime = format(startLocal, 'h:mm a');
     
+    const title = type === 'first' ? '🚀 Task Starting Now!' : '⏰ Task Reminder';
     const message = type === 'first'
-      ? `Your task "${task.title}" starts now at ${formattedTime}! Let's get it done! 🚀`
-      : `Your task "${task.title}" is still pending! You started at ${formattedTime}. Keep going! 💪`;
+      ? `Your task "${task.title}" starts now at ${formattedTime}! Time to begin! 💪`
+      : `Still working on "${task.title}"? Started at ${formattedTime}. You got this! 🔥`;
 
-    const { error } = await supabase.functions.invoke('send-onesignal-notification', {
-      body: {
-        userId: task.user_id,
-        title: '🕒 Task Reminder',
-        message,
-        data: { type: 'task_reminder', task_id: task.id },
+    return await sendPushNotification(supabase, {
+      userId: task.user_id,
+      title,
+      message,
+      data: { 
+        type: 'task_reminder', 
+        task_id: task.id,
+        notification_type: type
       },
     });
-
-    return !error;
   } catch (error) {
     console.error('Error sending notification:', error);
     return false;

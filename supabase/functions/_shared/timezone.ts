@@ -1,6 +1,11 @@
 import { toZonedTime, fromZonedTime } from 'npm:date-fns-tz@3.2.0';
 import { format, addHours } from 'npm:date-fns@3.6.0';
 
+/**
+ * Unified timezone utilities for Supabase functions.
+ * All timezone conversions should use these functions.
+ */
+
 export function convertUtcToLocal(utcDate: Date | string, timezone: string): Date {
   const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
   return toZonedTime(date, timezone);
@@ -42,4 +47,25 @@ export function isTimeMatching(currentTime: Date, targetTime: string, windowMinu
   return currentHour === targetHour && 
          currentMinute >= targetMinute && 
          currentMinute < targetMinute + windowMinutes;
+}
+
+export function getDateInTimezone(timezone: string, date?: Date): string {
+  const targetDate = date || new Date();
+  const localDate = convertUtcToLocal(targetDate, timezone);
+  return format(localDate, 'yyyy-MM-dd');
+}
+
+export function getFunnyNotification(type: string): { message: string; emoji: string } {
+  const notifications = {
+    task_3day_overdue: {
+      message: "Bro… 3 days? Too lazy or too legendary? 😭😂",
+      emoji: "🚨"
+    },
+    daily_summary: {
+      message: "Good morning sunshine! ☀️",
+      emoji: "🌅"
+    }
+  };
+
+  return notifications[type as keyof typeof notifications] || notifications.daily_summary;
 }
