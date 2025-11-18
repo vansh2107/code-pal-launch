@@ -68,9 +68,17 @@ export default function EditTask() {
 
       if (error) throw error;
 
-      // Convert UTC time to user's timezone for display
-      const zonedTime = toZonedTime(new Date(data.start_time), timezone);
-      const formattedTime = format(zonedTime, "yyyy-MM-dd'T'HH:mm");
+      // Extract time from stored timestamp without timezone conversion
+      // Just parse the ISO string and extract the time components directly
+      const startTimeISO = data.start_time; // e.g., "2024-01-15T19:00:00.000Z"
+      const datePart = data.task_date; // e.g., "2024-01-15"
+      
+      // Extract hours and minutes from the ISO string directly
+      const timeMatch = startTimeISO.match(/T(\d{2}:\d{2})/);
+      const timePart = timeMatch ? timeMatch[1] : "00:00";
+      
+      // Combine date and time for the datetime-local input
+      const formattedTime = `${datePart}T${timePart}`;
 
       setFormData({
         title: data.title,
@@ -96,9 +104,13 @@ export default function EditTask() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Convert local time to UTC for storage
-      const localTime = new Date(formData.startTime);
-      const utcTime = fromZonedTime(localTime, timezone);
+      // Parse the datetime-local input (already in user's local timezone)
+      const [dateStr, timeStr] = formData.startTime.split("T");
+      
+      // Create a date object representing this time in the user's local timezone
+      // and convert to UTC for storage
+      const localDateTime = new Date(formData.startTime);
+      const utcTime = fromZonedTime(localDateTime, timezone);
 
       let imagePath = existingImagePath;
 
@@ -123,8 +135,6 @@ export default function EditTask() {
         imagePath = fileName;
       }
 
-      const taskDate = format(utcTime, "yyyy-MM-dd");
-
       const { error } = await supabase
         .from("tasks")
         .update({
@@ -133,7 +143,7 @@ export default function EditTask() {
           start_time: utcTime.toISOString(),
           timezone: timezone,
           image_path: imagePath,
-          task_date: taskDate,
+          task_date: dateStr,
         })
         .eq("id", id);
 

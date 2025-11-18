@@ -51,9 +51,13 @@ export default function AddTask() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Convert local time to UTC for storage
-      const localTime = new Date(formData.startTime);
-      const utcTime = fromZonedTime(localTime, timezone);
+      // Parse the datetime-local input (already in user's local timezone)
+      const [dateStr, timeStr] = formData.startTime.split("T");
+      
+      // Create a date object representing this time in the user's local timezone
+      // and convert to UTC for storage
+      const localDateTime = new Date(formData.startTime);
+      const utcTime = fromZonedTime(localDateTime, timezone);
 
       let imagePath = null;
 
@@ -70,8 +74,6 @@ export default function AddTask() {
         imagePath = fileName;
       }
 
-      const today = new Date().toISOString().split("T")[0];
-
       const { error } = await supabase.from("tasks").insert({
         user_id: user.id,
         title: formData.title,
@@ -79,8 +81,8 @@ export default function AddTask() {
         start_time: utcTime.toISOString(),
         timezone: timezone,
         image_path: imagePath,
-        task_date: today,
-        original_date: today,
+        task_date: dateStr,
+        original_date: dateStr,
         status: "pending",
         consecutive_missed_days: 0,
       });
