@@ -47,7 +47,7 @@ export default function Tasks() {
           .from("profiles")
           .select("timezone")
           .eq("user_id", user.id)
-          .single();
+          .maybeSingle();
         
         if (profile?.timezone) {
           setUserTimezone(profile.timezone);

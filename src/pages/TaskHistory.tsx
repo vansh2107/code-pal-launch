@@ -39,17 +39,21 @@ export default function TaskHistory() {
   }, []);
 
   const fetchUserTimezone = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("timezone")
-        .eq("user_id", user.id)
-        .single();
-      
-      if (profile?.timezone) {
-        setUserTimezone(profile.timezone);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("timezone")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        
+        if (profile?.timezone) {
+          setUserTimezone(profile.timezone);
+        }
       }
+    } catch (error) {
+      console.error("Error fetching timezone:", error);
     }
   };
 
@@ -58,24 +62,22 @@ export default function TaskHistory() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const sevenDaysAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
+      const sevenDaysAgo = subDays(new Date(), 7).toISOString();
       
-      // Fetch tasks created in last 7 days OR completed in last 7 days
+      // Fetch tasks from last 7 days
       const { data, error } = await supabase
         .from("tasks")
         .select("*")
         .eq("user_id", user.id)
-        .or(`original_date.gte.${sevenDaysAgo},end_time.gte.${sevenDaysAgo}T00:00:00`)
-        .order("original_date", { ascending: false })
-        .order("start_time", { ascending: false })
-        .limit(200); // Add limit for performance
+        .gte("created_at", sevenDaysAgo)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
       setTasks(data || []);
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to fetch task history",
         variant: "destructive",
       });
     } finally {

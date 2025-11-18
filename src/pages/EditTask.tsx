@@ -44,17 +44,21 @@ export default function EditTask() {
   }, [id]);
 
   const fetchUserTimezone = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("timezone")
-        .eq("user_id", user.id)
-        .single();
-      
-      if (profile?.timezone) {
-        setTimezone(profile.timezone);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("timezone")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        
+        if (profile?.timezone) {
+          setTimezone(profile.timezone);
+        }
       }
+    } catch (error) {
+      console.error("Error fetching timezone:", error);
     }
   };
 
@@ -64,9 +68,19 @@ export default function EditTask() {
         .from("tasks")
         .select("*")
         .eq("id", id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+
+      if (!data) {
+        toast({
+          title: "Task not found",
+          description: "The requested task could not be found.",
+          variant: "destructive",
+        });
+        navigate("/tasks");
+        return;
+      }
 
       // Convert UTC timestamp to user's local timezone for display
       const startTimeUtc = new Date(data.start_time);
@@ -84,7 +98,7 @@ export default function EditTask() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to fetch task",
         variant: "destructive",
       });
       navigate("/tasks");

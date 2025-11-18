@@ -156,14 +156,15 @@ export default function DocumentDetail() {
         .from('documents')
         .select('*')
         .eq('id', id)
+        .eq('user_id', user?.id)
         .maybeSingle();
 
       if (error) throw error;
       
       if (!data) {
         toast({
-          title: "Error",
-          description: "Document not found or you don't have permission to view it.",
+          title: "Document not found",
+          description: "The requested document could not be found or you don't have permission to view it.",
           variant: "destructive",
         });
         navigate('/documents');
@@ -184,11 +185,11 @@ export default function DocumentDetail() {
           setImageUrl(signedUrlData.signedUrl);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching document:', error);
       toast({
         title: "Error",
-        description: "Failed to load document. Please try again.",
+        description: error.message || "Failed to load document. Please try again.",
         variant: "destructive",
       });
       navigate('/documents');
