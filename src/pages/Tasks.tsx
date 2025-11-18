@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -181,74 +181,91 @@ export default function Tasks() {
       </div>
     );
   }
-        </div>
-      </div>
-    );
-  }
+
+  const completedTasks = tasks.filter(t => t.status === "completed");
+  const pendingTasks = tasks.filter(t => t.status === "pending");
+  const today = new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
+    <div className="min-h-screen bg-background pb-24 animate-fade-in">
       <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-foreground mb-1">Daily Tasks</h1>
-            <p className="text-sm text-muted-foreground">
-              {format(new Date(), "EEEE, MMM d")} • {tasks.length} task{tasks.length !== 1 ? "s" : ""}
-            </p>
+            <h1 className="text-2xl font-bold text-foreground">Daily Tasks</h1>
+            <p className="text-sm text-muted-foreground">{today}</p>
           </div>
-          <Button
-            onClick={() => navigate("/tasks/history")}
+          <Button 
+            onClick={() => navigate("/task-history")}
             variant="outline"
             size="sm"
+            className="rounded-full"
           >
-            <Calendar className="h-4 w-4 mr-2" />
             History
           </Button>
         </div>
+
+        <div className="flex gap-3">
+          <div className="flex-1 bg-card/50 backdrop-blur-sm rounded-[16px] p-3 border border-border/50">
+            <p className="text-xs text-muted-foreground mb-1">Pending</p>
+            <p className="text-xl font-bold text-foreground">{pendingTasks.length}</p>
+          </div>
+          <div className="flex-1 bg-valid-bg/50 backdrop-blur-sm rounded-[16px] p-3 border border-valid/30">
+            <p className="text-xs text-valid-foreground mb-1">Completed</p>
+            <p className="text-xl font-bold text-valid">{completedTasks.length}</p>
+          </div>
+        </div>
       </div>
 
-      {/* Tasks List */}
       <div className="p-4 space-y-4">
         {tasks.length === 0 ? (
-          <Card className="p-8 text-center">
-            <ClipboardList className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No tasks for today</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Create your first task to get started!
+          <div className="text-center py-16 space-y-4 animate-fade-in">
+            <div className="text-6xl mb-4">📋</div>
+            <h3 className="text-lg font-semibold text-foreground">No tasks for today</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+              Start planning your day by adding your first task
             </p>
-            <Button onClick={() => navigate("/tasks/add")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Task
+            <Button
+              onClick={() => navigate("/add-task")}
+              className="rounded-full px-8"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Add Your First Task
             </Button>
-          </Card>
+          </div>
         ) : (
-          tasks.map((task) => {
-            const statusInfo = getTaskStatusInfo(task);
-            const funnyMessage = getFunnyMessage(task.consecutive_missed_days);
-            
-            return (
-              <TaskCard
-                key={task.id}
-                task={task}
-                statusInfo={statusInfo}
-                funnyMessage={funnyMessage}
-                onRefresh={fetchTasks}
-                userTimezone={userTimezone}
-              />
-            );
-          })
+          <>
+            {tasks.map((task) => {
+              const statusInfo = getTaskStatusInfo(task);
+              const funnyMessage = getFunnyMessage(task.consecutive_missed_days);
+              
+              return (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  statusInfo={statusInfo}
+                  funnyMessage={funnyMessage}
+                  onRefresh={fetchTasks}
+                  userTimezone={userTimezone}
+                />
+              );
+            })}
+          </>
         )}
       </div>
 
-      {/* Floating Add Button */}
       <Button
-        onClick={() => navigate("/tasks/add")}
-        className="fixed bottom-24 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full shadow-lg btn-glow"
+        onClick={() => navigate("/add-task")}
+        className="fixed bottom-24 right-6 h-14 w-14 rounded-full shadow-lg hover:scale-110 smooth z-40"
         size="icon"
       >
         <Plus className="h-6 w-6" />
       </Button>
+
       <BottomNavigation />
     </div>
   );
