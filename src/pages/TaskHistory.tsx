@@ -22,6 +22,7 @@ interface Task {
   image_path: string | null;
   consecutive_missed_days: number;
   task_date: string;
+  original_date: string;
 }
 
 export default function TaskHistory() {
@@ -58,12 +59,13 @@ export default function TaskHistory() {
 
       const sevenDaysAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
       
+      // Fetch tasks created in last 7 days OR completed in last 7 days
       const { data, error } = await supabase
         .from("tasks")
         .select("*")
         .eq("user_id", user.id)
-        .gte("task_date", sevenDaysAgo)
-        .order("task_date", { ascending: false })
+        .or(`original_date.gte.${sevenDaysAgo},end_time.gte.${sevenDaysAgo}T00:00:00`)
+        .order("original_date", { ascending: false })
         .order("start_time", { ascending: false });
 
       if (error) throw error;
@@ -90,10 +92,20 @@ export default function TaskHistory() {
     return <Badge variant="outline">Pending</Badge>;
   };
 
+  // Group by createdDate (original_date) for pending, completedDate for completed
   const groupedTasks = tasks.reduce((acc, task) => {
-    const date = task.task_date;
-    if (!acc[date]) acc[date] = [];
-    acc[date].push(task);
+    let groupDate: string;
+    
+    if (task.status === "completed" && task.end_time) {
+      // For completed tasks, group by completion date
+      groupDate = task.end_time.split("T")[0];
+    } else {
+      // For pending/carried tasks, group by creation date
+      groupDate = task.original_date;
+    }
+    
+    if (!acc[groupDate]) acc[groupDate] = [];
+    acc[groupDate].push(task);
     return acc;
   }, {} as Record<string, Task[]>);
 
