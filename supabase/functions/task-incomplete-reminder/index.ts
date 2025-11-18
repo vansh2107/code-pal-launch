@@ -1,87 +1,91 @@
-import { createSupabaseClient, fetchProfilesWithTimezone, fetchActiveTasksForUser } from '../_shared/database.ts';
-import { getCurrentLocalTime } from '../_shared/timezone.ts';
-import { sendPushNotification } from '../_shared/notifications.ts';
-import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
 import { format } from 'npm:date-fns@3.6.0';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return handleCorsOptions();
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('📋 Starting task incomplete reminder job...');
-    
-    const supabase = createSupabaseClient();
-    const profiles = await fetchProfilesWithTimezone(supabase, true);
-    
-    if (profiles.length === 0) {
-      return createJsonResponse({ message: 'No profiles to process', processed: 0 });
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('user_id, timezone, push_notifications_enabled')
+      .eq('push_notifications_enabled', true)
+      .not('timezone', 'is', null);
+
+    if (profilesError) throw profilesError;
+    if (!profiles || profiles.length === 0) {
+      return new Response(JSON.stringify({ message: 'No users to process' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    console.log(`Processing ${profiles.length} users...`);
-    
     let sentCount = 0;
-    
+
     for (const profile of profiles) {
       try {
-        const tasks = await fetchActiveTasksForUser(supabase, profile.user_id, false);
+        const nowLocal = toZonedTime(new Date(), profile.timezone);
+        const todayLocal = format(nowLocal, 'yyyy-MM-dd');
+
+        const { data: tasks, error: tasksError } = await supabase
+          .from('tasks')
+          .select('id, user_id, title, task_date, consecutive_missed_days, status')
+          .eq('user_id', profile.user_id)
+          .eq('status', 'pending')
+          .lt('task_date', todayLocal);
+
+        if (tasksError) throw tasksError;
+        if (!tasks || tasks.length === 0) continue;
+
+        const urgentTasks = tasks.filter(t => (t.consecutive_missed_days || 0) >= 3);
         
-        if (tasks.length === 0) continue;
+        if (tasks.length > 0) {
+          const title = urgentTasks.length > 0 
+            ? '🚨 Urgent: Tasks Overdue 3+ Days!' 
+            : '📋 Incomplete Tasks Reminder';
+          
+          const message = urgentTasks.length > 0
+            ? `You have ${urgentTasks.length} task${urgentTasks.length > 1 ? 's' : ''} overdue for 3+ days. Time to tackle them! 💪`
+            : `You have ${tasks.length} incomplete task${tasks.length > 1 ? 's' : ''} from previous days. Let's complete them today! 🚀`;
 
-        const userLocalNow = getCurrentLocalTime(profile.timezone);
-        const today = format(userLocalNow, 'yyyy-MM-dd');
-        
-        const incompleteTasks = tasks.filter(task => task.task_date <= today);
-        
-        if (incompleteTasks.length === 0) continue;
+          const { error: notifError } = await supabase.functions.invoke('send-onesignal-notification', {
+            body: {
+              userId: profile.user_id,
+              title,
+              message,
+              data: { type: 'task_incomplete_reminder' },
+            },
+          });
 
-        const urgentTasks = incompleteTasks.filter(t => t.consecutive_missed_days >= 3);
-        const overdueTasks = incompleteTasks.filter(t => t.consecutive_missed_days > 0 && t.consecutive_missed_days < 3);
-        const todayTasks = incompleteTasks.filter(t => t.consecutive_missed_days === 0);
-
-        let notificationType = 'task_incomplete';
-        let taskSummary = '';
-        
-        if (urgentTasks.length > 0) {
-          notificationType = 'task_lazy_3days';
-          taskSummary = `${urgentTasks.length} urgent task${urgentTasks.length > 1 ? 's' : ''} (3+ days overdue)`;
-        } else if (overdueTasks.length > 0) {
-          taskSummary = `${overdueTasks.length} overdue task${overdueTasks.length > 1 ? 's' : ''}`;
-        } else {
-          taskSummary = `${todayTasks.length} task${todayTasks.length > 1 ? 's' : ''} due today`;
-        }
-
-        const funnyMessage = getFunnyNotification(notificationType, {
-          taskTitle: incompleteTasks[0].title,
-          consecutiveDays: incompleteTasks[0].consecutive_missed_days,
-        });
-
-        const sent = await sendPushNotification(supabase, {
-          userId: profile.user_id,
-          title: funnyMessage.title,
-          message: `You have ${taskSummary}. ${funnyMessage.message}`,
-          data: { type: 'task_incomplete_reminder' },
-        });
-
-        if (sent) {
-          sentCount++;
+          if (!notifError) {
+            sentCount++;
+          }
         }
       } catch (userError) {
         console.error(`Error processing user ${profile.user_id}:`, userError);
       }
     }
 
-    console.log(`✅ Sent ${sentCount} incomplete task reminders`);
-
-    return createJsonResponse({
-      success: true,
-      processed: profiles.length,
-      sent: sentCount,
-    });
+    return new Response(
+      JSON.stringify({ success: true, sent: sentCount }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
     console.error('Error in task-incomplete-reminder:', error);
-    return createErrorResponse(error as Error);
+    return new Response(
+      JSON.stringify({ success: false, error: (error as Error).message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });
