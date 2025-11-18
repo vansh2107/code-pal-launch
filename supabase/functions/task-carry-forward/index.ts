@@ -17,14 +17,11 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const today = new Date().toISOString().split("T")[0];
-
-    // Fetch all pending tasks with task_date < today
+    // Fetch all pending tasks; we will filter per-user using their timezone
     const { data: pendingTasks, error: fetchError } = await supabase
       .from("tasks")
       .select("*, profiles!inner(email, push_notifications_enabled, email_notifications_enabled, timezone)")
-      .eq("status", "pending")
-      .lt("task_date", today);
+      .eq("status", "pending");
 
     if (fetchError) throw fetchError;
 
@@ -32,32 +29,56 @@ serve(async (req) => {
     const notificationsSent = [];
 
     for (const task of pendingTasks || []) {
-      // Calculate days missed
-      const daysMissed = Math.floor(
-        (new Date(today).getTime() - new Date(task.task_date).getTime()) / 
-        (1000 * 60 * 60 * 24)
-      );
-      
-      const newConsecutiveDays = (task.consecutive_missed_days || 0) + daysMissed;
+      const profile = task.profiles;
+      if (!profile || !profile.timezone) continue;
 
-      // Update task: carry forward to today (NOT duplicate, just UPDATE)
+      // Compute user's local "today" in yyyy-MM-dd using Intl.DateTimeFormat
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: profile.timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+
+      const parts = formatter.formatToParts(now);
+      const y = parts.find((p) => p.type === "year")?.value;
+      const m = parts.find((p) => p.type === "month")?.value;
+      const d = parts.find((p) => p.type === "day")?.value;
+
+      const todayLocal = `${y}-${m}-${d}`;
+
+      // Skip if not actually overdue in user's timezone
+      if (task.task_date >= todayLocal) {
+        continue;
+      }
+
+      // Count how many days missed
+      const daysMissed = Math.max(
+        1,
+        Math.floor(
+          (new Date(todayLocal).getTime() - new Date(task.task_date).getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+      );
+
+      const newConsecutiveDays =
+        (task.consecutive_missed_days || 0) + daysMissed;
+
+      // Update the task's date to the user's local today
       const { error: updateError } = await supabase
         .from("tasks")
         .update({
-          task_date: today,
+          task_date: todayLocal,
           consecutive_missed_days: newConsecutiveDays,
         })
         .eq("id", task.id);
 
-      if (updateError) {
-        console.error(`Error updating task ${task.id}:`, updateError);
-        continue;
-      }
+      if (updateError) continue;
 
       carriedTasks.push(task.id);
 
       // Send notifications
-      const profile = task.profiles;
       
       const notificationType = newConsecutiveDays >= 3 ? "task_lazy_3days" : "task_incomplete";
       const funnyMessage = getFunnyNotification(notificationType, {

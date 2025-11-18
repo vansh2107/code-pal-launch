@@ -100,9 +100,12 @@ const handler = async (req: Request): Promise<Response> => {
           day: 'numeric' 
         });
 
-        // Calculate days until expiry
+        // Calculate days until expiry based on reminder_date instead of UTC today
+        const expiryDateObj = new Date(document.expiry_date);
+        const reminderDateObj = new Date(reminder.reminder_date);
+
         const daysUntilExpiry = Math.ceil(
-          (new Date(document.expiry_date).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24)
+          (expiryDateObj.getTime() - reminderDateObj.getTime()) / (1000 * 60 * 60 * 24)
         );
 
         const reminderType = reminder.is_custom ? 'Custom' : 'Automatic';
