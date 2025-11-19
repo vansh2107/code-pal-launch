@@ -94,31 +94,44 @@ const handler = async (req: Request): Promise<Response> => {
       // Check if current time matches user's preferred notification time in their timezone
       if (userPrefs?.timezone && userPrefs?.preferred_notification_time) {
         try {
-          const now = new Date();
           const userTimezone = userPrefs.timezone;
           const preferredTime = userPrefs.preferred_notification_time; // Format: "HH:MM:SS"
           
-          // Convert current UTC time to user's local time
-          const nowInUserTz = new Date(now.toLocaleString('en-US', { timeZone: userTimezone }));
-          const currentHour = nowInUserTz.getHours();
-          const currentMinute = nowInUserTz.getMinutes();
+          // Get current UTC time
+          const nowUtc = new Date();
           
-          // Parse preferred time
+          // Convert current UTC time to user's local timezone using Intl.DateTimeFormat
+          const userLocalTime = new Date(nowUtc.toLocaleString('en-US', { timeZone: userTimezone }));
+          const currentHour = userLocalTime.getHours();
+          const currentMinute = userLocalTime.getMinutes();
+          
+          // Parse preferred notification time
           const [preferredHour, preferredMinute] = preferredTime.split(':').map(Number);
           
-          // Check if current time is within the preferred notification hour (with 59-minute window)
-          const isCorrectTime = currentHour === preferredHour && currentMinute < 60;
+          // Check if current time matches preferred time (within the current hour)
+          // This allows notifications to be sent anytime during the preferred hour
+          const isCorrectHour = currentHour === preferredHour;
           
-          if (!isCorrectTime) {
-            console.log(`Skipping reminder ${reminder.id} - not the user's preferred notification time (current: ${currentHour}:${currentMinute}, preferred: ${preferredHour}:${preferredMinute})`);
+          if (!isCorrectHour) {
+            console.log(`⏭️ Skipping reminder ${reminder.id} for user ${reminder.user_id}`);
+            console.log(`   Current time in ${userTimezone}: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
+            console.log(`   Preferred time: ${preferredHour}:${preferredMinute.toString().padStart(2, '0')}`);
             continue;
           }
           
-          console.log(`✅ Sending at user's preferred time ${preferredHour}:${preferredMinute} (timezone: ${userTimezone})`);
+          console.log(`✅ Sending notification to user ${reminder.user_id}`);
+          console.log(`   Timezone: ${userTimezone}`);
+          console.log(`   Local time: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
+          console.log(`   Preferred time: ${preferredHour}:${preferredMinute.toString().padStart(2, '0')}`);
         } catch (tzError) {
-          console.error('Timezone conversion error:', tzError);
-          // Continue with notification if timezone conversion fails
+          console.error(`❌ Timezone conversion error for user ${reminder.user_id}:`, tzError);
+          console.log(`   Timezone: ${userPrefs.timezone}`);
+          // Skip this reminder on timezone error to prevent sending at wrong time
+          continue;
         }
+      } else {
+        console.log(`⚠️ No timezone or preferred time set for user ${reminder.user_id}, skipping`);
+        continue;
       }
 
       try {
