@@ -1,0 +1,15 @@
+{
+  "_comment": "PLACEHOLDER FILE - Replace this entire file with your actual google-services.json from Firebase Console",
+  "_instructions": [
+    "1. Go to Firebase Console (https://console.firebase.google.com/)",
+    "2. Select your project or create a new one",
+    "3. Go to Project Settings > General",
+    "4. Under 'Your apps', add an Android app or select existing",
+    "5. Download the google-services.json file",
+    "6. Replace THIS ENTIRE FILE with the downloaded google-services.json"
+  ],
+  "project_info": {
+    "project_number": "YOUR_PROJECT_NUMBER",
+    "project_id": "YOUR_PROJECT_ID"
+  }
+}
