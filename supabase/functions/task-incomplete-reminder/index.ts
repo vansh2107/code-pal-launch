@@ -1,7 +1,7 @@
 import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/database.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { getCurrentLocalTime, getFunnyNotification } from '../_shared/timezone.ts';
+import { getCurrentLocalTime, getCurrentLocalTimeString, getFunnyNotification } from '../_shared/timezone.ts';
 import { format } from 'npm:date-fns@3.6.0';
 
 /**
@@ -37,6 +37,17 @@ Deno.serve(async (req) => {
       try {
         const nowLocal = getCurrentLocalTime(profile.timezone);
         const todayLocal = format(nowLocal, 'yyyy-MM-dd');
+        
+        // Check if current time matches user's preferred notification time
+        const userLocalTimeString = getCurrentLocalTimeString(profile.timezone, 'HH:mm');
+        const preferredTime = profile.preferred_notification_time || '09:00:00';
+        const [preferredHour, preferredMinute] = preferredTime.split(':').map(Number);
+        const [currentHour, currentMinute] = userLocalTimeString.split(':').map(Number);
+        
+        // Only send if within the user's preferred hour
+        if (currentHour !== preferredHour) {
+          continue;
+        }
 
         // Find all pending tasks where task_date is before today
         const { data: tasks, error: tasksError } = await supabase
