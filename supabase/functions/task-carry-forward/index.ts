@@ -1,13 +1,14 @@
 import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/database.ts';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { getCurrentLocalTime } from '../_shared/timezone.ts';
+import { getCurrentLocalTime, getCurrentLocalTimeString } from '../_shared/timezone.ts';
 import { format } from 'npm:date-fns@3.6.0';
 
 /**
  * Task Carry Forward Function
  * 
  * Carries incomplete tasks forward to the next day.
- * - Runs at midnight (via cron)
+ * - Runs every hour via cron
+ * - Checks each user's local time and only processes at their midnight
  * - Only updates task_date (preserves start_time, original_date, etc.)
  * - Increments consecutive_missed_days counter
  * - Does NOT reset last_reminder_sent_at or any other fields
@@ -36,6 +37,15 @@ Deno.serve(async (req) => {
       try {
         const nowLocal = getCurrentLocalTime(profile.timezone);
         const todayLocal = format(nowLocal, 'yyyy-MM-dd');
+        
+        // Only process at midnight local time (00:00-00:59)
+        const userLocalTimeString = getCurrentLocalTimeString(profile.timezone, 'HH:mm');
+        const [currentHour] = userLocalTimeString.split(':').map(Number);
+        
+        if (currentHour !== 0) {
+          // Not midnight yet in this user's timezone
+          continue;
+        }
 
         // Find all pending tasks where task_date is before today
         const { data: tasks, error: tasksError } = await supabase
