@@ -26,6 +26,29 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Check if phone number is locked due to too many failed attempts
+    const { data: lockedCheck } = await supabase
+      .from("otp_codes")
+      .select("locked_until")
+      .eq("phone_number", normalizedPhone)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lockedCheck?.locked_until) {
+      const lockedUntil = new Date(lockedCheck.locked_until);
+      if (lockedUntil > new Date()) {
+        const minutesLeft = Math.ceil((lockedUntil.getTime() - Date.now()) / (60 * 1000));
+        console.log("Phone number locked:", normalizedPhone);
+        return new Response(
+          JSON.stringify({ 
+            error: `Too many failed attempts. Please try again in ${minutesLeft} minutes.` 
+          }),
+          { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+    }
+
     const { data: otpRecord, error: fetchError } = await supabase
       .from("otp_codes")
       .select("*")
@@ -54,15 +77,41 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (otpRecord.otp_code !== otp_code) {
       console.log("Invalid OTP code");
+      
+      // Increment failed attempts
+      const failedAttempts = (otpRecord.failed_attempts || 0) + 1;
+      const updateData: any = { failed_attempts: failedAttempts };
+      
+      // Lock account for 1 hour after 5 failed attempts
+      if (failedAttempts >= 5) {
+        const lockUntil = new Date(Date.now() + 60 * 60 * 1000);
+        updateData.locked_until = lockUntil.toISOString();
+        console.log("Locking phone number after 5 failed attempts:", normalizedPhone);
+      }
+      
+      await supabase
+        .from("otp_codes")
+        .update(updateData)
+        .eq("id", otpRecord.id);
+      
       return new Response(
-        JSON.stringify({ error: "Invalid OTP code" }),
+        JSON.stringify({ 
+          error: failedAttempts >= 5 
+            ? "Too many failed attempts. Account locked for 1 hour." 
+            : "Invalid OTP code" 
+        }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
+    // Reset failed attempts and clear lock on successful verification
     const { error: updateError } = await supabase
       .from("otp_codes")
-      .update({ is_verified: true })
+      .update({ 
+        is_verified: true, 
+        failed_attempts: 0,
+        locked_until: null 
+      })
       .eq("id", otpRecord.id);
 
     if (updateError) {
