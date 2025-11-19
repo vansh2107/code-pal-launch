@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
 
 const sendGridApiKey = Deno.env.get("SENDGRID_API_KEY");
 const sendGridEndpoint = 'https://api.sendgrid.com/v3/mail/send';
@@ -100,29 +101,26 @@ const handler = async (req: Request): Promise<Response> => {
           // Get current UTC time
           const nowUtc = new Date();
           
-          // Convert current UTC time to user's local timezone using Intl.DateTimeFormat
-          const userLocalTime = new Date(nowUtc.toLocaleString('en-US', { timeZone: userTimezone }));
+          // Convert current UTC time to user's local timezone using date-fns-tz
+          const userLocalTime = toZonedTime(nowUtc, userTimezone);
           const currentHour = userLocalTime.getHours();
           const currentMinute = userLocalTime.getMinutes();
           
           // Parse preferred notification time
           const [preferredHour, preferredMinute] = preferredTime.split(':').map(Number);
           
-          // Check if current time matches preferred time (within the current hour)
-          // This allows notifications to be sent anytime during the preferred hour
-          const isCorrectHour = currentHour === preferredHour;
-          
-          if (!isCorrectHour) {
+          // Only send if within a 5-minute window of preferred time (to account for cron execution timing)
+          if (currentHour === preferredHour && currentMinute >= 0 && currentMinute < 5) {
+            console.log(`✅ Sending notification to user ${reminder.user_id}`);
+            console.log(`   Timezone: ${userTimezone}`);
+            console.log(`   Local time: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
+            console.log(`   Preferred time: ${preferredHour}:${preferredMinute.toString().padStart(2, '0')}`);
+          } else {
             console.log(`⏭️ Skipping reminder ${reminder.id} for user ${reminder.user_id}`);
             console.log(`   Current time in ${userTimezone}: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
             console.log(`   Preferred time: ${preferredHour}:${preferredMinute.toString().padStart(2, '0')}`);
             continue;
           }
-          
-          console.log(`✅ Sending notification to user ${reminder.user_id}`);
-          console.log(`   Timezone: ${userTimezone}`);
-          console.log(`   Local time: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
-          console.log(`   Preferred time: ${preferredHour}:${preferredMinute.toString().padStart(2, '0')}`);
         } catch (tzError) {
           console.error(`❌ Timezone conversion error for user ${reminder.user_id}:`, tzError);
           console.log(`   Timezone: ${userPrefs.timezone}`);

@@ -39,13 +39,15 @@ Deno.serve(async (req) => {
         const todayLocal = format(nowLocal, 'yyyy-MM-dd');
         
         // Check if current time matches user's preferred notification time
-        const userLocalTimeString = getCurrentLocalTimeString(profile.timezone, 'HH:mm');
         const preferredTime = profile.preferred_notification_time || '09:00:00';
         const [preferredHour, preferredMinute] = preferredTime.split(':').map(Number);
-        const [currentHour, currentMinute] = userLocalTimeString.split(':').map(Number);
+        const currentHour = nowLocal.getHours();
+        const currentMinute = nowLocal.getMinutes();
         
-        // Only send if within the user's preferred hour
-        if (currentHour !== preferredHour) {
+        // Only send if within a 5-minute window of the preferred time
+        const isMatch = currentHour === preferredHour && currentMinute >= 0 && currentMinute < 5;
+        
+        if (!isMatch) {
           continue;
         }
 
