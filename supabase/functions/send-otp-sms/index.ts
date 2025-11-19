@@ -50,27 +50,29 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // MSGRush SMS API endpoint
-    const msgrushUrl = "https://www.msgrush.com/api/sendhttp.php";
+    const msgrushUrl = "https://msgrush-backend-258291301565.us-central1.run.app/api/sms-api/send";
     
-    // Prepare query parameters
-    const params = new URLSearchParams({
-      authkey: msgrushApiKey,
-      mobiles: normalizedPhone,
-      message: `Your OTP for Softly Reminder is: ${otp}. Valid for 10 minutes.`,
-      sender: msgrushSenderId,
-      route: "4", // Transactional route
-      country: "91", // India country code
+    // Prepare request body
+    const requestBody = {
+      sender_id: msgrushSenderId,
+      recipients: [normalizedPhone],
+      message: `Your OTP for Softly Reminder is: ${otp}. Valid for 10 minutes.`
+    };
+
+    const smsResponse = await fetch(msgrushUrl, {
+      method: "POST",
+      headers: {
+        "X-API-Key": msgrushApiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    const smsResponse = await fetch(`${msgrushUrl}?${params.toString()}`, {
-      method: "GET",
-    });
-
-    const responseText = await smsResponse.text();
-    console.log("MSGRush response:", responseText);
+    const responseData = await smsResponse.json();
+    console.log("MSGRush response:", responseData);
 
     if (!smsResponse.ok) {
-      console.error("MSGRush error:", responseText);
+      console.error("MSGRush error:", responseData);
       throw new Error("Failed to send SMS");
     }
 
