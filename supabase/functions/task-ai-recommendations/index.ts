@@ -41,13 +41,11 @@ Deno.serve(async (req) => {
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'google/gemini-2.5-flash',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          temperature: 0.7,
-          max_tokens: 100,
         }),
         signal: controller.signal,
       });
