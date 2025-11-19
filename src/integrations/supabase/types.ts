@@ -261,8 +261,11 @@ export type Database = {
         Row: {
           created_at: string | null
           expires_at: string
+          failed_attempts: number | null
           id: string
           is_verified: boolean | null
+          last_otp_sent_at: string | null
+          locked_until: string | null
           otp_code: string
           phone_number: string
           user_id: string | null
@@ -270,8 +273,11 @@ export type Database = {
         Insert: {
           created_at?: string | null
           expires_at: string
+          failed_attempts?: number | null
           id?: string
           is_verified?: boolean | null
+          last_otp_sent_at?: string | null
+          locked_until?: string | null
           otp_code: string
           phone_number: string
           user_id?: string | null
@@ -279,8 +285,11 @@ export type Database = {
         Update: {
           created_at?: string | null
           expires_at?: string
+          failed_attempts?: number | null
           id?: string
           is_verified?: boolean | null
+          last_otp_sent_at?: string | null
+          locked_until?: string | null
           otp_code?: string
           phone_number?: string
           user_id?: string | null
