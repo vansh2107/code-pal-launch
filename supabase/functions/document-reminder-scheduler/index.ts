@@ -186,10 +186,7 @@ async function sendDocumentReminders(
       // Mark reminder as sent
       const { error: updateError } = await supabase
         .from('reminders')
-        .update({ 
-          is_sent: true,
-          sent_at: new Date().toISOString()
-        })
+        .update({ is_sent: true })
         .eq('id', reminder.id);
 
       if (updateError) {

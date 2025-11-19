@@ -97,28 +97,24 @@ const handler = async (req: Request): Promise<Response> => {
         try {
           const userTimezone = userPrefs.timezone;
           const preferredTime = userPrefs.preferred_notification_time; // Format: "HH:MM:SS"
+          const preferredHour = parseInt(preferredTime.split(':')[0]);
           
-          // Get current UTC time
-          const nowUtc = new Date();
-          
-          // Convert current UTC time to user's local timezone using date-fns-tz
-          const userLocalTime = toZonedTime(nowUtc, userTimezone);
+          // Get current time in user's local timezone using date-fns-tz
+          const userLocalTime = toZonedTime(new Date(), userTimezone);
           const currentHour = userLocalTime.getHours();
           const currentMinute = userLocalTime.getMinutes();
           
-          // Parse preferred notification time
-          const [preferredHour, preferredMinute] = preferredTime.split(':').map(Number);
-          
-          // Only send if within a 5-minute window of preferred time (to account for cron execution timing)
-          if (currentHour === preferredHour && currentMinute >= 0 && currentMinute < 5) {
+          // Send notification during the preferred hour (within 59-minute window)
+          // This ensures delivery even if cron timing varies slightly
+          if (currentHour === preferredHour) {
             console.log(`✅ Sending notification to user ${reminder.user_id}`);
             console.log(`   Timezone: ${userTimezone}`);
             console.log(`   Local time: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
-            console.log(`   Preferred time: ${preferredHour}:${preferredMinute.toString().padStart(2, '0')}`);
+            console.log(`   Preferred time: ${preferredHour}:00`);
           } else {
             console.log(`⏭️ Skipping reminder ${reminder.id} for user ${reminder.user_id}`);
             console.log(`   Current time in ${userTimezone}: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
-            console.log(`   Preferred time: ${preferredHour}:${preferredMinute.toString().padStart(2, '0')}`);
+            console.log(`   Preferred time: ${preferredHour}:00`);
             continue;
           }
         } catch (tzError) {
