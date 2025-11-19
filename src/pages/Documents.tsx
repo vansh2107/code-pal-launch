@@ -96,6 +96,14 @@ export default function Documents() {
   const [filterStatus, setFilterStatus] = useState<"all" | "expired" | "expiring" | "valid">("all");
 
 
+  // Read status from URL query parameter on mount
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (status && ['all', 'valid', 'expiring', 'expired'].includes(status)) {
+      setFilterStatus(status as "all" | "expired" | "expiring" | "valid");
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     if (user) {
       fetchDocuments();
