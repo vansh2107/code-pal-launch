@@ -39,8 +39,14 @@ Deno.serve(async (req) => {
       try {
         const userLocalTimeString = getCurrentLocalTimeString(profile.timezone, 'HH:mm');
         
+        // Normalize preferred time to HH:mm format (remove seconds if present)
+        const preferredTime = profile.preferred_notification_time?.substring(0, 5) || '09:00';
+        
+        console.log(`User ${profile.user_id}: local time=${userLocalTimeString}, preferred=${preferredTime}, timezone=${profile.timezone}`);
+        
         // Check if current time matches user's preferred notification time
-        if (userLocalTimeString === profile.preferred_notification_time) {
+        if (userLocalTimeString === preferredTime) {
+          console.log(`✅ Time match for user ${profile.user_id}!`);
           const todayLocal = getDateInTimezone(profile.timezone);
           
           // Fetch reminders for today that haven't been sent
