@@ -66,20 +66,24 @@ export default function DocVault() {
 
   const startCamera = async () => {
     try {
+      setShowCamera(true);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn("DocVault video play failed:", playErr);
+        }
       }
-      setShowCamera(true);
     } catch (error) {
       console.error("Camera error:", error);
       toast.error("Failed to access camera");
+      setShowCamera(false);
     }
   };
-
   const stopCamera = () => {
     if (videoRef.current?.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
