@@ -68,10 +68,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     const userEmailMap = new Map(users?.map(u => [u.id, u.email]) || []);
 
-    // Get user preferences
+    // Get user preferences including timezone and preferred notification time
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('user_id, email_notifications_enabled, expiry_reminders_enabled, display_name, push_notifications_enabled');
+      .select('user_id, email_notifications_enabled, expiry_reminders_enabled, display_name, push_notifications_enabled, timezone, preferred_notification_time');
 
     const userPrefsMap = new Map(
       profiles?.map(p => [p.user_id, p]) || []
@@ -89,6 +89,36 @@ const handler = async (req: Request): Promise<Response> => {
       if (!userEmail || userPrefs?.email_notifications_enabled === false || userPrefs?.expiry_reminders_enabled === false) {
         console.log(`Skipping reminder ${reminder.id} - user notifications disabled`);
         continue;
+      }
+
+      // Check if current time matches user's preferred notification time in their timezone
+      if (userPrefs?.timezone && userPrefs?.preferred_notification_time) {
+        try {
+          const now = new Date();
+          const userTimezone = userPrefs.timezone;
+          const preferredTime = userPrefs.preferred_notification_time; // Format: "HH:MM:SS"
+          
+          // Convert current UTC time to user's local time
+          const nowInUserTz = new Date(now.toLocaleString('en-US', { timeZone: userTimezone }));
+          const currentHour = nowInUserTz.getHours();
+          const currentMinute = nowInUserTz.getMinutes();
+          
+          // Parse preferred time
+          const [preferredHour, preferredMinute] = preferredTime.split(':').map(Number);
+          
+          // Check if current time is within the preferred notification hour (with 59-minute window)
+          const isCorrectTime = currentHour === preferredHour && currentMinute < 60;
+          
+          if (!isCorrectTime) {
+            console.log(`Skipping reminder ${reminder.id} - not the user's preferred notification time (current: ${currentHour}:${currentMinute}, preferred: ${preferredHour}:${preferredMinute})`);
+            continue;
+          }
+          
+          console.log(`✅ Sending at user's preferred time ${preferredHour}:${preferredMinute} (timezone: ${userTimezone})`);
+        } catch (tzError) {
+          console.error('Timezone conversion error:', tzError);
+          // Continue with notification if timezone conversion fails
+        }
       }
 
       try {
