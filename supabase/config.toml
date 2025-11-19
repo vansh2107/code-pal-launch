@@ -9,6 +9,33 @@ verify_jwt = false
 [functions.task-ai-recommendations]
 verify_jwt = true
 
+[functions.scan-document]
+verify_jwt = true
+
+[functions.ai-document-analysis]
+verify_jwt = true
+
+[functions.chatbot]
+verify_jwt = true
+
+[functions.document-renewal-advisor]
+verify_jwt = true
+
+[functions.send-immediate-reminder]
+verify_jwt = true
+
+[functions.send-bulk-notification]
+verify_jwt = true
+
+[functions.send-onesignal-notification]
+verify_jwt = true
+
+[functions.test-push-notification]
+verify_jwt = true
+
+[functions.delete-user-account]
+verify_jwt = true
+
 [functions.task-carry-forward]
 verify_jwt = false
 
@@ -22,4 +49,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.document-reminder]
+verify_jwt = false
+
+[functions.send-expiry-reminders]
+verify_jwt = false
+
+[functions.send-reminder-emails]
 verify_jwt = false
