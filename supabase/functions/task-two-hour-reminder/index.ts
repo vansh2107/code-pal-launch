@@ -1,6 +1,7 @@
 import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/database.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
+import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
 
 /**
  * Task Two-Hour Reminder Function
@@ -68,12 +69,14 @@ Deno.serve(async (req) => {
 
         for (const task of tasks) {
           try {
-            // Convert "now" and task start_time into the user's timezone
-            const userNowString = new Date().toLocaleString('en-US', { timeZone: task.timezone });
-            const userStartString = new Date(task.start_time).toLocaleString('en-US', { timeZone: task.timezone });
+            // Convert UTC times to user's local timezone
+            const nowUtc = new Date();
+            const startTimeUtc = new Date(task.start_time);
+            
+            const userNow = toZonedTime(nowUtc, task.timezone);
+            const userStart = toZonedTime(startTimeUtc, task.timezone);
 
-            const userNow = new Date(userNowString);
-            const userStart = new Date(userStartString);
+            console.log(`Task ${task.id}: Start time ${task.start_time} -> Local: ${userStart.toISOString()}, Now: ${userNow.toISOString()}`);
 
             // Window of 5 minutes for matching (since cron runs every 5 minutes)
             const FIVE_MINUTES_MS = 5 * 60 * 1000;
@@ -81,8 +84,11 @@ Deno.serve(async (req) => {
             if (!task.start_notified) {
               const diffMs = userNow.getTime() - userStart.getTime();
 
-              // Send ONLY once when we first cross the start time within a 5-minute window
+              console.log(`Task ${task.id}: Not yet notified, diff: ${diffMs}ms`);
+
+              // Send when we're at or past the start time
               if (diffMs >= 0 && diffMs <= FIVE_MINUTES_MS) {
+                console.log(`Task ${task.id}: Sending first notification`);
                 const sent = await sendNotification(supabase, task, 'first');
                 if (sent) {
                   await updateStartNotified(supabase, task.id);
@@ -90,17 +96,18 @@ Deno.serve(async (req) => {
                 }
               }
             } else if (task.last_reminder_sent_at) {
-              // Recurring 2‑hour reminders after the first one
-              const lastReminderString = new Date(task.last_reminder_sent_at).toLocaleString('en-US', {
-                timeZone: task.timezone,
-              });
-              const lastReminderLocal = new Date(lastReminderString);
+              // Recurring 2-hour reminders after the first one
+              const lastReminderUtc = new Date(task.last_reminder_sent_at);
+              const lastReminderLocal = toZonedTime(lastReminderUtc, task.timezone);
               const nextReminderLocal = new Date(lastReminderLocal.getTime() + 2 * 60 * 60 * 1000);
 
               const diffMs = userNow.getTime() - nextReminderLocal.getTime();
 
+              console.log(`Task ${task.id}: Next 2h reminder at ${nextReminderLocal.toISOString()}, diff: ${diffMs}ms`);
+
               // Check if we're within 5 minutes past the 2-hour mark
               if (diffMs >= 0 && diffMs <= FIVE_MINUTES_MS) {
+                console.log(`Task ${task.id}: Sending recurring notification`);
                 const sent = await sendNotification(supabase, task, 'recurring');
                 if (sent) {
                   await updateReminder(supabase, task.id);
@@ -131,8 +138,10 @@ Deno.serve(async (req) => {
 
 async function sendNotification(supabase: any, task: Task, type: 'first' | 'recurring'): Promise<boolean> {
   try {
-    const startLocalString = new Date(task.start_time).toLocaleString('en-US', {
-      timeZone: task.timezone,
+    const startTimeUtc = new Date(task.start_time);
+    const startTimeLocal = toZonedTime(startTimeUtc, task.timezone);
+    
+    const startLocalString = startTimeLocal.toLocaleString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
