@@ -75,14 +75,14 @@ Deno.serve(async (req) => {
             const userNow = new Date(userNowString);
             const userStart = new Date(userStartString);
 
-            // Window of 1 minute for matching
-            const ONE_MINUTE_MS = 60 * 1000;
+            // Window of 5 minutes for matching (since cron runs every 5 minutes)
+            const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
             if (!task.start_notified) {
               const diffMs = userNow.getTime() - userStart.getTime();
 
-              // Send ONLY once when we first cross the start time within a 1‑minute window
-              if (diffMs >= 0 && diffMs <= ONE_MINUTE_MS) {
+              // Send ONLY once when we first cross the start time within a 5-minute window
+              if (diffMs >= 0 && diffMs <= FIVE_MINUTES_MS) {
                 const sent = await sendNotification(supabase, task, 'first');
                 if (sent) {
                   await updateStartNotified(supabase, task.id);
@@ -99,7 +99,8 @@ Deno.serve(async (req) => {
 
               const diffMs = userNow.getTime() - nextReminderLocal.getTime();
 
-              if (diffMs >= 0 && diffMs <= ONE_MINUTE_MS) {
+              // Check if we're within 5 minutes past the 2-hour mark
+              if (diffMs >= 0 && diffMs <= FIVE_MINUTES_MS) {
                 const sent = await sendNotification(supabase, task, 'recurring');
                 if (sent) {
                   await updateReminder(supabase, task.id);
