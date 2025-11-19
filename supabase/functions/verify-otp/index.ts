@@ -137,33 +137,14 @@ const handler = async (req: Request): Promise<Response> => {
       profile = profileWild ?? null;
     }
 
-    // If no profile exists, this is a signup flow - just verify OTP and return success
-    if (!profile) {
-      console.log("OTP verified successfully for new signup");
-      return new Response(
-        JSON.stringify({
-          success: true,
-          is_new_user: true,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    // Fetch email from auth.users if profile email is null
-    let userEmail = profile.email;
-    if (!userEmail) {
-      const { data: authUser } = await supabase.auth.admin.getUserById(profile.user_id);
-      userEmail = authUser?.user?.email ?? null;
-    }
-
-    console.log("OTP verified successfully for existing user:", profile.user_id);
+    // Return identical response format regardless of new or existing user
+    // to prevent phone number enumeration attacks
+    console.log("OTP verified successfully");
 
     return new Response(
       JSON.stringify({
         success: true,
-        user_id: profile.user_id,
-        email: userEmail,
-        is_new_user: false,
+        phone_number: normalizedPhone,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
