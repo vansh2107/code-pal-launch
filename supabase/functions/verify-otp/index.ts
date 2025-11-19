@@ -88,11 +88,15 @@ const handler = async (req: Request): Promise<Response> => {
       profile = profileWild ?? null;
     }
 
+    // If no profile exists, this is a signup flow - just verify OTP and return success
     if (!profile) {
-      console.error("User not found with this phone number", { normalizedPhone });
+      console.log("OTP verified successfully for new signup");
       return new Response(
-        JSON.stringify({ error: "User not found with this phone number" }),
-        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({
+          success: true,
+          is_new_user: true,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -103,13 +107,14 @@ const handler = async (req: Request): Promise<Response> => {
       userEmail = authUser?.user?.email ?? null;
     }
 
-    console.log("OTP verified successfully for user:", profile.user_id);
+    console.log("OTP verified successfully for existing user:", profile.user_id);
 
     return new Response(
       JSON.stringify({
         success: true,
         user_id: profile.user_id,
         email: userEmail,
+        is_new_user: false,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
