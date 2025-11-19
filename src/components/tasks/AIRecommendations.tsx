@@ -31,8 +31,8 @@ export function AIRecommendations({ task }: AIRecommendationsProps) {
       
       const { data, error } = await supabase.functions.invoke("task-ai-recommendations", {
         body: {
-          taskTitle: safeTitle,
-          taskDescription: safeDesc,
+          title: safeTitle,
+          description: safeDesc,
           missedDays: task.consecutive_missed_days,
           status: task.status,
         },
