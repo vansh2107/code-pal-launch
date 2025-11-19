@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.send-reminder-emails]
 verify_jwt = false
+
+[functions.document-reminder-scheduler]
+verify_jwt = false
