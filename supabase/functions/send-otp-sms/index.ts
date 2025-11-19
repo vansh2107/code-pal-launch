@@ -41,24 +41,41 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to store OTP");
     }
 
-    const twoFactorApiKey = Deno.env.get("TWOFACTOR_API_KEY");
+    const exotelApiKey = Deno.env.get("EXOTEL_API_KEY");
+    const exotelApiToken = Deno.env.get("EXOTEL_API_TOKEN");
+    const exotelSid = Deno.env.get("EXOTEL_SID");
+    const exotelSenderId = Deno.env.get("EXOTEL_SENDER_ID");
     
-    if (!twoFactorApiKey) {
-      console.error("2Factor API key not configured");
+    if (!exotelApiKey || !exotelApiToken || !exotelSid || !exotelSenderId) {
+      console.error("Exotel credentials not configured");
       throw new Error("SMS service not configured");
     }
 
-    // 2factor.in API endpoint - using auto-generated OTP
-    const twoFactorUrl = `https://2factor.in/API/V1/${twoFactorApiKey}/SMS/${normalizedPhone}/${otp}`;
+    // Exotel SMS API endpoint
+    const exotelUrl = `https://api.exotel.com/v1/Accounts/${exotelSid}/Sms/send.json`;
+    
+    // Create Basic Auth header
+    const authHeader = `Basic ${btoa(`${exotelApiKey}:${exotelApiToken}`)}`;
+    
+    // Prepare form data
+    const formData = new URLSearchParams();
+    formData.append("From", exotelSenderId);
+    formData.append("To", normalizedPhone);
+    formData.append("Body", `Your OTP for Softly Reminder is: ${otp}. Valid for 10 minutes.`);
 
-    const smsResponse = await fetch(twoFactorUrl, {
-      method: "GET",
+    const smsResponse = await fetch(exotelUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": authHeader,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formData.toString(),
     });
 
     const responseData = await smsResponse.json();
 
-    if (!smsResponse.ok || responseData.Status !== "Success") {
-      console.error("2Factor.in error:", responseData);
+    if (!smsResponse.ok) {
+      console.error("Exotel error:", responseData);
       throw new Error("Failed to send SMS");
     }
 
