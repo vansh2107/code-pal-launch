@@ -107,24 +107,24 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Get user's preferred notification time from profile
+        // Get user's preferred notification time from profile (format: HH:MM:SS)
         const preferredTime = profile.preferred_notification_time || '12:00:00';
-        const [preferredHour, preferredMinute] = preferredTime.split(':').map(Number);
+        const preferredHour = parseInt(preferredTime.split(':')[0]);
         
-        // Get current time in user's local timezone using toZonedTime
-        const nowUtc = new Date();
-        const nowLocal = convertUtcToLocal(nowUtc, profile.timezone);
+        // Get current time in user's local timezone
+        const nowLocal = getCurrentLocalTime(profile.timezone);
         const currentHour = nowLocal.getHours();
         const currentMinute = nowLocal.getMinutes();
         
-        // Send notification only during the user's preferred hour and within a 5-minute window
-        const isMatch = currentHour === preferredHour && currentMinute >= 0 && currentMinute < 5;
+        // Send notification during the preferred hour (within 59-minute window)
+        // This ensures delivery even if cron timing varies slightly
+        const isMatch = currentHour === preferredHour;
         
         if (isMatch) {
           console.log(`✅ Sending to user ${reminder.user_id} at their preferred time ${preferredHour}:00 (${profile.timezone})`);
           console.log(`   Current local time: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
         } else {
-          console.log(`⏭️ Skipping user ${reminder.user_id} - not their preferred hour (current: ${currentHour}, preferred: ${preferredHour})`);
+          console.log(`⏭️ Skipping user ${reminder.user_id} - not their preferred hour (current: ${currentHour}:xx, preferred: ${preferredHour}:00)`);
           continue;
         }
         
