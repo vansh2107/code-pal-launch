@@ -113,6 +113,13 @@ export default function EditTask() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Fetch the current task to check if start_time changed
+      const { data: currentTask } = await supabase
+        .from("tasks")
+        .select("start_time")
+        .eq("id", id)
+        .single();
+
       // Parse the datetime-local input and convert from user's timezone to UTC
       const [dateStr, timeStr] = formData.startTime.split("T");
       const [hours, minutes] = timeStr.split(":");
@@ -126,6 +133,11 @@ export default function EditTask() {
       
       // Calculate local_date in yyyy-mm-dd format for filtering
       const localDate = dateStr;
+
+      // Check if start time changed and if new time is in the future
+      const startTimeChanged = currentTask && currentTask.start_time !== utcTime.toISOString();
+      const newTimeInFuture = utcTime > new Date();
+      const shouldResetNotifications = startTimeChanged && newTimeInFuture;
 
       let imagePath = existingImagePath;
 
@@ -156,26 +168,38 @@ export default function EditTask() {
         imagePath = fileName;
       }
 
+      // Prepare update data
+      const updateData: any = {
+        title: formData.title,
+        description: formData.description || null,
+        start_time: utcTime.toISOString(),
+        timezone: timezone,
+        image_path: imagePath,
+        local_date: localDate,
+        task_date: localDate,
+        reminder_active: true,
+      };
+
+      // Only reset notification flags if start time changed to a future time
+      if (shouldResetNotifications) {
+        updateData.last_reminder_sent_at = null;
+        updateData.start_notified = false;
+      }
+
       const { error } = await supabase
         .from("tasks")
-        .update({
-          title: formData.title,
-          description: formData.description || null,
-          start_time: utcTime.toISOString(),
-          timezone: timezone,
-          image_path: imagePath,
-          local_date: localDate,
-          task_date: localDate,
-          reminder_active: true,
-          last_reminder_sent_at: null,
-        })
+        .update(updateData)
         .eq("id", id);
 
       if (error) throw error;
 
+      const message = shouldResetNotifications 
+        ? "Task updated! You'll receive a notification at the new start time."
+        : "Your task has been updated successfully.";
+
       toast({
         title: "Task updated!",
-        description: "Your task has been updated successfully.",
+        description: message,
       });
 
       navigate(`/task/${id}`);
