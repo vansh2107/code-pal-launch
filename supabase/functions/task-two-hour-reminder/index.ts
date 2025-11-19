@@ -1,8 +1,6 @@
 import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/database.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
-import { addHours, format, isAfter, isSameMinute } from 'npm:date-fns@3.6.0';
 
 /**
  * Task Two-Hour Reminder Function
@@ -48,8 +46,14 @@ Deno.serve(async (req) => {
 
     for (const profile of profiles) {
       try {
-        const nowLocal = toZonedTime(new Date(), profile.timezone);
-        const todayLocal = format(nowLocal, 'yyyy-MM-dd');
+        // Get today's date in user's local timezone (YYYY-MM-DD)
+        const todayFormatter = new Intl.DateTimeFormat('en-CA', {
+          timeZone: profile.timezone,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        });
+        const todayLocal = todayFormatter.format(new Date());
 
         const { data: tasks, error: tasksError } = await supabase
           .from('tasks')
@@ -64,13 +68,21 @@ Deno.serve(async (req) => {
 
         for (const task of tasks) {
           try {
-            // Convert start_time to user's timezone for comparison
-            const startLocal = toZonedTime(new Date(task.start_time), task.timezone);
-            
-            // FIRST NOTIFICATION: Send at exact start time
+            // Convert "now" and task start_time into the user's timezone
+            const userNowString = new Date().toLocaleString('en-US', { timeZone: task.timezone });
+            const userStartString = new Date(task.start_time).toLocaleString('en-US', { timeZone: task.timezone });
+
+            const userNow = new Date(userNowString);
+            const userStart = new Date(userStartString);
+
+            // Window of 1 minute for matching
+            const ONE_MINUTE_MS = 60 * 1000;
+
             if (!task.start_notified) {
-              // Check if current time matches start time (within same minute)
-              if (isSameMinute(nowLocal, startLocal) || isAfter(nowLocal, startLocal)) {
+              const diffMs = userNow.getTime() - userStart.getTime();
+
+              // Send ONLY once when we first cross the start time within a 1‑minute window
+              if (diffMs >= 0 && diffMs <= ONE_MINUTE_MS) {
                 const sent = await sendNotification(supabase, task, 'first');
                 if (sent) {
                   await updateStartNotified(supabase, task.id);
@@ -78,13 +90,16 @@ Deno.serve(async (req) => {
                 }
               }
             } else if (task.last_reminder_sent_at) {
-              // RECURRING 2-HOUR REMINDERS
-              // Convert last reminder to user timezone and add 2 hours
-              const lastReminderLocal = toZonedTime(new Date(task.last_reminder_sent_at), task.timezone);
-              const nextReminderLocal = addHours(lastReminderLocal, 2);
-              
-              // Check if it's time for next reminder (within same minute or after)
-              if (isSameMinute(nowLocal, nextReminderLocal) || isAfter(nowLocal, nextReminderLocal)) {
+              // Recurring 2‑hour reminders after the first one
+              const lastReminderString = new Date(task.last_reminder_sent_at).toLocaleString('en-US', {
+                timeZone: task.timezone,
+              });
+              const lastReminderLocal = new Date(lastReminderString);
+              const nextReminderLocal = new Date(lastReminderLocal.getTime() + 2 * 60 * 60 * 1000);
+
+              const diffMs = userNow.getTime() - nextReminderLocal.getTime();
+
+              if (diffMs >= 0 && diffMs <= ONE_MINUTE_MS) {
                 const sent = await sendNotification(supabase, task, 'recurring');
                 if (sent) {
                   await updateReminder(supabase, task.id);
@@ -115,13 +130,17 @@ Deno.serve(async (req) => {
 
 async function sendNotification(supabase: any, task: Task, type: 'first' | 'recurring'): Promise<boolean> {
   try {
-    const startLocal = toZonedTime(new Date(task.start_time), task.timezone);
-    const formattedTime = format(startLocal, 'h:mm a');
-    
+    const startLocalString = new Date(task.start_time).toLocaleString('en-US', {
+      timeZone: task.timezone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+
     const title = type === 'first' ? '🚀 Task Starting Now!' : '⏰ Task Reminder';
     const message = type === 'first'
-      ? `Your task "${task.title}" starts now at ${formattedTime}! Time to begin! 💪`
-      : `Still working on "${task.title}"? Started at ${formattedTime}. You got this! 🔥`;
+      ? `Your task "${task.title}" starts now at ${startLocalString}! Time to begin! 💪`
+      : `Still working on "${task.title}"? Started at ${startLocalString}. You got this! 🔥`;
 
     return await sendPushNotification(supabase, {
       userId: task.user_id,
