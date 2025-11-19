@@ -209,17 +209,17 @@ html, body, #root {
 
 /* International Phone Input Styles */
 .international-phone-input .PhoneInput {
-  @apply w-full;
+  @apply w-full flex items-center gap-2;
 }
 
 .international-phone-input .PhoneInputInput {
-  @apply w-full rounded-xl border border-input bg-input px-4 py-3 text-base text-foreground transition-colors;
+  @apply flex-1 rounded-xl border border-input bg-input px-4 py-3 text-base text-foreground transition-colors;
   @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
   @apply placeholder:text-muted-foreground;
 }
 
 .international-phone-input .PhoneInputCountry {
-  @apply mr-2 px-2 py-2 rounded-lg bg-muted border-none;
+  @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-input;
 }
 
 .international-phone-input .PhoneInputCountrySelect {
@@ -227,9 +227,9 @@ html, body, #root {
 }
 
 .international-phone-input .PhoneInputCountryIcon {
-  @apply w-6 h-6;
+  @apply w-6 h-4 flex-shrink-0;
 }
 
 .international-phone-input .PhoneInputCountryIconImg {
-  @apply w-full h-full;
+  @apply w-full h-full object-cover rounded-sm;
 }
