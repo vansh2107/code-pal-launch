@@ -109,16 +109,18 @@ Deno.serve(async (req) => {
 
         // Get user's preferred notification time from profile
         const preferredTime = profile.preferred_notification_time || '12:00:00';
-        const [preferredHour] = preferredTime.split(':').map(Number);
+        const [preferredHour, preferredMinute] = preferredTime.split(':').map(Number);
         
-        // Get current time in user's local timezone
+        // Get current time in user's local timezone using toZonedTime
         const nowUtc = new Date();
-        const nowLocal = new Date(nowUtc.toLocaleString('en-US', { timeZone: profile.timezone }));
+        const nowLocal = convertUtcToLocal(nowUtc, profile.timezone);
         const currentHour = nowLocal.getHours();
         const currentMinute = nowLocal.getMinutes();
         
-        // Send notification only during the user's preferred hour
-        if (currentHour === preferredHour) {
+        // Send notification only during the user's preferred hour and within a 5-minute window
+        const isMatch = currentHour === preferredHour && currentMinute >= 0 && currentMinute < 5;
+        
+        if (isMatch) {
           console.log(`✅ Sending to user ${reminder.user_id} at their preferred time ${preferredHour}:00 (${profile.timezone})`);
           console.log(`   Current local time: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
         } else {
