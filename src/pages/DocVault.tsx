@@ -71,6 +71,7 @@ export default function DocVault() {
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        await videoRef.current.play();
       }
       setShowCamera(true);
     } catch (error) {
@@ -405,6 +406,7 @@ export default function DocVault() {
                   ref={videoRef}
                   autoPlay
                   playsInline
+                  muted
                   className="w-full rounded-lg bg-black"
                 />
                 <div className="flex gap-2 justify-center">
