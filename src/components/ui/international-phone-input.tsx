@@ -31,7 +31,6 @@ export function InternationalPhoneInput({
         disabled={disabled}
         className="phone-input-container"
         placeholder="Enter phone number"
-        countrySelectComponent={() => null}
       />
     </div>
   );
