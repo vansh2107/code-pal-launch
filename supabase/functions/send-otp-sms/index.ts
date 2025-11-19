@@ -17,7 +17,7 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const { phone_number }: SendOTPRequest = await req.json();
-    console.log("Sending OTP to:", phone_number);
+    console.log("Sending OTP via MSGRush to:", phone_number);
 
     const normalizedPhone = phone_number.replace(/[\s\-()]/g, "");
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -41,45 +41,40 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to store OTP");
     }
 
-    const exotelApiKey = Deno.env.get("EXOTEL_API_KEY");
-    const exotelApiToken = Deno.env.get("EXOTEL_API_TOKEN");
-    const exotelSid = Deno.env.get("EXOTEL_SID");
-    const exotelSenderId = Deno.env.get("EXOTEL_SENDER_ID");
+    const msgrushApiKey = Deno.env.get("MSGRUSH_API_KEY");
+    const msgrushSenderId = Deno.env.get("MSGRUSH_SENDER_ID");
     
-    if (!exotelApiKey || !exotelApiToken || !exotelSid || !exotelSenderId) {
-      console.error("Exotel credentials not configured");
+    if (!msgrushApiKey || !msgrushSenderId) {
+      console.error("MSGRush credentials not configured");
       throw new Error("SMS service not configured");
     }
 
-    // Exotel SMS API endpoint
-    const exotelUrl = `https://api.exotel.com/v1/Accounts/${exotelSid}/Sms/send.json`;
+    // MSGRush SMS API endpoint
+    const msgrushUrl = "https://www.msgrush.com/api/sendhttp.php";
     
-    // Create Basic Auth header
-    const authHeader = `Basic ${btoa(`${exotelApiKey}:${exotelApiToken}`)}`;
-    
-    // Prepare form data
-    const formData = new URLSearchParams();
-    formData.append("From", exotelSenderId);
-    formData.append("To", normalizedPhone);
-    formData.append("Body", `Your OTP for Softly Reminder is: ${otp}. Valid for 10 minutes.`);
-
-    const smsResponse = await fetch(exotelUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": authHeader,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: formData.toString(),
+    // Prepare query parameters
+    const params = new URLSearchParams({
+      authkey: msgrushApiKey,
+      mobiles: normalizedPhone,
+      message: `Your OTP for Softly Reminder is: ${otp}. Valid for 10 minutes.`,
+      sender: msgrushSenderId,
+      route: "4", // Transactional route
+      country: "91", // India country code
     });
 
-    const responseData = await smsResponse.json();
+    const smsResponse = await fetch(`${msgrushUrl}?${params.toString()}`, {
+      method: "GET",
+    });
+
+    const responseText = await smsResponse.text();
+    console.log("MSGRush response:", responseText);
 
     if (!smsResponse.ok) {
-      console.error("Exotel error:", responseData);
+      console.error("MSGRush error:", responseText);
       throw new Error("Failed to send SMS");
     }
 
-    console.log("OTP sent successfully");
+    console.log("OTP sent successfully via MSGRush");
 
     return new Response(
       JSON.stringify({ success: true, message: "OTP sent successfully" }),
