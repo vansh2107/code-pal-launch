@@ -65,7 +65,8 @@ Deno.serve(async (req) => {
           timezone,
           push_notifications_enabled,
           email_notifications_enabled,
-          email
+          email,
+          preferred_notification_time
         )
       `)
       .eq('is_sent', false)
@@ -106,12 +107,26 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Get current time in user's local timezone
-        const nowLocal = getCurrentLocalTime(profile.timezone);
-        const currentHour = nowLocal.getHours();
+        // Get user's preferred notification time from profile
+        const preferredTime = profile.preferred_notification_time || '12:00:00';
+        const [preferredHour] = preferredTime.split(':').map(Number);
         
-        // Send notification if it's between 8 AM and 10 PM in user's local time
-        if (currentHour >= 8 && currentHour < 22) {
+        // Get current time in user's local timezone
+        const nowUtc = new Date();
+        const nowLocal = new Date(nowUtc.toLocaleString('en-US', { timeZone: profile.timezone }));
+        const currentHour = nowLocal.getHours();
+        const currentMinute = nowLocal.getMinutes();
+        
+        // Send notification only during the user's preferred hour
+        if (currentHour === preferredHour) {
+          console.log(`✅ Sending to user ${reminder.user_id} at their preferred time ${preferredHour}:00 (${profile.timezone})`);
+          console.log(`   Current local time: ${currentHour}:${currentMinute.toString().padStart(2, '0')}`);
+        } else {
+          console.log(`⏭️ Skipping user ${reminder.user_id} - not their preferred hour (current: ${currentHour}, preferred: ${preferredHour})`);
+          continue;
+        }
+        
+        if (currentHour >= preferredHour) {
           const daysUntilExpiry = Math.ceil(
             (new Date(document.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
           );
