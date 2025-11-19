@@ -111,13 +111,19 @@ export default function Scan() {
       });
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        // Ensure video plays on mobile browsers
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn("Video play failed:", playErr);
+        }
       }
       setStream(mediaStream);
     } catch (err) {
       console.error("Camera error:", err);
       toast({
         title: "Camera Error",
-        description: "Unable to access camera. Please use manual entry.",
+        description: "Unable to access camera. Please grant camera permission or use manual entry.",
         variant: "destructive",
       });
       setScanMode("manual");
@@ -577,6 +583,7 @@ export default function Scan() {
                   ref={videoRef}
                   autoPlay
                   playsInline
+                  muted
                   className="w-full h-full object-cover"
                 />
                 {!stream && (
