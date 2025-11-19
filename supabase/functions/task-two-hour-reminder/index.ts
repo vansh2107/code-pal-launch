@@ -1,7 +1,7 @@
 import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/database.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
+import { toZonedTime, fromZonedTime } from 'npm:date-fns-tz@3.2.0';
 
 /**
  * Task Two-Hour Reminder Function
@@ -72,47 +72,35 @@ Deno.serve(async (req) => {
             // Convert UTC times to user's local timezone
             const nowUtc = new Date();
             const startTimeUtc = new Date(task.start_time);
-            
+
             const userNow = toZonedTime(nowUtc, task.timezone);
-            const userStart = toZonedTime(startTimeUtc, task.timezone);
+            const startTimeLocal = toZonedTime(startTimeUtc, task.timezone);
 
-            console.log(`Task ${task.id}: Start time ${task.start_time} -> Local: ${userStart.toISOString()}, Now: ${userNow.toISOString()}`);
+            console.log(`Task ${task.id}: start=${startTimeUtc.toISOString()} localStart=${startTimeLocal.toISOString()} nowLocal=${userNow.toISOString()} lastReminder=${task.last_reminder_sent_at}`);
 
-            // Window of 5 minutes for matching (since cron runs every 5 minutes)
-            const FIVE_MINUTES_MS = 5 * 60 * 1000;
+            // Compute next reminder time in UTC
+            const nextReminderUtc = task.last_reminder_sent_at
+              ? new Date(new Date(task.last_reminder_sent_at).getTime() + 2 * 60 * 60 * 1000)
+              : fromZonedTime(startTimeLocal, task.timezone);
 
-            if (!task.start_notified) {
-              const diffMs = userNow.getTime() - userStart.getTime();
+            const nextReminderLocal = toZonedTime(nextReminderUtc, task.timezone);
 
-              console.log(`Task ${task.id}: Not yet notified, diff: ${diffMs}ms`);
+            console.log(`Task ${task.id}: nextReminderLocal=${nextReminderLocal.toISOString()}`);
 
-              // Send when we're at or past the start time
-              if (diffMs >= 0 && diffMs <= FIVE_MINUTES_MS) {
-                console.log(`Task ${task.id}: Sending first notification`);
-                const sent = await sendNotification(supabase, task, 'first');
-                if (sent) {
+            // If we've reached or passed the next reminder time in user's local time
+            if (userNow >= nextReminderLocal) {
+              const type: 'first' | 'recurring' = task.last_reminder_sent_at ? 'recurring' : 'first';
+              console.log(`Task ${task.id}: sending ${type} reminder`);
+
+              const sent = await sendNotification(supabase, task, type);
+              if (sent) {
+                // For first notification, also mark start_notified
+                if (!task.last_reminder_sent_at) {
                   await updateStartNotified(supabase, task.id);
-                  sentCount++;
-                }
-              }
-            } else if (task.last_reminder_sent_at) {
-              // Recurring 2-hour reminders after the first one
-              const lastReminderUtc = new Date(task.last_reminder_sent_at);
-              const lastReminderLocal = toZonedTime(lastReminderUtc, task.timezone);
-              const nextReminderLocal = new Date(lastReminderLocal.getTime() + 2 * 60 * 60 * 1000);
-
-              const diffMs = userNow.getTime() - nextReminderLocal.getTime();
-
-              console.log(`Task ${task.id}: Next 2h reminder at ${nextReminderLocal.toISOString()}, diff: ${diffMs}ms`);
-
-              // Check if we're within 5 minutes past the 2-hour mark
-              if (diffMs >= 0 && diffMs <= FIVE_MINUTES_MS) {
-                console.log(`Task ${task.id}: Sending recurring notification`);
-                const sent = await sendNotification(supabase, task, 'recurring');
-                if (sent) {
+                } else {
                   await updateReminder(supabase, task.id);
-                  sentCount++;
                 }
+                sentCount++;
               }
             }
           } catch (taskError) {
