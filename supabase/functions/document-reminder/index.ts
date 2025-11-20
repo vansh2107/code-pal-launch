@@ -147,7 +147,10 @@ Deno.serve(async (req) => {
 
           // Send push notification
           if (profile.push_notifications_enabled) {
-            await sendPushNotification(supabase, {
+            // Import the new unified push notification utility
+            const { sendPushNotificationToUser } = await import('../_shared/pushNotifications.ts');
+            
+            const result = await sendPushNotificationToUser(supabase, {
               userId: reminder.user_id,
               title,
               message,
@@ -157,6 +160,10 @@ Deno.serve(async (req) => {
                 reminder_id: reminder.id,
               },
             });
+
+            if (result.success) {
+              console.log(`✅ Push sent via ${result.sentVia.join(', ')} for: ${document.name}`);
+            }
           }
 
           // Send email notification
