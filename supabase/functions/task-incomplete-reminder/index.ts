@@ -74,7 +74,10 @@ Deno.serve(async (req) => {
             `You have ${urgentTasks.length} task${urgentTasks.length > 1 ? 's' : ''} overdue for 3+ days:\n` +
             urgentTasks.map(t => `• ${t.title} (${t.consecutive_missed_days} day${t.consecutive_missed_days > 1 ? 's' : ''} overdue)`).join('\n');
 
-          const sent = await sendPushNotification(supabase, {
+          // Import the new unified push notification utility
+          const { sendPushNotificationToUser } = await import('../_shared/pushNotifications.ts');
+          
+          const result = await sendPushNotificationToUser(supabase, {
             userId: profile.user_id,
             title,
             message,
@@ -84,8 +87,8 @@ Deno.serve(async (req) => {
             },
           });
 
-          if (sent) {
-            console.log(`✅ Sent urgent reminder to user ${profile.user_id}`);
+          if (result.success) {
+            console.log(`✅ Sent urgent reminder via ${result.sentVia.join(', ')} to user ${profile.user_id}`);
             sentCount++;
           }
         } else if (normalOverdue.length > 0) {
@@ -93,7 +96,10 @@ Deno.serve(async (req) => {
           const title = '📋 Incomplete Tasks Reminder';
           const message = `You have ${normalOverdue.length} incomplete task${normalOverdue.length > 1 ? 's' : ''} from previous days. Let's complete them today! 🚀`;
 
-          const sent = await sendPushNotification(supabase, {
+          // Import the new unified push notification utility
+          const { sendPushNotificationToUser } = await import('../_shared/pushNotifications.ts');
+          
+          const result = await sendPushNotificationToUser(supabase, {
             userId: profile.user_id,
             title,
             message,
@@ -103,8 +109,8 @@ Deno.serve(async (req) => {
             },
           });
 
-          if (sent) {
-            console.log(`✅ Sent incomplete reminder to user ${profile.user_id}`);
+          if (result.success) {
+            console.log(`✅ Sent incomplete reminder via ${result.sentVia.join(', ')} to user ${profile.user_id}`);
             sentCount++;
           }
         }
