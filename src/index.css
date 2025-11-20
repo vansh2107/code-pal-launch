@@ -1,0 +1,235 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Safe area insets for mobile devices */
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    
+    /* Warm neutral background - #FFF7F0 */
+    --background: 30 100% 97%;
+    --foreground: 0 0% 0%; /* Pure black #000000 */
+
+    /* Card styling with warm tone */
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%; /* Pure black #000000 */
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%; /* Pure black #000000 */
+
+    /* Brand Orange - #FF9506 */
+    --primary: 35 100% 51%;
+    --primary-foreground: 0 0% 0%; /* Pure black #000000 */
+
+    /* Status Colors */
+    /* Expired Red - #D64545 bg #FFE5E5 */
+    --expired: 0 65% 56%;
+    --expired-foreground: 0 0% 0%; /* Pure black #000000 */
+    --expired-bg: 0 100% 95%;
+    
+    /* Expiring Yellow - #A87800 bg #FFF7C9 */
+    --expiring: 45 100% 33%;
+    --expiring-foreground: 0 0% 0%; /* Pure black #000000 */
+    --expiring-bg: 48 100% 90%;
+    
+    /* Valid Green - #2F7D32 bg #E9FBE6 */
+    --valid: 122 46% 34%;
+    --valid-foreground: 0 0% 0%; /* Pure black #000000 */
+    --valid-bg: 115 68% 94%;
+
+    /* Secondary */
+    --secondary: 30 20% 95%;
+    --secondary-foreground: 0 0% 0%; /* Pure black #000000 */
+
+    /* Muted */
+    --muted: 30 15% 92%;
+    --muted-foreground: 0 0% 0%; /* Pure black #000000 */
+
+    /* Accent - brighter orange */
+    --accent: 35 100% 60%;
+    --accent-foreground: 0 0% 0%; /* Pure black #000000 */
+
+    /* Warning - matches brand */
+    --warning: 35 100% 51%;
+    --warning-foreground: 0 0% 0%; /* Pure black #000000 */
+
+    /* Destructive */
+    --destructive: 0 65% 56%;
+    --destructive-foreground: 0 0% 0%; /* Pure black #000000 */
+
+    /* Borders with subtle warm tone */
+    --border: 24 15% 88%;
+    --input: 24 15% 92%;
+    --ring: 35 100% 51%;
+
+    --radius: 0.875rem;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 0%; /* Pure black #000000 */
+    --sidebar-primary: 35 100% 51%;
+    --sidebar-primary-foreground: 0 0% 0%; /* Pure black #000000 */
+    --sidebar-accent: 30 20% 96%;
+    --sidebar-accent-foreground: 0 0% 0%; /* Pure black #000000 */
+    --sidebar-border: 24 15% 90%;
+    --sidebar-ring: 35 100% 51%;
+  }
+
+  .dark {
+    /* Dark warm background */
+    --background: 24 8% 12%;
+    --foreground: 30 5% 90%;
+
+    /* Dark cards */
+    --card: 24 6% 16%;
+    --card-foreground: 30 5% 90%;
+
+    --popover: 24 6% 16%;
+    --popover-foreground: 30 5% 90%;
+
+    /* Brand Orange brighter for dark */
+    --primary: 35 100% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Status Colors - adjusted for dark mode */
+    --expired: 0 70% 65%;
+    --expired-foreground: 0 100% 80%;
+    --expired-bg: 0 60% 20%;
+    
+    --expiring: 45 95% 60%;
+    --expiring-foreground: 45 100% 85%;
+    --expiring-bg: 45 50% 20%;
+    
+    --valid: 122 50% 55%;
+    --valid-foreground: 122 70% 80%;
+    --valid-bg: 122 40% 18%;
+
+    /* Dark secondary */
+    --secondary: 24 6% 20%;
+    --secondary-foreground: 30 5% 85%;
+
+    /* Dark muted */
+    --muted: 24 6% 18%;
+    --muted-foreground: 30 5% 90%;
+
+    /* Accent */
+    --accent: 35 100% 62%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Warning */
+    --warning: 35 100% 58%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Destructive */
+    --destructive: 0 70% 65%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Dark borders */
+    --border: 24 8% 25%;
+    --input: 24 6% 20%;
+    --ring: 35 100% 58%;
+
+    /* Dark sidebar */
+    --sidebar-background: 24 8% 14%;
+    --sidebar-foreground: 30 5% 88%;
+    --sidebar-primary: 35 100% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 24 6% 20%;
+    --sidebar-accent-foreground: 35 100% 58%;
+    --sidebar-border: 24 8% 22%;
+    --sidebar-ring: 35 100% 58%;
+  }
+}
+
+@layer base {
+html, body, #root {
+  padding: 0;
+  margin: 0;
+  height: 100%;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background: linear-gradient(135deg, hsl(30 100% 97%), hsl(30 60% 94%));
+  }
+
+  .dark body {
+    background: linear-gradient(135deg, hsl(24 8% 12%), hsl(24 10% 8%));
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  * {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  /* Glassmorphism effect */
+  .glass {
+    @apply bg-white/70 backdrop-blur-xl border border-white/20;
+  }
+
+  .dark .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+  }
+
+  /* Smooth transitions */
+  .smooth {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  /* Premium card hover - subtle */
+  .card-hover {
+    @apply smooth hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] hover:scale-[1.01];
+  }
+
+  /* Premium button shadow */
+  .btn-glow {
+    @apply shadow-[0_4px_14px_rgba(255,149,6,0.28)] hover:shadow-[0_6px_20px_rgba(255,149,6,0.35)] smooth;
+  }
+
+  /* Text gradients */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  }
+}
+
+/* International Phone Input Styles */
+.international-phone-input .PhoneInput {
+  @apply w-full flex items-center gap-2;
+}
+
+.international-phone-input .PhoneInputInput {
+  @apply flex-1 rounded-xl border border-input bg-input px-4 py-3 text-base text-foreground transition-colors;
+  @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+  @apply placeholder:text-muted-foreground;
+}
+
+.international-phone-input .PhoneInputCountry {
+  @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-input;
+}
+
+.international-phone-input .PhoneInputCountrySelect {
+  @apply bg-transparent border-none outline-none cursor-pointer;
+}
+
+.international-phone-input .PhoneInputCountryIcon {
+  @apply w-6 h-4 flex-shrink-0;
+}
+
+.international-phone-input .PhoneInputCountryIconImg {
+  @apply w-full h-full object-cover rounded-sm;
+}
