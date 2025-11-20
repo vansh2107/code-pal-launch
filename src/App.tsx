@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { useOneSignalPlayerId } from "@/hooks/useOneSignalPlayerId";
+import { useNotificationPermission } from "@/hooks/useNotificationPermission";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { initializeNotifications } from "@/utils/notifications";
@@ -37,6 +38,7 @@ const queryClient = new QueryClient();
 
 const NotificationScheduler = () => {
   useOneSignalPlayerId();
+  useNotificationPermission();
   
   useEffect(() => {
     // Initialize push notifications on app load
