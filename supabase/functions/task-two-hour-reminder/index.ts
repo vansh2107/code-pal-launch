@@ -140,7 +140,10 @@ async function sendNotification(supabase: any, task: Task, type: 'first' | 'recu
       ? `Your task "${task.title}" starts now at ${startLocalString}! Time to begin! 💪`
       : `Still working on "${task.title}"? Started at ${startLocalString}. You got this! 🔥`;
 
-    return await sendPushNotification(supabase, {
+    // Import the new unified push notification utility
+    const { sendPushNotificationToUser } = await import('../_shared/pushNotifications.ts');
+    
+    const result = await sendPushNotificationToUser(supabase, {
       userId: task.user_id,
       title,
       message,
@@ -150,6 +153,14 @@ async function sendNotification(supabase: any, task: Task, type: 'first' | 'recu
         notification_type: type
       },
     });
+
+    if (!result.success) {
+      console.error(`Failed to send ${type} notification for task ${task.id}`);
+      return false;
+    }
+
+    console.log(`✅ ${type} notification sent via ${result.sentVia.join(', ')} for task: ${task.title}`);
+    return true;
   } catch (error) {
     console.error('Error sending notification:', error);
     return false;

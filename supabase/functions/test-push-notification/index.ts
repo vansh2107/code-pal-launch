@@ -36,23 +36,27 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const serviceSupabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const sent = await sendPushNotification(serviceSupabase, {
+    // Send the test notification using the new unified system
+    const { sendPushNotificationToUser } = await import('../_shared/pushNotifications.ts');
+    
+    const result = await sendPushNotificationToUser(serviceSupabase, {
       userId: user.id,
       title: testNotification.title,
-      message: testNotification.message + ' (This is a test notification - OneSignal is working! 🎉)',
+      message: testNotification.message + ' (This is a test notification - push notifications are working! 🎉)',
       data: {
         type: 'test',
         date: new Date().toISOString(),
       }
     });
 
-    if (!sent) {
+    if (!result.success) {
       return createErrorResponse('Failed to send test notification', 500);
     }
 
     return createJsonResponse({ 
       success: true, 
-      message: 'Test push notification sent!',
+      message: `Test push notification sent via ${result.sentVia.join(' and ')}!`,
+      providers: result.sentVia,
     });
   } catch (error) {
     console.error('Error in test-push-notification:', error);
