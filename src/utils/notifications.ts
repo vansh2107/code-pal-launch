@@ -273,7 +273,22 @@ export async function initializeNotifications(): Promise<void> {
  */
 export async function sendTestNotification(): Promise<boolean> {
   try {
-    const { data, error } = await supabase.functions.invoke('test-push-notification');
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('No authenticated user');
+      return false;
+    }
+
+    // Try to get OneSignal player ID from localStorage (set by OneSignal in App.tsx)
+    const playerId = localStorage.getItem('onesignal_player_id');
+    
+    console.log('Sending test notification to user:', user.id);
+    console.log('OneSignal Player ID:', playerId || 'Not available');
+
+    const { data, error } = await supabase.functions.invoke('test-push-notification', {
+      body: { userId: user.id }
+    });
 
     if (error) {
       console.error('Failed to send test notification:', error);
