@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { Capacitor } from '@capacitor/core';
+import { savePlayerIdToSupabase, setUserEmail } from '@/lib/onesignal';
 
 interface AuthContextType {
   user: User | null;
@@ -24,6 +26,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        
+        // Register OneSignal Player ID when user logs in
+        if (session?.user && Capacitor.isNativePlatform()) {
+          setTimeout(() => {
+            savePlayerIdToSupabase(session.user.id);
+            if (session.user.email) {
+              setUserEmail(session.user.email);
+            }
+          }, 2000); // Wait 2 seconds for OneSignal to initialize
+        }
       }
     );
 
@@ -32,6 +44,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      
+      // Register OneSignal Player ID for existing session
+      if (session?.user && Capacitor.isNativePlatform()) {
+        setTimeout(() => {
+          savePlayerIdToSupabase(session.user.id);
+          if (session.user.email) {
+            setUserEmail(session.user.email);
+          }
+        }, 2000);
+      }
     });
 
     return () => subscription.unsubscribe();
