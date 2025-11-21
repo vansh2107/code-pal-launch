@@ -101,12 +101,19 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
         ref={containerRef}
         className="relative max-h-[420px] overflow-y-auto px-6 pb-6 scroll-smooth"
       >
-        {/* Vertical line with warm brand color */}
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 h-full w-[2px] bg-gradient-to-b from-primary/30 via-primary/60 to-primary/30 animate-fade-in" style={{ animationDelay: '100ms' }} />
+        {/* Vertical timeline line - spans full content height */}
+        <div 
+          className="absolute left-1/2 -translate-x-1/2 w-[3px] bg-gradient-to-b from-primary/20 via-primary/50 to-primary/20 pointer-events-none z-0" 
+          style={{ 
+            top: '24px',
+            bottom: '24px',
+            minHeight: '100%'
+          }} 
+        />
 
         {/* Moving current-date marker */}
         <div
-          className="pointer-events-none absolute left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out"
+          className="pointer-events-none absolute left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out z-10"
           style={{ top: `calc(${markerOffset * 100}%)` }}
         >
           <div className="relative animate-scale-in" style={{ animationDelay: '200ms' }}>
@@ -114,7 +121,7 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
           </div>
         </div>
 
-        <ul className="relative space-y-8 py-6">
+        <ul className="relative space-y-8 py-6 z-1">
           {items.map((item, idx) => {
             const isActive = item.index === activeIndex;
             const baseFade = item.isPast ? "opacity-60" : "opacity-100";
@@ -132,8 +139,11 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
 
             return (
               <li key={item.doc.id} className="relative animate-fade-in" style={{ animationDelay }}>
-                {/* Connector dot with status color */}
-                <div className={`absolute left-1/2 top-1.5 -translate-x-1/2 h-3 w-3 rounded-full ${dotColorClass} animate-scale-in transition-all duration-300 hover:scale-125`} style={{ animationDelay }} />
+                {/* Connector dot with status color - higher z-index to stay above line */}
+                <div 
+                  className={`absolute left-1/2 top-1.5 -translate-x-1/2 h-3 w-3 rounded-full ${dotColorClass} animate-scale-in transition-all duration-300 hover:scale-125 z-10`} 
+                  style={{ animationDelay }} 
+                />
 
                 <div className={`grid grid-cols-1 md:grid-cols-2 ${sideClass} ${align}`} data-tl-card data-index={item.index}>
                   {item.side === "left" ? (
@@ -141,7 +151,7 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
                   ) : null}
 
                   <div
-                    className={`relative ${floatSide} transition-all duration-500 ease-out ${baseFade}`}
+                    className={`relative ${floatSide} transition-all duration-500 ease-out ${baseFade} z-1`}
                   >
                     <Link
                       to={`/documents/${item.doc.id}`}
