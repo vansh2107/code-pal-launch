@@ -1,7 +1,8 @@
 import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/database.ts';
 import { sendUnifiedNotification } from '../_shared/unified-notifications.ts';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { getCurrentLocalTime, getCurrentLocalTimeString, getFunnyNotification } from '../_shared/timezone.ts';
+import { getCurrentLocalTime, getCurrentLocalTimeString } from '../_shared/timezone.ts';
+import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 import { format } from 'npm:date-fns@3.6.0';
 
 /**
@@ -67,17 +68,20 @@ Deno.serve(async (req) => {
         const normalOverdue = tasks.filter(t => (t.consecutive_missed_days || 0) < 3);
         
         if (urgentTasks.length > 0) {
-          // 3+ day overdue - FUNNY RED ALERT
-          const funnyAlert = getFunnyNotification('task_3day_overdue');
-          const title = '🚨 URGENT: Tasks REALLY Overdue!';
-          const message = `${funnyAlert.message}\n\n` +
-            `You have ${urgentTasks.length} task${urgentTasks.length > 1 ? 's' : ''} overdue for 3+ days:\n` +
-            urgentTasks.map(t => `• ${t.title} (${t.consecutive_missed_days} day${t.consecutive_missed_days > 1 ? 's' : ''} overdue)`).join('\n');
+          // 3+ day overdue - FUNNY RED ALERT (random)
+          const funnyAlert = getFunnyNotification('task_lazy_3days', {
+            taskCount: urgentTasks.length,
+            consecutiveDays: urgentTasks[0].consecutive_missed_days,
+          });
+          
+          const taskList = urgentTasks.map(t => 
+            `• ${t.title} (${t.consecutive_missed_days} day${t.consecutive_missed_days > 1 ? 's' : ''})`
+          ).join('\n');
 
           const sent = await sendUnifiedNotification(supabase, {
             userId: profile.user_id,
-            title,
-            message,
+            title: funnyAlert.title,
+            message: `${funnyAlert.message}\n\n${taskList}`,
             data: { 
               type: 'task_incomplete_urgent',
               task_count: urgentTasks.length.toString(),
@@ -89,14 +93,15 @@ Deno.serve(async (req) => {
             sentCount++;
           }
         } else if (normalOverdue.length > 0) {
-          // Less than 3 days - normal incomplete reminder
-          const title = '📋 Incomplete Tasks Reminder';
-          const message = `You have ${normalOverdue.length} incomplete task${normalOverdue.length > 1 ? 's' : ''} from previous days. Let's complete them today! 🚀`;
+          // Less than 3 days - normal incomplete reminder (random)
+          const funnyReminder = getFunnyNotification('task_incomplete', {
+            taskCount: normalOverdue.length,
+          });
 
           const sent = await sendUnifiedNotification(supabase, {
             userId: profile.user_id,
-            title,
-            message,
+            title: funnyReminder.title,
+            message: funnyReminder.message,
             data: { 
               type: 'task_incomplete_reminder',
               task_count: normalOverdue.length.toString(),

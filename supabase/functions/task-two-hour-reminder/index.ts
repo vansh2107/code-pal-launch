@@ -2,6 +2,7 @@ import { createSupabaseClient, fetchProfilesWithTimezone } from '../_shared/data
 import { sendUnifiedNotification } from '../_shared/unified-notifications.ts';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
 import { toZonedTime, fromZonedTime } from 'npm:date-fns-tz@3.2.0';
+import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 /**
  * Task Two-Hour Reminder Function
@@ -135,15 +136,20 @@ async function sendNotification(supabase: any, task: Task, type: 'first' | 'recu
       hour12: true,
     });
 
-    const title = type === 'first' ? '🚀 Task Starting Now!' : '⏰ Task Reminder';
-    const message = type === 'first'
-      ? `Your task "${task.title}" starts now at ${startLocalString}! Time to begin! 💪`
-      : `Still working on "${task.title}"? Started at ${startLocalString}. You got this! 🔥`;
+    // Get random funny notification message
+    const funnyMsg = getFunnyNotification('task_reminder', {
+      taskTitle: task.title,
+    });
+
+    // Add time context to the message
+    const timeContext = type === 'first'
+      ? `Starts now at ${startLocalString}!`
+      : `Started at ${startLocalString}. Keep going!`;
 
     return await sendUnifiedNotification(supabase, {
       userId: task.user_id,
-      title,
-      message,
+      title: funnyMsg.title,
+      message: `${funnyMsg.message} (${timeContext})`,
       data: { 
         type: 'task_reminder', 
         task_id: task.id,
