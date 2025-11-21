@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Plus, Camera } from "lucide-react";
+import { FileText, Plus, Camera, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { DocumentStats } from "@/components/dashboard/DocumentStats";
@@ -12,6 +12,7 @@ import { ExpiryTimeline } from "@/components/dashboard/ExpiryTimeline";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import { useToast } from "@/hooks/use-toast";
 import { getDocumentStatus } from "@/utils/documentStatus";
+import { sendTestNotification } from "@/utils/notifications";
 
 interface Document {
   id: string;
@@ -37,6 +38,7 @@ export default function Dashboard() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [recentDocuments, setRecentDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -79,6 +81,34 @@ export default function Dashboard() {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    setSendingTest(true);
+    try {
+      const success = await sendTestNotification();
+      if (success) {
+        toast({
+          title: "Test notification sent! 📲",
+          description: "Check your device for the push notification. Works for both Capacitor and Despia Native.",
+        });
+      } else {
+        toast({
+          title: "Failed to send test notification",
+          description: "Please make sure notifications are enabled in settings.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error sending test notification:', error);
+      toast({
+        title: "Error sending test notification",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -137,6 +167,17 @@ export default function Dashboard() {
               Scan New Document
             </Button>
           </Link>
+          
+          <Button 
+            onClick={handleTestNotification} 
+            disabled={sendingTest}
+            variant="outline"
+            className="w-full border-2 hover:bg-primary/5 hover:border-primary"
+            size="lg"
+          >
+            <Bell className="h-5 w-5 mr-2" />
+            {sendingTest ? "Sending Test..." : "Test Push Notification"}
+          </Button>
         </div>
 
         {/* Recent Documents */}
