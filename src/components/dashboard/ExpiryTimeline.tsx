@@ -139,12 +139,6 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
 
             return (
               <li key={item.doc.id} className="relative animate-fade-in" style={{ animationDelay }}>
-                {/* Connector dot with status color - higher z-index to stay above line */}
-                <div 
-                  className={`absolute left-1/2 top-1.5 -translate-x-1/2 h-3 w-3 rounded-full ${dotColorClass} animate-scale-in transition-all duration-300 hover:scale-125 z-10`} 
-                  style={{ animationDelay }} 
-                />
-
                 <div className={`grid grid-cols-1 md:grid-cols-2 ${sideClass} ${align}`} data-tl-card data-index={item.index}>
                   {item.side === "left" ? (
                     <div className="hidden md:block" />
