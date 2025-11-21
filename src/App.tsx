@@ -6,12 +6,14 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useOneSignalPlayerId } from "@/hooks/useOneSignalPlayerId";
 import { useBackButton } from "@/hooks/useBackButton";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { initializeNotifications } from "@/utils/notifications";
 import { useEffect } from "react";
+import OneSignal from "onesignal-cordova-plugin";
+
+
+// PAGES
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -37,20 +39,49 @@ import AuthEventListener from "./components/auth/AuthEventListener";
 
 const queryClient = new QueryClient();
 
+// ---------------------------------------------------
+// 🚀 OneSignal + Permissions + Back Button Handler
+// ---------------------------------------------------
 const NotificationScheduler = () => {
-  useOneSignalPlayerId();
   const { requestAllPermissions } = usePermissions();
-  useBackButton(); // Handle Android hardware back button
-  
+  useBackButton();
+
   useEffect(() => {
-    // Request camera and notification permissions, then initialize push notifications
-    requestAllPermissions();
-    initializeNotifications().catch(console.error);
+    const initialize = async () => {
+      // Request notification + camera permissions
+      await requestAllPermissions();
+
+      // Initialize OneSignal
+      document.addEventListener("deviceready", () => {
+        console.log("Device ready → Initializing OneSignal...");
+        // @ts-ignore
+
+        OneSignal.setAppId("8cced195-0fd2-487f-9f10-2a8bc898ff4e");
+
+        // Ask for notification permission
+        // @ts-ignore
+
+        OneSignal.promptForPushNotificationsWithUserResponse((accepted) => {
+          console.log("User accepted notifications:", accepted);
+        });
+
+        // Handle when notification is opened
+        // @ts-ignore
+        OneSignal.setNotificationOpenedHandler((data) => {
+          console.log("Notification opened:", JSON.stringify(data));
+        });
+      });
+    };
+
+    initialize().catch(console.error);
   }, []);
-  
+
   return null;
 };
 
+// ---------------------------------------------------
+// MAIN APP
+// ---------------------------------------------------
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
@@ -58,156 +89,176 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
+
           <BrowserRouter>
             <AuthEventListener />
             <NotificationScheduler />
             <ChatBot />
+
             <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/documents" 
-              element={
-                <ProtectedRoute>
-                  <Documents />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/documents/:id" 
-              element={
-                <ProtectedRoute>
-                  <DocumentDetail />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/documents/:id/edit" 
-              element={
-                <ProtectedRoute>
-                  <EditDocument />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/scan" 
-              element={
-                <ProtectedRoute>
-                  <Scan />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/notifications" 
-              element={
-                <ProtectedRoute>
-                  <Notifications />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/notification-settings" 
-              element={
-                <ProtectedRoute>
-                  <NotificationSettings />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/profile" 
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/docvault" 
-              element={
-                <ProtectedRoute>
-                  <DocVault />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/tasks" 
-              element={
-                <ProtectedRoute>
-                  <Tasks />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/task-history" 
-              element={
-                <ProtectedRoute>
-                  <TaskHistory />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/add-task" 
-              element={
-                <ProtectedRoute>
-                  <AddTask />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/task/:id" 
-              element={
-                <ProtectedRoute>
-                  <TaskDetail />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/edit-task/:id" 
-              element={
-                <ProtectedRoute>
-                  <EditTask />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/settings" 
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/test-emails" 
-              element={
-                <ProtectedRoute>
-                  <TestEmails />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/test-onesignal" 
-              element={
-                <ProtectedRoute>
-                  <TestOneSignal />
-                </ProtectedRoute>
-              } 
-            />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/documents"
+                element={
+                  <ProtectedRoute>
+                    <Documents />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/documents/:id"
+                element={
+                  <ProtectedRoute>
+                    <DocumentDetail />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/documents/:id/edit"
+                element={
+                  <ProtectedRoute>
+                    <EditDocument />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/scan"
+                element={
+                  <ProtectedRoute>
+                    <Scan />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/notifications"
+                element={
+                  <ProtectedRoute>
+                    <Notifications />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/notification-settings"
+                element={
+                  <ProtectedRoute>
+                    <NotificationSettings />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/docvault"
+                element={
+                  <ProtectedRoute>
+                    <DocVault />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/tasks"
+                element={
+                  <ProtectedRoute>
+                    <Tasks />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/task-history"
+                element={
+                  <ProtectedRoute>
+                    <TaskHistory />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/add-task"
+                element={
+                  <ProtectedRoute>
+                    <AddTask />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/task/:id"
+                element={
+                  <ProtectedRoute>
+                    <TaskDetail />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/edit-task/:id"
+                element={
+                  <ProtectedRoute>
+                    <EditTask />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/test-emails"
+                element={
+                  <ProtectedRoute>
+                    <TestEmails />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/test-onesignal"
+                element={
+                  <ProtectedRoute>
+                    <TestOneSignal />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* MUST ALWAYS BE LAST */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   </ErrorBoundary>
 );
 

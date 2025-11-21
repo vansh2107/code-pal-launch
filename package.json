@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@awesome-cordova-plugins/onesignal": "^8.1.0",
     "@capacitor/android": "^7.4.4",
     "@capacitor/app": "^7.1.0",
     "@capacitor/camera": "^7.0.2",
@@ -58,6 +59,7 @@
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
+    "onesignal-cordova-plugin": "^5.2.18",
     "pdfjs-dist": "^5.4.394",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",

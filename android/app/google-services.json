@@ -1,32 +1,13 @@
 {
   "project_info": {
-    "project_number": "411937582540",
-    "project_id": "remonk-reminder",
-    "storage_bucket": "remonk-reminder.firebasestorage.app"
+    "project_number": "1004750699800",
+    "project_id": "remonk-da3ae",
+    "storage_bucket": "remonk-da3ae.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:411937582540:android:e3789e757b3578e0f1c169",
-        "android_client_info": {
-          "package_name": "app.remonkreminder.android"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBB_CoA9k58egNiRVWMgRQFl-8wbdBEmhs"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:411937582540:android:9ea9efeed5b67f98f1c169",
+        "mobilesdk_app_id": "1:1004750699800:android:9a1fb6ccd85076f3b2b26d",
         "android_client_info": {
           "package_name": "com.vansh.remonkreminder"
         }
@@ -34,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBB_CoA9k58egNiRVWMgRQFl-8wbdBEmhs"
+          "current_key": "AIzaSyBud3Jpt8qYICdGtXK92nVx_I8Ahu0XbFQ"
         }
       ],
       "services": {
