@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useOneSignalPlayerId } from "@/hooks/useOneSignalPlayerId";
+import { useBackButton } from "@/hooks/useBackButton";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { initializeNotifications } from "@/utils/notifications";
@@ -39,6 +40,7 @@ const queryClient = new QueryClient();
 const NotificationScheduler = () => {
   useOneSignalPlayerId();
   const { requestAllPermissions } = usePermissions();
+  useBackButton(); // Handle Android hardware back button
   
   useEffect(() => {
     // Request camera and notification permissions, then initialize push notifications
