@@ -5,7 +5,8 @@ const config: CapacitorConfig = {
   appName: 'Remonk Reminder',
   webDir: 'dist',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
+    cleartext: true
   },
   plugins: {
     PushNotifications: {

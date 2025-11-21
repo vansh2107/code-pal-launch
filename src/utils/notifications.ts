@@ -1,13 +1,28 @@
 import { supabase } from '@/integrations/supabase/client';
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
 
 export interface NotificationToken {
   token: string;
-  provider: 'fcm' | 'onesignal';
+  provider: 'fcm' | 'onesignal' | 'capacitor';
   device_info?: string;
 }
 
+export interface NotificationPayload {
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+}
+
+// Unified notification callback
+let notificationCallback: ((payload: NotificationPayload) => void) | null = null;
+
+export function setNotificationCallback(callback: (payload: NotificationPayload) => void) {
+  notificationCallback = callback;
+}
+
 /**
- * Request notification permission from the user
+ * Request notification permission from the user (Web)
  */
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
@@ -98,20 +113,135 @@ export async function registerTokenWithBackend(
 }
 
 /**
- * Initialize notifications - request permission and register tokens
+ * Initialize Capacitor Push Notifications
+ */
+export async function initializeCapacitorPushNotifications(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) {
+    console.log('Not a native platform, skipping Capacitor push notifications');
+    return;
+  }
+
+  try {
+    console.log('Initializing Capacitor push notifications...');
+
+    // Request permission
+    let permStatus = await PushNotifications.checkPermissions();
+
+    if (permStatus.receive === 'prompt') {
+      permStatus = await PushNotifications.requestPermissions();
+    }
+
+    if (permStatus.receive !== 'granted') {
+      console.warn('Push notification permission denied');
+      return;
+    }
+
+    // Register with Apple / Google to receive push via APNS/FCM
+    await PushNotifications.register();
+
+    // Listen for registration success
+    await PushNotifications.addListener('registration', async (token) => {
+      console.log('Capacitor Push registration success, token: ' + token.value);
+      
+      await registerTokenWithBackend({
+        token: token.value,
+        provider: 'capacitor',
+        device_info: Capacitor.getPlatform(),
+      });
+    });
+
+    // Listen for registration errors
+    await PushNotifications.addListener('registrationError', (error) => {
+      console.error('Capacitor Push registration error: ', error);
+    });
+
+    // Listen for push notifications received
+    await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      console.log('Push notification received: ', notification);
+      
+      if (notificationCallback) {
+        notificationCallback({
+          title: notification.title || '',
+          body: notification.body || '',
+          data: notification.data,
+        });
+      }
+    });
+
+    // Listen for notification actions
+    await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+      console.log('Push notification action performed', notification);
+      
+      if (notificationCallback) {
+        notificationCallback({
+          title: notification.notification.title || '',
+          body: notification.notification.body || '',
+          data: notification.notification.data,
+        });
+      }
+    });
+
+    console.log('Capacitor push notifications initialized successfully');
+  } catch (error) {
+    console.error('Error initializing Capacitor push notifications:', error);
+  }
+}
+
+/**
+ * Initialize Despia Native Push Notifications
+ */
+export async function initializeDespiaPushNotifications(): Promise<void> {
+  try {
+    console.log('Initializing Despia Native push notifications...');
+
+    // Check if we're in Despia native environment
+    if (typeof window !== 'undefined' && (window as any).despia) {
+      const despia = (window as any).despia;
+      
+      // Get OneSignal player ID from Despia
+      const playerId = despia.onesignalplayerid;
+      if (playerId && playerId !== 'NOT_SET') {
+        console.log('Despia OneSignal Player ID:', playerId);
+        
+        await registerTokenWithBackend({
+          token: playerId,
+          provider: 'onesignal',
+          device_info: 'Despia Native',
+        });
+        
+        console.log('Despia push notifications initialized successfully');
+      } else {
+        console.log('Despia OneSignal Player ID not available yet');
+      }
+    } else {
+      console.log('Not in Despia native environment');
+    }
+  } catch (error) {
+    console.error('Error initializing Despia push notifications:', error);
+  }
+}
+
+/**
+ * Initialize notifications - unified entry point for Capacitor + Despia + Web
  */
 export async function initializeNotifications(): Promise<void> {
   try {
     console.log('Initializing push notifications...');
 
-    // Request permission
+    // Initialize Capacitor push notifications (for native Capacitor apps)
+    await initializeCapacitorPushNotifications();
+
+    // Initialize Despia push notifications (for Despia native wrapper)
+    await initializeDespiaPushNotifications();
+
+    // Web fallback: Request permission
     const hasPermission = await requestNotificationPermission();
     if (!hasPermission) {
-      console.warn('Notification permission denied');
+      console.warn('Web notification permission denied');
       return;
     }
 
-    // Try to get OneSignal token first (for native apps)
+    // Try to get OneSignal token (for web)
     const oneSignalToken = await getOneSignalToken();
     if (oneSignalToken) {
       await registerTokenWithBackend({
