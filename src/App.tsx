@@ -11,6 +11,7 @@ import { ChatBot } from "@/components/chatbot/ChatBot";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
+import { PushNotifications } from "@capacitor/push-notifications";
 import OneSignal from "onesignal-cordova-plugin";
 
 // PAGES
@@ -52,57 +53,75 @@ const NotificationScheduler = () => {
         // Request notification + camera permissions
         await requestAllPermissions();
 
-        // Initialize OneSignal for Capacitor Native
+        // Initialize OneSignal and Push Notifications for Capacitor Native
         if (Capacitor.isNativePlatform()) {
           console.log("Initializing OneSignal for Capacitor Native...");
           
-          // Wait for platform ready
-          await new Promise((resolve) => {
-            if (document.readyState === 'complete') {
-              resolve(true);
-            } else {
-              document.addEventListener('deviceready', () => resolve(true), { once: true });
-              // Fallback timeout
-              setTimeout(() => resolve(true), 1000);
-            }
+          // Request push notification permission using Capacitor API
+          const permResult = await PushNotifications.requestPermissions();
+          console.log("Push notification permission:", permResult.receive);
+
+          if (permResult.receive === 'granted') {
+            // Register with push notification services
+            await PushNotifications.register();
+            console.log("Push notifications registered");
+          }
+
+          // Listen for registration success
+          PushNotifications.addListener('registration', (token) => {
+            console.log('Push registration success, token:', token.value);
           });
 
-          // Set OneSignal App ID
+          // Listen for registration errors
+          PushNotifications.addListener('registrationError', (error) => {
+            console.error('Push registration error:', error);
+          });
+
+          // Listen for push notifications received
+          PushNotifications.addListener('pushNotificationReceived', (notification) => {
+            console.log('Push notification received:', notification);
+          });
+
+          // Listen for push notification actions performed
+          PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+            console.log('Push notification action performed:', notification);
+          });
+
+          // Initialize OneSignal SDK
           (OneSignal as any).setAppId("8cced195-0fd2-487f-9f10-2a8bc898ff4e");
           console.log("OneSignal App ID set");
 
-          // Prompt for notification permission
+          // Prompt for notification permission (OneSignal)
           (OneSignal as any).promptForPushNotificationsWithUserResponse((accepted: boolean) => {
             console.log("OneSignal notification permission:", accepted ? "Granted" : "Denied");
           });
 
-          // Get the subscription ID (Player ID) and log it
+          // Get the OneSignal Player ID
           (OneSignal as any).getDeviceState((state: any) => {
             console.log("OneSignal Player ID:", state?.userId || "Not available yet");
             if (state?.userId) {
-              // Store in local storage for test notification
               localStorage.setItem('onesignal_player_id', state.userId);
             }
           });
 
-          // Handle notification received when app is in foreground
+          // Handle notification received in foreground (OneSignal)
           (OneSignal as any).setNotificationWillShowInForegroundHandler((notificationReceivedEvent: any) => {
-            console.log("Notification received in foreground:", notificationReceivedEvent);
+            console.log("OneSignal notification received in foreground:", notificationReceivedEvent);
             const notification = notificationReceivedEvent.getNotification();
             notificationReceivedEvent.complete(notification);
           });
 
-          // Handle notification opened
+          // Handle notification opened (OneSignal)
           (OneSignal as any).setNotificationOpenedHandler((data: any) => {
-            console.log("Notification opened:", JSON.stringify(data));
+            console.log("OneSignal notification opened:", JSON.stringify(data));
           });
 
-          console.log("OneSignal initialized successfully");
+          console.log("OneSignal and Push Notifications initialized successfully");
         } else {
           console.log("Not a native platform, skipping OneSignal initialization");
         }
       } catch (error) {
-        console.error("Error initializing OneSignal:", error);
+        console.error("Error initializing notifications:", error);
       }
     };
 
