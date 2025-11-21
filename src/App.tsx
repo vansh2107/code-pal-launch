@@ -10,8 +10,8 @@ import { useBackButton } from "@/hooks/useBackButton";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
 import OneSignal from "onesignal-cordova-plugin";
-
 
 // PAGES
 import Dashboard from "./pages/Dashboard";
@@ -48,33 +48,66 @@ const NotificationScheduler = () => {
 
   useEffect(() => {
     const initialize = async () => {
-      // Request notification + camera permissions
-      await requestAllPermissions();
+      try {
+        // Request notification + camera permissions
+        await requestAllPermissions();
 
-      // Initialize OneSignal
-      document.addEventListener("deviceready", () => {
-        console.log("Device ready → Initializing OneSignal...");
-        // @ts-ignore
+        // Initialize OneSignal for Capacitor Native
+        if (Capacitor.isNativePlatform()) {
+          console.log("Initializing OneSignal for Capacitor Native...");
+          
+          // Wait for platform ready
+          await new Promise((resolve) => {
+            if (document.readyState === 'complete') {
+              resolve(true);
+            } else {
+              document.addEventListener('deviceready', () => resolve(true), { once: true });
+              // Fallback timeout
+              setTimeout(() => resolve(true), 1000);
+            }
+          });
 
-        OneSignal.setAppId("8cced195-0fd2-487f-9f10-2a8bc898ff4e");
+          // Set OneSignal App ID
+          (OneSignal as any).setAppId("8cced195-0fd2-487f-9f10-2a8bc898ff4e");
+          console.log("OneSignal App ID set");
 
-        // Ask for notification permission
-        // @ts-ignore
+          // Prompt for notification permission
+          (OneSignal as any).promptForPushNotificationsWithUserResponse((accepted: boolean) => {
+            console.log("OneSignal notification permission:", accepted ? "Granted" : "Denied");
+          });
 
-        OneSignal.promptForPushNotificationsWithUserResponse((accepted) => {
-          console.log("User accepted notifications:", accepted);
-        });
+          // Get the subscription ID (Player ID) and log it
+          (OneSignal as any).getDeviceState((state: any) => {
+            console.log("OneSignal Player ID:", state?.userId || "Not available yet");
+            if (state?.userId) {
+              // Store in local storage for test notification
+              localStorage.setItem('onesignal_player_id', state.userId);
+            }
+          });
 
-        // Handle when notification is opened
-        // @ts-ignore
-        OneSignal.setNotificationOpenedHandler((data) => {
-          console.log("Notification opened:", JSON.stringify(data));
-        });
-      });
+          // Handle notification received when app is in foreground
+          (OneSignal as any).setNotificationWillShowInForegroundHandler((notificationReceivedEvent: any) => {
+            console.log("Notification received in foreground:", notificationReceivedEvent);
+            const notification = notificationReceivedEvent.getNotification();
+            notificationReceivedEvent.complete(notification);
+          });
+
+          // Handle notification opened
+          (OneSignal as any).setNotificationOpenedHandler((data: any) => {
+            console.log("Notification opened:", JSON.stringify(data));
+          });
+
+          console.log("OneSignal initialized successfully");
+        } else {
+          console.log("Not a native platform, skipping OneSignal initialization");
+        }
+      } catch (error) {
+        console.error("Error initializing OneSignal:", error);
+      }
     };
 
-    initialize().catch(console.error);
-  }, []);
+    initialize();
+  }, [requestAllPermissions]);
 
   return null;
 };
