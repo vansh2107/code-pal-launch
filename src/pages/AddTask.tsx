@@ -18,10 +18,14 @@ export default function AddTask() {
   const [loading, setLoading] = useState(false);
   const [timezone, setTimezone] = useState("UTC");
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    startTime: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+  const [formData, setFormData] = useState(() => {
+    const now = new Date();
+    const defaultStartTime = format(now, "yyyy-MM-dd'T'HH:mm");
+    return {
+      title: "",
+      description: "",
+      startTime: defaultStartTime,
+    };
   });
 
   useEffect(() => {

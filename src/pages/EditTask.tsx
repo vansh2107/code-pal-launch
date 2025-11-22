@@ -136,7 +136,8 @@ export default function EditTask() {
 
       // Check if start time changed and if new time is in the future
       const startTimeChanged = currentTask && currentTask.start_time !== utcTime.toISOString();
-      const newTimeInFuture = utcTime > new Date();
+      const now = new Date();
+      const newTimeInFuture = utcTime.getTime() > now.getTime();
       const shouldResetNotifications = startTimeChanged && newTimeInFuture;
 
       let imagePath = existingImagePath;
