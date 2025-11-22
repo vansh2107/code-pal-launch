@@ -332,20 +332,26 @@ export default function Documents() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div 
+      className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
+      style={{ 
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
+      }}
+    >
       <header className="bg-card border-b border-border px-4 py-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Documents</h1>
+        <div className="w-full flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold text-foreground">Documents</h1>
           <Link to="/scan">
             <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-5 w-5 mr-2" />
               Add
             </Button>
           </Link>
         </div>
       </header>
 
-      <main className="px-4 py-6">
+      <main className="flex-1 px-4 py-6 w-full max-w-full overflow-x-hidden">
         {/* Filter Options */}
         <div className="mb-6 space-y-4">
           <div className="relative">
@@ -425,7 +431,7 @@ export default function Documents() {
                 return (
                   <Card
                     key={category.id}
-                    className={`cursor-pointer transition-all duration-200 hover:scale-[1.02] ${
+                    className={`w-full rounded-2xl cursor-pointer transition-all duration-200 hover:scale-[1.02] ${
                       isActive ? 'ring-2 ring-primary shadow-lg' : 'hover:shadow-lg'
                     }`}
                     onClick={() => handleCategoryClick(category.id)}

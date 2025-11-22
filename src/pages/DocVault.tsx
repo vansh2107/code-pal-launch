@@ -231,16 +231,22 @@ export default function DocVault() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24 overflow-x-hidden">
+    <div 
+      className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
+      style={{ 
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
+      }}
+    >
       {/* Header */}
       <div className="sticky top-0 z-40 bg-gradient-to-b from-primary/10 to-background backdrop-blur-xl border-b border-border/50">
-        <div className="container py-6 px-4">
-          <h1 className="text-3xl font-bold mb-2">DocVault</h1>
-          <p className="text-muted-foreground">Your secure document storage</p>
+        <div className="w-full py-6 px-4">
+          <h1 className="text-2xl font-semibold mb-2">DocVault</h1>
+          <p className="text-base text-muted-foreground">Your secure document storage</p>
         </div>
       </div>
 
-      <div className="container py-6 px-4 space-y-6 max-w-7xl mx-auto">
+      <div className="flex-1 py-6 px-4 space-y-6 w-full max-w-7xl mx-auto overflow-x-hidden">
         {/* Search and Actions */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -281,22 +287,22 @@ export default function DocVault() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="p-4">
-            <div className="text-2xl font-bold">{documents.length}</div>
-            <div className="text-xs text-muted-foreground">Total Documents</div>
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="w-full rounded-2xl p-4 shadow-sm">
+            <div className="text-2xl font-semibold">{documents.length}</div>
+            <div className="text-sm text-muted-foreground">Total Documents</div>
           </Card>
-          <Card className="p-4">
-            <div className="text-2xl font-bold">
+          <Card className="w-full rounded-2xl p-4 shadow-sm">
+            <div className="text-2xl font-semibold">
               {new Set(documents.map((d) => d.document_type)).size}
             </div>
-            <div className="text-xs text-muted-foreground">Types</div>
+            <div className="text-sm text-muted-foreground">Types</div>
           </Card>
         </div>
 
         {/* Documents Grid */}
         {filteredDocuments.length === 0 ? (
-          <Card className="p-8 text-center">
+          <Card className="w-full rounded-2xl p-8 text-center shadow-sm">
             <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-lg font-medium mb-2">No documents yet</h3>
             <p className="text-muted-foreground mb-4 text-sm">
@@ -318,7 +324,7 @@ export default function DocVault() {
             {filteredDocuments.map((doc) => (
               <Card
                 key={doc.id}
-                className="group relative overflow-hidden hover:shadow-lg transition-all"
+                className="w-full rounded-2xl group relative overflow-hidden hover:shadow-lg transition-all"
               >
                 <div 
                   className="cursor-pointer"
