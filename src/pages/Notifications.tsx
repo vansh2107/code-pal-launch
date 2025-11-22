@@ -120,17 +120,23 @@ export default function Notifications() {
   const { active, upcoming } = groupNotificationsByStatus(notifications);
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div 
+      className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
+      style={{ 
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
+      }}
+    >
       <header className="bg-card border-b border-border px-4 py-6">
-        <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-        <p className="text-muted-foreground">Stay on top of your document renewals</p>
+        <h1 className="text-2xl font-semibold text-foreground">Notifications</h1>
+        <p className="text-base text-muted-foreground">Stay on top of your document renewals</p>
       </header>
 
-      <main className="px-4 py-6 space-y-6">
+      <main className="flex-1 px-4 py-6 space-y-6 w-full max-w-full overflow-x-hidden">
         {/* Active/Urgent Notifications */}
         {active.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
               <Bell className="h-5 w-5 text-warning" />
               Action Required ({active.length})
             </h2>
@@ -139,7 +145,7 @@ export default function Notifications() {
                 const status = getNotificationStatus(notification.reminder_date, notification.document.expiry_date);
                 return (
                   <Link key={notification.id} to={`/documents/${notification.document_id}`}>
-                    <Card className="hover:bg-muted/50 transition-colors">
+                    <Card className="w-full rounded-2xl hover:bg-muted/50 transition-colors shadow-sm">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -174,14 +180,14 @@ export default function Notifications() {
         {/* Upcoming Notifications */}
         {upcoming.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
               <Calendar className="h-5 w-5 text-muted-foreground" />
               Upcoming Reminders ({upcoming.length})
             </h2>
             <div className="space-y-3">
               {upcoming.map((notification) => (
                 <Link key={notification.id} to={`/documents/${notification.document_id}`}>
-                  <Card className="hover:bg-muted/50 transition-colors">
+                  <Card className="w-full rounded-2xl hover:bg-muted/50 transition-colors shadow-sm">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">

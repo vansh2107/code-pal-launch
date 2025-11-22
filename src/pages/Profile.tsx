@@ -75,9 +75,9 @@ interface SettingsSectionProps {
 
 function SettingsSection({ title, children }: SettingsSectionProps) {
   return (
-    <div className="mb-6 animate-fade-in">
-      <h2 className="text-lg font-bold text-foreground mb-3 px-1">{title}</h2>
-      <div className="bg-card rounded-xl border border-border/50 overflow-hidden shadow-sm">
+    <div className="mb-6 animate-fade-in w-full">
+      <h2 className="text-xl font-semibold text-foreground mb-3 px-1">{title}</h2>
+      <div className="w-full bg-card rounded-2xl border border-border/50 overflow-hidden shadow-sm">
         {children}
       </div>
     </div>
@@ -227,23 +227,29 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-background overflow-y-auto">
+    <div 
+      className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
+      style={{ 
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
+      }}
+    >
       {/* Header */}
       <header className="bg-card border-b border-border/50 px-4 py-6 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+        <div className="w-full flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
             <User className="h-6 w-6 text-primary" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-semibold text-foreground truncate">
               {profile?.display_name || user?.email?.split('@')[0] || 'User'}
             </h1>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
+            <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
           </div>
         </div>
       </header>
 
-      <main className="px-4 py-6 pb-32">
+      <main className="flex-1 px-4 py-6 w-full max-w-full overflow-x-hidden">
         {/* Documents Section */}
         <SettingsSection title="Documents">
           <SettingsItem icon={FileText} title="My Documents" to="/documents" />
