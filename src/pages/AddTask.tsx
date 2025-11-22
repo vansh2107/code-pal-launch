@@ -127,9 +127,9 @@ export default function AddTask() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <div className="min-h-screen bg-background pb-24 px-4" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       {/* Header */}
-      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -146,8 +146,8 @@ export default function AddTask() {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="p-4 space-y-4">
-        <Card className="p-4 space-y-4">
+      <form onSubmit={handleSubmit} className="p-4 space-y-4 w-full max-w-full">
+        <Card className="p-4 space-y-4 rounded-xl shadow-sm w-full">
           <div>
             <Label htmlFor="title">Task Title *</Label>
             <Input

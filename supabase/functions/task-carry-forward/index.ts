@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
         // Find all pending tasks where task_date is before today
         const { data: tasks, error: tasksError } = await supabase
           .from('tasks')
-          .select('id, task_date, consecutive_missed_days, title')
+          .select('id, task_date, original_date, consecutive_missed_days, title')
           .eq('user_id', profile.user_id)
           .eq('status', 'pending')
           .lt('task_date', todayLocal);
@@ -62,15 +62,21 @@ Deno.serve(async (req) => {
 
         for (const task of tasks) {
           try {
-            // Increment consecutive missed days
-            const newConsecutiveDays = (task.consecutive_missed_days || 0) + 1;
+            // Calculate consecutive missed days using LOCAL timezone day boundaries
+            // carriedDays = difference_in_days(current_date, original_date)
+            const originalDateLocal = new Date(task.original_date + 'T00:00:00');
+            const todayDateLocal = new Date(todayLocal + 'T00:00:00');
+            const daysDiff = Math.floor((todayDateLocal.getTime() - originalDateLocal.getTime()) / (1000 * 60 * 60 * 24));
+            
+            const newConsecutiveDays = Math.max(0, daysDiff);
 
-            // Update ONLY task_date and consecutive_missed_days
+            // Update ONLY task_date, local_date, and consecutive_missed_days
             // PRESERVE: start_time, original_date, last_reminder_sent_at, etc.
             const { error: updateError } = await supabase
               .from('tasks')
               .update({
                 task_date: todayLocal,
+                local_date: todayLocal,
                 consecutive_missed_days: newConsecutiveDays,
                 updated_at: new Date().toISOString(),
               })

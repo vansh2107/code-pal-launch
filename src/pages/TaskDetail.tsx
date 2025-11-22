@@ -140,9 +140,9 @@ export default function TaskDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <div className="min-h-screen bg-background pb-24 px-4" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       {/* Header */}
-      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
@@ -189,9 +189,8 @@ export default function TaskDetail() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-4 space-y-4">
-        <Card className="p-6 space-y-4">
+      <div className="p-4 space-y-4 w-full max-w-full overflow-hidden">
+        <Card className="p-6 space-y-4 rounded-xl shadow-sm w-full">
           <div>
             <h2 className="text-2xl font-bold mb-2">{task.title}</h2>
             {task.description && (
