@@ -292,24 +292,33 @@ export default function DocumentDetail() {
   const daysToStartProcess = recommendedDays || document.renewal_period_days || null;
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div 
+      className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden"
+      style={{ 
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
+      }}
+    >
       <header className={`border-b px-4 py-6 border-2 ${statusInfo?.bgClass || 'bg-card'} ${statusInfo?.borderClass || 'border-border'}`}>
-        <div className="flex items-center gap-4 mb-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate(isDocVault ? '/docvault' : '/documents')}>
+        <div className="w-full flex items-center justify-between mb-4 gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(isDocVault ? '/docvault' : '/documents')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="flex-1">
-            <h1 className={`text-2xl font-bold ${statusInfo?.textClass || 'text-foreground'}`}>{document.name}</h1>
-            <p className="text-muted-foreground">
-              {getSubCategoryName(document.category_detail || document.document_type)}
-            </p>
-          </div>
-          {!isDocVault && statusInfo && (
+          <h1 className={`flex-1 text-center text-2xl font-semibold ${statusInfo?.textClass || 'text-foreground'}`}>
+            {document.name}
+          </h1>
+          <div style={{ width: 32 }} />
+        </div>
+        <p className="text-center text-muted-foreground">
+          {getSubCategoryName(document.category_detail || document.document_type)}
+        </p>
+        {!isDocVault && statusInfo && (
+          <div className="flex justify-center mt-3">
             <Badge variant={statusInfo.badgeVariant} className={statusInfo.colorClass}>
               {statusInfo.label}
             </Badge>
-          )}
-        </div>
+          </div>
+        )}
         
         {!isDocVault && statusInfo && (
           <>
