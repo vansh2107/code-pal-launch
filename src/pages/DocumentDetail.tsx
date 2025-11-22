@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Edit2, Trash2, Calendar, Building, FileText, Clock, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Edit2, Trash2, Calendar, Building, FileText, Clock, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { toast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ import { DocumentHistory } from "@/components/document/DocumentHistory";
 import { AIInsights } from "@/components/document/AIInsights";
 import { RenewalAdvisor } from "@/components/ai/RenewalAdvisor";
 import { DocumentViewer } from "@/components/document/DocumentViewer";
+import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
 import { getDocumentStatus } from "@/utils/documentStatus";
 import {
   AlertDialog,
@@ -51,6 +52,7 @@ export default function DocumentDetail() {
   const [renewalAdvice, setRenewalAdvice] = useState<string>("");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [renewalSheetOpen, setRenewalSheetOpen] = useState(false);
 
   useEffect(() => {
     if (user && id) {
@@ -365,6 +367,20 @@ export default function DocumentDetail() {
             ) : null}
           </>
         )}
+        
+        {/* Renewal Completed Button - Only for expiring/expired documents */}
+        {!isDocVault && (statusInfo?.status === 'expired' || statusInfo?.status === 'expiring') && (
+          <div className="mt-4 flex justify-center">
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl shadow-lg w-full max-w-sm"
+              onClick={() => setRenewalSheetOpen(true)}
+            >
+              <RefreshCw className="h-5 w-5 mr-2" />
+              Renewal Completed
+            </Button>
+          </div>
+        )}
       </header>
 
       <main className="px-4 py-6 space-y-6">
@@ -569,6 +585,14 @@ export default function DocumentDetail() {
           />
         )}
       </main>
+
+      <RenewalOptionsSheet
+        open={renewalSheetOpen}
+        onOpenChange={setRenewalSheetOpen}
+        documentId={document.id}
+        documentName={document.name}
+        onSuccess={fetchDocument}
+      />
 
       <BottomNavigation />
     </div>
