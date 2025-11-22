@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { TaskCard } from "@/components/tasks/TaskCard";
+import { TaskFutureList } from "@/components/tasks/TaskFutureList";
 import { TaskListSkeleton } from "@/components/ui/loading-skeleton";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 
@@ -27,6 +28,7 @@ export default function Tasks() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [futureTasks, setFutureTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [userTimezone, setUserTimezone] = useState("UTC");
 
@@ -38,6 +40,7 @@ export default function Tasks() {
     await fetchUserTimezone();
     await carryForwardTasks();
     await fetchTasks();
+    await fetchFutureTasks();
   };
 
   const fetchUserTimezone = useCallback(async () => {
@@ -64,30 +67,41 @@ export default function Tasks() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Get today's date in user's timezone
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("timezone")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      
+      const timezone = profile?.timezone || userTimezone;
       const today = new Date().toLocaleDateString("en-CA");
       
       const { data: pendingTasks, error: fetchError } = await supabase
         .from("tasks")
-        .select("id, local_date, consecutive_missed_days")
+        .select("id, local_date, task_date, original_date, consecutive_missed_days")
         .eq("user_id", user.id)
         .eq("status", "pending")
-        .lt("local_date", today);
+        .lt("task_date", today);
 
       if (fetchError) throw fetchError;
 
       if (pendingTasks && pendingTasks.length > 0) {
         const updates = pendingTasks.map((task) => {
-          const daysMissed = Math.floor(
-            (new Date(today).getTime() - new Date(task.local_date).getTime()) / 
-            (1000 * 60 * 60 * 24)
-          );
+          // Calculate consecutive missed days using LOCAL timezone day boundaries
+          // carriedDays = difference_in_days(current_date, original_date)
+          const originalDateLocal = new Date(task.original_date + 'T00:00:00');
+          const todayDateLocal = new Date(today + 'T00:00:00');
+          const daysDiff = Math.floor((todayDateLocal.getTime() - originalDateLocal.getTime()) / (1000 * 60 * 60 * 24));
+          
+          const newConsecutiveDays = Math.max(0, daysDiff);
           
           return supabase
             .from("tasks")
             .update({
               local_date: today,
               task_date: today,
-              consecutive_missed_days: (task.consecutive_missed_days || 0) + daysMissed,
+              consecutive_missed_days: newConsecutiveDays,
             })
             .eq("id", task.id);
         });
@@ -97,20 +111,28 @@ export default function Tasks() {
     } catch (error) {
       console.error("Carry-forward error:", error);
     }
-  }, []);
+  }, [userTimezone]);
 
   const fetchTasks = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Get today in user's local timezone
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("timezone")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      
+      const timezone = profile?.timezone || userTimezone;
       const today = new Date().toLocaleDateString("en-CA");
       
       const { data, error } = await supabase
         .from("tasks")
         .select("*")
         .eq("user_id", user.id)
-        .eq("local_date", today)
+        .eq("task_date", today)
         .order("start_time", { ascending: true })
         .limit(100);
 
@@ -125,7 +147,38 @@ export default function Tasks() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, userTimezone]);
+
+  const fetchFutureTasks = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get today in user's local timezone
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("timezone")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      
+      const timezone = profile?.timezone || userTimezone;
+      const today = new Date().toLocaleDateString("en-CA");
+      
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("*")
+        .eq("user_id", user.id)
+        .gt("task_date", today)
+        .order("task_date", { ascending: true })
+        .order("start_time", { ascending: true })
+        .limit(50);
+
+      if (error) throw error;
+      setFutureTasks(data || []);
+    } catch (error) {
+      console.error("Error fetching future tasks:", error);
+    }
+  }, [userTimezone]);
 
   const getTaskStatusInfo = (task: Task) => {
     if (task.status === "completed") {
@@ -194,8 +247,8 @@ export default function Tasks() {
   });
 
   return (
-    <div className="min-h-screen bg-background pb-24 animate-fade-in" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
-      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+    <div className="min-h-screen bg-background pb-24 animate-fade-in px-4" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Daily Tasks</h1>
@@ -223,40 +276,50 @@ export default function Tasks() {
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        {tasks.length === 0 ? (
-          <div className="text-center py-16 space-y-4 animate-fade-in">
-            <div className="text-6xl mb-4">📋</div>
-            <h3 className="text-lg font-semibold text-foreground">No tasks for today</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              Start planning your day by adding your first task
-            </p>
-            <Button
-              onClick={() => navigate("/add-task")}
-              className="rounded-full px-8"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Add Your First Task
-            </Button>
+      <div className="p-4 space-y-6">
+        {/* Today's Tasks */}
+        <div className="space-y-4">
+          {tasks.length === 0 ? (
+            <div className="text-center py-16 space-y-4 animate-fade-in">
+              <div className="text-6xl mb-4">📋</div>
+              <h3 className="text-lg font-semibold text-foreground">No tasks for today</h3>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                Start planning your day by adding your first task
+              </p>
+              <Button
+                onClick={() => navigate("/add-task")}
+                className="rounded-full px-8"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                Add Your First Task
+              </Button>
+            </div>
+          ) : (
+            <>
+              {tasks.map((task) => {
+                const statusInfo = getTaskStatusInfo(task);
+                const funnyMessage = getFunnyMessage(task.consecutive_missed_days);
+                
+                return (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    statusInfo={statusInfo}
+                    funnyMessage={funnyMessage}
+                    onRefresh={fetchTasks}
+                    userTimezone={userTimezone}
+                  />
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        {/* Future Tasks */}
+        {futureTasks.length > 0 && (
+          <div className="pt-6 border-t border-border">
+            <TaskFutureList tasks={futureTasks} userTimezone={userTimezone} />
           </div>
-        ) : (
-          <>
-            {tasks.map((task) => {
-              const statusInfo = getTaskStatusInfo(task);
-              const funnyMessage = getFunnyMessage(task.consecutive_missed_days);
-              
-              return (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  statusInfo={statusInfo}
-                  funnyMessage={funnyMessage}
-                  onRefresh={fetchTasks}
-                  userTimezone={userTimezone}
-                />
-              );
-            })}
-          </>
         )}
       </div>
 

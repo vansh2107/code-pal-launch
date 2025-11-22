@@ -169,16 +169,23 @@ export default function EditTask() {
       }
 
       // Prepare update data
+      // CRITICAL: DO NOT update original_date or start_time unless explicitly changing the task
       const updateData: any = {
         title: formData.title,
         description: formData.description || null,
-        start_time: utcTime.toISOString(),
-        timezone: timezone,
         image_path: imagePath,
-        local_date: localDate,
-        task_date: localDate,
         reminder_active: true,
       };
+
+      // Only update start_time if it actually changed
+      if (startTimeChanged) {
+        updateData.start_time = utcTime.toISOString();
+        updateData.timezone = timezone;
+        updateData.local_date = localDate;
+        updateData.task_date = localDate;
+        // Also reset original_date if start time changed to a new date
+        updateData.original_date = localDate;
+      }
 
       // Only reset notification flags if start time changed to a future time
       if (shouldResetNotifications) {
@@ -249,9 +256,9 @@ export default function EditTask() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <div className="min-h-screen bg-background pb-24 px-4" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       {/* Header */}
-      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
@@ -291,8 +298,8 @@ export default function EditTask() {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="p-4 space-y-4">
-        <Card className="p-4 space-y-4">
+      <form onSubmit={handleSubmit} className="p-4 space-y-4 w-full max-w-full">
+        <Card className="p-4 space-y-4 rounded-xl shadow-sm w-full">
           <div>
             <Label htmlFor="title">Task Title *</Label>
             <Input

@@ -122,9 +122,9 @@ export default function TaskHistory() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-24 px-4" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       {/* Header */}
-      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -141,9 +141,9 @@ export default function TaskHistory() {
       </div>
 
       {/* Timeline */}
-      <div className="p-4">
+      <div className="p-4 w-full max-w-full overflow-hidden">
         {Object.keys(groupedTasks).length === 0 ? (
-          <Card className="p-8 text-center">
+          <Card className="p-8 text-center rounded-xl shadow-sm w-full">
             <p className="text-muted-foreground">No task history yet</p>
           </Card>
         ) : (
@@ -173,7 +173,7 @@ export default function TaskHistory() {
                   {dateTasks.map((task) => (
                     <Card
                       key={task.id}
-                      className="p-4 smooth hover:scale-[1.02] cursor-pointer"
+                      className="p-4 smooth hover:scale-[1.02] cursor-pointer rounded-xl shadow-sm w-full"
                       onClick={() => navigate(`/task/${task.id}`)}
                     >
                       <div className="flex items-start justify-between mb-2">
