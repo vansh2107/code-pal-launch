@@ -475,7 +475,13 @@ export default function Documents() {
             </div>
 
             {filteredDocuments.length === 0 ? (
-              <Card>
+              <div className="w-full flex items-center justify-center py-10">
+                <p className="text-muted-foreground text-lg">
+                  No documents available
+                </p>
+              </div>
+            ) : filteredDocuments.length === 0 ? (
+              <Card className="w-full rounded-2xl">
                 <CardContent className="p-8 text-center">
                   <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-foreground mb-2">

@@ -6,10 +6,10 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Upload, Camera, FileText, Search, X, Trash2, MoreVertical } from "lucide-react";
+import { Upload, Camera as CameraIcon, FileText, Search, X, Trash2, MoreVertical } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -148,6 +148,15 @@ export default function DocVault() {
         throw new Error("File size exceeds 20MB limit");
       }
       
+      // Get user timezone
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('timezone')
+        .eq('user_id', user.id)
+        .single();
+      
+      const timezone = profile?.timezone || 'UTC';
+      const now = new Date();
       const fileName = `${user.id}/${Date.now()}.jpg`;
 
       const { error: uploadError } = await supabase.storage
@@ -160,7 +169,7 @@ export default function DocVault() {
         .from("documents")
         .insert({
           user_id: user.id,
-          name: `Scanned Document ${format(new Date(), "MMM dd, yyyy HH:mm")}`,
+          name: `Scanned Document ${formatInTimeZone(now, timezone, "MMM dd, yyyy HH:mm")}`,
           document_type: "other",
           image_path: fileName,
           issuing_authority: "DocVault",
@@ -264,7 +273,7 @@ export default function DocVault() {
               variant="outline"
               className="gap-2"
             >
-              <Camera className="h-4 w-4" />
+              <CameraIcon className="h-4 w-4" />
               Scan
             </Button>
             <Button
@@ -304,13 +313,13 @@ export default function DocVault() {
         {filteredDocuments.length === 0 ? (
           <Card className="w-full rounded-2xl p-8 text-center shadow-sm">
             <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-medium mb-2">No documents yet</h3>
+            <h3 className="text-lg font-semibold mb-2">No documents yet</h3>
             <p className="text-muted-foreground mb-4 text-sm">
               Start by uploading or scanning your first document
             </p>
             <div className="flex flex-col sm:flex-row gap-2 justify-center max-w-sm mx-auto">
-              <Button onClick={startCamera} variant="outline" className="w-full sm:w-auto">
-                <Camera className="h-4 w-4 mr-2" />
+                  <Button variant="default" className="w-full sm:w-auto">
+                <CameraIcon className="h-4 w-4 mr-2" />
                 Scan
               </Button>
               <Button onClick={() => fileInputRef.current?.click()} variant="default" className="w-full sm:w-auto">
@@ -346,10 +355,22 @@ export default function DocVault() {
                       )}
                     </div>
                   )}
-                  <div className="p-4 space-y-2">
+                   <div className="p-4 space-y-2">
                     <h3 className="font-medium truncate">{doc.name}</h3>
                     <p className="text-xs text-muted-foreground">
-                      Added: {format(new Date(doc.created_at), "MMM dd, yyyy")}
+                      {(() => {
+                        const getTimezone = async () => {
+                          const { data: profile } = await supabase
+                            .from('profiles')
+                            .select('timezone')
+                            .eq('user_id', user?.id)
+                            .single();
+                          return profile?.timezone || 'UTC';
+                        };
+                        
+                        // For display, use a simplified approach
+                        return `Added: ${new Date(doc.created_at).toLocaleDateString()}`;
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -421,7 +442,7 @@ export default function DocVault() {
                 />
                 <div className="flex gap-2 justify-center">
                   <Button onClick={capturePhoto} size="lg">
-                    <Camera className="h-5 w-5 mr-2" />
+                    <CameraIcon className="h-5 w-5 mr-2" />
                     Capture
                   </Button>
                   <Button onClick={stopCamera} variant="outline" size="lg">

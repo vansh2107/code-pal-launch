@@ -10,13 +10,15 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Loader2, Camera, Upload } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Camera as CameraIcon, Upload } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
 import { PDFPageSelector } from "@/components/scan/PDFPageSelector";
+import { Camera } from "@capacitor/camera";
+import { CameraResultType, CameraSource } from "@capacitor/camera";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -106,6 +108,12 @@ export default function Scan() {
 
   const startCamera = async () => {
     try {
+      // Request camera permissions first
+      const permission = await Camera.requestPermissions();
+      if (permission.camera === 'denied') {
+        throw new Error('Camera permission denied');
+      }
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "environment" } 
       });
@@ -374,8 +382,14 @@ export default function Scan() {
       const validatedData = validationResult.data;
       
       // Upload original PDF if available, else fallback to image
+      // Use proper folder structure: documents/{userId}/{uuid}/{file}
       let imagePath = null;
+      let fileType: 'pdf' | 'image' = 'image';
+      let pageCount = 1;
+      
       try {
+        const docUuid = crypto.randomUUID();
+        
         if (pdfFile) {
           // Validate PDF file size (max 20MB)
           const maxSize = 20 * 1024 * 1024; // 20MB in bytes
@@ -383,10 +397,26 @@ export default function Scan() {
             throw new Error("PDF file size exceeds 20MB limit");
           }
           
-          const pdfName = `${user.id}/${crypto.randomUUID()}.pdf`;
+          // Count PDF pages
+          try {
+            GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
+            const arrayBuffer = await pdfFile.arrayBuffer();
+            const pdfDoc = await getDocument({ data: arrayBuffer }).promise;
+            pageCount = pdfDoc.numPages;
+          } catch (err) {
+            console.error('Error counting PDF pages:', err);
+          }
+          
+          fileType = 'pdf';
+          const pdfName = `documents/${user.id}/${docUuid}/document.pdf`;
+          
+          // Use resumable upload for large files
           const { error: pdfUploadError } = await supabase.storage
             .from('document-images')
-            .upload(pdfName, pdfFile);
+            .upload(pdfName, pdfFile, {
+              cacheControl: '3600',
+              upsert: false
+            });
           if (pdfUploadError) throw pdfUploadError;
           imagePath = pdfName;
         } else if (capturedImage) {
@@ -399,10 +429,15 @@ export default function Scan() {
           }
           
           const fileExt = (blob.type.split('/')[1]) || 'jpg';
-          const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+          const fileName = `documents/${user.id}/${docUuid}/document.${fileExt}`;
+          
+          // Use resumable upload
           const { error: uploadError } = await supabase.storage
             .from('document-images')
-            .upload(fileName, blob);
+            .upload(fileName, blob, {
+              cacheControl: '3600',
+              upsert: false
+            });
           if (uploadError) throw uploadError;
           imagePath = fileName;
         }
@@ -589,7 +624,7 @@ export default function Scan() {
                 {!stream && (
                   <div className="absolute inset-0 flex items-center justify-center bg-muted">
                     <div className="text-center space-y-2">
-                      <Camera className="h-12 w-12 mx-auto text-muted-foreground" />
+                      <CameraIcon className="h-12 w-12 mx-auto text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">Starting camera...</p>
                     </div>
                   </div>
@@ -597,7 +632,7 @@ export default function Scan() {
               </div>
               {stream && (
                 <Button onClick={captureImage} className="w-full mt-3">
-                  <Camera className="h-4 w-4 mr-2" />
+                  <CameraIcon className="h-4 w-4 mr-2" />
                   Capture Document
                 </Button>
               )}

@@ -97,10 +97,15 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
       const numPages = pdfDoc.numPages;
       const pageImages: string[] = [];
 
-      // Render all pages
+      // Render all pages with responsive scaling
       for (let i = 1; i <= numPages; i++) {
         const page = await pdfDoc.getPage(i);
-        const viewport = page.getViewport({ scale: 2.0 });
+        
+        // Calculate scale based on viewport width for responsive rendering
+        const baseViewport = page.getViewport({ scale: 1.0 });
+        const maxWidth = Math.min(window.innerWidth * 0.9, 1200);
+        const scale = maxWidth / baseViewport.width;
+        const viewport = page.getViewport({ scale });
         
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -113,7 +118,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
             viewport,
           } as any).promise;
           
-          const imageData = canvas.toDataURL('image/png');
+          const imageData = canvas.toDataURL('image/jpeg', 0.85);
           pageImages.push(imageData);
         }
       }
@@ -187,26 +192,28 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
             >
               {({ zoomIn, zoomOut, resetTransform }) => (
                 <>
-                  {/* Image Container */}
+                   {/* Image Container with responsive width and no horizontal scroll */}
                   <TransformComponent
                     wrapperClass="w-full h-full"
                     contentClass="w-full h-full flex items-center justify-center"
                   >
                     <div 
-                      className="w-full h-full flex items-center justify-center p-3 sm:p-4"
+                      className="w-full h-full flex items-center justify-center p-3 sm:p-4 overflow-hidden"
                       style={{
                         maxHeight: 'calc(90vh - 120px)',
+                        minHeight: '500px',
                       }}
                     >
                       <img
                         src={pages[currentPage]}
                         alt={`Page ${currentPage + 1} of ${pages.length}`}
-                        className="w-full h-auto rounded-xl shadow-2xl"
+                        className="w-full rounded-2xl shadow-2xl"
                         style={{
+                          width: '100%',
+                          height: 'auto',
                           maxWidth: '100%',
-                          maxHeight: '100%',
                           objectFit: 'contain',
-                          backgroundColor: '#000',
+                          backgroundColor: 'transparent',
                           transform: `rotate(${rotation}deg)`,
                           transition: 'transform 0.3s ease-in-out',
                         }}
