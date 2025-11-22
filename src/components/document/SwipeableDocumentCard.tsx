@@ -4,16 +4,7 @@ import { Link } from "react-router-dom";
 import { Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
 
 interface SwipeableDocumentCardProps {
   doc: {
@@ -43,7 +34,7 @@ export function SwipeableDocumentCard({
   getSubCategoryName,
 }: SwipeableDocumentCardProps) {
   const [swipeOffset, setSwipeOffset] = useState(0);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRenewalSheet, setShowRenewalSheet] = useState(false);
 
   const handlers = useSwipeable({
     onSwiping: (eventData) => {
@@ -54,7 +45,7 @@ export function SwipeableDocumentCard({
     },
     onSwipedLeft: () => {
       setSwipeOffset(80);
-      setShowDeleteConfirm(true);
+      setShowRenewalSheet(true);
     },
     onSwipedRight: () => {
       setSwipeOffset(0);
@@ -71,13 +62,7 @@ export function SwipeableDocumentCard({
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setShowDeleteConfirm(true);
-  };
-
-  const handleConfirmDelete = () => {
-    onDelete(doc.id);
-    setShowDeleteConfirm(false);
-    setSwipeOffset(0);
+    setShowRenewalSheet(true);
   };
 
   return (
@@ -143,23 +128,19 @@ export function SwipeableDocumentCard({
         )}
       </div>
 
-      {/* Delete confirmation dialog */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Document?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{doc.name}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Renewal Options Sheet */}
+      <RenewalOptionsSheet
+        open={showRenewalSheet}
+        onOpenChange={(open) => {
+          setShowRenewalSheet(open);
+          if (!open) {
+            setSwipeOffset(0);
+          }
+        }}
+        documentId={doc.id}
+        documentName={doc.name}
+        onSuccess={() => onDelete(doc.id)}
+      />
     </>
   );
 }

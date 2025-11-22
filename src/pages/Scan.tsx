@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,9 @@ const documentSchema = z.object({
 export default function Scan() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const replaceMode = searchParams.get("mode") === "replace";
+  const replaceDocId = searchParams.get("docId");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [scanMode, setScanMode] = useState<"camera" | "manual">("camera");
@@ -452,6 +455,66 @@ export default function Scan() {
 
       const selectedOrgId = selectedOrg === "personal" ? null : selectedOrg;
 
+      // Check if we're in replace mode
+      if (replaceMode && replaceDocId) {
+        // Get existing document to delete old image if needed
+        const { data: existingDoc, error: fetchError } = await supabase
+          .from('documents')
+          .select('image_path')
+          .eq('id', replaceDocId)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        // Delete old image if exists and we have a new one
+        if (existingDoc?.image_path && imagePath) {
+          await supabase.storage
+            .from('document-images')
+            .remove([existingDoc.image_path]);
+        }
+
+        // Update existing document
+        const { data, error } = await supabase
+          .from('documents')
+          .update({
+            name: validatedData.name,
+            document_type: validatedData.document_type as any,
+            category_detail: formData.document_type,
+            issuing_authority: validatedData.issuing_authority,
+            expiry_date: validatedData.expiry_date,
+            renewal_period_days: validatedData.renewal_period_days,
+            notes: validatedData.notes,
+            image_path: imagePath || existingDoc?.image_path,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', replaceDocId)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Show GenZ toast
+        const genZMessages = [
+          "W bro 😎🔥 renewal god!",
+          "No cap, you're actually adulting 💼😂",
+          "Sigma move right there 🗿🔥",
+          "Your future self just said thanks 🤝",
+          "Good job bro… your documents cleaner than your room 💀",
+          "You're cooking fr 🧑‍🍳🔥",
+          "Huge W, keep grinding ⚡",
+          "Okay productivity KING 🤌🔥"
+        ];
+        
+        toast({
+          title: genZMessages[Math.floor(Math.random() * genZMessages.length)],
+          duration: 3000,
+        });
+
+        navigate(`/documents/${data.id}`);
+        return;
+      }
+
+      // Create new document (original flow)
       const { data, error } = await supabase
         .from('documents')
         .insert({
@@ -572,9 +635,14 @@ export default function Scan() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-semibold text-foreground truncate">Add Document</h1>
+            <h1 className="text-lg font-semibold text-foreground truncate">
+              {replaceMode ? "Update Document" : "Add Document"}
+            </h1>
             <p className="text-xs text-muted-foreground truncate">
-              {scanMode === "camera" ? "Scan or upload" : "Manual entry"}
+              {replaceMode 
+                ? "Scanning new version to replace existing" 
+                : scanMode === "camera" ? "Scan or upload" : "Manual entry"
+              }
             </p>
           </div>
         </div>
