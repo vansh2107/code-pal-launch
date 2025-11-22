@@ -48,6 +48,9 @@ verify_jwt = false
 [functions.task-two-hour-reminder]
 verify_jwt = false
 
+[functions.task-overdue-alert]
+verify_jwt = false
+
 [functions.document-reminder]
 verify_jwt = false
 

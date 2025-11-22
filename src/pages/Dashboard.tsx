@@ -58,8 +58,7 @@ export default function Dashboard() {
       if (error) throw error;
 
       const today = new Date();
-      const thirtyDaysFromNow = new Date();
-      thirtyDaysFromNow.setDate(today.getDate() + 30);
+      const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
 
       // Filter out DocVault documents from stats
       const nonDocVaultDocs = documents?.filter(doc => doc.issuing_authority !== 'DocVault') || [];

@@ -426,6 +426,7 @@ export type Database = {
           end_time: string | null
           id: string
           image_path: string | null
+          last_overdue_alert_sent: string | null
           last_reminder_sent_at: string | null
           local_date: string | null
           original_date: string
@@ -447,6 +448,7 @@ export type Database = {
           end_time?: string | null
           id?: string
           image_path?: string | null
+          last_overdue_alert_sent?: string | null
           last_reminder_sent_at?: string | null
           local_date?: string | null
           original_date: string
@@ -468,6 +470,7 @@ export type Database = {
           end_time?: string | null
           id?: string
           image_path?: string | null
+          last_overdue_alert_sent?: string | null
           last_reminder_sent_at?: string | null
           local_date?: string | null
           original_date?: string

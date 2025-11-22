@@ -156,8 +156,8 @@ export default function DocVault() {
         .single();
       
       const timezone = profile?.timezone || 'UTC';
-      const now = new Date();
-      const fileName = `${user.id}/${Date.now()}.jpg`;
+      const now = Date.now();
+      const fileName = `${user.id}/${now}.jpg`;
 
       const { error: uploadError } = await supabase.storage
         .from("document-images")

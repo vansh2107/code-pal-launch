@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Clock, CheckCircle2, Image as ImageIcon, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -42,7 +42,7 @@ interface TaskCardProps {
   userTimezone: string;
 }
 
-export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezone }: TaskCardProps) {
+const TaskCardComponent = ({ task, statusInfo, funnyMessage, onRefresh, userTimezone }: TaskCardProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
@@ -51,6 +51,12 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
     const zoned = toZonedTime(now, userTimezone);
     return format(zoned, "yyyy-MM-dd'T'HH:mm");
   });
+
+  const maxCompletionTime = (() => {
+    const now = new Date();
+    const zoned = toZonedTime(now, userTimezone);
+    return format(zoned, "yyyy-MM-dd'T'HH:mm");
+  })();
   const [uploadingImage, setUploadingImage] = useState(false);
   const [completionImage, setCompletionImage] = useState<File | null>(null);
 
@@ -210,7 +216,7 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
                 type="datetime-local"
                 value={completionTime}
                 onChange={(e) => setCompletionTime(e.target.value)}
-                max={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+                max={maxCompletionTime}
               />
             </div>
             <div>
@@ -235,3 +241,6 @@ export function TaskCard({ task, statusInfo, funnyMessage, onRefresh, userTimezo
     </>
   );
 }
+
+// Export memoized version for better performance
+export const TaskCard = memo(TaskCardComponent);

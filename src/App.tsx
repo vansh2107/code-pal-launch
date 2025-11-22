@@ -11,6 +11,7 @@ import { ChatBot } from "@/components/chatbot/ChatBot";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 import { initOneSignal } from "@/lib/onesignal";
 
 // PAGES
@@ -37,7 +38,16 @@ import TaskDetail from "./pages/TaskDetail";
 import Settings from "./pages/Settings";
 import AuthEventListener from "./components/auth/AuthEventListener";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // ---------------------------------------------------
 // 🚀 OneSignal + Permissions + Back Button Handler
@@ -54,13 +64,20 @@ const NotificationScheduler = () => {
 
         // Initialize OneSignal for Capacitor Native
         if (Capacitor.isNativePlatform()) {
-          console.log("Initializing OneSignal for Capacitor Native...");
           initOneSignal();
-        } else {
-          console.log("Not a native platform, skipping OneSignal initialization");
+        }
+
+        // Handle app state changes to refresh data
+        if (Capacitor.isNativePlatform()) {
+          CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+            if (isActive) {
+              queryClient.invalidateQueries({ queryKey: ['tasks'] });
+              queryClient.invalidateQueries({ queryKey: ['documents'] });
+            }
+          });
         }
       } catch (error) {
-        console.error("Error initializing notifications:", error);
+        console.error("Error initializing app:", error);
       }
     };
 

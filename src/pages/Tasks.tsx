@@ -75,7 +75,14 @@ export default function Tasks() {
         .maybeSingle();
       
       const timezone = profile?.timezone || userTimezone;
-      const today = new Date().toLocaleDateString("en-CA");
+      // Use timezone-aware date formatting
+      const todayFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const today = todayFormatter.format(new Date());
       
       const { data: pendingTasks, error: fetchError } = await supabase
         .from("tasks")
@@ -126,11 +133,18 @@ export default function Tasks() {
         .maybeSingle();
       
       const timezone = profile?.timezone || userTimezone;
-      const today = new Date().toLocaleDateString("en-CA");
+      // Use timezone-aware date formatting
+      const todayFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const today = todayFormatter.format(new Date());
       
       const { data, error } = await supabase
         .from("tasks")
-        .select("*")
+        .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date")
         .eq("user_id", user.id)
         .eq("task_date", today)
         .order("start_time", { ascending: true })
@@ -162,11 +176,18 @@ export default function Tasks() {
         .maybeSingle();
       
       const timezone = profile?.timezone || userTimezone;
-      const today = new Date().toLocaleDateString("en-CA");
+      // Use timezone-aware date formatting
+      const todayFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const today = todayFormatter.format(new Date());
       
       const { data, error } = await supabase
         .from("tasks")
-        .select("*")
+        .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date")
         .eq("user_id", user.id)
         .gt("task_date", today)
         .order("task_date", { ascending: true })
@@ -239,12 +260,15 @@ export default function Tasks() {
 
   const completedTasks = tasks.filter(t => t.status === "completed");
   const pendingTasks = tasks.filter(t => t.status === "pending");
-  const today = new Date().toLocaleDateString('en-US', { 
+  // Use timezone-aware date formatting
+  const todayFormatter = new Intl.DateTimeFormat('en-US', { 
+    timeZone: userTimezone,
     weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
   });
+  const today = todayFormatter.format(new Date());
 
   return (
     <div className="min-h-screen bg-background pb-24 animate-fade-in px-4" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>

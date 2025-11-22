@@ -160,6 +160,7 @@ export default function Documents() {
     // Status filter
     if (filterStatus !== "all") {
       const today = new Date();
+      const todayTime = today.getTime();
       filtered = filtered.filter(doc => {
         const expiry = new Date(doc.expiry_date);
         const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -311,7 +312,9 @@ export default function Documents() {
 
   const getStatusBadge = (expiryDate: string) => {
     const today = new Date();
+    const todayTime = today.getTime();
     const expiry = new Date(expiryDate);
+    const expiryTime = expiry.getTime();
     const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     if (daysUntilExpiry < 0) {
