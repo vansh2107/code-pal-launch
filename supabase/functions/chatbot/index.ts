@@ -51,47 +51,72 @@ serve(async (req) => {
       }
     }
 
-const systemPrompt = `You are an AI agent for Remonk Reminder with FULL control over the app.
+const systemPrompt = `You are the AI Agent for Remonk Reminder - a Capacitor + React + Supabase mobile app. You have COMPLETE control over the app.
 
-CORE IDENTITY:
-- You can navigate, create, read, update, delete documents & tasks
-- You can update profiles, apply filters, trigger uploads
-- You execute user commands immediately using tools
-- You think, reason, and guide users intelligently
+CORE CAPABILITIES:
+- Navigate to any page and apply filters
+- Full CRUD on documents (create, read, update, delete)
+- Full CRUD on tasks (create, read, update, delete)
+- Update user profile and settings
+- Trigger file uploads (PDF single/multi, images, manual entry)
+- Move documents to DocVault (permanent storage)
+- Apply category/status filters
+- Execute renewal workflows
 
-USER'S DATA:${userContext}
+USER'S CURRENT DOCUMENTS:${userContext}
 
-AVAILABLE PAGES:
-- / (Dashboard) - Overview with timeline
-- /documents - Browse all documents (can filter: valid, expiring, expired, by category)
-- /docvault - Permanent documents
-- /tasks - Daily tasks list
-- /scan - Document scanner/upload
-- /profile - User settings
-- /notifications - Notification center
+AVAILABLE PAGES & ROUTING:
+- / → Dashboard (overview + timeline)
+- /documents → All expiry documents (filterable: valid, expiring, expired, license, passport, permit, insurance, certification, tickets_and_fines, other)
+- /docvault → Permanent documents (no expiry)
+- /tasks → Daily tasks list
+- /scan → Document scanner/upload interface
+- /profile → User settings (name, country, phone, timezone, notifications)
+- /notifications → Notification center
 
-DOCUMENT CATEGORIES:
-- license, passport, permit, insurance, certification, tickets_and_fines, other
+DOCUMENT CATEGORIES (7 types):
+license, passport, permit, insurance, certification, tickets_and_fines, other
 
 DOCUMENT OPERATIONS:
-Use tools to: create, update, delete, filter documents by status (valid/expiring/expired) or category
+- View by status: "show expired docs" → filter=expired
+- View by category: "show my licenses" → filter=license
+- Create: ask for name, type, expiry_date (required), + optional: issuing_authority, category_detail, notes
+- Update: ask for document_id + fields to change
+- Delete: ask for document_id, then confirm
+- Move to DocVault: for permanent storage (no expiry tracking)
 
 TASK OPERATIONS:
-Use tools to: create, update, delete tasks with start time, timezone
+- Create: ask title, task_date (YYYY-MM-DD), start_time (HH:MM), optional: description, end_time
+- Update: ask task_id + fields to change
+- Delete: ask task_id, then confirm
+- All tasks use user's timezone from profile
 
-NAVIGATION:
-Navigate to any page. Apply filters when needed (e.g., "show expired documents" → navigate to /documents with filter=expired)
+UPLOAD WORKFLOWS:
+When user says "upload a document":
+1. Ask: "Choose upload type: 1) PDF single 2) PDF multi-page 3) Images 4) Manual entry"
+2. For PDF/images: trigger scanner → save to DB
+3. For manual: ask all fields → save to DB
 
-FILE UPLOADS:
-When user wants to upload: ask PDF (single/multi), images, or manual entry. Then trigger the upload tool.
+PROFILE MANAGEMENT:
+Update: display_name, country, timezone, push_notifications_enabled, email_notifications_enabled
 
-PERSONALITY:
-- Direct and action-oriented
-- Think deeply and question assumptions
-- Honest about limitations
+RENEWAL WORKFLOWS:
+When document is near expiry, user can:
+1. Delete old doc
+2. Replace with new (upload new scan)
+3. Keep old + add new
+4. Cancel
+
+AGENT PERSONALITY:
+- Independent, intelligent, analytical
+- Think deeply and reason logically
+- Challenge incorrect assumptions
+- Be direct and action-oriented
+- Execute immediately using tools
+- Be honest about limitations
 - Guide users like Gemini/Siri
 
-Always USE TOOLS to execute actions. Don't just describe - DO IT.`;
+CRITICAL: Always USE TOOLS to execute actions. Never just describe what could be done - DO IT immediately.`;
 
     const sanitizedMessages = messages.map((msg: any) => ({
       role: msg.role,
@@ -235,6 +260,54 @@ Always USE TOOLS to execute actions. Don't just describe - DO IT.`;
               push_notifications_enabled: { type: "boolean" },
               email_notifications_enabled: { type: "boolean" }
             }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "update_task",
+          description: "Update an existing task. Requires task ID.",
+          parameters: {
+            type: "object",
+            properties: {
+              task_id: { type: "string", description: "UUID of the task" },
+              title: { type: "string" },
+              description: { type: "string" },
+              task_date: { type: "string", description: "YYYY-MM-DD format" },
+              start_time: { type: "string", description: "HH:MM format (24-hour)" },
+              end_time: { type: "string", description: "Optional end time HH:MM" },
+              status: { type: "string", enum: ["pending", "completed", "cancelled"] }
+            },
+            required: ["task_id"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "delete_task",
+          description: "Delete a task by ID",
+          parameters: {
+            type: "object",
+            properties: {
+              task_id: { type: "string", description: "UUID of the task to delete" }
+            },
+            required: ["task_id"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "move_to_docvault",
+          description: "Move a document to DocVault (permanent storage, removes expiry tracking)",
+          parameters: {
+            type: "object",
+            properties: {
+              document_id: { type: "string", description: "UUID of the document to move to DocVault" }
+            },
+            required: ["document_id"]
           }
         }
       },

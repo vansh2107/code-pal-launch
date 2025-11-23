@@ -177,6 +177,55 @@ export function ChatBot() {
           toast({ title: "Profile updated" });
           return `Updated profile settings`;
 
+        case 'update_task':
+          const taskUpdateData: any = {};
+          if (args.title) taskUpdateData.title = args.title;
+          if (args.description !== undefined) taskUpdateData.description = args.description;
+          if (args.task_date) taskUpdateData.task_date = args.task_date;
+          if (args.start_time) {
+            const updatedStartTime = new Date(`${args.task_date}T${args.start_time}:00`);
+            taskUpdateData.start_time = updatedStartTime.toISOString();
+          }
+          if (args.end_time) {
+            const updatedEndTime = new Date(`${args.task_date}T${args.end_time}:00`);
+            taskUpdateData.end_time = updatedEndTime.toISOString();
+          }
+          if (args.status) taskUpdateData.status = args.status;
+          
+          const { error: taskUpdateError } = await supabase
+            .from('tasks')
+            .update(taskUpdateData)
+            .eq('id', args.task_id);
+            
+          if (taskUpdateError) return `Error: ${taskUpdateError.message}`;
+          toast({ title: "Task updated" });
+          return `Updated task ${args.task_id}`;
+
+        case 'delete_task':
+          const { error: taskDeleteError } = await supabase
+            .from('tasks')
+            .delete()
+            .eq('id', args.task_id);
+            
+          if (taskDeleteError) return `Error: ${taskDeleteError.message}`;
+          toast({ title: "Task deleted" });
+          return `Deleted task ${args.task_id}`;
+
+        case 'move_to_docvault':
+          // In DocVault context, we can interpret this as marking document as permanent
+          // by setting a far-future expiry date or using a specific flag
+          const { error: vaultError } = await supabase
+            .from('documents')
+            .update({ 
+              expiry_date: '9999-12-31',
+              notes: `Moved to DocVault on ${new Date().toISOString().split('T')[0]}`
+            })
+            .eq('id', args.document_id);
+            
+          if (vaultError) return `Error: ${vaultError.message}`;
+          toast({ title: "Moved to DocVault", description: "Document is now permanent" });
+          return `Moved document ${args.document_id} to DocVault`;
+
         case 'trigger_upload':
           navigate('/scan');
           toast({ 
