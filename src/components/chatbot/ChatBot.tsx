@@ -14,6 +14,7 @@ interface Message {
   content: string;
   tool_calls?: any[];
   tool_call_id?: string;
+  files?: File[];
 }
 
 interface ToolExecution {
@@ -35,6 +36,8 @@ export function ChatBot() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [toolExecutions, setToolExecutions] = useState<ToolExecution[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   
@@ -54,9 +57,13 @@ export function ChatBot() {
     try {
       switch (toolName) {
         case 'navigate':
-          const targetPath = args.filter 
-            ? `${args.page}?filter=${args.filter}` 
-            : args.page;
+          // For documents page, use 'status' param instead of 'filter'
+          let targetPath = args.page;
+          if (args.filter && args.page === '/documents') {
+            targetPath = `${args.page}?status=${args.filter}`;
+          } else if (args.filter) {
+            targetPath = `${args.page}?filter=${args.filter}`;
+          }
           navigate(targetPath);
           return `Navigated to ${args.page}${args.filter ? ` with filter: ${args.filter}` : ''}`;
 
@@ -422,9 +429,38 @@ export function ChatBot() {
     }
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(file => {
+      const isImage = file.type.startsWith('image/');
+      const isPDF = file.type === 'application/pdf';
+      return isImage || isPDF;
+    });
+
+    if (validFiles.length < files.length) {
+      toast({
+        title: "Invalid files",
+        description: "Only images and PDFs are supported",
+        variant: "destructive",
+      });
+    }
+
+    setUploadedFiles(prev => [...prev, ...validFiles]);
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSend = () => {
-    if (!input.trim() || isLoading) return;
-    streamChat(input.trim());
+    if ((!input.trim() && uploadedFiles.length === 0) || isLoading) return;
+    
+    const message = uploadedFiles.length > 0 
+      ? `${input.trim() || 'I want to upload these documents'}\n\nFiles attached: ${uploadedFiles.map(f => f.name).join(', ')}`
+      : input.trim();
+    
+    streamChat(message);
+    setUploadedFiles([]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -518,8 +554,47 @@ export function ChatBot() {
           </ScrollArea>
 
           {/* Input */}
-          <div className="p-3 md:p-4 border-t">
+          <div className="p-3 md:p-4 border-t space-y-2">
+            {/* File Preview */}
+            {uploadedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {uploadedFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-xs">
+                    {file.type.startsWith('image/') ? (
+                      <ImageIcon className="h-3 w-3" />
+                    ) : (
+                      <FileText className="h-3 w-3" />
+                    )}
+                    <span className="max-w-[100px] truncate">{file.name}</span>
+                    <button
+                      onClick={() => removeFile(idx)}
+                      className="ml-1 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
             <div className="flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                multiple
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                variant="outline"
+                size="icon"
+                className="shrink-0 h-9 w-9 md:h-10 md:w-10"
+              >
+                <Upload className="h-3.5 w-3.5 md:h-4 md:w-4" />
+              </Button>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -530,7 +605,7 @@ export function ChatBot() {
               />
               <Button
                 onClick={handleSend}
-                disabled={!input.trim() || isLoading}
+                disabled={(!input.trim() && uploadedFiles.length === 0) || isLoading}
                 size="icon"
                 className="shrink-0 h-9 w-9 md:h-10 md:w-10"
               >
