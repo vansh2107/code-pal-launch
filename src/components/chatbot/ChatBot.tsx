@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Loader2, Upload, FileText, Image as ImageIcon } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Upload, FileText, Image as ImageIcon, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Message {
   role: 'user' | 'assistant' | 'tool';
@@ -26,6 +27,7 @@ interface ToolExecution {
 export function ChatBot() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -37,12 +39,14 @@ export function ChatBot() {
   const [isLoading, setIsLoading] = useState(false);
   const [toolExecutions, setToolExecutions] = useState<ToolExecution[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [showUploadOptions, setShowUploadOptions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   
-  // Hide chatbot on auth pages
+  // Hide chatbot on auth pages or when not authenticated
   const isAuthPage = location.pathname === '/auth' || location.pathname === '/reset-password';
+  const shouldShow = !isAuthPage && user;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -57,14 +61,30 @@ export function ChatBot() {
     try {
       switch (toolName) {
         case 'navigate':
-          // For documents page, use 'status' param instead of 'filter'
           let targetPath = args.page;
           if (args.filter && args.page === '/documents') {
-            targetPath = `${args.page}?status=${args.filter}`;
+            // Map filter values to status parameter
+            const statusMap: Record<string, string> = {
+              'valid': 'valid',
+              'expiring': 'expiring',
+              'expired': 'expired',
+              'all': 'all',
+              // Document types
+              'license': 'license',
+              'passport': 'passport',
+              'permit': 'permit',
+              'insurance': 'insurance',
+              'certification': 'certification',
+              'tickets_and_fines': 'tickets_and_fines',
+              'other': 'other'
+            };
+            const mappedFilter = statusMap[args.filter] || args.filter;
+            targetPath = `${args.page}?status=${mappedFilter}`;
           } else if (args.filter) {
             targetPath = `${args.page}?filter=${args.filter}`;
           }
           navigate(targetPath);
+          setIsOpen(false); // Close chatbot after navigation
           return `Navigated to ${args.page}${args.filter ? ` with filter: ${args.filter}` : ''}`;
 
         case 'get_documents':
@@ -234,6 +254,7 @@ export function ChatBot() {
           return `Moved document ${args.document_id} to DocVault`;
 
         case 'trigger_upload':
+          setIsOpen(false); // Close chatbot
           navigate('/scan');
           toast({ 
             title: "Upload mode activated", 
@@ -461,6 +482,7 @@ export function ChatBot() {
     
     streamChat(message);
     setUploadedFiles([]);
+    setShowUploadOptions(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -470,7 +492,22 @@ export function ChatBot() {
     }
   };
 
-  if (isAuthPage) return null;
+  const handleUploadOption = (type: string) => {
+    setShowUploadOptions(false);
+    if (type === 'manual') {
+      setInput('I want to add a document manually');
+      streamChat('I want to add a document manually');
+    } else {
+      navigate('/scan');
+      setIsOpen(false);
+      toast({
+        title: "Upload mode",
+        description: `Navigate to scan page for ${type} upload`
+      });
+    }
+  };
+
+  if (!shouldShow) return null;
 
   return (
     <>
@@ -555,9 +592,53 @@ export function ChatBot() {
 
           {/* Input */}
           <div className="p-3 md:p-4 border-t space-y-2">
+            {/* Quick Upload Options */}
+            {showUploadOptions && (
+              <div className="mb-2 p-3 bg-muted/50 rounded-lg space-y-2">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Choose upload type:</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleUploadOption('pdf')}
+                    className="flex flex-col h-auto py-2 gap-1"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="text-xs">PDF</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleUploadOption('image')}
+                    className="flex flex-col h-auto py-2 gap-1"
+                  >
+                    <Camera className="h-4 w-4" />
+                    <span className="text-xs">Image</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleUploadOption('manual')}
+                    className="flex flex-col h-auto py-2 gap-1"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="text-xs">Manual</span>
+                  </Button>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowUploadOptions(false)}
+                  className="w-full text-xs"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+
             {/* File Preview */}
             {uploadedFiles.length > 0 && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mb-2">
                 {uploadedFiles.map((file, idx) => (
                   <div key={idx} className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-xs">
                     {file.type.startsWith('image/') ? (
@@ -587,11 +668,12 @@ export function ChatBot() {
                 className="hidden"
               />
               <Button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setShowUploadOptions(!showUploadOptions)}
                 disabled={isLoading}
                 variant="outline"
                 size="icon"
                 className="shrink-0 h-9 w-9 md:h-10 md:w-10"
+                title="Upload options"
               >
                 <Upload className="h-3.5 w-3.5 md:h-4 md:w-4" />
               </Button>
@@ -599,13 +681,14 @@ export function ChatBot() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Tell me what to do..."
-                className="min-h-[50px] md:min-h-[60px] max-h-[100px] md:max-h-[120px] text-sm"
+                placeholder="Ask me anything..."
+                className="min-h-[40px] max-h-[120px] text-xs md:text-sm resize-none"
+                rows={1}
                 disabled={isLoading}
               />
               <Button
                 onClick={handleSend}
-                disabled={(!input.trim() && uploadedFiles.length === 0) || isLoading}
+                disabled={isLoading || (!input.trim() && uploadedFiles.length === 0)}
                 size="icon"
                 className="shrink-0 h-9 w-9 md:h-10 md:w-10"
               >
