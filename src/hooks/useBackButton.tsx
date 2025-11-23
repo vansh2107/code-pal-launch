@@ -27,39 +27,28 @@ export const useBackButton = () => {
     let listenerHandle: any = null;
 
     const setupListener = async () => {
-      listenerHandle = await App.addListener('backButton', ({ canGoBack }) => {
+      listenerHandle = await App.addListener('backButton', () => {
         const currentPath = window.location.pathname;
-        const historyLength = window.history.length;
 
-        console.log(`Back button pressed. Path: ${currentPath}, History: ${historyLength}, canGoBack: ${canGoBack}`);
+        console.log(`Back button pressed. Path: ${currentPath}`);
 
-        // Check if we're on the home/root page
-        const isHomePage = currentPath === '/' || currentPath === '/tasks';
-
-        // If we have navigation history and can go back
-        if (canGoBack && historyLength > 1 && !isHomePage) {
-          console.log('Navigating back in history...');
+        // Tasks page should navigate back, not exit
+        if (currentPath === '/tasks') {
+          console.log('On Tasks page, navigating back...');
           navigate(-1);
-        } 
-        // If on home page with history, go back to home
-        else if (!isHomePage && historyLength > 1) {
-          console.log('Not on home, going back...');
-          navigate(-1);
+          return;
         }
-        // If on home page with no history, exit app
-        else if (isHomePage) {
-          console.log('On home page, exiting app...');
+
+        // Root page exits the app
+        if (currentPath === '/') {
+          console.log('On root page, exiting app...');
           App.exitApp();
+          return;
         }
-        // Fallback: try to go back
-        else {
-          console.log('Fallback: attempting navigation back...');
-          if (window.history.length > 1) {
-            window.history.back();
-          } else {
-            App.exitApp();
-          }
-        }
+
+        // All other pages navigate back
+        console.log('Navigating back...');
+        navigate(-1);
       });
     };
 
