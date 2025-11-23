@@ -1,35 +1,197 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Loader2 } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Upload, FileText, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 
 interface Message {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   content: string;
+  tool_calls?: any[];
+  tool_call_id?: string;
+}
+
+interface ToolExecution {
+  name: string;
+  status: 'pending' | 'success' | 'error';
+  result?: string;
 }
 
 export function ChatBot() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Hi! I\'m here to help you with Remonk Reminder. Ask me anything about using the app or document renewal requirements.'
+      content: 'Hi! I\'m your AI agent. I can navigate the app, manage your documents & tasks, update settings, and more. Just tell me what you need!'
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [toolExecutions, setToolExecutions] = useState<ToolExecution[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  
+  // Hide chatbot on auth pages
+  const isAuthPage = location.pathname === '/auth' || location.pathname === '/reset-password';
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, toolExecutions]);
+
+  // Execute tool calls from AI
+  const executeTool = async (toolName: string, args: any): Promise<string> => {
+    console.log('Executing tool:', toolName, args);
+    
+    try {
+      switch (toolName) {
+        case 'navigate':
+          const targetPath = args.filter 
+            ? `${args.page}?filter=${args.filter}` 
+            : args.page;
+          navigate(targetPath);
+          return `Navigated to ${args.page}${args.filter ? ` with filter: ${args.filter}` : ''}`;
+
+        case 'get_documents':
+          const { data: docs } = await supabase
+            .from('documents')
+            .select('*')
+            .order('expiry_date', { ascending: true })
+            .limit(args.limit || 20);
+          return `Found ${docs?.length || 0} documents: ${JSON.stringify(docs?.map(d => ({ id: d.id, name: d.name, type: d.document_type, expiry: d.expiry_date })))}`;
+
+        case 'create_document':
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return 'Error: User not authenticated';
+          
+          const { data: newDoc, error: createError } = await supabase
+            .from('documents')
+            .insert({
+              user_id: user.id,
+              name: args.name,
+              document_type: args.document_type,
+              expiry_date: args.expiry_date,
+              issuing_authority: args.issuing_authority,
+              category_detail: args.category_detail,
+              notes: args.notes
+            })
+            .select()
+            .single();
+            
+          if (createError) return `Error: ${createError.message}`;
+          toast({ title: "Document created", description: args.name });
+          return `Created document: ${newDoc.name} (ID: ${newDoc.id})`;
+
+        case 'update_document':
+          const updateData: any = {};
+          if (args.name) updateData.name = args.name;
+          if (args.expiry_date) updateData.expiry_date = args.expiry_date;
+          if (args.issuing_authority) updateData.issuing_authority = args.issuing_authority;
+          if (args.category_detail) updateData.category_detail = args.category_detail;
+          if (args.notes) updateData.notes = args.notes;
+          
+          const { error: updateError } = await supabase
+            .from('documents')
+            .update(updateData)
+            .eq('id', args.document_id);
+            
+          if (updateError) return `Error: ${updateError.message}`;
+          toast({ title: "Document updated" });
+          return `Updated document ${args.document_id}`;
+
+        case 'delete_document':
+          const { error: deleteError } = await supabase
+            .from('documents')
+            .delete()
+            .eq('id', args.document_id);
+            
+          if (deleteError) return `Error: ${deleteError.message}`;
+          toast({ title: "Document deleted" });
+          return `Deleted document ${args.document_id}`;
+
+        case 'get_tasks':
+          const { data: tasks } = await supabase
+            .from('tasks')
+            .select('*')
+            .order('task_date', { ascending: true });
+          return `Found ${tasks?.length || 0} tasks: ${JSON.stringify(tasks?.map(t => ({ id: t.id, title: t.title, date: t.task_date, status: t.status })))}`;
+
+        case 'create_task':
+          const { data: { user: taskUser } } = await supabase.auth.getUser();
+          if (!taskUser) return 'Error: User not authenticated';
+          
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('timezone')
+            .eq('user_id', taskUser.id)
+            .single();
+          
+          const timezone = profile?.timezone || 'UTC';
+          const taskDate = new Date(`${args.task_date}T${args.start_time}:00`);
+          
+          const { data: newTask, error: taskError } = await supabase
+            .from('tasks')
+            .insert({
+              user_id: taskUser.id,
+              title: args.title,
+              description: args.description,
+              task_date: args.task_date,
+              original_date: args.task_date,
+              start_time: taskDate.toISOString(),
+              end_time: args.end_time ? new Date(`${args.task_date}T${args.end_time}:00`).toISOString() : null,
+              timezone: timezone,
+              status: 'pending'
+            })
+            .select()
+            .single();
+            
+          if (taskError) return `Error: ${taskError.message}`;
+          toast({ title: "Task created", description: args.title });
+          return `Created task: ${newTask.title} (ID: ${newTask.id})`;
+
+        case 'update_profile':
+          const { data: { user: profileUser } } = await supabase.auth.getUser();
+          if (!profileUser) return 'Error: User not authenticated';
+          
+          const profileUpdates: any = {};
+          if (args.display_name) profileUpdates.display_name = args.display_name;
+          if (args.country) profileUpdates.country = args.country;
+          if (args.timezone) profileUpdates.timezone = args.timezone;
+          if (args.push_notifications_enabled !== undefined) profileUpdates.push_notifications_enabled = args.push_notifications_enabled;
+          if (args.email_notifications_enabled !== undefined) profileUpdates.email_notifications_enabled = args.email_notifications_enabled;
+          
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update(profileUpdates)
+            .eq('user_id', profileUser.id);
+            
+          if (profileError) return `Error: ${profileError.message}`;
+          toast({ title: "Profile updated" });
+          return `Updated profile settings`;
+
+        case 'trigger_upload':
+          navigate('/scan');
+          toast({ 
+            title: "Upload mode activated", 
+            description: `Ready for ${args.type} upload` 
+          });
+          return `Navigated to scan page for ${args.type} upload`;
+
+        default:
+          return `Unknown tool: ${toolName}`;
+      }
+    } catch (error: any) {
+      return `Error executing ${toolName}: ${error.message}`;
+    }
+  };
 
   const streamChat = async (userMessage: string) => {
     setIsLoading(true);
@@ -79,6 +241,9 @@ export function ChatBot() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = '';
+      let pendingToolCalls: any[] = [];
+      let currentToolCallIndex = -1;
+      let currentToolCallArgs = '';
 
       if (reader) {
         let buffer = '';
@@ -102,9 +267,11 @@ export function ChatBot() {
             
             try {
               const parsed = JSON.parse(jsonStr);
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) {
-                assistantMessage += content;
+              const delta = parsed.choices?.[0]?.delta;
+              
+              // Handle text content
+              if (delta?.content) {
+                assistantMessage += delta.content;
                 setMessages(prev => {
                   const updated = [...prev];
                   updated[updated.length - 1] = {
@@ -114,10 +281,83 @@ export function ChatBot() {
                   return updated;
                 });
               }
+              
+              // Handle tool calls
+              if (delta?.tool_calls) {
+                for (const toolCall of delta.tool_calls) {
+                  if (toolCall.index !== undefined) {
+                    if (toolCall.index !== currentToolCallIndex) {
+                      if (currentToolCallIndex >= 0 && currentToolCallArgs) {
+                        try {
+                          pendingToolCalls[currentToolCallIndex].function.arguments = JSON.parse(currentToolCallArgs);
+                        } catch (e) {
+                          console.warn('Failed to parse tool args:', currentToolCallArgs);
+                        }
+                      }
+                      currentToolCallIndex = toolCall.index;
+                      currentToolCallArgs = '';
+                      
+                      if (!pendingToolCalls[toolCall.index]) {
+                        pendingToolCalls[toolCall.index] = {
+                          id: toolCall.id || `tool_${Date.now()}_${toolCall.index}`,
+                          type: 'function',
+                          function: {
+                            name: toolCall.function?.name || '',
+                            arguments: ''
+                          }
+                        };
+                      }
+                    }
+                    
+                    if (toolCall.function?.name) {
+                      pendingToolCalls[currentToolCallIndex].function.name = toolCall.function.name;
+                    }
+                    if (toolCall.function?.arguments) {
+                      currentToolCallArgs += toolCall.function.arguments;
+                    }
+                  }
+                }
+              }
             } catch (e) {
               console.warn('Failed to parse chunk:', e);
             }
           }
+        }
+        
+        // Finalize last tool call
+        if (currentToolCallIndex >= 0 && currentToolCallArgs) {
+          try {
+            pendingToolCalls[currentToolCallIndex].function.arguments = JSON.parse(currentToolCallArgs);
+          } catch (e) {
+            console.warn('Failed to parse final tool args:', currentToolCallArgs);
+          }
+        }
+        
+        // Execute tool calls if any
+        if (pendingToolCalls.length > 0) {
+          console.log('Executing tool calls:', pendingToolCalls);
+          setToolExecutions(pendingToolCalls.map(tc => ({
+            name: tc.function.name,
+            status: 'pending'
+          })));
+          
+          for (const toolCall of pendingToolCalls) {
+            const result = await executeTool(
+              toolCall.function.name,
+              toolCall.function.arguments
+            );
+            
+            setToolExecutions(prev => 
+              prev.map(te => 
+                te.name === toolCall.function.name 
+                  ? { ...te, status: 'success', result }
+                  : te
+              )
+            );
+          }
+          
+          // Clear tool executions after 2 seconds
+          setTimeout(() => setToolExecutions([]), 2000);
         }
       }
     } catch (error) {
@@ -145,6 +385,8 @@ export function ChatBot() {
     }
   };
 
+  if (isAuthPage) return null;
+
   return (
     <>
       {/* Floating Action Button */}
@@ -167,7 +409,13 @@ export function ChatBot() {
           <div className="flex items-center justify-between p-3 md:p-4 border-b bg-primary/5">
             <div className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-              <h3 className="font-semibold text-sm md:text-base">Remonk Assistant</h3>
+              <h3 className="font-semibold text-sm md:text-base">AI Agent</h3>
+              {toolExecutions.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  Working...
+                </Badge>
+              )}
             </div>
             <Button
               variant="ghost"
@@ -198,7 +446,19 @@ export function ChatBot() {
                   </div>
                 </div>
               ))}
-              {isLoading && (
+              
+              {/* Tool Execution Status */}
+              {toolExecutions.map((tool, idx) => (
+                <div key={idx} className="flex justify-start">
+                  <div className="bg-primary/10 rounded-lg px-3 py-2 md:px-4 md:py-2 flex items-center gap-2">
+                    {tool.status === 'pending' && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {tool.status === 'success' && <span className="text-green-600">✓</span>}
+                    <p className="text-xs md:text-sm font-medium">{tool.name}</p>
+                  </div>
+                </div>
+              ))}
+              
+              {isLoading && toolExecutions.length === 0 && (
                 <div className="flex justify-start">
                   <div className="bg-muted rounded-lg px-3 py-2 md:px-4 md:py-2">
                     <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin" />
@@ -215,7 +475,7 @@ export function ChatBot() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask me anything..."
+                placeholder="Tell me what to do..."
                 className="min-h-[50px] md:min-h-[60px] max-h-[100px] md:max-h-[120px] text-sm"
                 disabled={isLoading}
               />
