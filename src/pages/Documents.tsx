@@ -338,11 +338,10 @@ export default function Documents() {
     <div 
       className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
       style={{ 
-        paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
       }}
     >
-      <header className="bg-card border-b border-border px-4 py-6">
+      <header className="bg-card border-b border-border px-4 py-4">
         <div className="w-full flex items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold text-foreground">Documents</h1>
           <Link to="/scan">

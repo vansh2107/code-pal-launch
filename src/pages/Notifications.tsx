@@ -123,11 +123,10 @@ export default function Notifications() {
     <div 
       className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
       style={{ 
-        paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
       }}
     >
-      <header className="bg-card border-b border-border px-4 py-6">
+      <header className="bg-card border-b border-border px-4 py-4">
         <h1 className="text-2xl font-semibold text-foreground">Notifications</h1>
         <p className="text-base text-muted-foreground">Stay on top of your document renewals</p>
       </header>

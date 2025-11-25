@@ -137,13 +137,12 @@ export default function Dashboard() {
     <div 
       className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
       style={{ 
-        paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
       }}
     >
-      <header className="bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 border-b border-border/50 px-4 py-6">
+      <header className="bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 border-b border-border/50 px-4 py-4">
         <div className="w-full max-w-4xl mx-auto">
-          <h1 className="text-2xl font-semibold text-gradient mb-2">Dashboard</h1>
+          <h1 className="text-2xl font-semibold text-gradient mb-1">Dashboard</h1>
           <p className="text-base text-muted-foreground">Welcome back! Here's your document overview.</p>
         </div>
       </header>

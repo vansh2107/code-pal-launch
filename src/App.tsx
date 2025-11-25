@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { initOneSignal } from "@/lib/onesignal";
+import { initializeStatusBar } from "@/lib/statusbar";
 
 // PAGES
 import Dashboard from "./pages/Dashboard";
@@ -59,6 +60,9 @@ const NotificationScheduler = () => {
   useEffect(() => {
     const initialize = async () => {
       try {
+        // Initialize StatusBar for edge-to-edge layout
+        await initializeStatusBar();
+
         // Request notification + camera permissions
         await requestAllPermissions();
 
