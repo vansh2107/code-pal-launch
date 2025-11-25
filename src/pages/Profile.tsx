@@ -230,12 +230,11 @@ export default function Profile() {
     <div 
       className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
       style={{ 
-        paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
       }}
     >
       {/* Header */}
-      <header className="bg-card border-b border-border/50 px-4 py-6 sticky top-0 z-10">
+      <header className="bg-card border-b border-border/50 px-4 py-4 sticky top-0 z-10">
         <div className="w-full flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
             <User className="h-6 w-6 text-primary" />

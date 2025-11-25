@@ -243,13 +243,12 @@ export default function DocVault() {
     <div 
       className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
       style={{ 
-        paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
       }}
     >
       {/* Header */}
       <div className="sticky top-0 z-40 bg-gradient-to-b from-primary/10 to-background backdrop-blur-xl border-b border-border/50">
-        <div className="w-full py-6 px-4">
+        <div className="w-full py-4 px-4">
           <h1 className="text-2xl font-semibold mb-2">DocVault</h1>
           <p className="text-base text-muted-foreground">Your secure document storage</p>
         </div>
