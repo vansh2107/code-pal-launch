@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { formatInTimeZone } from "date-fns-tz";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { uploadDocumentOriginal } from "@/utils/documentStorage";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -195,7 +196,7 @@ export default function DocVault() {
     if (!file || !user) return;
 
     // Validate file size (max 20MB)
-    const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+    const maxSize = 20 * 1024 * 1024;
     if (file.size > maxSize) {
       toast.error("File size exceeds 20MB limit");
       return;
@@ -203,14 +204,16 @@ export default function DocVault() {
 
     setIsUploading(true);
     try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      // Upload ORIGINAL file with NO compression
+      const publicUrl = await uploadDocumentOriginal(file, user.id);
+      
+      if (!publicUrl) {
+        throw new Error("Failed to get upload URL");
+      }
 
-      const { error: uploadError } = await supabase.storage
-        .from("document-images")
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
+      // Extract path from URL for database storage
+      const urlObj = new URL(publicUrl);
+      const fileName = urlObj.pathname.split('/storage/v1/object/public/document-images/')[1];
 
       const { error: insertError } = await supabase
         .from("documents")
