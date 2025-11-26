@@ -308,6 +308,11 @@ export default function Scan() {
     setError("");
 
     try {
+      // Ensure session is valid before inserting
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error("Authentication session expired. Please sign in again.");
+      }
       // Map specific document types to database enum types
       const documentTypeMap: { [key: string]: string } = {
         // License types
@@ -541,7 +546,7 @@ export default function Scan() {
           .from('reminders')
           .insert({
             document_id: data.id,
-            user_id: user?.id,
+            user_id: user.id,
             reminder_date: formData.custom_reminder_date,
             is_custom: true,
           });
