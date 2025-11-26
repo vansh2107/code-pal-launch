@@ -19,6 +19,7 @@ import { ScanningEffect } from "@/components/scan/ScanningEffect";
 import { PDFPageSelector } from "@/components/scan/PDFPageSelector";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
+import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -171,51 +172,12 @@ export default function Scan() {
     try {
       // Check if file is a PDF
       if (file.type === 'application/pdf') {
-        setExtracting(true);
+        // Store the ORIGINAL PDF file - NO conversion
         setPdfFile(file);
         setShowPdfSelector(true);
-        
-        // Prepare PDF.js worker via bundler-provided URL
-        GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
-        // Read PDF file and load with worker, fallback to no-worker
-        const arrayBuffer = await file.arrayBuffer();
-        let pdfDoc: any;
-        try {
-          pdfDoc = await getDocument({ data: arrayBuffer }).promise;
-        } catch (wErr) {
-          console.warn('PDF worker failed, retrying without worker...', wErr);
-          pdfDoc = await (getDocument as any)({ data: arrayBuffer, disableWorker: true }).promise;
-        }
-
-        // Get first page
-        const page = await pdfDoc.getPage(1);
-        // Determine a safe scale to keep image under ~10MB
-        const baseViewport = page.getViewport({ scale: 1.0 });
-        const maxWidth = 1600; // cap width for size safety
-        const scale = Math.min(2.0, Math.max(0.5, maxWidth / baseViewport.width));
-        const viewport = page.getViewport({ scale });
-        
-        // Create canvas and render PDF page
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-        
-        if (context) {
-          await page.render({
-            canvasContext: context,
-            viewport,
-          } as any).promise;
-          
-          // Convert canvas to base64 image with compression
-          const imageData = canvas.toDataURL('image/jpeg', 0.75);
-          setCapturedImage(imageData);
-          extractDocumentData(imageData);
-        }
-        
         setExtracting(false);
       } else {
-        // Handle image files
+        // Handle image files - store original
         const reader = new FileReader();
         reader.onloadend = () => {
           const result = reader.result as string;
@@ -389,65 +351,41 @@ export default function Scan() {
 
       const validatedData = validationResult.data;
       
-      // Upload original PDF if available, else fallback to image
-      // Use proper folder structure: documents/{userId}/{uuid}/{file}
+      // Upload ORIGINAL file with NO compression
       let imagePath = null;
-      let fileType: 'pdf' | 'image' = 'image';
-      let pageCount = 1;
       
       try {
-        const docUuid = crypto.randomUUID();
-        
         if (pdfFile) {
           // Validate PDF file size (max 20MB)
-          const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+          const maxSize = 20 * 1024 * 1024;
           if (pdfFile.size > maxSize) {
             throw new Error("PDF file size exceeds 20MB limit");
           }
           
-          // Count PDF pages
-          try {
-            GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
-            const arrayBuffer = await pdfFile.arrayBuffer();
-            const pdfDoc = await getDocument({ data: arrayBuffer }).promise;
-            pageCount = pdfDoc.numPages;
-          } catch (err) {
-            console.error('Error counting PDF pages:', err);
+          // Upload ORIGINAL PDF - no conversion, no compression
+          const publicUrl = await uploadDocumentOriginal(pdfFile, user.id);
+          if (publicUrl) {
+            // Extract path from URL for database storage
+            const urlObj = new URL(publicUrl);
+            imagePath = urlObj.pathname.split('/storage/v1/object/public/document-images/')[1];
           }
-          
-          fileType = 'pdf';
-          const pdfName = `documents/${user.id}/${docUuid}/document.pdf`;
-          
-          // Use resumable upload for large files
-          const { error: pdfUploadError } = await supabase.storage
-            .from('document-images')
-            .upload(pdfName, pdfFile, {
-              cacheControl: '3600',
-              upsert: false
-            });
-          if (pdfUploadError) throw pdfUploadError;
-          imagePath = pdfName;
         } else if (capturedImage) {
+          // Upload ORIGINAL image - no compression
           const blob = await fetch(capturedImage).then(r => r.blob());
           
-          // Validate image blob size (max 20MB)
-          const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+          const maxSize = 20 * 1024 * 1024;
           if (blob.size > maxSize) {
             throw new Error("Image file size exceeds 20MB limit");
           }
           
           const fileExt = (blob.type.split('/')[1]) || 'jpg';
-          const fileName = `documents/${user.id}/${docUuid}/document.${fileExt}`;
+          const imageFile = new File([blob], `document.${fileExt}`, { type: blob.type });
           
-          // Use resumable upload
-          const { error: uploadError } = await supabase.storage
-            .from('document-images')
-            .upload(fileName, blob, {
-              cacheControl: '3600',
-              upsert: false
-            });
-          if (uploadError) throw uploadError;
-          imagePath = fileName;
+          const publicUrl = await uploadDocumentOriginal(imageFile, user.id);
+          if (publicUrl) {
+            const urlObj = new URL(publicUrl);
+            imagePath = urlObj.pathname.split('/storage/v1/object/public/document-images/')[1];
+          }
         }
       } catch (uploadErr) {
         console.error('Error uploading document file:', uploadErr);
