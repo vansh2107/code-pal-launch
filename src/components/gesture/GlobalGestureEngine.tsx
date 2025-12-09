@@ -145,38 +145,15 @@ export const GlobalGestureEngine = () => {
     lastGestureTimeRef.current = Date.now();
   }, []);
 
-  // Get scroll element - find the actual scrollable container on the page
-  const getScrollElement = useCallback((): Element => {
-    // Priority 1: Explicit scroll-root
-    const scrollRoot = document.getElementById('scroll-root');
-    if (scrollRoot) return scrollRoot;
-    
-    // Priority 2: Find scrollable element in main content area
-    const scrollableSelectors = [
-      'main',
-      '[data-scroll-container]',
-      '.overflow-auto',
-      '.overflow-y-auto',
-      '.overflow-scroll',
-      '.overflow-y-scroll',
-    ];
-    
-    for (const selector of scrollableSelectors) {
-      const elements = document.querySelectorAll(selector);
-      for (const el of elements) {
-        if (el.scrollHeight > el.clientHeight) {
-          return el;
-        }
-      }
-    }
-    
-    // Priority 3: Check body or html for scroll
-    if (document.body.scrollHeight > window.innerHeight) {
-      return document.documentElement;
-    }
-    
-    // Fallback: window scroll via documentElement
-    return document.documentElement;
+  // Scroll functions - use window.scrollBy for reliable scrolling
+  const scrollDown = useCallback(() => {
+    console.log('[GestureEngine] Executing scrollDown by', SCROLL_AMOUNT);
+    window.scrollBy({ top: SCROLL_AMOUNT, behavior: 'smooth' });
+  }, []);
+
+  const scrollUp = useCallback(() => {
+    console.log('[GestureEngine] Executing scrollUp by', SCROLL_AMOUNT);
+    window.scrollBy({ top: -SCROLL_AMOUNT, behavior: 'smooth' });
   }, []);
 
   // Get fresh current path (avoid stale closure)
@@ -237,17 +214,13 @@ export const GlobalGestureEngine = () => {
         break;
       }
       case 'swipe_up': {
-        // Swipe UP = scroll content UP (user wants to see content BELOW)
-        const scrollElUp = getScrollElement();
-        console.log('[GestureEngine] SWIPE_UP → scrollDown by', SCROLL_AMOUNT);
-        scrollElUp.scrollBy({ top: SCROLL_AMOUNT, behavior: 'smooth' });
+        // Swipe UP = scroll content DOWN (user wants to see content BELOW)
+        scrollDown();
         break;
       }
       case 'swipe_down': {
-        // Swipe DOWN = scroll content DOWN (user wants to see content ABOVE)
-        const scrollElDown = getScrollElement();
-        console.log('[GestureEngine] SWIPE_DOWN → scrollUp by', SCROLL_AMOUNT);
-        scrollElDown.scrollBy({ top: -SCROLL_AMOUNT, behavior: 'smooth' });
+        // Swipe DOWN = scroll content UP (user wants to see content ABOVE)
+        scrollUp();
         break;
       }
       case 'tap': {
@@ -258,7 +231,7 @@ export const GlobalGestureEngine = () => {
         break;
       }
     }
-  }, [navigate, getCurrentPath, findRouteMatch, markGestureFired, getScrollElement]);
+  }, [navigate, getCurrentPath, findRouteMatch, markGestureFired, scrollDown, scrollUp]);
 
   // Handle tap click at coordinates (PART 5)
   const handleTapClick = useCallback((canvasX: number, canvasY: number) => {
