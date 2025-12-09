@@ -9,6 +9,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useBackButton } from "@/hooks/useBackButton";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { GlobalGestureEngine } from "@/components/gesture/GlobalGestureEngine";
 import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
@@ -152,6 +153,7 @@ const App = () => (
             <AuthEventListener />
             <NotificationScheduler />
             <RouteCleanup />
+            <GlobalGestureEngine />
             <ChatBot />
 
             <Routes>

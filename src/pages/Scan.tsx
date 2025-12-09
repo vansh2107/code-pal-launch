@@ -93,9 +93,12 @@ export default function Scan() {
     }
   }, [user]);
 
-  // CRITICAL: Force cleanup camera on unmount
+  // CRITICAL: Force cleanup camera on unmount and pause gestures
   useEffect(() => {
     mountedRef.current = true;
+    
+    // Pause gesture engine when entering Scan page (handled by GlobalGestureEngine)
+    console.log('[Scan] Mounting - gesture engine will pause automatically');
     
     return () => {
       mountedRef.current = false;
@@ -113,11 +116,8 @@ export default function Scan() {
         }
       }
       
-      // If gestures are NOT active, stop all cameras
-      // If gestures ARE active, leave the gesture camera alone
-      if (!gestureNavigator.isActive()) {
-        forceStopAllCameras();
-      }
+      // Force stop all cameras (gesture engine will restart via GlobalGestureEngine if enabled)
+      forceStopAllCameras();
     };
   }, []);
 
