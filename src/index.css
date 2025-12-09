@@ -147,51 +147,39 @@ All colors MUST be HSL.
 }
 
 @layer base {
-html, body, #root {
-  padding: 0;
-  margin: 0;
-  height: 100%;
-  overflow-x: hidden;
-  width: 100%;
-}
-
-html {
-  /* Enable safe area support for all notch/cutout devices */
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  scroll-behavior: smooth;
-}
-
-  * {
-    @apply border-border;
-  }
-
-  html, body {
+  html {
     height: 100%;
-    width: 100%;
-    margin: 0;
-    padding: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    scroll-behavior: smooth;
     overflow-x: hidden;
   }
 
   body {
+    min-height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
     @apply bg-background text-foreground antialiased;
     background: linear-gradient(135deg, hsl(30 100% 97%), hsl(30 60% 94%));
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   }
 
   #root {
-    height: 100%;
+    min-height: 100%;
     width: 100%;
+  }
+
+  * {
+    @apply border-border;
+    scroll-behavior: smooth;
   }
 
   .dark body {
     background: linear-gradient(135deg, hsl(24 8% 12%), hsl(24 10% 8%));
-  }
-
-  * {
-    scroll-behavior: smooth;
   }
 }
 
