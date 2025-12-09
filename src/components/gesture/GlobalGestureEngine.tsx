@@ -128,49 +128,50 @@ export const GlobalGestureEngine = () => {
     });
     
     const currentPath = location.pathname;
-    const currentIndex = ROUTES.indexOf(currentPath);
+    // Match exact path or "/" for home
+    let currentIndex = ROUTES.indexOf(currentPath);
+    // If not found but we're on "/" or "/dashboard", treat as index 0
+    if (currentIndex === -1 && (currentPath === '/' || currentPath === '/dashboard')) {
+      currentIndex = 0;
+    }
+    
+    console.log('[GestureEngine] Current path:', currentPath, 'Index:', currentIndex, 'Action:', action);
     
     switch (action) {
       case 'swipe_left': {
-        // Hand moves right→left = go to NEXT route
-        if (currentIndex !== -1 && currentIndex < ROUTES.length - 1) {
-          const nextRoute = ROUTES[currentIndex + 1];
-          console.log('[GestureEngine] Navigate:', currentPath, '→', nextRoute);
-          navigate(nextRoute);
+        // Swipe left = go to PREVIOUS route (hand gesture moves left)
+        if (currentIndex > 0) {
+          const prevRoute = ROUTES[currentIndex - 1];
+          console.log('[GestureEngine] Navigate PREV:', currentPath, '→', prevRoute);
+          navigate(prevRoute);
         } else {
-          console.log('[GestureEngine] No next route, at end or not in ROUTES');
+          console.log('[GestureEngine] Already at first route or not found');
         }
         break;
       }
       case 'swipe_right': {
-        // Hand moves left→right = go to PREVIOUS route
-        if (currentIndex > 0) {
-          const prevRoute = ROUTES[currentIndex - 1];
-          console.log('[GestureEngine] Navigate:', currentPath, '→', prevRoute);
-          navigate(prevRoute);
+        // Swipe right = go to NEXT route (hand gesture moves right)
+        if (currentIndex !== -1 && currentIndex < ROUTES.length - 1) {
+          const nextRoute = ROUTES[currentIndex + 1];
+          console.log('[GestureEngine] Navigate NEXT:', currentPath, '→', nextRoute);
+          navigate(nextRoute);
         } else {
-          console.log('[GestureEngine] No previous route, at start or not in ROUTES');
+          console.log('[GestureEngine] Already at last route or not found');
         }
         break;
       }
       case 'swipe_up': {
-        // Hand moves up = scroll DOWN (content moves up)
-        const scrollElement = document.scrollingElement || document.documentElement;
-        scrollElement.scrollBy({
-          top: SCROLL_AMOUNT,
-          behavior: 'smooth',
-        });
-        console.log('[GestureEngine] Scroll down by', SCROLL_AMOUNT);
+        // Swipe up = scroll DOWN (content moves up, show more below)
+        const scrollEl = document.scrollingElement || document.documentElement;
+        console.log('[GestureEngine] Scrolling DOWN by', SCROLL_AMOUNT, 'current scrollTop:', scrollEl.scrollTop);
+        scrollEl.scrollBy({ top: SCROLL_AMOUNT, behavior: 'smooth' });
         break;
       }
       case 'swipe_down': {
-        // Hand moves down = scroll UP (content moves down)
-        const scrollElement = document.scrollingElement || document.documentElement;
-        scrollElement.scrollBy({
-          top: -SCROLL_AMOUNT,
-          behavior: 'smooth',
-        });
-        console.log('[GestureEngine] Scroll up by', SCROLL_AMOUNT);
+        // Swipe down = scroll UP (content moves down, show more above)
+        const scrollEl = document.scrollingElement || document.documentElement;
+        console.log('[GestureEngine] Scrolling UP by', SCROLL_AMOUNT, 'current scrollTop:', scrollEl.scrollTop);
+        scrollEl.scrollBy({ top: -SCROLL_AMOUNT, behavior: 'smooth' });
         break;
       }
       case 'tap': {
@@ -277,13 +278,18 @@ export const GlobalGestureEngine = () => {
     
     // Check horizontal swipe (with threshold and dominance check)
     if (absX > MIN_SWIPE_X && absX > absY * 1.5) {
-      // Camera mirror: positive dx in canvas = hand moved left→right = swipe_right
-      return dx > 0 ? 'swipe_right' : 'swipe_left';
+      // Camera is mirrored: dx < 0 in canvas = hand moved left in user's view = swipe_left
+      // dx > 0 in canvas = hand moved right in user's view = swipe_right
+      const gesture = dx < 0 ? 'swipe_left' : 'swipe_right';
+      console.log('[GestureEngine] Horizontal detected dx:', dx, '→', gesture);
+      return gesture;
     }
     
     // Check vertical swipe
     if (absY > MIN_SWIPE_Y && absY > absX * 1.5) {
-      return dy > 0 ? 'swipe_down' : 'swipe_up';
+      const gesture = dy > 0 ? 'swipe_down' : 'swipe_up';
+      console.log('[GestureEngine] Vertical detected dy:', dy, '→', gesture);
+      return gesture;
     }
     
     return 'none';
