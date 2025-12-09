@@ -145,11 +145,38 @@ export const GlobalGestureEngine = () => {
     lastGestureTimeRef.current = Date.now();
   }, []);
 
-  // Get scroll element (PART 3)
+  // Get scroll element - find the actual scrollable container on the page
   const getScrollElement = useCallback((): Element => {
-    return document.getElementById('scroll-root') ||
-           document.scrollingElement ||
-           document.documentElement;
+    // Priority 1: Explicit scroll-root
+    const scrollRoot = document.getElementById('scroll-root');
+    if (scrollRoot) return scrollRoot;
+    
+    // Priority 2: Find scrollable element in main content area
+    const scrollableSelectors = [
+      'main',
+      '[data-scroll-container]',
+      '.overflow-auto',
+      '.overflow-y-auto',
+      '.overflow-scroll',
+      '.overflow-y-scroll',
+    ];
+    
+    for (const selector of scrollableSelectors) {
+      const elements = document.querySelectorAll(selector);
+      for (const el of elements) {
+        if (el.scrollHeight > el.clientHeight) {
+          return el;
+        }
+      }
+    }
+    
+    // Priority 3: Check body or html for scroll
+    if (document.body.scrollHeight > window.innerHeight) {
+      return document.documentElement;
+    }
+    
+    // Fallback: window scroll via documentElement
+    return document.documentElement;
   }, []);
 
   // Get fresh current path (avoid stale closure)
