@@ -1,17 +1,24 @@
 /**
  * Air Gesture Navigation Service
- * Uses motion detection for gesture recognition
+ * Motion-based gesture detection that works on Desktop Chrome and Mobile
  */
 
-import { stopCameraStream, stopMediaStream, cancelAnimationFrameSafe } from '@/utils/cameraCleanup';
+import { 
+  stopCameraStream, 
+  stopMediaStream, 
+  cancelAnimationFrameSafe,
+  setupVideoElement,
+  requestCamera,
+  getCameraConstraints,
+  isCameraAvailable
+} from '@/utils/cameraCleanup';
 
 export type GestureAction = 'swipe_left' | 'swipe_right' | 'swipe_up' | 'swipe_down' | 'tap' | 'none';
 
-interface GestureState {
-  isActive: boolean;
-  lastPosition: { x: number; y: number } | null;
-  gestureStartTime: number;
-  lastGestureTime: number;
+interface MotionPoint {
+  x: number;
+  y: number;
+  time: number;
 }
 
 type GestureCallback = (action: GestureAction) => void;
@@ -19,168 +26,235 @@ type GestureCallback = (action: GestureAction) => void;
 class GestureNavigator {
   private videoElement: HTMLVideoElement | null = null;
   private canvasElement: HTMLCanvasElement | null = null;
+  private ctx: CanvasRenderingContext2D | null = null;
   private stream: MediaStream | null = null;
   private animationFrameId: number | null = null;
-  private intervalId: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
   private callback: GestureCallback | null = null;
-  private gestureState: GestureState = {
-    isActive: false,
-    lastPosition: null,
-    gestureStartTime: 0,
-    lastGestureTime: 0,
-  };
   
-  // Gesture detection thresholds - lowered for easier detection
-  private readonly SWIPE_THRESHOLD = 0.08; // 8% of screen movement
-  private readonly GESTURE_COOLDOWN = 800; // ms between gestures
-  private readonly DETECTION_INTERVAL = 100; // Check every 100ms
+  // Detection settings
+  private readonly CANVAS_WIDTH = 320;
+  private readonly CANVAS_HEIGHT = 240;
+  private readonly SWIPE_THRESHOLD_PX = 40; // Pixels for swipe detection
+  private readonly GESTURE_COOLDOWN = 600; // ms between gestures
+  private readonly MOTION_THRESHOLD = 20; // Pixel difference threshold
+  private readonly MIN_MOTION_PIXELS = 30; // Minimum motion pixels to register
   
-  // Motion tracking
+  // State
   private previousFrame: ImageData | null = null;
-  private motionHistory: { x: number; y: number; time: number }[] = [];
+  private motionHistory: MotionPoint[] = [];
+  private lastGestureTime = 0;
+  private frameCount = 0;
 
   async start(onGesture: GestureCallback): Promise<boolean> {
     if (this.isRunning) {
       console.log('[GestureNav] Already running');
       return true;
     }
+
+    if (!isCameraAvailable()) {
+      console.error('[GestureNav] Camera not available');
+      return false;
+    }
     
     this.callback = onGesture;
     
     try {
-      console.log('[GestureNav] Starting gesture detection...');
+      console.log('[GestureNav] Initializing...');
       
-      // Create hidden video element
+      // Create video element with proper attributes for Chrome
       this.videoElement = document.createElement('video');
-      this.videoElement.setAttribute('playsinline', 'true');
-      this.videoElement.setAttribute('autoplay', 'true');
-      this.videoElement.setAttribute('muted', 'true');
-      this.videoElement.muted = true;
-      this.videoElement.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
+      setupVideoElement(this.videoElement);
+      this.videoElement.style.cssText = `
+        position: fixed;
+        top: -9999px;
+        left: -9999px;
+        width: 1px;
+        height: 1px;
+        pointer-events: none;
+        opacity: 0;
+      `;
       document.body.appendChild(this.videoElement);
       
-      // Create hidden canvas for processing
+      // Create canvas for frame processing
       this.canvasElement = document.createElement('canvas');
-      this.canvasElement.width = 160;
-      this.canvasElement.height = 120;
+      this.canvasElement.width = this.CANVAS_WIDTH;
+      this.canvasElement.height = this.CANVAS_HEIGHT;
       this.canvasElement.style.display = 'none';
       document.body.appendChild(this.canvasElement);
       
-      // Get camera stream
-      console.log('[GestureNav] Requesting camera access...');
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 160 },
-          height: { ideal: 120 },
-          frameRate: { ideal: 10 },
-        },
+      this.ctx = this.canvasElement.getContext('2d', { willReadFrequently: true });
+      if (!this.ctx) {
+        throw new Error('Failed to get canvas context');
+      }
+      
+      // Request camera with desktop-friendly constraints
+      console.log('[GestureNav] Requesting camera...');
+      const constraints = getCameraConstraints('user', true);
+      this.stream = await requestCamera(constraints);
+      
+      if (!this.stream) {
+        throw new Error('Failed to get camera stream');
+      }
+      
+      // Attach stream to video
+      this.videoElement.srcObject = this.stream;
+      
+      // Wait for video to be ready
+      await new Promise<void>((resolve, reject) => {
+        if (!this.videoElement) {
+          reject(new Error('Video element not found'));
+          return;
+        }
+        
+        const video = this.videoElement;
+        
+        const onCanPlay = () => {
+          video.removeEventListener('canplay', onCanPlay);
+          video.removeEventListener('error', onError);
+          resolve();
+        };
+        
+        const onError = (e: Event) => {
+          video.removeEventListener('canplay', onCanPlay);
+          video.removeEventListener('error', onError);
+          reject(new Error('Video error: ' + (e as ErrorEvent).message));
+        };
+        
+        video.addEventListener('canplay', onCanPlay);
+        video.addEventListener('error', onError);
+        
+        // Timeout fallback
+        setTimeout(() => {
+          video.removeEventListener('canplay', onCanPlay);
+          video.removeEventListener('error', onError);
+          if (video.readyState >= 2) {
+            resolve();
+          } else {
+            reject(new Error('Video load timeout'));
+          }
+        }, 5000);
       });
       
-      console.log('[GestureNav] Camera stream obtained');
-      this.videoElement.srcObject = this.stream;
+      // Start playing
       await this.videoElement.play();
+      console.log('[GestureNav] Video playing, dimensions:', 
+        this.videoElement.videoWidth, 'x', this.videoElement.videoHeight);
       
       this.isRunning = true;
+      this.frameCount = 0;
+      this.motionHistory = [];
+      this.previousFrame = null;
       
-      // Use interval for more reliable detection
-      this.intervalId = setInterval(() => this.detectGestures(), this.DETECTION_INTERVAL);
+      // Start detection loop using requestAnimationFrame
+      this.detectLoop();
       
-      console.log('[GestureNav] Gesture detection started successfully');
+      console.log('[GestureNav] Started successfully');
       return true;
+      
     } catch (error) {
-      console.error('[GestureNav] Failed to start:', error);
+      console.error('[GestureNav] Start failed:', error);
       this.cleanup();
       return false;
     }
   }
 
   stop(): void {
-    console.log('[GestureNav] Stopping gesture detection');
+    console.log('[GestureNav] Stopping...');
     this.isRunning = false;
     this.cleanup();
   }
 
   private cleanup(): void {
-    // Stop interval
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+    // Cancel animation frame
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrameSafe(this.animationFrameId);
+      this.animationFrameId = null;
     }
     
-    // Stop animation frame
-    cancelAnimationFrameSafe(this.animationFrameId);
-    this.animationFrameId = null;
+    // Stop and cleanup stream
+    if (this.stream) {
+      stopMediaStream(this.stream);
+      this.stream = null;
+    }
     
-    // Stop camera stream
-    stopMediaStream(this.stream);
-    this.stream = null;
-    
-    // Clean up video element
+    // Cleanup video element
     if (this.videoElement) {
       stopCameraStream(this.videoElement);
-      this.videoElement.remove();
+      if (this.videoElement.parentNode) {
+        this.videoElement.parentNode.removeChild(this.videoElement);
+      }
       this.videoElement = null;
     }
     
-    // Clean up canvas
+    // Cleanup canvas
     if (this.canvasElement) {
-      this.canvasElement.remove();
+      if (this.canvasElement.parentNode) {
+        this.canvasElement.parentNode.removeChild(this.canvasElement);
+      }
       this.canvasElement = null;
     }
     
     // Reset state
+    this.ctx = null;
     this.previousFrame = null;
     this.motionHistory = [];
-    this.gestureState = {
-      isActive: false,
-      lastPosition: null,
-      gestureStartTime: 0,
-      lastGestureTime: 0,
-    };
     this.callback = null;
+    
+    console.log('[GestureNav] Cleanup complete');
   }
 
-  private detectGestures(): void {
-    if (!this.isRunning || !this.videoElement || !this.canvasElement) return;
+  private detectLoop = (): void => {
+    if (!this.isRunning) return;
     
-    const ctx = this.canvasElement.getContext('2d');
-    if (!ctx) return;
+    this.processFrame();
     
-    // Draw current frame
-    ctx.drawImage(
+    // Continue loop
+    this.animationFrameId = requestAnimationFrame(this.detectLoop);
+  };
+
+  private processFrame(): void {
+    if (!this.videoElement || !this.canvasElement || !this.ctx) return;
+    if (this.videoElement.readyState < 2) return;
+    
+    this.frameCount++;
+    
+    // Process every 3rd frame for performance (roughly 10 FPS at 30 FPS source)
+    if (this.frameCount % 3 !== 0) return;
+    
+    // Draw video frame to canvas (scaled down)
+    this.ctx.drawImage(
       this.videoElement,
-      0,
-      0,
-      this.canvasElement.width,
-      this.canvasElement.height
+      0, 0,
+      this.CANVAS_WIDTH, this.CANVAS_HEIGHT
     );
     
-    const currentFrame = ctx.getImageData(
-      0,
-      0,
-      this.canvasElement.width,
-      this.canvasElement.height
+    // Get current frame data
+    const currentFrame = this.ctx.getImageData(
+      0, 0,
+      this.CANVAS_WIDTH, this.CANVAS_HEIGHT
     );
     
-    // Detect motion
+    // Compare with previous frame
     if (this.previousFrame) {
       const motion = this.detectMotion(this.previousFrame, currentFrame);
       
-      if (motion && motion.magnitude > 0.05) {
+      if (motion) {
+        const now = Date.now();
+        
+        // Add to history (normalized 0-1 coordinates)
         this.motionHistory.push({
-          x: motion.x,
-          y: motion.y,
-          time: Date.now(),
+          x: motion.centerX / this.CANVAS_WIDTH,
+          y: motion.centerY / this.CANVAS_HEIGHT,
+          time: now,
         });
         
-        // Keep only last 500ms of motion
-        const cutoff = Date.now() - 500;
+        // Keep only last 400ms of motion
+        const cutoff = now - 400;
         this.motionHistory = this.motionHistory.filter(m => m.time > cutoff);
         
-        // Analyze motion pattern
-        this.analyzeMotion();
+        // Try to detect gesture
+        this.detectGesture();
       }
     }
     
@@ -190,13 +264,12 @@ class GestureNavigator {
   private detectMotion(
     prev: ImageData,
     curr: ImageData
-  ): { x: number; y: number; magnitude: number } | null {
+  ): { centerX: number; centerY: number; magnitude: number } | null {
     const width = prev.width;
     const height = prev.height;
-    const threshold = 25;
     
-    let totalDiffX = 0;
-    let totalDiffY = 0;
+    let totalX = 0;
+    let totalY = 0;
     let motionPixels = 0;
     
     // Sample every 4th pixel for performance
@@ -204,66 +277,73 @@ class GestureNavigator {
       for (let x = 0; x < width; x += 4) {
         const i = (y * width + x) * 4;
         
-        const prevGray = (prev.data[i] + prev.data[i + 1] + prev.data[i + 2]) / 3;
-        const currGray = (curr.data[i] + curr.data[i + 1] + curr.data[i + 2]) / 3;
+        // Calculate grayscale difference
+        const prevGray = (prev.data[i] * 0.299 + prev.data[i + 1] * 0.587 + prev.data[i + 2] * 0.114);
+        const currGray = (curr.data[i] * 0.299 + curr.data[i + 1] * 0.587 + curr.data[i + 2] * 0.114);
         
         const diff = Math.abs(currGray - prevGray);
         
-        if (diff > threshold) {
+        if (diff > this.MOTION_THRESHOLD) {
           motionPixels++;
-          totalDiffX += x;
-          totalDiffY += y;
+          totalX += x;
+          totalY += y;
         }
       }
     }
     
-    if (motionPixels < 20) return null;
+    // Need minimum motion to register
+    if (motionPixels < this.MIN_MOTION_PIXELS) {
+      return null;
+    }
     
-    // Calculate center of motion (normalized 0-1)
-    const centerX = totalDiffX / motionPixels / width;
-    const centerY = totalDiffY / motionPixels / height;
-    const magnitude = motionPixels / ((width * height) / 16);
-    
-    return { x: centerX, y: centerY, magnitude };
+    return {
+      centerX: totalX / motionPixels,
+      centerY: totalY / motionPixels,
+      magnitude: motionPixels,
+    };
   }
 
-  private analyzeMotion(): void {
-    if (this.motionHistory.length < 3) return;
+  private detectGesture(): void {
+    if (this.motionHistory.length < 4) return;
     
     const now = Date.now();
     
     // Check cooldown
-    if (now - this.gestureState.lastGestureTime < this.GESTURE_COOLDOWN) {
+    if (now - this.lastGestureTime < this.GESTURE_COOLDOWN) {
       return;
     }
     
-    // Get first and last motion points
+    // Get first and last points
     const first = this.motionHistory[0];
     const last = this.motionHistory[this.motionHistory.length - 1];
     
-    const deltaX = last.x - first.x;
-    const deltaY = last.y - first.y;
+    // Calculate delta in pixels (denormalize)
+    const deltaX = (last.x - first.x) * this.CANVAS_WIDTH;
+    const deltaY = (last.y - first.y) * this.CANVAS_HEIGHT;
     const timeDelta = last.time - first.time;
     
-    // Need at least 150ms of motion
-    if (timeDelta < 150) return;
+    // Need at least 100ms of motion
+    if (timeDelta < 100) return;
+    
+    // Determine dominant direction
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
     
     let action: GestureAction = 'none';
     
-    // Determine gesture - note: camera is mirrored so left/right are swapped
-    if (Math.abs(deltaX) > this.SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY)) {
-      // Horizontal swipe - swapped because camera mirrors
+    if (absX > this.SWIPE_THRESHOLD_PX && absX > absY * 1.3) {
+      // Horizontal swipe - camera is mirrored so invert
       action = deltaX > 0 ? 'swipe_left' : 'swipe_right';
-    } else if (Math.abs(deltaY) > this.SWIPE_THRESHOLD && Math.abs(deltaY) > Math.abs(deltaX)) {
+    } else if (absY > this.SWIPE_THRESHOLD_PX && absY > absX * 1.3) {
       // Vertical swipe
       action = deltaY > 0 ? 'swipe_down' : 'swipe_up';
     }
     
     if (action !== 'none' && this.callback) {
-      console.log(`[GestureNav] Detected: ${action} (deltaX: ${deltaX.toFixed(3)}, deltaY: ${deltaY.toFixed(3)})`);
+      console.log(`[GestureNav] Gesture detected: ${action} (dx: ${deltaX.toFixed(0)}, dy: ${deltaY.toFixed(0)}, time: ${timeDelta}ms)`);
       this.callback(action);
-      this.gestureState.lastGestureTime = now;
-      this.motionHistory = []; // Clear history after gesture
+      this.lastGestureTime = now;
+      this.motionHistory = [];
     }
   }
 
