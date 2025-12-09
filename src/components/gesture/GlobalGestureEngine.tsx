@@ -14,6 +14,7 @@ import { toast } from '@/hooks/use-toast';
 const AIR_GESTURES_KEY = 'airGesturesEnabled';
 
 // ============ EXACT GESTURE ROUTING TABLE ============
+// Navigation flow: / → /documents → /tasks → /docvault → /profile
 const GESTURE_ROUTES: Record<string, { left: string | null; right: string | null }> = {
   "/": {
     left: null,
@@ -21,19 +22,19 @@ const GESTURE_ROUTES: Record<string, { left: string | null; right: string | null
   },
   "/documents": {
     left: "/",
+    right: "/tasks",  // Now goes to /tasks
+  },
+  "/tasks": {
+    left: "/documents",
     right: "/docvault",
   },
   "/docvault": {
-    left: "/documents",
+    left: "/tasks",   // Now comes from /tasks
     right: "/profile",
   },
   "/profile": {
     left: "/docvault",
     right: null,
-  },
-  "/tasks": {
-    left: "/documents",
-    right: "/docvault",
   },
   "/scan": {
     left: null,
