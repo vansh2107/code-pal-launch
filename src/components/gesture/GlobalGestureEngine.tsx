@@ -145,16 +145,54 @@ export const GlobalGestureEngine = () => {
     lastGestureTimeRef.current = Date.now();
   }, []);
 
-  // Scroll functions - use window.scrollBy for reliable scrolling
-  const scrollDown = useCallback(() => {
-    console.log('[GestureEngine] Executing scrollDown by', SCROLL_AMOUNT);
-    window.scrollBy({ top: SCROLL_AMOUNT, behavior: 'smooth' });
+  // Find the best scrollable element
+  const getScrollTarget = useCallback((): Element | Window => {
+    // Try to find a scrollable container in the page
+    const scrollableSelectors = [
+      '[data-scroll-root]',
+      'main',
+      '.overflow-y-auto',
+      '.overflow-auto',
+    ];
+    
+    for (const selector of scrollableSelectors) {
+      const el = document.querySelector(selector);
+      if (el && el.scrollHeight > el.clientHeight) {
+        return el;
+      }
+    }
+    
+    // Check if body/documentElement is scrollable
+    if (document.documentElement.scrollHeight > window.innerHeight) {
+      return window;
+    }
+    
+    // Fallback to window
+    return window;
   }, []);
 
+  // Scroll functions - find the correct scroll target
+  const scrollDown = useCallback(() => {
+    const target = getScrollTarget();
+    console.log('[GestureEngine] Executing scrollDown by', SCROLL_AMOUNT, 'on', target === window ? 'window' : (target as Element).tagName);
+    
+    if (target === window) {
+      window.scrollBy({ top: SCROLL_AMOUNT, behavior: 'smooth' });
+    } else {
+      (target as Element).scrollBy({ top: SCROLL_AMOUNT, behavior: 'smooth' });
+    }
+  }, [getScrollTarget]);
+
   const scrollUp = useCallback(() => {
-    console.log('[GestureEngine] Executing scrollUp by', SCROLL_AMOUNT);
-    window.scrollBy({ top: -SCROLL_AMOUNT, behavior: 'smooth' });
-  }, []);
+    const target = getScrollTarget();
+    console.log('[GestureEngine] Executing scrollUp by', SCROLL_AMOUNT, 'on', target === window ? 'window' : (target as Element).tagName);
+    
+    if (target === window) {
+      window.scrollBy({ top: -SCROLL_AMOUNT, behavior: 'smooth' });
+    } else {
+      (target as Element).scrollBy({ top: -SCROLL_AMOUNT, behavior: 'smooth' });
+    }
+  }, [getScrollTarget]);
 
   // Get fresh current path (avoid stale closure)
   const getCurrentPath = useCallback((): string => {
