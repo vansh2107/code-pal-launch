@@ -15,8 +15,7 @@ import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { initOneSignal } from "@/lib/onesignal";
 import { initializeStatusBar } from "@/lib/statusbar";
-import { forceStopAllCameras } from "@/utils/globalCameraManager";
-import { gestureNavigator } from "@/services/gestureNavigator";
+import { forceStopAllCameras } from "@/utils/cameraManager";
 
 // PAGES
 import Dashboard from "./pages/Dashboard";
@@ -68,27 +67,10 @@ const RouteCleanup = () => {
     const wasOnCameraPage = CAMERA_PAGES.some(page => previousPath.current.startsWith(page));
     const isOnCameraPage = CAMERA_PAGES.some(page => currentPath.startsWith(page));
 
-    // If leaving a camera page, force cleanup (but preserve gesture camera)
+    // If leaving a camera page, force cleanup
     if (wasOnCameraPage && !isOnCameraPage) {
       console.log('[RouteCleanup] Left camera page, cleaning up...');
-      
-      // If gestures are NOT active, stop all cameras
-      if (!gestureNavigator.isActive()) {
-        forceStopAllCameras();
-      } else {
-        // If gestures are active, only stop non-gesture video elements
-        const videos = document.querySelectorAll('video');
-        videos.forEach(video => {
-          // Gesture video is hidden off-screen at -9999px
-          if (video.style.top !== '-9999px') {
-            const stream = video.srcObject as MediaStream | null;
-            if (stream) {
-              stream.getTracks().forEach(track => track.stop());
-              video.srcObject = null;
-            }
-          }
-        });
-      }
+      forceStopAllCameras();
     }
 
     previousPath.current = currentPath;
