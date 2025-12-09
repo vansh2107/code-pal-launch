@@ -147,13 +147,19 @@ All colors MUST be HSL.
 }
 
 @layer base {
+  :root {
+    /* Safe area CSS variables for Android/iOS */
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
+  }
+
   html {
     height: 100%;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
     scroll-behavior: smooth;
     overflow-x: hidden;
+    /* Do NOT add padding here - let SafeAreaContainer handle it */
   }
 
   body {
@@ -180,6 +186,27 @@ All colors MUST be HSL.
 
   .dark body {
     background: linear-gradient(135deg, hsl(24 8% 12%), hsl(24 10% 8%));
+  }
+
+  /* Safe area utility class */
+  .safe-area {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-area-container {
+    min-height: 100%;
+    width: 100%;
   }
 }
 

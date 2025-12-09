@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileText, Plus, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { useToast } from "@/hooks/use-toast";
 import { exportToCSV } from "@/utils/exportData";
 import { getDocumentStatus } from "@/utils/documentStatus";
@@ -335,23 +336,24 @@ export default function Documents() {
   }
 
   return (
-    <div 
-      className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
-      style={{ 
-        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
-      }}
-    >
-      <header className="bg-card border-b border-border px-4 py-4">
-        <div className="w-full flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold text-foreground">Documents</h1>
-          <Link to="/scan">
-            <Button size="sm">
-              <Plus className="h-5 w-5 mr-2" />
-              Add
-            </Button>
-          </Link>
-        </div>
-      </header>
+    <SafeAreaContainer>
+      <div 
+        className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
+        style={{ 
+          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
+        }}
+      >
+        <header className="bg-card border-b border-border px-4 py-4">
+          <div className="w-full flex items-center justify-between gap-3">
+            <h1 className="text-2xl font-semibold text-foreground">Documents</h1>
+            <Link to="/scan">
+              <Button size="sm">
+                <Plus className="h-5 w-5 mr-2" />
+                Add
+              </Button>
+            </Link>
+          </div>
+        </header>
 
       <main className="flex-1 px-4 py-6 w-full max-w-full overflow-x-hidden">
         {/* Filter Options */}
@@ -516,5 +518,6 @@ export default function Documents() {
 
       <BottomNavigation />
     </div>
+    </SafeAreaContainer>
   );
 }

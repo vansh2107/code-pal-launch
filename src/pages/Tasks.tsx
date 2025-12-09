@@ -8,6 +8,7 @@ import { TaskCard } from "@/components/tasks/TaskCard";
 import { TaskFutureList } from "@/components/tasks/TaskFutureList";
 import { TaskListSkeleton } from "@/components/ui/loading-skeleton";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 
 interface Task {
   id: string;
@@ -271,13 +272,14 @@ export default function Tasks() {
   const today = todayFormatter.format(new Date());
 
   return (
-    <div className="min-h-screen bg-background pb-24 animate-fade-in px-4" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
-      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-4 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Daily Tasks</h1>
-            <p className="text-sm text-muted-foreground">{today}</p>
-          </div>
+    <SafeAreaContainer>
+      <div className="min-h-screen bg-background pb-24 animate-fade-in px-4" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
+        <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-4 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Daily Tasks</h1>
+              <p className="text-sm text-muted-foreground">{today}</p>
+            </div>
           <Button 
             onClick={() => navigate("/task-history")}
             variant="outline"
@@ -362,5 +364,6 @@ export default function Tasks() {
 
       <BottomNavigation />
     </div>
+    </SafeAreaContainer>
   );
 }

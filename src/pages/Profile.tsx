@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ChevronRight, FileText, Download, User, Shield, Bell, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Trash2, Hand } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate, Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -232,26 +233,27 @@ export default function Profile() {
   }
 
   return (
-    <div 
-      className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
-      style={{ 
-        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
-      }}
-    >
-      {/* Header */}
-      <header className="bg-card border-b border-border/50 px-4 py-4 sticky top-0 z-10">
-        <div className="w-full flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-            <User className="h-6 w-6 text-primary" />
+    <SafeAreaContainer>
+      <div 
+        className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
+        style={{ 
+          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
+        }}
+      >
+        {/* Header */}
+        <header className="bg-card border-b border-border/50 px-4 py-4 sticky top-0 z-10">
+          <div className="w-full flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <User className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-semibold text-foreground truncate">
+                {profile?.display_name || user?.email?.split('@')[0] || 'User'}
+              </h1>
+              <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-semibold text-foreground truncate">
-              {profile?.display_name || user?.email?.split('@')[0] || 'User'}
-            </h1>
-            <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
-          </div>
-        </div>
-      </header>
+        </header>
 
       <main className="flex-1 px-4 py-6 w-full max-w-full overflow-x-hidden">
         {/* Documents Section */}
@@ -618,5 +620,6 @@ export default function Profile() {
 
       <BottomNavigation />
     </div>
+    </SafeAreaContainer>
   );
 }
