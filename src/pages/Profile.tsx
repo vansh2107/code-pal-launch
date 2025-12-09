@@ -17,7 +17,7 @@ import { TwoFactorAuth } from "@/components/profile/TwoFactorAuth";
 import { exportToCSV, exportToJSON } from "@/utils/exportData";
 import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
 import { getCountryCode } from "@/utils/countryMapping";
-import { useAirGestures } from "@/hooks/useAirGestures";
+import { useGestureToggle } from "@/components/gesture/GlobalGestureEngine";
 
 interface Profile {
   id: string;
@@ -97,8 +97,8 @@ export default function Profile() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [saving, setSaving] = useState(false);
   
-  // Air Gestures
-  const { isEnabled: airGesturesEnabled, isActive: airGesturesActive, toggleGestures } = useAirGestures();
+  // Air Gestures - uses global toggle only
+  const { isEnabled: airGesturesEnabled, isActive: airGesturesActive, toggle: toggleGestures } = useGestureToggle();
 
   useEffect(() => {
     if (user) {
