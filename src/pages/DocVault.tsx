@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -243,19 +244,20 @@ export default function DocVault() {
   };
 
   return (
-    <div 
-      className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
-      style={{ 
-        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
-      }}
-    >
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-gradient-to-b from-primary/10 to-background backdrop-blur-xl border-b border-border/50">
-        <div className="w-full py-4 px-4">
-          <h1 className="text-2xl font-semibold mb-2">DocVault</h1>
-          <p className="text-base text-muted-foreground">Your secure document storage</p>
+    <SafeAreaContainer>
+      <div 
+        className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
+        style={{ 
+          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
+        }}
+      >
+        {/* Header */}
+        <div className="sticky top-0 z-40 bg-gradient-to-b from-primary/10 to-background backdrop-blur-xl border-b border-border/50">
+          <div className="w-full py-4 px-4">
+            <h1 className="text-2xl font-semibold mb-2">DocVault</h1>
+            <p className="text-base text-muted-foreground">Your secure document storage</p>
+          </div>
         </div>
-      </div>
 
       <div className="flex-1 py-6 px-4 space-y-6 w-full max-w-7xl mx-auto overflow-x-hidden">
         {/* Search and Actions */}
@@ -487,5 +489,6 @@ export default function DocVault() {
 
       <BottomNavigation />
     </div>
+    </SafeAreaContainer>
   );
 }

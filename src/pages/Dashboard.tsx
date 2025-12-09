@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, Plus, Camera, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { DocumentStats } from "@/components/dashboard/DocumentStats";
 import { ExpiryTimeline } from "@/components/dashboard/ExpiryTimeline";
 import { ChatBot } from "@/components/chatbot/ChatBot";
@@ -134,18 +135,19 @@ export default function Dashboard() {
   }
 
   return (
-    <div 
-      className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
-      style={{ 
-        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
-      }}
-    >
-      <header className="bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 border-b border-border/50 px-4 py-4">
-        <div className="w-full max-w-4xl mx-auto">
-          <h1 className="text-2xl font-semibold text-gradient mb-1">Dashboard</h1>
-          <p className="text-base text-muted-foreground">Welcome back! Here's your document overview.</p>
-        </div>
-      </header>
+    <SafeAreaContainer>
+      <div 
+        className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
+        style={{ 
+          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
+        }}
+      >
+        <header className="bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 border-b border-border/50 px-4 py-4">
+          <div className="w-full max-w-4xl mx-auto">
+            <h1 className="text-2xl font-semibold text-gradient mb-1">Dashboard</h1>
+            <p className="text-base text-muted-foreground">Welcome back! Here's your document overview.</p>
+          </div>
+        </header>
 
       <main className="flex-1 px-4 py-6 space-y-6 w-full max-w-4xl mx-auto overflow-x-hidden">
         {/* Stats Cards */}
@@ -241,5 +243,6 @@ export default function Dashboard() {
       <ChatBot />
       <BottomNavigation />
     </div>
+    </SafeAreaContainer>
   );
 }

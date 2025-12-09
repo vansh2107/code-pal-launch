@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Save, Loader2, Camera as CameraIcon, Upload } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
@@ -632,28 +633,29 @@ export default function Scan() {
   const aiReminders = calculateReminderDates();
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <header className="bg-card border-b border-border px-4 py-2 sticky top-0 z-10">
-        <div className="flex items-center gap-2 max-w-2xl mx-auto">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
-            stopCameraLocal();
-            navigate(-1);
-          }}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-semibold text-foreground truncate">
-              {replaceMode ? "Update Document" : "Add Document"}
-            </h1>
-            <p className="text-xs text-muted-foreground truncate">
-              {replaceMode 
-                ? "Scanning new version to replace existing" 
-                : scanMode === "camera" ? "Scan or upload" : "Manual entry"
-              }
-            </p>
+    <SafeAreaContainer>
+      <div className="min-h-screen bg-background pb-20">
+        <header className="bg-card border-b border-border px-4 py-2 sticky top-0 z-10">
+          <div className="flex items-center gap-2 max-w-2xl mx-auto">
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
+              stopCameraLocal();
+              navigate(-1);
+            }}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-semibold text-foreground truncate">
+                {replaceMode ? "Update Document" : "Add Document"}
+              </h1>
+              <p className="text-xs text-muted-foreground truncate">
+                {replaceMode 
+                  ? "Scanning new version to replace existing" 
+                  : scanMode === "camera" ? "Scan or upload" : "Manual entry"
+                }
+              </p>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
       <main className="px-4 py-3 space-y-3 max-w-2xl mx-auto">
         {/* Organization Selector */}
@@ -1039,5 +1041,6 @@ export default function Scan() {
 
       <BottomNavigation />
     </div>
+    </SafeAreaContainer>
   );
 }
