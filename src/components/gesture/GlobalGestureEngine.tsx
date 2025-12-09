@@ -31,10 +31,19 @@ const GESTURE_ROUTES: Record<string, { left: string | null; right: string | null
     left: "/docvault",
     right: null,
   },
+  "/tasks": {
+    left: "/documents",
+    right: "/docvault",
+  },
   "/scan": {
     left: null,
     right: null, // gestures disabled on scan page
   },
+};
+
+// TAP gesture placeholder added — currently disabled until future update.
+const detectTap = (): boolean => {
+  return false; // disabled for now
 };
 
 // Normalize path (remove trailing slash except for root)
@@ -200,18 +209,24 @@ export const GlobalGestureEngine = () => {
         break;
       }
       case 'swipe_up': {
-        const scrollEl = getScrollElement();
-        console.log('[GestureEngine] Scrolling DOWN by', SCROLL_AMOUNT);
-        scrollEl.scrollBy({ top: SCROLL_AMOUNT, behavior: 'smooth' });
+        // Swipe UP = scroll content UP (user wants to see content BELOW)
+        const scrollElUp = getScrollElement();
+        console.log('[GestureEngine] SWIPE_UP → scrollDown by', SCROLL_AMOUNT);
+        scrollElUp.scrollBy({ top: SCROLL_AMOUNT, behavior: 'smooth' });
         break;
       }
       case 'swipe_down': {
-        const scrollEl = getScrollElement();
-        console.log('[GestureEngine] Scrolling UP by', SCROLL_AMOUNT);
-        scrollEl.scrollBy({ top: -SCROLL_AMOUNT, behavior: 'smooth' });
+        // Swipe DOWN = scroll content DOWN (user wants to see content ABOVE)
+        const scrollElDown = getScrollElement();
+        console.log('[GestureEngine] SWIPE_DOWN → scrollUp by', SCROLL_AMOUNT);
+        scrollElDown.scrollBy({ top: -SCROLL_AMOUNT, behavior: 'smooth' });
         break;
       }
       case 'tap': {
+        // TAP gesture placeholder — currently disabled
+        if (detectTap()) {
+          // Future: handle tap click
+        }
         break;
       }
     }
