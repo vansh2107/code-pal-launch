@@ -362,8 +362,10 @@ class GestureNavigator {
     
     let action: GestureAction = 'none';
     
+    // Fix: Webcam is mirrored, so positive deltaX = hand moved RIGHT = swipe_right
+    // Positive deltaY = hand moved DOWN = swipe_down
     if (absX > this.SWIPE_THRESHOLD_PX && absX > absY * 1.3) {
-      action = deltaX > 0 ? 'swipe_left' : 'swipe_right';
+      action = deltaX > 0 ? 'swipe_right' : 'swipe_left';
     } else if (absY > this.SWIPE_THRESHOLD_PX && absY > absX * 1.3) {
       action = deltaY > 0 ? 'swipe_down' : 'swipe_up';
     }
