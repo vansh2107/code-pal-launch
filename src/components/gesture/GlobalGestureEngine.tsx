@@ -296,16 +296,18 @@ export const GlobalGestureEngine = () => {
     
     // Check horizontal swipe: |deltaX| > MIN_SWIPE_X AND |deltaX| > |deltaY|
     if (absX > MIN_SWIPE_X && absX > absY) {
-      // Camera is mirrored: dx < 0 in canvas = hand moved left in user's view = swipe_left
-      const gesture = dx < 0 ? 'swipe_left' : 'swipe_right';
-      console.log('[GestureEngine] Horizontal detected dx:', dx.toFixed(1), '→', gesture);
+      // FIXED: Camera is mirrored horizontally
+      // dx > 0 (canvas motion right) = user swiped LEFT = swipe_left
+      // dx < 0 (canvas motion left) = user swiped RIGHT = swipe_right
+      const gesture = dx > 0 ? 'swipe_left' : 'swipe_right';
+      console.log('[GestureEngine] Horizontal dx:', dx.toFixed(1), '→', gesture);
       return gesture;
     }
     
     // Check vertical swipe: |deltaY| > MIN_SWIPE_Y AND |deltaY| > |deltaX|
     if (absY > MIN_SWIPE_Y && absY > absX) {
       const gesture = dy > 0 ? 'swipe_down' : 'swipe_up';
-      console.log('[GestureEngine] Vertical detected dy:', dy.toFixed(1), '→', gesture);
+      console.log('[GestureEngine] Vertical dy:', dy.toFixed(1), '→', gesture);
       return gesture;
     }
     
