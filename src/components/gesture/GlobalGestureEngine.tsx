@@ -1,7 +1,10 @@
 /**
- * Global Air Gesture Engine
- * Mounts ONCE at app root, persists across all routes.
- * Provides debug overlay and reliable gesture detection.
+ * Global Air Gesture Engine v2
+ * - Route-based navigation across all main routes
+ * - Working vertical scroll
+ * - Tap gesture for clicking elements
+ * - Reduced sensitivity with thresholds & multi-frame confirmation
+ * - Global cooldown to prevent spam
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
@@ -12,13 +15,30 @@ import { toast } from '@/hooks/use-toast';
 const AIR_GESTURES_KEY = 'airGesturesEnabled';
 const CAMERA_EXCLUSIVE_PAGES = ['/scan'];
 
-type GestureAction = 'swipe_left' | 'swipe_right' | 'swipe_up' | 'swipe_down' | 'none';
+// Main navigable routes in order
+const MAIN_ROUTES = [
+  '/dashboard',
+  '/tasks',
+  '/documents',
+  '/notifications',
+  '/profile',
+];
+
+type GestureAction = 'swipe_left' | 'swipe_right' | 'swipe_up' | 'swipe_down' | 'tap' | 'none';
 
 interface DebugState {
   enabled: boolean;
   cameraOk: boolean;
   handDetected: boolean;
   lastGesture: string;
+  currentRoute: string;
+  cooldownActive: boolean;
+}
+
+interface MotionPoint {
+  x: number;
+  y: number;
+  time: number;
 }
 
 export const GlobalGestureEngine = () => {
@@ -32,8 +52,10 @@ export const GlobalGestureEngine = () => {
   const rafIdRef = useRef<number | null>(null);
   const runningRef = useRef(false);
   const previousFrameRef = useRef<ImageData | null>(null);
-  const motionHistoryRef = useRef<{ x: number; y: number; time: number }[]>([]);
+  const motionHistoryRef = useRef<MotionPoint[]>([]);
   const lastGestureTimeRef = useRef(0);
+  const tapCooldownRef = useRef(0);
+  const gestureConfirmationRef = useRef<{ action: GestureAction; count: number }>({ action: 'none', count: 0 });
   
   // State
   const [isEnabled, setIsEnabled] = useState(() => {
@@ -44,20 +66,58 @@ export const GlobalGestureEngine = () => {
     cameraOk: false,
     handDetected: false,
     lastGesture: '-',
+    currentRoute: '/',
+    cooldownActive: false,
   });
 
-  // Settings
+  // ============ TUNABLE SETTINGS ============
   const CANVAS_W = 320;
   const CANVAS_H = 240;
-  const SWIPE_THRESHOLD = 40;
-  const COOLDOWN_MS = 600;
-  const MOTION_THRESHOLD = 20;
-  const MIN_MOTION_PIXELS = 30;
+  
+  // Increased thresholds to reduce sensitivity
+  const MIN_SWIPE_DISTANCE_X = 100; // pixels (normalized) for horizontal swipe
+  const MIN_SWIPE_DISTANCE_Y = 80;  // pixels for vertical swipe
+  const GESTURE_COOLDOWN_MS = 800;  // increased cooldown
+  const TAP_COOLDOWN_MS = 600;      // tap-specific cooldown
+  const MOTION_THRESHOLD = 25;      // pixel brightness diff
+  const MIN_MOTION_PIXELS = 40;     // minimum changed pixels
+  const MOTION_HISTORY_WINDOW_MS = 500;
+  const MIN_GESTURE_FRAMES = 4;     // multi-frame confirmation
+  const SCROLL_STEP = 350;          // pixels to scroll
 
-  // Handle gesture action
+  // Tap detection
+  const TAP_STABILITY_THRESHOLD = 15; // max movement for stable tap
+  const TAP_STABLE_FRAMES = 5;        // frames hand must be stable
+  const stableFramesRef = useRef(0);
+  const lastHandCenterRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Update debug route
+  useEffect(() => {
+    setDebug(d => ({ ...d, currentRoute: location.pathname }));
+  }, [location.pathname]);
+
+  // Check cooldown
+  const canFireGesture = useCallback(() => {
+    const now = Date.now();
+    const canFire = now - lastGestureTimeRef.current > GESTURE_COOLDOWN_MS;
+    setDebug(d => ({ ...d, cooldownActive: !canFire }));
+    return canFire;
+  }, []);
+
+  const markGestureFired = useCallback(() => {
+    lastGestureTimeRef.current = Date.now();
+  }, []);
+
+  // Handle gesture action with route-based navigation
   const handleGesture = useCallback((action: GestureAction) => {
+    if (!canFireGesture()) {
+      console.log('[GestureEngine] Gesture blocked by cooldown:', action);
+      return;
+    }
+
     console.log('[GestureEngine] Gesture:', action);
     setDebug(d => ({ ...d, lastGesture: action }));
+    markGestureFired();
     
     toast({
       title: `👋 ${action.replace(/_/g, ' ').toUpperCase()}`,
@@ -65,23 +125,83 @@ export const GlobalGestureEngine = () => {
     });
     
     switch (action) {
-      case 'swipe_left':
-        window.history.forward();
+      case 'swipe_left': {
+        // Navigate to next route in array
+        const currentIndex = MAIN_ROUTES.indexOf(location.pathname);
+        if (currentIndex !== -1 && currentIndex < MAIN_ROUTES.length - 1) {
+          const nextRoute = MAIN_ROUTES[currentIndex + 1];
+          console.log('[GestureEngine] Navigate to:', nextRoute);
+          navigate(nextRoute);
+        } else if (currentIndex === -1) {
+          // Not on a main route, go to first
+          navigate(MAIN_ROUTES[0]);
+        }
         break;
-      case 'swipe_right':
-        navigate(-1);
+      }
+      case 'swipe_right': {
+        // Navigate to previous route in array
+        const currentIndex = MAIN_ROUTES.indexOf(location.pathname);
+        if (currentIndex > 0) {
+          const prevRoute = MAIN_ROUTES[currentIndex - 1];
+          console.log('[GestureEngine] Navigate to:', prevRoute);
+          navigate(prevRoute);
+        } else if (currentIndex === -1) {
+          // Not on a main route, use browser back
+          navigate(-1);
+        }
         break;
-      case 'swipe_up':
-        window.scrollBy({ top: -250, behavior: 'smooth' });
+      }
+      case 'swipe_up': {
+        // Swipe up = scroll down (hand moves up, page content moves up)
+        const scrollEl = document.scrollingElement || document.documentElement;
+        scrollEl.scrollBy({ top: SCROLL_STEP, behavior: 'smooth' });
         break;
-      case 'swipe_down':
-        window.scrollBy({ top: 250, behavior: 'smooth' });
+      }
+      case 'swipe_down': {
+        // Swipe down = scroll up
+        const scrollEl = document.scrollingElement || document.documentElement;
+        scrollEl.scrollBy({ top: -SCROLL_STEP, behavior: 'smooth' });
         break;
+      }
+      case 'tap': {
+        // Already handled in tap detection
+        break;
+      }
     }
-  }, [navigate]);
+  }, [navigate, location.pathname, canFireGesture, markGestureFired]);
+
+  // Handle tap click at coordinates
+  const handleTapClick = useCallback((canvasX: number, canvasY: number) => {
+    const now = Date.now();
+    if (now - tapCooldownRef.current < TAP_COOLDOWN_MS) {
+      console.log('[GestureEngine] Tap blocked by cooldown');
+      return;
+    }
+
+    // Map canvas coordinates to viewport
+    // Canvas is mirrored (camera view), so we need to flip X
+    const viewportX = ((CANVAS_W - canvasX) / CANVAS_W) * window.innerWidth;
+    const viewportY = (canvasY / CANVAS_H) * window.innerHeight;
+
+    console.log('[GestureEngine] Tap at viewport:', viewportX, viewportY);
+
+    const element = document.elementFromPoint(viewportX, viewportY) as HTMLElement;
+    if (element) {
+      console.log('[GestureEngine] Clicking element:', element.tagName, element.className);
+      element.click();
+      
+      tapCooldownRef.current = now;
+      setDebug(d => ({ ...d, lastGesture: 'tap' }));
+      
+      toast({
+        title: `👆 TAP`,
+        duration: 500,
+      });
+    }
+  }, []);
 
   // Detect motion between frames
-  const detectMotion = useCallback((prev: ImageData, curr: ImageData) => {
+  const detectMotion = useCallback((prev: ImageData, curr: ImageData): { x: number; y: number; count: number } | null => {
     let totalX = 0, totalY = 0, count = 0;
     
     for (let y = 0; y < CANVAS_H; y += 4) {
@@ -104,40 +224,83 @@ export const GlobalGestureEngine = () => {
     return null;
   }, []);
 
-  // Detect gesture from motion history
+  // Check for tap gesture (stable hand position)
+  const checkTapGesture = useCallback((centerX: number, centerY: number) => {
+    const lastCenter = lastHandCenterRef.current;
+    
+    if (lastCenter) {
+      const dx = Math.abs(centerX - lastCenter.x);
+      const dy = Math.abs(centerY - lastCenter.y);
+      const movement = Math.sqrt(dx * dx + dy * dy);
+      
+      if (movement < TAP_STABILITY_THRESHOLD) {
+        stableFramesRef.current++;
+        
+        if (stableFramesRef.current >= TAP_STABLE_FRAMES) {
+          // Stable enough for tap
+          handleTapClick(centerX, centerY);
+          stableFramesRef.current = 0;
+        }
+      } else {
+        stableFramesRef.current = 0;
+      }
+    }
+    
+    lastHandCenterRef.current = { x: centerX, y: centerY };
+  }, [handleTapClick]);
+
+  // Detect gesture from motion history with multi-frame confirmation
   const checkGesture = useCallback(() => {
     const history = motionHistoryRef.current;
-    if (history.length < 4) return;
+    if (history.length < MIN_GESTURE_FRAMES) return;
     
-    const now = Date.now();
-    if (now - lastGestureTimeRef.current < COOLDOWN_MS) return;
+    if (!canFireGesture()) return;
     
     const first = history[0];
     const last = history[history.length - 1];
     
-    const dx = (last.x - first.x);
-    const dy = (last.y - first.y);
+    const dx = last.x - first.x;
+    const dy = last.y - first.y;
     const dt = last.time - first.time;
     
-    if (dt < 100) return;
+    if (dt < 150) return; // Need enough time for intentional gesture
     
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
     
-    let action: GestureAction = 'none';
+    let candidateAction: GestureAction = 'none';
     
-    if (absX > SWIPE_THRESHOLD && absX > absY * 1.3) {
-      action = dx > 0 ? 'swipe_left' : 'swipe_right';
-    } else if (absY > SWIPE_THRESHOLD && absY > absX * 1.3) {
-      action = dy > 0 ? 'swipe_down' : 'swipe_up';
+    // Check thresholds
+    if (absX > MIN_SWIPE_DISTANCE_X && absX > absY * 1.5) {
+      // Horizontal swipe - note: camera is mirrored
+      candidateAction = dx > 0 ? 'swipe_right' : 'swipe_left';
+    } else if (absY > MIN_SWIPE_DISTANCE_Y && absY > absX * 1.5) {
+      // Vertical swipe
+      candidateAction = dy > 0 ? 'swipe_down' : 'swipe_up';
     }
     
-    if (action !== 'none') {
-      handleGesture(action);
-      lastGestureTimeRef.current = now;
-      motionHistoryRef.current = [];
+    if (candidateAction !== 'none') {
+      // Multi-frame confirmation
+      const confirmation = gestureConfirmationRef.current;
+      
+      if (confirmation.action === candidateAction) {
+        confirmation.count++;
+        
+        if (confirmation.count >= 2) {
+          // Confirmed gesture
+          handleGesture(candidateAction);
+          gestureConfirmationRef.current = { action: 'none', count: 0 };
+          motionHistoryRef.current = [];
+        }
+      } else {
+        // New candidate
+        gestureConfirmationRef.current = { action: candidateAction, count: 1 };
+      }
+    } else {
+      // Reset confirmation
+      gestureConfirmationRef.current = { action: 'none', count: 0 };
     }
-  }, [handleGesture]);
+  }, [handleGesture, canFireGesture]);
 
   // Main detection loop
   const detectionLoop = useCallback(() => {
@@ -165,12 +328,18 @@ export const GlobalGestureEngine = () => {
           
           // Keep last 400ms
           motionHistoryRef.current = motionHistoryRef.current.filter(
-            m => m.time > now - 400
+            m => m.time > now - MOTION_HISTORY_WINDOW_MS
           );
           
+          // Check for swipe gestures
           checkGesture();
+          
+          // Check for tap gesture
+          checkTapGesture(motion.x, motion.y);
         } else {
           setDebug(d => ({ ...d, handDetected: false }));
+          stableFramesRef.current = 0;
+          lastHandCenterRef.current = null;
         }
       }
       
@@ -178,7 +347,7 @@ export const GlobalGestureEngine = () => {
     }
     
     rafIdRef.current = requestAnimationFrame(detectionLoop);
-  }, [detectMotion, checkGesture]);
+  }, [detectMotion, checkGesture, checkTapGesture]);
 
   // Start gesture engine
   const startEngine = useCallback(async () => {
@@ -234,6 +403,9 @@ export const GlobalGestureEngine = () => {
       runningRef.current = true;
       previousFrameRef.current = null;
       motionHistoryRef.current = [];
+      gestureConfirmationRef.current = { action: 'none', count: 0 };
+      stableFramesRef.current = 0;
+      lastHandCenterRef.current = null;
       
       setDebug(d => ({ ...d, cameraOk: true }));
       
@@ -348,26 +520,40 @@ export const GlobalGestureEngine = () => {
         top: 8,
         right: 8,
         zIndex: 99999,
-        background: 'rgba(0,0,0,0.75)',
+        background: 'rgba(0,0,0,0.85)',
         color: '#fff',
-        padding: '6px 10px',
-        borderRadius: 6,
+        padding: '8px 12px',
+        borderRadius: 8,
         fontSize: 11,
         fontFamily: 'monospace',
         pointerEvents: 'none',
-        lineHeight: 1.4,
+        lineHeight: 1.5,
+        minWidth: 140,
       }}
     >
-      <div>Air Gestures: <span style={{ color: debug.enabled ? '#4ade80' : '#f87171' }}>
+      <div style={{ fontWeight: 'bold', marginBottom: 4, borderBottom: '1px solid #444', paddingBottom: 4 }}>
+        ✋ Air Gestures
+      </div>
+      <div>Status: <span style={{ color: debug.enabled ? '#4ade80' : '#f87171' }}>
         {debug.enabled ? 'ON' : 'OFF'}
       </span></div>
       <div>Camera: <span style={{ color: debug.cameraOk ? '#4ade80' : '#f87171' }}>
         {debug.cameraOk ? 'OK' : 'OFF'}
       </span></div>
       <div>Motion: <span style={{ color: debug.handDetected ? '#4ade80' : '#94a3b8' }}>
-        {debug.handDetected ? 'YES' : 'NO'}
+        {debug.handDetected ? 'DETECTED' : 'NONE'}
       </span></div>
-      <div>Last: {debug.lastGesture}</div>
+      <div>Route: <span style={{ color: '#60a5fa' }}>
+        {debug.currentRoute}
+      </span></div>
+      <div>Last: <span style={{ color: '#fbbf24' }}>
+        {debug.lastGesture}
+      </span></div>
+      {debug.cooldownActive && (
+        <div style={{ color: '#f97316', marginTop: 2 }}>
+          ⏳ COOLDOWN
+        </div>
+      )}
     </div>
   );
 };
@@ -427,7 +613,7 @@ export const useGestureToggle = () => {
       setIsEnabled(newValue);
       toast({
         title: newValue ? '✋ Air Gestures ON' : 'Air Gestures OFF',
-        description: newValue ? 'Wave left/right to navigate, up/down to scroll' : undefined,
+        description: newValue ? 'Swipe left/right to navigate routes, up/down to scroll, hold steady to tap' : undefined,
       });
     } else if (newValue) {
       toast({
