@@ -20,7 +20,7 @@ import { PDFPageSelector } from "@/components/scan/PDFPageSelector";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
 import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
-import { stopCameraStream, stopMediaStream } from "@/utils/cameraCleanup";
+import { stopCameraStream, stopMediaStream, setupVideoElement, requestCamera, getCameraConstraints } from "@/utils/cameraCleanup";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -154,14 +154,31 @@ export default function Scan() {
         }
       }
 
-      // Use browser's getUserMedia API (works on both web and native WebView)
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment" } 
-      });
+      // Setup video element for autoplay compatibility (Chrome requirement)
+      if (videoRef.current) {
+        setupVideoElement(videoRef.current);
+      }
+
+      // Use browser's getUserMedia API with proper constraints
+      const constraints = getCameraConstraints('environment', false);
+      const mediaStream = await requestCamera(constraints);
+      
+      if (!mediaStream) {
+        throw new Error('Failed to access camera');
+      }
       
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        // Ensure video plays on mobile browsers
+        // Wait for video to be ready then play
+        await new Promise<void>((resolve) => {
+          if (!videoRef.current) {
+            resolve();
+            return;
+          }
+          videoRef.current.onloadedmetadata = () => resolve();
+          setTimeout(resolve, 2000); // Timeout fallback
+        });
+        
         try {
           await videoRef.current.play();
         } catch (playErr) {

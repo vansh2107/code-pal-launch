@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gestureNavigator, GestureAction } from '@/services/gestureNavigator';
 import { toast } from '@/hooks/use-toast';
@@ -13,17 +13,20 @@ export const useAirGestures = () => {
     }
     return false;
   });
-  const [isActive, setIsActive] = useState(false);
+  const [isActive, setIsActive] = useState(gestureNavigator.isActive());
   const [lastGesture, setLastGesture] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   const handleGesture = useCallback((action: GestureAction) => {
-    console.log('[AirGestures] Gesture received:', action);
+    if (!mountedRef.current) return;
+    
+    console.log('[AirGestures] Gesture:', action);
     setLastGesture(action);
     
-    // Show visual feedback
+    // Visual feedback
     toast({
-      title: `Gesture: ${action.replace('_', ' ')}`,
-      duration: 1000,
+      title: `👋 ${action.replace(/_/g, ' ').toUpperCase()}`,
+      duration: 800,
     });
     
     switch (action) {
@@ -34,40 +37,39 @@ export const useAirGestures = () => {
         navigate(-1);
         break;
       case 'swipe_up':
-        window.scrollBy({ top: -300, behavior: 'smooth' });
+        window.scrollBy({ top: -250, behavior: 'smooth' });
         break;
       case 'swipe_down':
-        window.scrollBy({ top: 300, behavior: 'smooth' });
+        window.scrollBy({ top: 250, behavior: 'smooth' });
         break;
       case 'tap':
-        const focusedElement = document.activeElement as HTMLElement;
-        if (focusedElement && focusedElement !== document.body) {
-          focusedElement.click();
+        const focused = document.activeElement as HTMLElement;
+        if (focused && focused !== document.body) {
+          focused.click();
         }
-        break;
-      default:
         break;
     }
   }, [navigate]);
 
   const enableGestures = useCallback(async () => {
-    console.log('[AirGestures] Enabling gestures...');
+    console.log('[AirGestures] Enabling...');
+    
     const success = await gestureNavigator.start(handleGesture);
     
     if (success) {
       setIsActive(true);
-      localStorage.setItem(AIR_GESTURES_STORAGE_KEY, 'true');
       setIsEnabled(true);
+      localStorage.setItem(AIR_GESTURES_STORAGE_KEY, 'true');
       toast({
-        title: "Air Gestures Enabled ✋",
-        description: "Move your hand left/right/up/down in front of camera",
+        title: "✋ Air Gestures ON",
+        description: "Wave hand left/right to navigate, up/down to scroll",
       });
     } else {
-      localStorage.setItem(AIR_GESTURES_STORAGE_KEY, 'false');
       setIsEnabled(false);
+      localStorage.setItem(AIR_GESTURES_STORAGE_KEY, 'false');
       toast({
-        title: "Failed to Enable Air Gestures",
-        description: "Could not access camera. Make sure you've granted camera permission.",
+        title: "Camera Access Failed",
+        description: "Enable camera permission and try again",
         variant: "destructive",
       });
     }
@@ -76,42 +78,44 @@ export const useAirGestures = () => {
   }, [handleGesture]);
 
   const disableGestures = useCallback(() => {
-    console.log('[AirGestures] Disabling gestures...');
+    console.log('[AirGestures] Disabling...');
     gestureNavigator.stop();
     setIsActive(false);
-    localStorage.setItem(AIR_GESTURES_STORAGE_KEY, 'false');
     setIsEnabled(false);
+    localStorage.setItem(AIR_GESTURES_STORAGE_KEY, 'false');
     toast({
-      title: "Air Gestures Disabled",
-      description: "Gesture navigation is now off.",
+      title: "Air Gestures OFF",
     });
   }, []);
 
   const toggleGestures = useCallback(async () => {
-    if (isActive || gestureNavigator.isActive()) {
+    if (gestureNavigator.isActive()) {
       disableGestures();
     } else {
       await enableGestures();
     }
-  }, [isActive, enableGestures, disableGestures]);
+  }, [enableGestures, disableGestures]);
 
-  // Sync state with actual navigator state
+  // Sync state
   useEffect(() => {
-    const checkState = () => {
-      const active = gestureNavigator.isActive();
-      if (active !== isActive) {
-        setIsActive(active);
+    const syncState = setInterval(() => {
+      if (mountedRef.current) {
+        setIsActive(gestureNavigator.isActive());
       }
-    };
+    }, 500);
     
-    const interval = setInterval(checkState, 1000);
-    return () => clearInterval(interval);
-  }, [isActive]);
+    return () => clearInterval(syncState);
+  }, []);
 
-  // Cleanup on unmount
+  // Cleanup on unmount - ALWAYS stop camera
   useEffect(() => {
+    mountedRef.current = true;
+    
     return () => {
+      mountedRef.current = false;
+      // Always cleanup on unmount
       if (gestureNavigator.isActive()) {
+        console.log('[AirGestures] Cleanup on unmount');
         gestureNavigator.stop();
       }
     };
