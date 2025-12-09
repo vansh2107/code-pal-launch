@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { PDFPageSelector } from "@/components/scan/PDFPageSelector";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
 import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
+import { stopCameraStream, stopMediaStream } from "@/utils/cameraCleanup";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -89,15 +90,40 @@ export default function Scan() {
     }
   }, [user]);
 
+  // Cleanup function for camera
+  const cleanupCamera = useCallback(() => {
+    // Stop all tracks from video element
+    if (videoRef.current) {
+      stopCameraStream(videoRef.current);
+    }
+    // Also stop the stream reference
+    if (stream) {
+      stopMediaStream(stream);
+    }
+    setStream(null);
+  }, [stream]);
+
   // Start camera automatically when in camera mode
   useEffect(() => {
     if (scanMode === "camera" && !capturedImage) {
       startCamera();
     }
+    
+    // Cleanup on unmount or when dependencies change
     return () => {
-      stopCamera();
+      cleanupCamera();
     };
   }, [scanMode, capturedImage]);
+
+  // Additional cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      // Force cleanup of any remaining camera resources
+      if (videoRef.current) {
+        stopCameraStream(videoRef.current);
+      }
+    };
+  }, []);
 
   const fetchOrganizations = async () => {
     const { data } = await supabase
@@ -142,12 +168,17 @@ export default function Scan() {
     }
   };
 
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
+    // Stop video element stream
+    if (videoRef.current) {
+      stopCameraStream(videoRef.current);
+    }
+    // Stop tracked stream
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stopMediaStream(stream);
       setStream(null);
     }
-  };
+  }, [stream]);
 
   const captureImage = () => {
     if (videoRef.current) {
