@@ -142,11 +142,36 @@ export const GlobalGestureEngine = () => {
            document.documentElement;
   }, []);
 
+  // Get fresh current path (avoid stale closure)
+  const getCurrentPath = useCallback((): string => {
+    // Use window.location for fresh value, not React Router location
+    const raw = window.location.pathname;
+    return normalizePath(raw);
+  }, []);
+
+  // Find matching route in GESTURE_ROUTES
+  const findRouteMatch = useCallback((path: string): { left: string | null; right: string | null } | null => {
+    // Direct match first
+    if (GESTURE_ROUTES[path]) {
+      console.log('[GestureEngine] Direct route match:', path);
+      return GESTURE_ROUTES[path];
+    }
+    // Check if "/" matches for dashboard
+    if (path === '/' || path === '' || path === '/dashboard') {
+      console.log('[GestureEngine] Dashboard route match:', path);
+      return GESTURE_ROUTES['/'];
+    }
+    console.log('[GestureEngine] No route match for:', path, 'Available:', Object.keys(GESTURE_ROUTES));
+    return null;
+  }, []);
+
   // Execute gesture action with EXACT routing table (PART 1)
   const executeGesture = useCallback((action: GestureAction) => {
-    const currentPath = normalizePath(location.pathname);
+    // CRITICAL: Get fresh path from window.location, not stale React state
+    const currentPath = getCurrentPath();
+    const routes = findRouteMatch(currentPath);
     
-    console.log('[GestureEngine] Executing:', action, 'on route:', currentPath);
+    console.log('[GestureEngine] Executing:', action, 'path:', currentPath, 'routes:', JSON.stringify(routes));
     setDebug(d => ({ ...d, lastGesture: action, blocked: '' }));
     markGestureFired();
     
@@ -157,8 +182,6 @@ export const GlobalGestureEngine = () => {
     
     switch (action) {
       case 'swipe_left': {
-        // SWIPE_LEFT → navigate to GESTURE_ROUTES[current].left
-        const routes = GESTURE_ROUTES[currentPath];
         if (routes?.left) {
           console.log('[GestureEngine] Navigate LEFT:', currentPath, '→', routes.left);
           navigate(routes.left);
@@ -168,8 +191,6 @@ export const GlobalGestureEngine = () => {
         break;
       }
       case 'swipe_right': {
-        // SWIPE_RIGHT → navigate to GESTURE_ROUTES[current].right
-        const routes = GESTURE_ROUTES[currentPath];
         if (routes?.right) {
           console.log('[GestureEngine] Navigate RIGHT:', currentPath, '→', routes.right);
           navigate(routes.right);
@@ -179,25 +200,22 @@ export const GlobalGestureEngine = () => {
         break;
       }
       case 'swipe_up': {
-        // SWIPE_UP → scroll content upward (show more below)
         const scrollEl = getScrollElement();
         console.log('[GestureEngine] Scrolling DOWN by', SCROLL_AMOUNT);
         scrollEl.scrollBy({ top: SCROLL_AMOUNT, behavior: 'smooth' });
         break;
       }
       case 'swipe_down': {
-        // SWIPE_DOWN → scroll content downward (show more above)
         const scrollEl = getScrollElement();
         console.log('[GestureEngine] Scrolling UP by', SCROLL_AMOUNT);
         scrollEl.scrollBy({ top: -SCROLL_AMOUNT, behavior: 'smooth' });
         break;
       }
       case 'tap': {
-        // Handled separately in handleTapClick
         break;
       }
     }
-  }, [navigate, location.pathname, markGestureFired, getScrollElement]);
+  }, [navigate, getCurrentPath, findRouteMatch, markGestureFired, getScrollElement]);
 
   // Handle tap click at coordinates (PART 5)
   const handleTapClick = useCallback((canvasX: number, canvasY: number) => {
