@@ -138,15 +138,27 @@ export default function Scan() {
 
   const startCamera = async () => {
     try {
-      // Request camera permissions first
-      const permission = await Camera.requestPermissions();
-      if (permission.camera === 'denied') {
-        throw new Error('Camera permission denied');
+      // Check if we're on a native platform (Capacitor)
+      const isNative = typeof (window as any).Capacitor !== 'undefined' && 
+                       (window as any).Capacitor.isNativePlatform?.();
+      
+      // Only request Capacitor permissions on native platforms
+      if (isNative) {
+        try {
+          const permission = await Camera.requestPermissions();
+          if (permission.camera === 'denied') {
+            throw new Error('Camera permission denied');
+          }
+        } catch (permErr) {
+          console.warn("Capacitor permission request failed, trying browser API:", permErr);
+        }
       }
 
+      // Use browser's getUserMedia API (works on both web and native WebView)
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "environment" } 
       });
+      
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         // Ensure video plays on mobile browsers
