@@ -20,9 +20,7 @@ import { PDFPageSelector } from "@/components/scan/PDFPageSelector";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
 import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
-import { forceStopAllCameras } from "@/utils/globalCameraManager";
-import { gestureNavigator } from "@/services/gestureNavigator";
-import { stopCameraStream, stopMediaStream, setupVideoElement, requestCamera, getCameraConstraints } from "@/utils/cameraCleanup";
+import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstraints, setupVideoElement, requestCamera, stopMediaStream } from "@/utils/cameraManager";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -93,30 +91,21 @@ export default function Scan() {
     }
   }, [user]);
 
-  // CRITICAL: Force cleanup camera on unmount and pause gestures
+  // CRITICAL: Force cleanup camera on unmount
   useEffect(() => {
+    let cancelled = false;
     mountedRef.current = true;
-    
-    // Pause gesture engine when entering Scan page (handled by GlobalGestureEngine)
-    console.log('[Scan] Mounting - gesture engine will pause automatically');
+    console.log('[Scan] Mounting');
     
     return () => {
+      cancelled = true;
       mountedRef.current = false;
       console.log('[Scan] Unmounting, cleaning up camera...');
       
-      // Stop video element stream
-      if (videoRef.current) {
-        const videoStream = videoRef.current.srcObject as MediaStream | null;
-        if (videoStream) {
-          videoStream.getTracks().forEach(track => {
-            track.stop();
-            console.log('[Scan] Stopped track:', track.kind);
-          });
-          videoRef.current.srcObject = null;
-        }
-      }
+      // Stop this page's camera
+      stopCameraManager(videoRef.current);
       
-      // Force stop all cameras (gesture engine will restart via GlobalGestureEngine if enabled)
+      // Force stop all cameras as safety net
       forceStopAllCameras();
     };
   }, []);
@@ -124,24 +113,9 @@ export default function Scan() {
   // Cleanup function for camera
   const cleanupCamera = useCallback(() => {
     console.log('[Scan] Cleaning up camera...');
-    
-    // Stop all tracks from video element
-    if (videoRef.current) {
-      const videoStream = videoRef.current.srcObject as MediaStream | null;
-      if (videoStream) {
-        videoStream.getTracks().forEach(track => {
-          track.stop();
-          console.log('[Scan] Stopped track:', track.kind, track.label);
-        });
-        videoRef.current.srcObject = null;
-      }
-    }
-    
-    // Also stop the tracked stream reference
+    stopCameraManager(videoRef.current);
     if (stream) {
-      stream.getTracks().forEach(track => {
-        track.stop();
-      });
+      stream.getTracks().forEach(t => t.stop());
     }
     setStream(null);
   }, [stream]);
@@ -156,16 +130,6 @@ export default function Scan() {
       cleanupCamera();
     };
   }, [scanMode, capturedImage]);
-
-  // Additional cleanup on component unmount
-  useEffect(() => {
-    return () => {
-      // Force cleanup of any remaining camera resources
-      if (videoRef.current) {
-        stopCameraStream(videoRef.current);
-      }
-    };
-  }, []);
 
   const fetchOrganizations = async () => {
     const { data } = await supabase
@@ -239,11 +203,9 @@ export default function Scan() {
     }
   };
 
-  const stopCamera = useCallback(() => {
+  const stopCameraLocal = useCallback(() => {
     // Stop video element stream
-    if (videoRef.current) {
-      stopCameraStream(videoRef.current);
-    }
+    stopCameraManager(videoRef.current);
     // Stop tracked stream
     if (stream) {
       stopMediaStream(stream);
@@ -261,7 +223,7 @@ export default function Scan() {
         ctx.drawImage(videoRef.current, 0, 0);
         const imageData = canvas.toDataURL("image/jpeg", 0.8);
         setCapturedImage(imageData);
-        stopCamera();
+        stopCameraLocal();
         extractDocumentData(imageData);
       }
     }
@@ -674,7 +636,7 @@ export default function Scan() {
       <header className="bg-card border-b border-border px-4 py-2 sticky top-0 z-10">
         <div className="flex items-center gap-2 max-w-2xl mx-auto">
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
-            stopCamera();
+            stopCameraLocal();
             navigate(-1);
           }}>
             <ArrowLeft className="h-4 w-4" />
@@ -777,7 +739,7 @@ export default function Scan() {
             variant={scanMode === "manual" ? "default" : "outline"}
             onClick={() => {
               setScanMode("manual");
-              stopCamera();
+              stopCameraLocal();
               setCapturedImage(null);
             }}
             className="flex-1 h-9 text-xs px-1.5 flex-col gap-0.5"
