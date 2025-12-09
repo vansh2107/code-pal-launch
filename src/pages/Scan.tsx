@@ -20,6 +20,8 @@ import { PDFPageSelector } from "@/components/scan/PDFPageSelector";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
 import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
+import { forceStopAllCameras } from "@/utils/globalCameraManager";
+import { gestureNavigator } from "@/services/gestureNavigator";
 import { stopCameraStream, stopMediaStream, setupVideoElement, requestCamera, getCameraConstraints } from "@/utils/cameraCleanup";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
@@ -68,6 +70,7 @@ export default function Scan() {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<string>("personal");
+  const mountedRef = useRef(true);
   
   const [documentCountry, setDocumentCountry] = useState<string>("");
   const [enableCountrySelect, setEnableCountrySelect] = useState(false);
@@ -90,26 +93,65 @@ export default function Scan() {
     }
   }, [user]);
 
+  // CRITICAL: Force cleanup camera on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    return () => {
+      mountedRef.current = false;
+      console.log('[Scan] Unmounting, cleaning up camera...');
+      
+      // Stop video element stream
+      if (videoRef.current) {
+        const videoStream = videoRef.current.srcObject as MediaStream | null;
+        if (videoStream) {
+          videoStream.getTracks().forEach(track => {
+            track.stop();
+            console.log('[Scan] Stopped track:', track.kind);
+          });
+          videoRef.current.srcObject = null;
+        }
+      }
+      
+      // If gestures are NOT active, stop all cameras
+      // If gestures ARE active, leave the gesture camera alone
+      if (!gestureNavigator.isActive()) {
+        forceStopAllCameras();
+      }
+    };
+  }, []);
+
   // Cleanup function for camera
   const cleanupCamera = useCallback(() => {
+    console.log('[Scan] Cleaning up camera...');
+    
     // Stop all tracks from video element
     if (videoRef.current) {
-      stopCameraStream(videoRef.current);
+      const videoStream = videoRef.current.srcObject as MediaStream | null;
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => {
+          track.stop();
+          console.log('[Scan] Stopped track:', track.kind, track.label);
+        });
+        videoRef.current.srcObject = null;
+      }
     }
-    // Also stop the stream reference
+    
+    // Also stop the tracked stream reference
     if (stream) {
-      stopMediaStream(stream);
+      stream.getTracks().forEach(track => {
+        track.stop();
+      });
     }
     setStream(null);
   }, [stream]);
 
   // Start camera automatically when in camera mode
   useEffect(() => {
-    if (scanMode === "camera" && !capturedImage) {
+    if (scanMode === "camera" && !capturedImage && mountedRef.current) {
       startCamera();
     }
     
-    // Cleanup on unmount or when dependencies change
     return () => {
       cleanupCamera();
     };

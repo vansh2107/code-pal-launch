@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gestureNavigator, GestureAction } from '@/services/gestureNavigator';
+import { forceStopAllCameras } from '@/utils/globalCameraManager';
 import { toast } from '@/hooks/use-toast';
 
 const AIR_GESTURES_STORAGE_KEY = 'airGesturesEnabled';
@@ -16,6 +17,7 @@ export const useAirGestures = () => {
   const [isActive, setIsActive] = useState(gestureNavigator.isActive());
   const [lastGesture, setLastGesture] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const initializingRef = useRef(false);
 
   const handleGesture = useCallback((action: GestureAction) => {
     if (!mountedRef.current) return;
@@ -23,7 +25,6 @@ export const useAirGestures = () => {
     console.log('[AirGestures] Gesture:', action);
     setLastGesture(action);
     
-    // Visual feedback
     toast({
       title: `👋 ${action.replace(/_/g, ' ').toUpperCase()}`,
       duration: 800,
@@ -52,9 +53,20 @@ export const useAirGestures = () => {
   }, [navigate]);
 
   const enableGestures = useCallback(async () => {
+    if (initializingRef.current) {
+      console.log('[AirGestures] Already initializing...');
+      return false;
+    }
+    
     console.log('[AirGestures] Enabling...');
+    initializingRef.current = true;
+    
+    // Stop any existing cameras first
+    forceStopAllCameras();
     
     const success = await gestureNavigator.start(handleGesture);
+    
+    initializingRef.current = false;
     
     if (success) {
       setIsActive(true);
@@ -65,8 +77,8 @@ export const useAirGestures = () => {
         description: "Wave hand left/right to navigate, up/down to scroll",
       });
     } else {
-      setIsEnabled(false);
-      localStorage.setItem(AIR_GESTURES_STORAGE_KEY, 'false');
+      // IMPORTANT: Do NOT change isEnabled on failure
+      // User preference is preserved - they wanted it ON
       toast({
         title: "Camera Access Failed",
         description: "Enable camera permission and try again",
@@ -78,8 +90,9 @@ export const useAirGestures = () => {
   }, [handleGesture]);
 
   const disableGestures = useCallback(() => {
-    console.log('[AirGestures] Disabling...');
+    console.log('[AirGestures] Disabling (user requested)...');
     gestureNavigator.stop();
+    forceStopAllCameras();
     setIsActive(false);
     setIsEnabled(false);
     localStorage.setItem(AIR_GESTURES_STORAGE_KEY, 'false');
@@ -96,28 +109,26 @@ export const useAirGestures = () => {
     }
   }, [enableGestures, disableGestures]);
 
-  // Sync state
+  // Sync state with actual gesture navigator state
   useEffect(() => {
     const syncState = setInterval(() => {
       if (mountedRef.current) {
-        setIsActive(gestureNavigator.isActive());
+        const actualActive = gestureNavigator.isActive();
+        setIsActive(actualActive);
       }
     }, 500);
     
     return () => clearInterval(syncState);
   }, []);
 
-  // Cleanup on unmount - ALWAYS stop camera
+  // Component mount/unmount tracking
   useEffect(() => {
     mountedRef.current = true;
     
     return () => {
       mountedRef.current = false;
-      // Always cleanup on unmount
-      if (gestureNavigator.isActive()) {
-        console.log('[AirGestures] Cleanup on unmount');
-        gestureNavigator.stop();
-      }
+      // Note: We do NOT stop gestures on unmount
+      // The gesture service is global and persists
     };
   }, []);
 

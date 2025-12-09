@@ -2,18 +2,20 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useBackButton } from "@/hooks/useBackButton";
 import { ChatBot } from "@/components/chatbot/ChatBot";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { initOneSignal } from "@/lib/onesignal";
 import { initializeStatusBar } from "@/lib/statusbar";
+import { forceStopAllCameras } from "@/utils/globalCameraManager";
+import { gestureNavigator } from "@/services/gestureNavigator";
 
 // PAGES
 import Dashboard from "./pages/Dashboard";
@@ -49,6 +51,50 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Camera pages that are allowed to use camera
+const CAMERA_PAGES = ['/scan'];
+
+// ---------------------------------------------------
+// 🎥 Route-based Camera Cleanup
+// ---------------------------------------------------
+const RouteCleanup = () => {
+  const location = useLocation();
+  const previousPath = useRef(location.pathname);
+
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const wasOnCameraPage = CAMERA_PAGES.some(page => previousPath.current.startsWith(page));
+    const isOnCameraPage = CAMERA_PAGES.some(page => currentPath.startsWith(page));
+
+    // If leaving a camera page, force cleanup (but preserve gesture camera)
+    if (wasOnCameraPage && !isOnCameraPage) {
+      console.log('[RouteCleanup] Left camera page, cleaning up...');
+      
+      // If gestures are NOT active, stop all cameras
+      if (!gestureNavigator.isActive()) {
+        forceStopAllCameras();
+      } else {
+        // If gestures are active, only stop non-gesture video elements
+        const videos = document.querySelectorAll('video');
+        videos.forEach(video => {
+          // Gesture video is hidden off-screen at -9999px
+          if (video.style.top !== '-9999px') {
+            const stream = video.srcObject as MediaStream | null;
+            if (stream) {
+              stream.getTracks().forEach(track => track.stop());
+              video.srcObject = null;
+            }
+          }
+        });
+      }
+    }
+
+    previousPath.current = currentPath;
+  }, [location.pathname]);
+
+  return null;
+};
 
 // ---------------------------------------------------
 // 🚀 OneSignal + Permissions + Back Button Handler
@@ -105,6 +151,7 @@ const App = () => (
           <BrowserRouter>
             <AuthEventListener />
             <NotificationScheduler />
+            <RouteCleanup />
             <ChatBot />
 
             <Routes>
