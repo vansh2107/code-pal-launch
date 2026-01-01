@@ -205,16 +205,28 @@ export default function DocVault() {
 
     setIsUploading(true);
     try {
-      // Upload ORIGINAL file with NO compression
-      const publicUrl = await uploadDocumentOriginal(file, user.id);
-      
-      if (!publicUrl) {
-        throw new Error("Failed to get upload URL");
+      // Generate unique file path
+      const docUuid = crypto.randomUUID();
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'file';
+      const filePath = `documents/${user.id}/${docUuid}/document.${fileExt}`;
+
+      console.log("Uploading file:", file.name, "to path:", filePath);
+
+      // Upload file directly to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from("document-images")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type,
+        });
+
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+        throw uploadError;
       }
 
-      // Extract path from URL for database storage
-      const urlObj = new URL(publicUrl);
-      const fileName = urlObj.pathname.split('/storage/v1/object/public/document-images/')[1];
+      console.log("File uploaded successfully, inserting document record");
 
       const { error: insertError } = await supabase
         .from("documents")
@@ -222,19 +234,22 @@ export default function DocVault() {
           user_id: user.id,
           name: file.name,
           document_type: "other",
-          image_path: fileName,
+          image_path: filePath,
           issuing_authority: "DocVault",
-          expiry_date: "9999-12-31", // Far future date for vault documents (no expiry)
+          expiry_date: "9999-12-31",
           renewal_period_days: 0,
         });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("Database insert error:", insertError);
+        throw insertError;
+      }
 
       toast.success("Document uploaded successfully");
       refetch();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Upload error:", error);
-      toast.error("Failed to upload document");
+      toast.error(error?.message || "Failed to upload document");
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
