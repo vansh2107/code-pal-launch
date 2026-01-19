@@ -328,6 +328,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           country: string | null
           created_at: string
           display_name: string | null
@@ -345,6 +346,7 @@ export type Database = {
           weekly_digest_enabled: boolean | null
         }
         Insert: {
+          avatar_url?: string | null
           country?: string | null
           created_at?: string
           display_name?: string | null
@@ -362,6 +364,7 @@ export type Database = {
           weekly_digest_enabled?: boolean | null
         }
         Update: {
+          avatar_url?: string | null
           country?: string | null
           created_at?: string
           display_name?: string | null
