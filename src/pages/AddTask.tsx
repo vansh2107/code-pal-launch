@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { clearTasksCache } from "@/hooks/useTasksData";
 
 export default function AddTask() {
   const navigate = useNavigate();
@@ -112,6 +113,9 @@ export default function AddTask() {
       });
 
       if (error) throw error;
+
+      // Clear cache so Tasks page refetches fresh data
+      clearTasksCache();
 
       toast({
         title: "Task created!",

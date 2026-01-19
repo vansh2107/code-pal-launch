@@ -1,14 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { TaskCard } from "@/components/tasks/TaskCard";
+import { OptimizedTaskCard } from "@/components/tasks/OptimizedTaskCard";
 import { TaskFutureList } from "@/components/tasks/TaskFutureList";
 import { TaskListSkeleton } from "@/components/ui/loading-skeleton";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
+import { useTasksData } from "@/hooks/useTasksData";
 
 interface Task {
   id: string;
@@ -25,184 +24,21 @@ interface Task {
   local_date: string;
 }
 
+// Pre-computed funny messages array (static)
+const FUNNY_MESSAGES = [
+  "Bro… 3 days? Too lazy or too legendary? 😂",
+  "Your task is crying… finish it 😭😂",
+  "Even your alarm gave up on you! 🤦‍♂️",
+  "3 days later... still waiting 😴",
+  "This task has trust issues now 💔",
+];
+
 export default function Tasks() {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [futureTasks, setFutureTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userTimezone, setUserTimezone] = useState("UTC");
+  const { tasks, futureTasks, loading, userTimezone, refreshTasks } = useTasksData();
 
-  useEffect(() => {
-    initializeTasks();
-  }, []);
-
-  const initializeTasks = async () => {
-    await fetchUserTimezone();
-    await carryForwardTasks();
-    await fetchTasks();
-    await fetchFutureTasks();
-  };
-
-  const fetchUserTimezone = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("timezone")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        if (profile?.timezone) {
-          setUserTimezone(profile.timezone);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching timezone:", error);
-    }
-  }, []);
-
-  const carryForwardTasks = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get today's date in user's timezone
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("timezone")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      
-      const timezone = profile?.timezone || userTimezone;
-      // Use timezone-aware date formatting
-      const todayFormatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-      const today = todayFormatter.format(new Date());
-      
-      const { data: pendingTasks, error: fetchError } = await supabase
-        .from("tasks")
-        .select("id, local_date, task_date, original_date, consecutive_missed_days")
-        .eq("user_id", user.id)
-        .eq("status", "pending")
-        .lt("task_date", today);
-
-      if (fetchError) throw fetchError;
-
-      if (pendingTasks && pendingTasks.length > 0) {
-        const updates = pendingTasks.map((task) => {
-          // Calculate consecutive missed days using LOCAL timezone day boundaries
-          // carriedDays = difference_in_days(current_date, original_date)
-          const originalDateLocal = new Date(task.original_date + 'T00:00:00');
-          const todayDateLocal = new Date(today + 'T00:00:00');
-          const daysDiff = Math.floor((todayDateLocal.getTime() - originalDateLocal.getTime()) / (1000 * 60 * 60 * 24));
-          
-          const newConsecutiveDays = Math.max(0, daysDiff);
-          
-          return supabase
-            .from("tasks")
-            .update({
-              local_date: today,
-              task_date: today,
-              consecutive_missed_days: newConsecutiveDays,
-            })
-            .eq("id", task.id);
-        });
-
-        await Promise.all(updates);
-      }
-    } catch (error) {
-      console.error("Carry-forward error:", error);
-    }
-  }, [userTimezone]);
-
-  const fetchTasks = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get today in user's local timezone
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("timezone")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      
-      const timezone = profile?.timezone || userTimezone;
-      // Use timezone-aware date formatting
-      const todayFormatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-      const today = todayFormatter.format(new Date());
-      
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date")
-        .eq("user_id", user.id)
-        .eq("task_date", today)
-        .order("start_time", { ascending: true })
-        .limit(100);
-
-      if (error) throw error;
-      setTasks(data || []);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to fetch tasks",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast, userTimezone]);
-
-  const fetchFutureTasks = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get today in user's local timezone
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("timezone")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      
-      const timezone = profile?.timezone || userTimezone;
-      // Use timezone-aware date formatting
-      const todayFormatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-      const today = todayFormatter.format(new Date());
-      
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date")
-        .eq("user_id", user.id)
-        .gt("task_date", today)
-        .order("task_date", { ascending: true })
-        .order("start_time", { ascending: true })
-        .limit(50);
-
-      if (error) throw error;
-      setFutureTasks(data || []);
-    } catch (error) {
-      console.error("Error fetching future tasks:", error);
-    }
-  }, [userTimezone]);
-
-  const getTaskStatusInfo = (task: Task) => {
+  // Memoize status calculation
+  const getTaskStatusInfo = useCallback((task: Task) => {
     if (task.status === "completed") {
       return {
         bgClass: "bg-valid-bg border-valid/30",
@@ -231,19 +67,35 @@ export default function Tasks() {
       badgeVariant: "outline" as const,
       label: "Pending",
     };
-  };
+  }, []);
 
-  const getFunnyMessage = (days: number) => {
-    const messages = [
-      "Bro… 3 days? Too lazy or too legendary? 😂",
-      "Your task is crying… finish it 😭😂",
-      "Even your alarm gave up on you! 🤦‍♂️",
-      "3 days later... still waiting 😴",
-      "This task has trust issues now 💔",
-    ];
-    return days >= 3 ? messages[Math.floor(Math.random() * messages.length)] : null;
-  };
+  const getFunnyMessage = useCallback((days: number) => {
+    if (days < 3) return null;
+    // Use task count as pseudo-random seed for consistency
+    return FUNNY_MESSAGES[days % FUNNY_MESSAGES.length];
+  }, []);
 
+  // Memoize computed values
+  const { completedTasks, pendingTasks, todayFormatted } = useMemo(() => {
+    const completed = tasks.filter(t => t.status === "completed");
+    const pending = tasks.filter(t => t.status === "pending");
+    
+    const todayFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: userTimezone,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    return {
+      completedTasks: completed,
+      pendingTasks: pending,
+      todayFormatted: todayFormatter.format(new Date()),
+    };
+  }, [tasks, userTimezone]);
+
+  // Loading state with skeleton
   if (loading) {
     return (
       <div className="min-h-screen bg-background pb-20">
@@ -259,18 +111,6 @@ export default function Tasks() {
     );
   }
 
-  const completedTasks = tasks.filter(t => t.status === "completed");
-  const pendingTasks = tasks.filter(t => t.status === "pending");
-  // Use timezone-aware date formatting
-  const todayFormatter = new Intl.DateTimeFormat('en-US', { 
-    timeZone: userTimezone,
-    weekday: 'long', 
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-  const today = todayFormatter.format(new Date());
-
   return (
     <SafeAreaContainer>
       <div className="min-h-screen bg-background pb-24 animate-fade-in px-4" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
@@ -278,92 +118,92 @@ export default function Tasks() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Daily Tasks</h1>
-              <p className="text-sm text-muted-foreground">{today}</p>
+              <p className="text-sm text-muted-foreground">{todayFormatted}</p>
             </div>
-          <Button 
-            onClick={() => navigate("/task-history")}
-            variant="outline"
-            size="sm"
-            className="rounded-full"
-          >
-            History
-          </Button>
+            <Button 
+              onClick={() => navigate("/task-history")}
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+            >
+              History
+            </Button>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex-1 bg-card/50 backdrop-blur-sm rounded-[16px] p-3 border border-border/50">
+              <p className="text-xs text-muted-foreground mb-1">Pending</p>
+              <p className="text-xl font-bold text-foreground">{pendingTasks.length}</p>
+            </div>
+            <div className="flex-1 bg-valid-bg/50 backdrop-blur-sm rounded-[16px] p-3 border border-valid/30">
+              <p className="text-xs text-valid-foreground mb-1">Completed</p>
+              <p className="text-xl font-bold text-valid">{completedTasks.length}</p>
+            </div>
+          </div>
         </div>
 
-        <div className="flex gap-3">
-          <div className="flex-1 bg-card/50 backdrop-blur-sm rounded-[16px] p-3 border border-border/50">
-            <p className="text-xs text-muted-foreground mb-1">Pending</p>
-            <p className="text-xl font-bold text-foreground">{pendingTasks.length}</p>
+        <div className="p-4 space-y-6">
+          {/* Today's Tasks */}
+          <div className="space-y-4">
+            {tasks.length === 0 ? (
+              <div className="text-center py-16 space-y-4 animate-fade-in">
+                <div className="text-6xl mb-4">📋</div>
+                <h3 className="text-lg font-semibold text-foreground">No tasks for today</h3>
+                <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                  Start planning your day by adding your first task
+                </p>
+                <Button
+                  onClick={() => navigate("/add-task")}
+                  className="rounded-full px-8"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Add Your First Task
+                </Button>
+              </div>
+            ) : (
+              <>
+                {tasks.map((task) => {
+                  const statusInfo = getTaskStatusInfo(task);
+                  const funnyMessage = getFunnyMessage(task.consecutive_missed_days);
+                  
+                  return (
+                    <OptimizedTaskCard
+                      key={task.id}
+                      task={task}
+                      statusInfo={statusInfo}
+                      funnyMessage={funnyMessage}
+                      onRefresh={refreshTasks}
+                      userTimezone={userTimezone}
+                    />
+                  );
+                })}
+              </>
+            )}
           </div>
-          <div className="flex-1 bg-valid-bg/50 backdrop-blur-sm rounded-[16px] p-3 border border-valid/30">
-            <p className="text-xs text-valid-foreground mb-1">Completed</p>
-            <p className="text-xl font-bold text-valid">{completedTasks.length}</p>
-          </div>
-        </div>
-      </div>
 
-      <div className="p-4 space-y-6">
-        {/* Today's Tasks */}
-        <div className="space-y-4">
-          {tasks.length === 0 ? (
-            <div className="text-center py-16 space-y-4 animate-fade-in">
-              <div className="text-6xl mb-4">📋</div>
-              <h3 className="text-lg font-semibold text-foreground">No tasks for today</h3>
-              <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                Start planning your day by adding your first task
-              </p>
-              <Button
-                onClick={() => navigate("/add-task")}
-                className="rounded-full px-8"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Add Your First Task
-              </Button>
+          {/* Future Tasks */}
+          {futureTasks.length > 0 && (
+            <div className="pt-6 border-t border-border">
+              <TaskFutureList tasks={futureTasks} userTimezone={userTimezone} />
             </div>
-          ) : (
-            <>
-              {tasks.map((task) => {
-                const statusInfo = getTaskStatusInfo(task);
-                const funnyMessage = getFunnyMessage(task.consecutive_missed_days);
-                
-                return (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    statusInfo={statusInfo}
-                    funnyMessage={funnyMessage}
-                    onRefresh={fetchTasks}
-                    userTimezone={userTimezone}
-                  />
-                );
-              })}
-            </>
           )}
         </div>
 
-        {/* Future Tasks */}
-        {futureTasks.length > 0 && (
-          <div className="pt-6 border-t border-border">
-            <TaskFutureList tasks={futureTasks} userTimezone={userTimezone} />
-          </div>
-        )}
+        <Button
+          onClick={() => navigate("/add-task")}
+          className="fixed h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-transform z-40"
+          style={{
+            bottom: '80px',
+            left: '50%',
+            transform: 'translateX(-50%)'
+          }}
+          size="icon"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+
+        <BottomNavigation />
       </div>
-
-      <Button
-        onClick={() => navigate("/add-task")}
-        className="fixed h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-transform z-40"
-        style={{
-          bottom: '80px',
-          left: '50%',
-          transform: 'translateX(-50%)'
-        }}
-        size="icon"
-      >
-        <Plus className="h-6 w-6" />
-      </Button>
-
-      <BottomNavigation />
-    </div>
     </SafeAreaContainer>
   );
 }
