@@ -394,30 +394,26 @@ export default function DocumentDetail() {
             >
               <CardContent className="p-4">
                 {document.image_path.toLowerCase().endsWith('.pdf') ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-8 w-8 text-primary" />
-                        <div>
-                          <p className="font-medium">{document.name}</p>
-                          <p className="text-sm text-muted-foreground">PDF Document - Click to view all pages</p>
-                        </div>
+                  <div className="flex items-center justify-between p-6 bg-muted rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-primary/10 rounded-lg">
+                        <FileText className="h-10 w-10 text-primary" />
                       </div>
-                      <Button variant="default" onClick={(e) => {
+                      <div>
+                        <p className="font-semibold text-lg">{document.name}</p>
+                        <p className="text-sm text-muted-foreground">PDF Document</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="default" 
+                      size="lg"
+                      onClick={(e) => {
                         e.stopPropagation();
                         setViewerOpen(true);
-                      }}>
-                        View PDF
-                      </Button>
-                    </div>
-                    <div className="relative rounded-lg overflow-hidden">
-                      <PDFPreview
-                        pdfUrl={imageUrl}
-                        className="w-full"
-                        width={800}
-                      />
-                      <div className="absolute inset-0 bg-transparent cursor-pointer" />
-                    </div>
+                      }}
+                    >
+                      View PDF
+                    </Button>
                   </div>
                 ) : (
                   <div className="relative">
