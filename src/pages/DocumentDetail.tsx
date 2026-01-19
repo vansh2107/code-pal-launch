@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Edit2, Trash2, Calendar, Building, FileText, Clock, Loader2, Sparkles, RefreshCw } from "lucide-react";
+import { PDFPreview } from "@/components/document/PDFPreview";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { toast } from "@/hooks/use-toast";
@@ -409,11 +410,11 @@ export default function DocumentDetail() {
                         View PDF
                       </Button>
                     </div>
-                    <div className="relative">
-                      <embed
-                        src={imageUrl}
-                        type="application/pdf"
-                        className="w-full h-[300px] rounded-lg pointer-events-none"
+                    <div className="relative rounded-lg overflow-hidden">
+                      <PDFPreview
+                        pdfUrl={imageUrl}
+                        className="w-full"
+                        width={800}
                       />
                       <div className="absolute inset-0 bg-transparent cursor-pointer" />
                     </div>

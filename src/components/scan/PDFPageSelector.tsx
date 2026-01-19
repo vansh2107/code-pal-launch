@@ -36,10 +36,17 @@ export function PDFPageSelector({ file, onPageSelect, onCancel }: PDFPageSelecto
       const numPages = pdfDoc.numPages;
       const pageImages: string[] = [];
 
-      // Render all pages as thumbnails
+      // Render all pages as high-quality thumbnails
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      
       for (let i = 1; i <= numPages; i++) {
         const page = await pdfDoc.getPage(i);
-        const viewport = page.getViewport({ scale: 0.5 }); // Smaller scale for thumbnails
+        const baseViewport = page.getViewport({ scale: 1.0 });
+        
+        // Use higher scale for sharper thumbnails
+        const thumbnailWidth = 300;
+        const scale = (thumbnailWidth / baseViewport.width) * devicePixelRatio;
+        const viewport = page.getViewport({ scale });
         
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -50,9 +57,11 @@ export function PDFPageSelector({ file, onPageSelect, onCancel }: PDFPageSelecto
           await page.render({
             canvasContext: context,
             viewport,
+            intent: 'display',
           } as any).promise;
           
-          const imageData = canvas.toDataURL('image/jpeg', 0.7);
+          // Use PNG for thumbnails for better quality
+          const imageData = canvas.toDataURL('image/png');
           pageImages.push(imageData);
         }
       }
@@ -80,8 +89,12 @@ export function PDFPageSelector({ file, onPageSelect, onCancel }: PDFPageSelecto
 
       const page = await pdfDoc.getPage(selectedPage + 1);
       const baseViewport = page.getViewport({ scale: 1.0 });
-      const maxWidth = 1600;
-      const scale = Math.min(2.0, Math.max(0.5, maxWidth / baseViewport.width));
+      
+      // Render at high resolution for quality
+      // Use device pixel ratio for sharp output
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      const maxWidth = 2400; // Higher max width for better quality
+      const scale = Math.min(3.0 * devicePixelRatio, Math.max(1.5, (maxWidth / baseViewport.width) * devicePixelRatio));
       const viewport = page.getViewport({ scale });
       
       const canvas = document.createElement('canvas');
@@ -93,9 +106,11 @@ export function PDFPageSelector({ file, onPageSelect, onCancel }: PDFPageSelecto
         await page.render({
           canvasContext: context,
           viewport,
+          intent: 'display',
         } as any).promise;
         
-        const imageData = canvas.toDataURL('image/jpeg', 0.75);
+        // Use PNG for lossless quality
+        const imageData = canvas.toDataURL('image/png');
         onPageSelect(imageData);
       }
     } catch (error) {
