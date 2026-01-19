@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronRight, FileText, Download, User, Shield, Bell, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Trash2 } from "lucide-react";
+import { ChevronRight, FileText, Download, User, Shield, Bell, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Trash2, Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
@@ -23,6 +23,7 @@ interface Profile {
   display_name: string | null;
   country: string | null;
   phone_number: string | null;
+  avatar_url?: string | null;
 }
 
 const COUNTRIES = [
@@ -95,6 +96,9 @@ export default function Profile() {
   const [country, setCountry] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [saving, setSaving] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -156,6 +160,97 @@ export default function Profile() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a JPG or PNG image",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: "File too large",
+        description: "Please select an image under 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingAvatar(true);
+
+    try {
+      // Create preview immediately
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setAvatarPreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // Upload to storage
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `avatars/${user.id}/profile.${fileExt}`;
+
+      // Remove old avatar if exists
+      await supabase.storage.from('document-images').remove([fileName]);
+
+      const { error: uploadError } = await supabase.storage
+        .from('document-images')
+        .upload(fileName, file, { 
+          cacheControl: '3600',
+          upsert: true 
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('document-images')
+        .getPublicUrl(fileName);
+
+      // Update profile with avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: urlData.publicUrl })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Profile photo updated",
+        description: "Your profile photo has been saved",
+      });
+
+      fetchProfile();
+    } catch (error: any) {
+      console.error('Error uploading avatar:', error);
+      setAvatarPreview(null);
+      toast({
+        title: "Upload failed",
+        description: error?.message || "Failed to upload profile photo",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -238,9 +333,50 @@ export default function Profile() {
         {/* Header */}
         <header className="bg-card border-b border-border/50 px-4 py-4 sticky top-0 z-10">
           <div className="w-full flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <User className="h-6 w-6 text-primary" />
+            {/* Avatar with Edit Icon */}
+            <div className="relative shrink-0">
+              <button
+                onClick={handleAvatarClick}
+                disabled={uploadingAvatar}
+                className="relative w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all hover:opacity-90"
+                aria-label="Edit profile photo"
+              >
+                {avatarPreview || profile?.avatar_url ? (
+                  <img 
+                    src={avatarPreview || profile?.avatar_url || ''} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                ) : null}
+                <User className={`h-6 w-6 text-primary ${avatarPreview || profile?.avatar_url ? 'hidden' : ''}`} />
+                {uploadingAvatar && (
+                  <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                  </div>
+                )}
+              </button>
+              {/* Pencil Icon Overlay */}
+              <button
+                onClick={handleAvatarClick}
+                disabled={uploadingAvatar}
+                className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+                aria-label="Edit profile photo"
+              >
+                <Pencil className="h-2.5 w-2.5 text-primary-foreground" />
+              </button>
             </div>
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png"
+              onChange={handleAvatarChange}
+              className="hidden"
+            />
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold text-foreground truncate">
                 {profile?.display_name || user?.email?.split('@')[0] || 'User'}
