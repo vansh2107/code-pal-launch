@@ -6,14 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Save, Hand } from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
 import { getCountryCode } from "@/utils/countryMapping";
-import { useAirGestures } from "@/hooks/useAirGestures";
 
 interface Profile {
   id: string;
@@ -43,9 +41,6 @@ export default function Settings() {
   const [displayName, setDisplayName] = useState("");
   const [country, setCountry] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  
-  // Air Gestures
-  const { isEnabled: airGesturesEnabled, isActive: airGesturesActive, toggleGestures } = useAirGestures();
 
   useEffect(() => {
     if (user) {
@@ -194,35 +189,6 @@ export default function Settings() {
                 </SelectContent>
               </Select>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Experimental Features */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Experimental Features</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Hand className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium text-sm">Enable Air Gestures</p>
-                  <p className="text-xs text-muted-foreground">
-                    Navigate with hand movements (Experimental)
-                  </p>
-                </div>
-              </div>
-              <Switch
-                checked={airGesturesEnabled}
-                onCheckedChange={toggleGestures}
-              />
-            </div>
-            {airGesturesActive && (
-              <div className="text-xs text-primary bg-primary/10 p-2 rounded-md">
-                Air Gestures active! Wave left/right to navigate, up/down to scroll.
-              </div>
-            )}
           </CardContent>
         </Card>
 
