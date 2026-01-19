@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { clearTasksCache } from "@/hooks/useTasksData";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -205,6 +206,9 @@ export default function EditTask() {
         ? "Task updated! You'll receive a notification at the new start time."
         : "Your task has been updated successfully.";
 
+      // Clear cache so Tasks page refetches fresh data
+      clearTasksCache();
+
       toast({
         title: "Task updated!",
         description: message,
@@ -238,6 +242,9 @@ export default function EditTask() {
         .eq("id", id);
 
       if (error) throw error;
+
+      // Clear cache so Tasks page refetches fresh data
+      clearTasksCache();
 
       toast({
         title: "Task deleted",
