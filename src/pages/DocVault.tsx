@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { formatInTimeZone } from "date-fns-tz";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { uploadDocumentOriginal } from "@/utils/documentStorage";
+import { PDFPreview } from "@/components/document/PDFPreview";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -361,10 +362,11 @@ export default function DocVault() {
                   {doc.image_path && (
                     <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
                       {doc.image_path.toLowerCase().endsWith('.pdf') ? (
-                        <div className="flex flex-col items-center justify-center p-4">
-                          <FileText className="h-16 w-16 text-primary mb-2" />
-                          <span className="text-xs text-muted-foreground text-center">PDF Document</span>
-                        </div>
+                        <PDFPreview
+                          pdfUrl={supabase.storage.from("document-images").getPublicUrl(doc.image_path).data.publicUrl}
+                          className="w-full h-full"
+                          width={400}
+                        />
                       ) : (
                         <img
                           src={supabase.storage.from("document-images").getPublicUrl(doc.image_path).data.publicUrl}
