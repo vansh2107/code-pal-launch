@@ -21,6 +21,38 @@ export interface CropBounds {
   bottomRight: { x: number; y: number };
 }
 
+function scaleCropBounds(bounds: CropBounds, factor: number): CropBounds {
+  return {
+    topLeft: { x: bounds.topLeft.x * factor, y: bounds.topLeft.y * factor },
+    topRight: { x: bounds.topRight.x * factor, y: bounds.topRight.y * factor },
+    bottomLeft: { x: bounds.bottomLeft.x * factor, y: bounds.bottomLeft.y * factor },
+    bottomRight: { x: bounds.bottomRight.x * factor, y: bounds.bottomRight.y * factor },
+  };
+}
+
+function clamp01(n: number) {
+  return Math.max(0, Math.min(1, n));
+}
+
+function quadArea(b: CropBounds): number {
+  // Shoelace on TL->TR->BR->BL
+  const pts = [b.topLeft, b.topRight, b.bottomRight, b.bottomLeft];
+  let sum = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const c = pts[(i + 1) % pts.length];
+    sum += a.x * c.y - c.x * a.y;
+  }
+  return Math.abs(sum) / 2;
+}
+
+function isMeaningfulCropScaled(bounds: CropBounds, width: number, height: number): boolean {
+  const area = quadArea(bounds);
+  const ratio = area / (width * height);
+  // Reject near-full-frame (background still present) and tiny boxes.
+  return ratio > 0.12 && ratio < 0.95;
+}
+
 export interface ScanOptions {
   filter?: ScanFilter;
   enhanceContrast?: boolean;
@@ -79,65 +111,72 @@ export async function scanDocument(
   ctx.drawImage(img, 0, 0, width, height);
   
   let imageData = ctx.getImageData(0, 0, width, height);
-  let detectedBounds: CropBounds | undefined;
+  let detectedBoundsOriginal: CropBounds | undefined;
   let autoCropApplied = false;
   let confidence = 0;
   
   // Step 1: Auto-crop with improved edge detection
   if (autoCrop && !cropBounds) {
     const detection = detectDocumentContourImproved(imageData, width, height);
-    if (detection && detection.confidence > 0.3) {
-      detectedBounds = detection.bounds;
+    if (detection) {
+      // detection.bounds are in SCALED coordinates (canvas size). Convert for UI/manual crop.
+      detectedBoundsOriginal = scaleCropBounds(detection.bounds, 1 / scale);
       confidence = detection.confidence;
-      
-      // Apply perspective correction and crop
-      const corrected = applyPerspectiveCorrection(ctx, img, detection.bounds, scale);
-      if (corrected) {
-        canvas.width = corrected.width;
-        canvas.height = corrected.height;
-        ctx.putImageData(corrected.data, 0, 0);
-        imageData = corrected.data;
-        autoCropApplied = true;
+
+      const canApplyAutoCrop =
+        detection.confidence >= 0.35 &&
+        isMeaningfulCropScaled(detection.bounds, width, height);
+
+      if (canApplyAutoCrop) {
+        const corrected = applyPerspectiveCorrection(imageData, width, height, detection.bounds);
+        if (corrected) {
+          canvas.width = corrected.width;
+          canvas.height = corrected.height;
+          ctx.putImageData(corrected.data, 0, 0);
+          imageData = corrected.data;
+          autoCropApplied = true;
+        }
       }
-    } else if (detection) {
-      // Store low-confidence bounds for manual adjustment
-      detectedBounds = detection.bounds;
-      confidence = detection.confidence;
     }
   } else if (cropBounds) {
-    // Apply manual crop with perspective correction
-    const corrected = applyPerspectiveCorrection(ctx, img, cropBounds, scale);
+    // cropBounds provided by ManualCropOverlay are in ORIGINAL image coordinates.
+    detectedBoundsOriginal = cropBounds;
+    const boundsScaled = scaleCropBounds(cropBounds, scale);
+    const corrected = applyPerspectiveCorrection(imageData, width, height, boundsScaled);
     if (corrected) {
       canvas.width = corrected.width;
       canvas.height = corrected.height;
       ctx.putImageData(corrected.data, 0, 0);
       imageData = corrected.data;
       autoCropApplied = true;
-      confidence = 1.0; // Manual crop is always confident
+      confidence = 1.0;
     }
   }
   
-  // Step 2: Shadow removal
-  if (removeShadows) {
-    imageData = removeShadowsFast(imageData);
+  // IMPORTANT: Filters/enhancement MUST apply ONLY after a crop has been applied.
+  if (autoCropApplied) {
+    // Step 2: Shadow removal
+    if (removeShadows) {
+      imageData = removeShadowsFast(imageData);
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    // Step 3: Contrast enhancement
+    if (enhanceContrast) {
+      imageData = enhanceContrastFast(imageData);
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    // Step 4: Sharpening for text clarity
+    if (sharpen) {
+      imageData = sharpenImageFast(imageData);
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    // Step 5: Apply color filter
+    imageData = applyFilter(imageData, filter);
     ctx.putImageData(imageData, 0, 0);
   }
-  
-  // Step 3: Contrast enhancement
-  if (enhanceContrast) {
-    imageData = enhanceContrastFast(imageData);
-    ctx.putImageData(imageData, 0, 0);
-  }
-  
-  // Step 4: Sharpening for text clarity
-  if (sharpen) {
-    imageData = sharpenImageFast(imageData);
-    ctx.putImageData(imageData, 0, 0);
-  }
-  
-  // Step 5: Apply color filter
-  imageData = applyFilter(imageData, filter);
-  ctx.putImageData(imageData, 0, 0);
   
   // Convert to high quality JPEG
   const processedImage = canvas.toDataURL('image/jpeg', 0.92);
@@ -146,7 +185,7 @@ export async function scanDocument(
     processedImage,
     originalImage,
     filter,
-    cropBounds: detectedBounds,
+    cropBounds: detectedBoundsOriginal,
     autoCropApplied,
     confidence,
   };
@@ -169,8 +208,8 @@ function detectDocumentContourImproved(
     gray[j] = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
   }
   
-  // Stage 2: Apply bilateral filter for noise reduction while preserving edges
-  const smoothed = bilateralFilter(gray, width, height);
+  // Stage 2: FAST blur (bilateral was too slow on mobile); good enough for edge stabilization.
+  const smoothed = fastBoxBlur(gray, width, height);
   
   // Stage 3: Canny-like edge detection with hysteresis
   const edges = cannyEdgeDetection(smoothed, width, height);
@@ -187,6 +226,49 @@ function detectDocumentContourImproved(
   }
   
   return contour;
+}
+
+/**
+ * Fast separable box blur (radius=2)
+ */
+function fastBoxBlur(gray: Uint8Array, width: number, height: number): Uint8Array {
+  const radius = 2;
+  const tmp = new Uint16Array(width * height);
+  const out = new Uint8Array(width * height);
+
+  // Horizontal pass
+  for (let y = 0; y < height; y++) {
+    let sum = 0;
+    const row = y * width;
+    for (let x = -radius; x <= radius; x++) {
+      const xx = Math.max(0, Math.min(width - 1, x));
+      sum += gray[row + xx];
+    }
+    for (let x = 0; x < width; x++) {
+      tmp[row + x] = sum;
+      const xRemove = Math.max(0, x - radius);
+      const xAdd = Math.min(width - 1, x + radius + 1);
+      sum += gray[row + xAdd] - gray[row + xRemove];
+    }
+  }
+
+  // Vertical pass
+  const kernelSize = (radius * 2 + 1) * (radius * 2 + 1);
+  for (let x = 0; x < width; x++) {
+    let sum = 0;
+    for (let y = -radius; y <= radius; y++) {
+      const yy = Math.max(0, Math.min(height - 1, y));
+      sum += tmp[yy * width + x];
+    }
+    for (let y = 0; y < height; y++) {
+      out[y * width + x] = Math.round(sum / kernelSize);
+      const yRemove = Math.max(0, y - radius);
+      const yAdd = Math.min(height - 1, y + radius + 1);
+      sum += tmp[yAdd * width + x] - tmp[yRemove * width + x];
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -364,101 +446,126 @@ function findDocumentContour(
   width: number,
   height: number
 ): { bounds: CropBounds; confidence: number } | null {
-  const margin = Math.floor(Math.min(width, height) * 0.02);
-  const scanStep = 2;
-  
-  // Scan from all four sides to find edge lines
-  const leftEdges: number[] = [];
-  const rightEdges: number[] = [];
-  const topEdges: number[] = [];
-  const bottomEdges: number[] = [];
-  
-  // Scan for left edge
-  for (let y = margin; y < height - margin; y += scanStep) {
-    for (let x = margin; x < width / 2; x++) {
-      if (edges[y * width + x] > 0) {
-        leftEdges.push(x);
-        break;
+  // Connected-component contour detection on the dilated edge map.
+  // We pick the largest component and approximate its quadrilateral by extreme points.
+
+  const imgArea = width * height;
+  const visited = new Uint8Array(imgArea);
+  const stack = new Int32Array(imgArea); // worst-case, reused
+
+  let best: { bounds: CropBounds; confidence: number; area: number } | null = null;
+
+  const neighbors = [
+    -width - 1,
+    -width,
+    -width + 1,
+    -1,
+    1,
+    width - 1,
+    width,
+    width + 1,
+  ];
+
+  for (let i = 0; i < imgArea; i++) {
+    if (edges[i] === 0 || visited[i]) continue;
+
+    // BFS/DFS over this component
+    let sp = 0;
+    stack[sp++] = i;
+    visited[i] = 1;
+
+    let count = 0;
+    let minX = width,
+      maxX = 0,
+      minY = height,
+      maxY = 0;
+
+    // Extreme points for quad approximation
+    let minSum = Infinity,
+      maxSum = -Infinity,
+      minDiff = Infinity,
+      maxDiff = -Infinity;
+    let tl = { x: 0, y: 0 },
+      tr = { x: 0, y: 0 },
+      bl = { x: 0, y: 0 },
+      br = { x: 0, y: 0 };
+
+    while (sp > 0) {
+      const idx = stack[--sp];
+      const y = Math.floor(idx / width);
+      const x = idx - y * width;
+
+      count++;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+
+      const sum = x + y;
+      const diff = x - y;
+      if (sum < minSum) {
+        minSum = sum;
+        tl = { x, y };
+      }
+      if (sum > maxSum) {
+        maxSum = sum;
+        br = { x, y };
+      }
+      if (diff > maxDiff) {
+        maxDiff = diff;
+        tr = { x, y };
+      }
+      if (diff < minDiff) {
+        minDiff = diff;
+        bl = { x, y };
+      }
+
+      for (let k = 0; k < neighbors.length; k++) {
+        const n = idx + neighbors[k];
+        if (n < 0 || n >= imgArea) continue;
+        // Avoid row wrap
+        const ny = Math.floor(n / width);
+        const nx = n - ny * width;
+        if (Math.abs(nx - x) > 1 || Math.abs(ny - y) > 1) continue;
+        if (edges[n] === 0 || visited[n]) continue;
+        visited[n] = 1;
+        stack[sp++] = n;
       }
     }
-  }
-  
-  // Scan for right edge
-  for (let y = margin; y < height - margin; y += scanStep) {
-    for (let x = width - margin - 1; x > width / 2; x--) {
-      if (edges[y * width + x] > 0) {
-        rightEdges.push(x);
-        break;
-      }
+
+    const bboxW = maxX - minX;
+    const bboxH = maxY - minY;
+    if (bboxW < 40 || bboxH < 40) continue;
+
+    const bboxArea = bboxW * bboxH;
+    const bboxAreaRatio = bboxArea / imgArea;
+    if (bboxAreaRatio < MIN_CONTOUR_AREA_RATIO || bboxAreaRatio > MAX_CONTOUR_AREA_RATIO) continue;
+
+    const aspect = bboxW / bboxH;
+    if (aspect < 0.3 || aspect > 3.0) continue;
+
+    // Component must be "edge-like" enough within the bbox.
+    const edgeDensity = clamp01(count / (bboxArea * 0.12));
+
+    const bounds: CropBounds = {
+      topLeft: tl,
+      topRight: tr,
+      bottomLeft: bl,
+      bottomRight: br,
+    };
+
+    const area = quadArea(bounds);
+    const quadFill = clamp01(area / bboxArea);
+
+    const confidence = clamp01(quadFill * 0.7 + edgeDensity * 0.3);
+
+    if (!best || area > best.area) {
+      best = { bounds, confidence, area };
     }
   }
-  
-  // Scan for top edge
-  for (let x = margin; x < width - margin; x += scanStep) {
-    for (let y = margin; y < height / 2; y++) {
-      if (edges[y * width + x] > 0) {
-        topEdges.push(y);
-        break;
-      }
-    }
-  }
-  
-  // Scan for bottom edge
-  for (let x = margin; x < width - margin; x += scanStep) {
-    for (let y = height - margin - 1; y > height / 2; y--) {
-      if (edges[y * width + x] > 0) {
-        bottomEdges.push(y);
-        break;
-      }
-    }
-  }
-  
-  // Calculate robust statistics (median) for each edge
-  const getMedian = (arr: number[]): number => {
-    if (arr.length === 0) return -1;
-    const sorted = [...arr].sort((a, b) => a - b);
-    return sorted[Math.floor(sorted.length / 2)];
-  };
-  
-  const left = getMedian(leftEdges);
-  const right = getMedian(rightEdges);
-  const top = getMedian(topEdges);
-  const bottom = getMedian(bottomEdges);
-  
-  // Validate detection
-  if (left < 0 || right < 0 || top < 0 || bottom < 0) {
-    return null;
-  }
-  
-  const contourWidth = right - left;
-  const contourHeight = bottom - top;
-  const areaRatio = (contourWidth * contourHeight) / (width * height);
-  
-  // Check if contour is valid
-  if (areaRatio < MIN_CONTOUR_AREA_RATIO || areaRatio > MAX_CONTOUR_AREA_RATIO) {
-    return null;
-  }
-  
-  // Check aspect ratio (should be document-like)
-  const aspectRatio = contourWidth / contourHeight;
-  if (aspectRatio < 0.3 || aspectRatio > 3.0) {
-    return null;
-  }
-  
-  // Refine corners by finding actual edge intersections
-  const bounds = refineCorners(edges, width, height, left, right, top, bottom);
-  
-  // Calculate confidence based on edge consistency
-  const leftVariance = calculateVariance(leftEdges);
-  const rightVariance = calculateVariance(rightEdges);
-  const topVariance = calculateVariance(topEdges);
-  const bottomVariance = calculateVariance(bottomEdges);
-  
-  const avgVariance = (leftVariance + rightVariance + topVariance + bottomVariance) / 4;
-  const maxAcceptableVariance = Math.min(width, height) * 0.1;
-  const confidence = Math.max(0, Math.min(1, 1 - (avgVariance / maxAcceptableVariance)));
-  
-  return { bounds, confidence };
+
+  if (!best) return null;
+  return { bounds: best.bounds, confidence: best.confidence };
 }
 
 /**
@@ -629,18 +736,12 @@ function refineCorners(
  * Apply perspective correction using bilinear interpolation
  */
 function applyPerspectiveCorrection(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  bounds: CropBounds,
-  scale: number
+  srcData: ImageData,
+  srcWidth: number,
+  srcHeight: number,
+  boundsScaled: CropBounds
 ): { data: ImageData; width: number; height: number } | null {
-  // Convert bounds to original image coordinates
-  const src = {
-    topLeft: { x: bounds.topLeft.x / scale, y: bounds.topLeft.y / scale },
-    topRight: { x: bounds.topRight.x / scale, y: bounds.topRight.y / scale },
-    bottomLeft: { x: bounds.bottomLeft.x / scale, y: bounds.bottomLeft.y / scale },
-    bottomRight: { x: bounds.bottomRight.x / scale, y: bounds.bottomRight.y / scale },
-  };
+  const src = boundsScaled;
   
   // Calculate output dimensions
   const topWidth = Math.sqrt(
@@ -665,20 +766,7 @@ function applyPerspectiveCorrection(
   
   if (dstWidth < 100 || dstHeight < 100) return null;
   
-  // Create source canvas from original image
-  const srcCanvas = document.createElement('canvas');
-  srcCanvas.width = img.width;
-  srcCanvas.height = img.height;
-  const srcCtx = srcCanvas.getContext('2d', { willReadFrequently: true })!;
-  srcCtx.drawImage(img, 0, 0);
-  const srcData = srcCtx.getImageData(0, 0, img.width, img.height);
-  
-  // Create destination canvas
-  const dstCanvas = document.createElement('canvas');
-  dstCanvas.width = dstWidth;
-  dstCanvas.height = dstHeight;
-  const dstCtx = dstCanvas.getContext('2d', { willReadFrequently: true })!;
-  const dstData = dstCtx.createImageData(dstWidth, dstHeight);
+  const dstData = new ImageData(dstWidth, dstHeight);
   
   // Perspective transform using bilinear interpolation
   for (let dy = 0; dy < dstHeight; dy++) {
@@ -698,19 +786,19 @@ function applyPerspectiveCorrection(
       // Bilinear sampling from source
       const x0 = Math.floor(srcX);
       const y0 = Math.floor(srcY);
-      const x1 = Math.min(x0 + 1, img.width - 1);
-      const y1 = Math.min(y0 + 1, img.height - 1);
+      const x1 = Math.min(x0 + 1, srcWidth - 1);
+      const y1 = Math.min(y0 + 1, srcHeight - 1);
       const fx = srcX - x0;
       const fy = srcY - y0;
       
-      if (x0 >= 0 && x0 < img.width && y0 >= 0 && y0 < img.height) {
+      if (x0 >= 0 && x0 < srcWidth && y0 >= 0 && y0 < srcHeight) {
         const dstIdx = (dy * dstWidth + dx) * 4;
         
         for (let c = 0; c < 3; c++) {
-          const v00 = srcData.data[(y0 * img.width + x0) * 4 + c];
-          const v10 = srcData.data[(y0 * img.width + x1) * 4 + c];
-          const v01 = srcData.data[(y1 * img.width + x0) * 4 + c];
-          const v11 = srcData.data[(y1 * img.width + x1) * 4 + c];
+          const v00 = srcData.data[(y0 * srcWidth + x0) * 4 + c];
+          const v10 = srcData.data[(y0 * srcWidth + x1) * 4 + c];
+          const v01 = srcData.data[(y1 * srcWidth + x0) * 4 + c];
+          const v11 = srcData.data[(y1 * srcWidth + x1) * 4 + c];
           
           const value = v00 * (1 - fx) * (1 - fy) + v10 * fx * (1 - fy) + 
                        v01 * (1 - fx) * fy + v11 * fx * fy;
@@ -962,8 +1050,10 @@ export async function detectCropBounds(
   
   const imageData = ctx.getImageData(0, 0, width, height);
   const result = detectDocumentContourImproved(imageData, width, height);
-  
-  return result?.bounds || null;
+
+  if (!result?.bounds) return null;
+  // Convert bounds back to ORIGINAL image coordinates for UI/manual crop overlay.
+  return scaleCropBounds(result.bounds, 1 / scale);
 }
 
 /**

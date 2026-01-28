@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Check, RotateCcw, Palette, Crop, AlertTriangle, ShieldCheck } from "lucide-react";
-import { scanDocument, detectCropBounds, ScanFilter, ScanResult, CropBounds } from "@/utils/documentScanner";
+import { scanDocument, ScanFilter, ScanResult, CropBounds } from "@/utils/documentScanner";
 import { ManualCropOverlay } from "./ManualCropOverlay";
 import { cn } from "@/lib/utils";
 
@@ -65,13 +65,7 @@ export function DocumentScanPreview({
         if (typeof imageSource === 'string') {
           originalImageRef.current = imageSource;
         }
-        
-        // Detect crop bounds first
-        const detectedBounds = await detectCropBounds(imageSource);
-        if (mounted) {
-          setCropBounds(detectedBounds);
-        }
-        
+
         // Process with auto-crop and enhancement
         const result = await scanDocument(imageSource, {
           filter: 'color',
@@ -91,6 +85,7 @@ export function DocumentScanPreview({
           setCurrentFilter('color');
           setProcessingTime(Math.round(endTime - startTime));
           setCropConfidence(result.confidence);
+          setCropBounds(result.cropBounds ?? null);
           
           // Check if auto-crop was successful and confident
           if (result.autoCropApplied && result.confidence >= MIN_AUTO_CROP_CONFIDENCE) {
@@ -124,6 +119,7 @@ export function DocumentScanPreview({
   // Handle filter change
   const handleFilterChange = useCallback(async (filter: ScanFilter) => {
     if (!scanResult || filter === currentFilter || applyingFilter) return;
+    if (!cropApplied) return;
     
     setApplyingFilter(true);
     setCurrentFilter(filter);
@@ -134,7 +130,7 @@ export function DocumentScanPreview({
         enhanceContrast: true,
         sharpen: true,
         removeShadows: true,
-        autoCrop: cropApplied, // Only auto-crop if already applied
+        autoCrop: false, // lock to existing crop bounds to avoid drift
         maxWidth: 1200,
         cropBounds: cropBounds || undefined,
       });

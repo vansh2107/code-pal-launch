@@ -28,6 +28,7 @@ export function ManualCropOverlay({
   onCancel,
 }: ManualCropOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const imageBoxRef = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
   const [activeCorner, setActiveCorner] = useState<string | null>(null);
@@ -96,14 +97,13 @@ export function ManualCropOverlay({
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!activeCorner || !containerRef.current || displaySize.width === 0) return;
-    
-    const rect = containerRef.current.getBoundingClientRect();
-    const offsetX = (rect.width - displaySize.width) / 2;
-    const offsetY = (rect.height - 120 - displaySize.height) / 2 + 60; // Account for header
-    
-    let x = (e.clientX - rect.left - offsetX) / displaySize.width;
-    let y = (e.clientY - rect.top - offsetY) / displaySize.height;
+    // CRITICAL: compute coordinates relative to the rendered image box (not the full-screen container)
+    // so preview drag == saved crop exactly.
+    if (!activeCorner || !imageBoxRef.current || displaySize.width === 0) return;
+
+    const rect = imageBoxRef.current.getBoundingClientRect();
+    let x = (e.clientX - rect.left) / rect.width;
+    let y = (e.clientY - rect.top) / rect.height;
     
     // Clamp to valid range
     x = Math.max(0.02, Math.min(0.98, x));
@@ -193,6 +193,7 @@ export function ManualCropOverlay({
         {displaySize.width > 0 && (
           <div
             className="relative"
+            ref={imageBoxRef}
             style={{
               width: displaySize.width,
               height: displaySize.height,
