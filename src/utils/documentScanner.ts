@@ -1,6 +1,6 @@
 /**
  * Document Scanner Utility - CamScanner-style processing
- * Fast auto-crop with edge detection, perspective correction, and enhancement
+ * Fast auto-crop with improved edge detection, perspective correction, and enhancement
  */
 
 export type ScanFilter = 'color' | 'grayscale' | 'blackwhite';
@@ -11,6 +11,7 @@ export interface ScanResult {
   filter: ScanFilter;
   cropBounds?: CropBounds;
   autoCropApplied: boolean;
+  confidence: number; // 0-1 confidence score for auto-crop detection
 }
 
 export interface CropBounds {
@@ -30,10 +31,13 @@ export interface ScanOptions {
   cropBounds?: CropBounds;
 }
 
-// Constants for performance
+// Constants for performance and detection
 const MAX_PROCESS_WIDTH = 1200;
-const EDGE_THRESHOLD = 40;
-const MIN_CONTOUR_AREA_RATIO = 0.15;
+const EDGE_THRESHOLD = 30; // Lower threshold for better edge detection
+const MIN_CONTOUR_AREA_RATIO = 0.10; // Minimum 10% of image area
+const MAX_CONTOUR_AREA_RATIO = 0.98; // Maximum 98% of image area
+const CANNY_LOW_THRESHOLD = 50;
+const CANNY_HIGH_THRESHOLD = 150;
 
 /**
  * Main document scanning function - Optimized for speed and accuracy
@@ -77,12 +81,15 @@ export async function scanDocument(
   let imageData = ctx.getImageData(0, 0, width, height);
   let detectedBounds: CropBounds | undefined;
   let autoCropApplied = false;
+  let confidence = 0;
   
-  // Step 1: Auto-crop with edge detection
+  // Step 1: Auto-crop with improved edge detection
   if (autoCrop && !cropBounds) {
-    const detection = detectDocumentContour(imageData, width, height);
-    if (detection) {
+    const detection = detectDocumentContourImproved(imageData, width, height);
+    if (detection && detection.confidence > 0.3) {
       detectedBounds = detection.bounds;
+      confidence = detection.confidence;
+      
       // Apply perspective correction and crop
       const corrected = applyPerspectiveCorrection(ctx, img, detection.bounds, scale);
       if (corrected) {
@@ -92,6 +99,10 @@ export async function scanDocument(
         imageData = corrected.data;
         autoCropApplied = true;
       }
+    } else if (detection) {
+      // Store low-confidence bounds for manual adjustment
+      detectedBounds = detection.bounds;
+      confidence = detection.confidence;
     }
   } else if (cropBounds) {
     // Apply manual crop with perspective correction
@@ -102,6 +113,7 @@ export async function scanDocument(
       ctx.putImageData(corrected.data, 0, 0);
       imageData = corrected.data;
       autoCropApplied = true;
+      confidence = 1.0; // Manual crop is always confident
     }
   }
   
@@ -136,60 +148,89 @@ export async function scanDocument(
     filter,
     cropBounds: detectedBounds,
     autoCropApplied,
+    confidence,
   };
 }
 
 /**
- * Detect document contour using edge detection and contour finding
+ * Improved document contour detection using multi-stage approach
  */
-function detectDocumentContour(
+function detectDocumentContourImproved(
   imageData: ImageData,
   width: number,
   height: number
-): { bounds: CropBounds } | null {
+): { bounds: CropBounds; confidence: number } | null {
   const { data } = imageData;
   
-  // Convert to grayscale
+  // Stage 1: Convert to grayscale with luminance weighting
   const gray = new Uint8Array(width * height);
   for (let i = 0, j = 0; i < data.length; i += 4, j++) {
-    gray[j] = (data[i] * 77 + data[i + 1] * 150 + data[i + 2] * 29) >> 8;
+    // Use standard luminance coefficients
+    gray[j] = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
   }
   
-  // Apply Gaussian blur for noise reduction
-  const blurred = gaussianBlur(gray, width, height);
+  // Stage 2: Apply bilateral filter for noise reduction while preserving edges
+  const smoothed = bilateralFilter(gray, width, height);
   
-  // Canny-like edge detection
-  const edges = detectEdges(blurred, width, height);
+  // Stage 3: Canny-like edge detection with hysteresis
+  const edges = cannyEdgeDetection(smoothed, width, height);
   
-  // Find largest rectangular contour
-  const contour = findLargestRectContour(edges, width, height);
+  // Stage 4: Dilate edges to connect broken lines
+  const dilatedEdges = dilateEdges(edges, width, height);
+  
+  // Stage 5: Find document contour using multiple methods
+  const contour = findDocumentContour(dilatedEdges, width, height);
   
   if (!contour) {
-    // Fallback: use simple boundary detection
-    return detectSimpleBounds(edges, width, height);
+    // Fallback: Use color-based segmentation
+    return detectByColorContrast(data, width, height);
   }
   
-  return { bounds: contour };
+  return contour;
 }
 
 /**
- * Fast Gaussian blur (3x3 kernel)
+ * Bilateral filter for edge-preserving smoothing
  */
-function gaussianBlur(gray: Uint8Array, width: number, height: number): Uint8Array {
+function bilateralFilter(gray: Uint8Array, width: number, height: number): Uint8Array {
   const result = new Uint8Array(width * height);
-  const kernel = [1, 2, 1, 2, 4, 2, 1, 2, 1];
-  const kernelSum = 16;
+  const radius = 3;
+  const sigmaSpace = 3;
+  const sigmaColor = 30;
   
-  for (let y = 1; y < height - 1; y++) {
-    for (let x = 1; x < width - 1; x++) {
-      let sum = 0;
-      let ki = 0;
-      for (let ky = -1; ky <= 1; ky++) {
-        for (let kx = -1; kx <= 1; kx++) {
-          sum += gray[(y + ky) * width + (x + kx)] * kernel[ki++];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const centerIdx = y * width + x;
+      const centerVal = gray[centerIdx];
+      
+      let weightSum = 0;
+      let valueSum = 0;
+      
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+          
+          const neighborIdx = ny * width + nx;
+          const neighborVal = gray[neighborIdx];
+          
+          // Spatial weight
+          const spatialDist = Math.sqrt(dx * dx + dy * dy);
+          const spatialWeight = Math.exp(-(spatialDist * spatialDist) / (2 * sigmaSpace * sigmaSpace));
+          
+          // Range weight (color similarity)
+          const colorDist = Math.abs(centerVal - neighborVal);
+          const colorWeight = Math.exp(-(colorDist * colorDist) / (2 * sigmaColor * sigmaColor));
+          
+          const weight = spatialWeight * colorWeight;
+          weightSum += weight;
+          valueSum += weight * neighborVal;
         }
       }
-      result[y * width + x] = sum / kernelSum;
+      
+      result[centerIdx] = Math.round(valueSum / weightSum);
     }
   }
   
@@ -197,28 +238,95 @@ function gaussianBlur(gray: Uint8Array, width: number, height: number): Uint8Arr
 }
 
 /**
- * Edge detection using Sobel operator
+ * Canny edge detection with non-maximum suppression and hysteresis
  */
-function detectEdges(gray: Uint8Array, width: number, height: number): Uint8Array {
-  const edges = new Uint8Array(width * height);
+function cannyEdgeDetection(gray: Uint8Array, width: number, height: number): Uint8Array {
+  // Compute gradients using Sobel
+  const gx = new Float32Array(width * height);
+  const gy = new Float32Array(width * height);
+  const magnitude = new Float32Array(width * height);
+  const direction = new Float32Array(width * height);
   
   for (let y = 1; y < height - 1; y++) {
     for (let x = 1; x < width - 1; x++) {
       const idx = y * width + x;
       
       // Sobel X
-      const gx = 
+      const sobelX = 
         -gray[(y - 1) * width + (x - 1)] + gray[(y - 1) * width + (x + 1)] +
         -2 * gray[y * width + (x - 1)] + 2 * gray[y * width + (x + 1)] +
         -gray[(y + 1) * width + (x - 1)] + gray[(y + 1) * width + (x + 1)];
       
       // Sobel Y
-      const gy = 
+      const sobelY = 
         -gray[(y - 1) * width + (x - 1)] - 2 * gray[(y - 1) * width + x] - gray[(y - 1) * width + (x + 1)] +
         gray[(y + 1) * width + (x - 1)] + 2 * gray[(y + 1) * width + x] + gray[(y + 1) * width + (x + 1)];
       
-      const magnitude = Math.sqrt(gx * gx + gy * gy);
-      edges[idx] = magnitude > EDGE_THRESHOLD ? 255 : 0;
+      gx[idx] = sobelX;
+      gy[idx] = sobelY;
+      magnitude[idx] = Math.sqrt(sobelX * sobelX + sobelY * sobelY);
+      direction[idx] = Math.atan2(sobelY, sobelX);
+    }
+  }
+  
+  // Non-maximum suppression
+  const nms = new Float32Array(width * height);
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = y * width + x;
+      const angle = direction[idx];
+      const mag = magnitude[idx];
+      
+      // Quantize angle to 4 directions
+      let q: number, r: number;
+      const angleD = (angle * 180 / Math.PI + 180) % 180;
+      
+      if (angleD < 22.5 || angleD >= 157.5) {
+        q = magnitude[y * width + (x + 1)];
+        r = magnitude[y * width + (x - 1)];
+      } else if (angleD < 67.5) {
+        q = magnitude[(y + 1) * width + (x - 1)];
+        r = magnitude[(y - 1) * width + (x + 1)];
+      } else if (angleD < 112.5) {
+        q = magnitude[(y + 1) * width + x];
+        r = magnitude[(y - 1) * width + x];
+      } else {
+        q = magnitude[(y - 1) * width + (x - 1)];
+        r = magnitude[(y + 1) * width + (x + 1)];
+      }
+      
+      if (mag >= q && mag >= r) {
+        nms[idx] = mag;
+      }
+    }
+  }
+  
+  // Double threshold and hysteresis
+  const edges = new Uint8Array(width * height);
+  const strong = CANNY_HIGH_THRESHOLD;
+  const weak = CANNY_LOW_THRESHOLD;
+  
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = y * width + x;
+      if (nms[idx] >= strong) {
+        edges[idx] = 255;
+      } else if (nms[idx] >= weak) {
+        // Check if connected to strong edge
+        let hasStrongNeighbor = false;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (nms[(y + dy) * width + (x + dx)] >= strong) {
+              hasStrongNeighbor = true;
+              break;
+            }
+          }
+          if (hasStrongNeighbor) break;
+        }
+        if (hasStrongNeighbor) {
+          edges[idx] = 255;
+        }
+      }
     }
   }
   
@@ -226,83 +334,234 @@ function detectEdges(gray: Uint8Array, width: number, height: number): Uint8Arra
 }
 
 /**
- * Find largest rectangular contour using Hough-like line detection
+ * Dilate edges to connect broken lines
  */
-function findLargestRectContour(
+function dilateEdges(edges: Uint8Array, width: number, height: number): Uint8Array {
+  const result = new Uint8Array(width * height);
+  const radius = 2;
+  
+  for (let y = radius; y < height - radius; y++) {
+    for (let x = radius; x < width - radius; x++) {
+      let maxVal = 0;
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const val = edges[(y + dy) * width + (x + dx)];
+          if (val > maxVal) maxVal = val;
+        }
+      }
+      result[y * width + x] = maxVal;
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Find document contour using line voting and corner detection
+ */
+function findDocumentContour(
   edges: Uint8Array,
   width: number,
   height: number
-): CropBounds | null {
-  // Scan for edges from all four sides
+): { bounds: CropBounds; confidence: number } | null {
   const margin = Math.floor(Math.min(width, height) * 0.02);
-  const scanDepth = Math.floor(Math.min(width, height) * 0.35);
-  const minEdgeStrength = Math.floor(Math.min(width, height) * 0.08);
+  const scanStep = 2;
   
-  // Find boundaries by scanning inward
-  let left = margin, right = width - margin - 1;
-  let top = margin, bottom = height - margin - 1;
+  // Scan from all four sides to find edge lines
+  const leftEdges: number[] = [];
+  const rightEdges: number[] = [];
+  const topEdges: number[] = [];
+  const bottomEdges: number[] = [];
   
-  // Left edge
-  for (let x = margin; x < margin + scanDepth; x++) {
-    let strength = 0;
-    for (let y = margin; y < height - margin; y += 2) {
-      if (edges[y * width + x]) strength++;
-    }
-    if (strength > minEdgeStrength) {
-      left = x;
-      break;
+  // Scan for left edge
+  for (let y = margin; y < height - margin; y += scanStep) {
+    for (let x = margin; x < width / 2; x++) {
+      if (edges[y * width + x] > 0) {
+        leftEdges.push(x);
+        break;
+      }
     }
   }
   
-  // Right edge
-  for (let x = width - margin - 1; x > width - margin - scanDepth; x--) {
-    let strength = 0;
-    for (let y = margin; y < height - margin; y += 2) {
-      if (edges[y * width + x]) strength++;
-    }
-    if (strength > minEdgeStrength) {
-      right = x;
-      break;
+  // Scan for right edge
+  for (let y = margin; y < height - margin; y += scanStep) {
+    for (let x = width - margin - 1; x > width / 2; x--) {
+      if (edges[y * width + x] > 0) {
+        rightEdges.push(x);
+        break;
+      }
     }
   }
   
-  // Top edge
-  for (let y = margin; y < margin + scanDepth; y++) {
-    let strength = 0;
-    for (let x = margin; x < width - margin; x += 2) {
-      if (edges[y * width + x]) strength++;
-    }
-    if (strength > minEdgeStrength) {
-      top = y;
-      break;
+  // Scan for top edge
+  for (let x = margin; x < width - margin; x += scanStep) {
+    for (let y = margin; y < height / 2; y++) {
+      if (edges[y * width + x] > 0) {
+        topEdges.push(y);
+        break;
+      }
     }
   }
   
-  // Bottom edge
-  for (let y = height - margin - 1; y > height - margin - scanDepth; y--) {
-    let strength = 0;
-    for (let x = margin; x < width - margin; x += 2) {
-      if (edges[y * width + x]) strength++;
-    }
-    if (strength > minEdgeStrength) {
-      bottom = y;
-      break;
+  // Scan for bottom edge
+  for (let x = margin; x < width - margin; x += scanStep) {
+    for (let y = height - margin - 1; y > height / 2; y--) {
+      if (edges[y * width + x] > 0) {
+        bottomEdges.push(y);
+        break;
+      }
     }
   }
   
-  // Validate contour size
+  // Calculate robust statistics (median) for each edge
+  const getMedian = (arr: number[]): number => {
+    if (arr.length === 0) return -1;
+    const sorted = [...arr].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
+  };
+  
+  const left = getMedian(leftEdges);
+  const right = getMedian(rightEdges);
+  const top = getMedian(topEdges);
+  const bottom = getMedian(bottomEdges);
+  
+  // Validate detection
+  if (left < 0 || right < 0 || top < 0 || bottom < 0) {
+    return null;
+  }
+  
   const contourWidth = right - left;
   const contourHeight = bottom - top;
   const areaRatio = (contourWidth * contourHeight) / (width * height);
   
-  if (areaRatio < MIN_CONTOUR_AREA_RATIO) {
+  // Check if contour is valid
+  if (areaRatio < MIN_CONTOUR_AREA_RATIO || areaRatio > MAX_CONTOUR_AREA_RATIO) {
     return null;
   }
   
-  // Find corner refinement by looking for edge intersections
-  const corners = refineCorners(edges, width, height, left, right, top, bottom);
+  // Check aspect ratio (should be document-like)
+  const aspectRatio = contourWidth / contourHeight;
+  if (aspectRatio < 0.3 || aspectRatio > 3.0) {
+    return null;
+  }
   
-  return corners;
+  // Refine corners by finding actual edge intersections
+  const bounds = refineCorners(edges, width, height, left, right, top, bottom);
+  
+  // Calculate confidence based on edge consistency
+  const leftVariance = calculateVariance(leftEdges);
+  const rightVariance = calculateVariance(rightEdges);
+  const topVariance = calculateVariance(topEdges);
+  const bottomVariance = calculateVariance(bottomEdges);
+  
+  const avgVariance = (leftVariance + rightVariance + topVariance + bottomVariance) / 4;
+  const maxAcceptableVariance = Math.min(width, height) * 0.1;
+  const confidence = Math.max(0, Math.min(1, 1 - (avgVariance / maxAcceptableVariance)));
+  
+  return { bounds, confidence };
+}
+
+/**
+ * Calculate variance of an array
+ */
+function calculateVariance(arr: number[]): number {
+  if (arr.length === 0) return Infinity;
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const variance = arr.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / arr.length;
+  return Math.sqrt(variance);
+}
+
+/**
+ * Detect document by color contrast (fallback method)
+ */
+function detectByColorContrast(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number
+): { bounds: CropBounds; confidence: number } | null {
+  // Sample colors from corners (background) and center (document)
+  const sampleSize = Math.floor(Math.min(width, height) * 0.1);
+  
+  // Sample corner colors
+  const cornerSamples: number[][] = [];
+  const cornerPositions = [
+    [0, 0], [width - sampleSize, 0],
+    [0, height - sampleSize], [width - sampleSize, height - sampleSize]
+  ];
+  
+  for (const [sx, sy] of cornerPositions) {
+    let rSum = 0, gSum = 0, bSum = 0, count = 0;
+    for (let y = sy; y < sy + sampleSize && y < height; y++) {
+      for (let x = sx; x < sx + sampleSize && x < width; x++) {
+        const idx = (y * width + x) * 4;
+        rSum += data[idx];
+        gSum += data[idx + 1];
+        bSum += data[idx + 2];
+        count++;
+      }
+    }
+    if (count > 0) {
+      cornerSamples.push([rSum / count, gSum / count, bSum / count]);
+    }
+  }
+  
+  // Average corner color (assumed background)
+  const bgColor = cornerSamples.reduce(
+    (acc, s) => [acc[0] + s[0] / cornerSamples.length, acc[1] + s[1] / cornerSamples.length, acc[2] + s[2] / cornerSamples.length],
+    [0, 0, 0]
+  );
+  
+  // Find document boundaries based on color difference from background
+  const colorThreshold = 30;
+  let minX = width, maxX = 0, minY = height, maxY = 0;
+  let foundPixels = 0;
+  
+  for (let y = 0; y < height; y += 3) {
+    for (let x = 0; x < width; x += 3) {
+      const idx = (y * width + x) * 4;
+      const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+      
+      const colorDiff = Math.sqrt(
+        Math.pow(r - bgColor[0], 2) +
+        Math.pow(g - bgColor[1], 2) +
+        Math.pow(b - bgColor[2], 2)
+      );
+      
+      if (colorDiff > colorThreshold) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        foundPixels++;
+      }
+    }
+  }
+  
+  // Validate found region
+  const regionWidth = maxX - minX;
+  const regionHeight = maxY - minY;
+  const areaRatio = (regionWidth * regionHeight) / (width * height);
+  
+  if (areaRatio < MIN_CONTOUR_AREA_RATIO || areaRatio > MAX_CONTOUR_AREA_RATIO) {
+    return null;
+  }
+  
+  // Add small padding
+  const padding = Math.floor(Math.min(width, height) * 0.01);
+  minX = Math.max(0, minX - padding);
+  maxX = Math.min(width - 1, maxX + padding);
+  minY = Math.max(0, minY - padding);
+  maxY = Math.min(height - 1, maxY + padding);
+  
+  return {
+    bounds: {
+      topLeft: { x: minX, y: minY },
+      topRight: { x: maxX, y: minY },
+      bottomLeft: { x: minX, y: maxY },
+      bottomRight: { x: maxX, y: maxY },
+    },
+    confidence: 0.4 // Lower confidence for color-based detection
+  };
 }
 
 /**
@@ -317,11 +576,11 @@ function refineCorners(
   top: number,
   bottom: number
 ): CropBounds {
-  const searchRadius = Math.floor(Math.min(width, height) * 0.05);
+  const searchRadius = Math.floor(Math.min(width, height) * 0.08);
   
-  // Helper to find strongest edge point in region
   const findCorner = (cx: number, cy: number): { x: number; y: number } => {
-    let bestX = cx, bestY = cy, maxStrength = 0;
+    let bestX = cx, bestY = cy;
+    let maxStrength = 0;
     
     for (let dy = -searchRadius; dy <= searchRadius; dy++) {
       for (let dx = -searchRadius; dx <= searchRadius; dx++) {
@@ -329,17 +588,24 @@ function refineCorners(
         const y = cy + dy;
         if (x < 0 || x >= width || y < 0 || y >= height) continue;
         
-        // Calculate local edge strength
-        let strength = 0;
+        // Calculate corner strength (Harris-like measure)
+        let horizontalEdge = 0;
+        let verticalEdge = 0;
+        
         for (let ky = -2; ky <= 2; ky++) {
           for (let kx = -2; kx <= 2; kx++) {
             const nx = x + kx, ny = y + ky;
             if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-              if (edges[ny * width + nx]) strength++;
+              if (edges[ny * width + nx] > 0) {
+                if (Math.abs(kx) > Math.abs(ky)) horizontalEdge++;
+                else verticalEdge++;
+              }
             }
           }
         }
         
+        // Corner has both horizontal and vertical edges
+        const strength = Math.min(horizontalEdge, verticalEdge);
         if (strength > maxStrength) {
           maxStrength = strength;
           bestX = x;
@@ -357,27 +623,6 @@ function refineCorners(
     bottomLeft: findCorner(left, bottom),
     bottomRight: findCorner(right, bottom),
   };
-}
-
-/**
- * Simple boundary detection fallback
- */
-function detectSimpleBounds(
-  edges: Uint8Array,
-  width: number,
-  height: number
-): { bounds: CropBounds } | null {
-  const margin = Math.floor(Math.min(width, height) * 0.05);
-  
-  // Default to slight inset from edges
-  const bounds: CropBounds = {
-    topLeft: { x: margin, y: margin },
-    topRight: { x: width - margin, y: margin },
-    bottomLeft: { x: margin, y: height - margin },
-    bottomRight: { x: width - margin, y: height - margin },
-  };
-  
-  return { bounds };
 }
 
 /**
@@ -594,7 +839,7 @@ function applyFilter(imageData: ImageData, filter: ScanFilter): ImageData {
   switch (filter) {
     case 'grayscale':
       for (let i = 0; i < data.length; i += 4) {
-        const gray = (data[i] * 77 + data[i + 1] * 150 + data[i + 2] * 29) >> 8;
+        const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
         result.data[i] = gray;
         result.data[i + 1] = gray;
         result.data[i + 2] = gray;
@@ -603,11 +848,11 @@ function applyFilter(imageData: ImageData, filter: ScanFilter): ImageData {
       
     case 'blackwhite':
       // Adaptive thresholding for crisp B&W
-      const blockSize = 12;
+      const blockSize = 15;
       const grayValues = new Uint8Array(width * height);
       
       for (let i = 0; i < data.length; i += 4) {
-        grayValues[i >> 2] = (data[i] * 77 + data[i + 1] * 150 + data[i + 2] * 29) >> 8;
+        grayValues[i >> 2] = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
       }
       
       for (let y = 0; y < height; y++) {
@@ -629,7 +874,7 @@ function applyFilter(imageData: ImageData, filter: ScanFilter): ImageData {
             }
           }
           
-          const threshold = (sum / count) - 12;
+          const threshold = (sum / count) - 10;
           const value = grayValues[grayIdx] > threshold ? 255 : 0;
           
           result.data[idx] = value;
@@ -644,7 +889,7 @@ function applyFilter(imageData: ImageData, filter: ScanFilter): ImageData {
       // Slight saturation boost
       for (let i = 0; i < data.length; i += 4) {
         const r = data[i], g = data[i + 1], b = data[i + 2];
-        const gray = (r * 77 + g * 150 + b * 29) >> 8;
+        const gray = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
         const saturation = 1.15;
         
         result.data[i] = Math.min(255, Math.max(0, gray + (r - gray) * saturation));
@@ -716,7 +961,7 @@ export async function detectCropBounds(
   ctx.drawImage(img, 0, 0, width, height);
   
   const imageData = ctx.getImageData(0, 0, width, height);
-  const result = detectDocumentContour(imageData, width, height);
+  const result = detectDocumentContourImproved(imageData, width, height);
   
   return result?.bounds || null;
 }
