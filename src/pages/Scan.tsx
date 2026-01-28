@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
 import { PDFPageSelector } from "@/components/scan/PDFPageSelector";
+import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
 import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
@@ -63,6 +64,9 @@ export default function Scan() {
   const [error, setError] = useState("");
   const [scanMode, setScanMode] = useState<"camera" | "manual">("camera");
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [rawCapturedImage, setRawCapturedImage] = useState<string | null>(null);
+  const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [showScanPreview, setShowScanPreview] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -222,11 +226,31 @@ export default function Scan() {
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
-        const imageData = canvas.toDataURL("image/jpeg", 0.8);
-        setCapturedImage(imageData);
+        // Capture at full quality for scanning
+        const imageData = canvas.toDataURL("image/jpeg", 1.0);
+        setRawCapturedImage(imageData);
+        setShowScanPreview(true);
         stopCameraLocal();
-        extractDocumentData(imageData);
       }
+    }
+  };
+
+  // Handle scan preview confirmation
+  const handleScanConfirm = (scannedImage: string) => {
+    setProcessedImage(scannedImage);
+    setCapturedImage(scannedImage);
+    setShowScanPreview(false);
+    extractDocumentData(scannedImage);
+  };
+
+  // Handle scan preview retake
+  const handleScanRetake = () => {
+    setRawCapturedImage(null);
+    setProcessedImage(null);
+    setCapturedImage(null);
+    setShowScanPreview(false);
+    if (scanMode === "camera") {
+      startCamera();
     }
   };
 
@@ -242,12 +266,12 @@ export default function Scan() {
         setShowPdfSelector(true);
         setExtracting(false);
       } else {
-        // Handle image files - store original
+        // Handle image files - show scan preview
         const reader = new FileReader();
         reader.onloadend = () => {
           const result = reader.result as string;
-          setCapturedImage(result);
-          extractDocumentData(result);
+          setRawCapturedImage(result);
+          setShowScanPreview(true);
         };
         reader.readAsDataURL(file);
       }
@@ -306,12 +330,16 @@ export default function Scan() {
 
   const handlePDFPageSelect = (pageImageBase64: string) => {
     setShowPdfSelector(false);
-    setCapturedImage(pageImageBase64);
-    extractDocumentData(pageImageBase64);
+    // Show scan preview for PDF page as well
+    setRawCapturedImage(pageImageBase64);
+    setShowScanPreview(true);
   };
 
   const retakePhoto = () => {
     setCapturedImage(null);
+    setRawCapturedImage(null);
+    setProcessedImage(null);
+    setShowScanPreview(false);
     setPdfFile(null);
     setFormData({
       name: "",
@@ -774,15 +802,24 @@ export default function Scan() {
           />
         )}
 
-        {/* Captured Image Preview */}
-        {capturedImage && (
+        {/* Document Scan Preview - CamScanner-style processing */}
+        {showScanPreview && rawCapturedImage && (
+          <DocumentScanPreview
+            imageSource={rawCapturedImage}
+            onConfirm={handleScanConfirm}
+            onRetake={handleScanRetake}
+          />
+        )}
+
+        {/* Captured Image Preview (after scan processing) */}
+        {capturedImage && !showScanPreview && (
           <Card>
             <CardContent className="p-3 space-y-3 md:p-4 md:space-y-4">
               {extracting ? (
                 <ScanningEffect imageUrl={capturedImage} />
               ) : (
                 <>
-                  <img src={capturedImage} alt="Captured document" className="w-full rounded-lg" />
+                  <img src={capturedImage} alt="Scanned document" className="w-full rounded-lg" />
                   <Button variant="outline" onClick={retakePhoto} className="w-full h-10">
                     Retake Photo
                   </Button>
