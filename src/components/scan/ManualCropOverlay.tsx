@@ -30,36 +30,35 @@ export function ManualCropOverlay({
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
-  const [scale, setScale] = useState(1);
   const [activeCorner, setActiveCorner] = useState<string | null>(null);
   
+  // Normalized bounds (0-1)
   const [bounds, setBounds] = useState<CropBounds>({
-    topLeft: { x: 0.1, y: 0.1 },
-    topRight: { x: 0.9, y: 0.1 },
-    bottomLeft: { x: 0.1, y: 0.9 },
-    bottomRight: { x: 0.9, y: 0.9 },
+    topLeft: { x: 0.08, y: 0.08 },
+    topRight: { x: 0.92, y: 0.08 },
+    bottomLeft: { x: 0.08, y: 0.92 },
+    bottomRight: { x: 0.92, y: 0.92 },
   });
 
-  // Initialize bounds from detection or defaults
+  // Initialize bounds from detection
   useEffect(() => {
     if (initialBounds && imageSize.width > 0) {
-      // Convert pixel bounds to normalized (0-1)
       setBounds({
         topLeft: {
-          x: initialBounds.topLeft.x / imageSize.width,
-          y: initialBounds.topLeft.y / imageSize.height,
+          x: Math.max(0.02, Math.min(0.98, initialBounds.topLeft.x / imageSize.width)),
+          y: Math.max(0.02, Math.min(0.98, initialBounds.topLeft.y / imageSize.height)),
         },
         topRight: {
-          x: initialBounds.topRight.x / imageSize.width,
-          y: initialBounds.topRight.y / imageSize.height,
+          x: Math.max(0.02, Math.min(0.98, initialBounds.topRight.x / imageSize.width)),
+          y: Math.max(0.02, Math.min(0.98, initialBounds.topRight.y / imageSize.height)),
         },
         bottomLeft: {
-          x: initialBounds.bottomLeft.x / imageSize.width,
-          y: initialBounds.bottomLeft.y / imageSize.height,
+          x: Math.max(0.02, Math.min(0.98, initialBounds.bottomLeft.x / imageSize.width)),
+          y: Math.max(0.02, Math.min(0.98, initialBounds.bottomLeft.y / imageSize.height)),
         },
         bottomRight: {
-          x: initialBounds.bottomRight.x / imageSize.width,
-          y: initialBounds.bottomRight.y / imageSize.height,
+          x: Math.max(0.02, Math.min(0.98, initialBounds.bottomRight.x / imageSize.width)),
+          y: Math.max(0.02, Math.min(0.98, initialBounds.bottomRight.y / imageSize.height)),
         },
       });
     }
@@ -72,17 +71,16 @@ export function ManualCropOverlay({
       setImageSize({ width: img.width, height: img.height });
       
       if (containerRef.current) {
-        const containerWidth = containerRef.current.clientWidth;
-        const containerHeight = containerRef.current.clientHeight - 60; // Account for buttons
+        const containerWidth = containerRef.current.clientWidth - 32; // Padding
+        const containerHeight = containerRef.current.clientHeight - 120; // Buttons
         
         const scaleX = containerWidth / img.width;
         const scaleY = containerHeight / img.height;
-        const newScale = Math.min(scaleX, scaleY, 1);
+        const scale = Math.min(scaleX, scaleY, 1);
         
-        setScale(newScale);
         setDisplaySize({
-          width: img.width * newScale,
-          height: img.height * newScale,
+          width: Math.round(img.width * scale),
+          height: Math.round(img.height * scale),
         });
       }
     };
@@ -98,18 +96,18 @@ export function ManualCropOverlay({
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!activeCorner || !containerRef.current) return;
+    if (!activeCorner || !containerRef.current || displaySize.width === 0) return;
     
     const rect = containerRef.current.getBoundingClientRect();
     const offsetX = (rect.width - displaySize.width) / 2;
-    const offsetY = (rect.height - 60 - displaySize.height) / 2;
+    const offsetY = (rect.height - 120 - displaySize.height) / 2 + 60; // Account for header
     
     let x = (e.clientX - rect.left - offsetX) / displaySize.width;
     let y = (e.clientY - rect.top - offsetY) / displaySize.height;
     
     // Clamp to valid range
-    x = Math.max(0.05, Math.min(0.95, x));
-    y = Math.max(0.05, Math.min(0.95, y));
+    x = Math.max(0.02, Math.min(0.98, x));
+    y = Math.max(0.02, Math.min(0.98, y));
     
     setBounds(prev => ({
       ...prev,
@@ -122,7 +120,7 @@ export function ManualCropOverlay({
   }, []);
 
   const handleConfirm = () => {
-    // Convert normalized bounds back to pixels
+    // Convert normalized bounds to pixels
     const pixelBounds: CropBounds = {
       topLeft: {
         x: bounds.topLeft.x * imageSize.width,
@@ -146,34 +144,38 @@ export function ManualCropOverlay({
 
   const resetBounds = () => {
     setBounds({
-      topLeft: { x: 0.1, y: 0.1 },
-      topRight: { x: 0.9, y: 0.1 },
-      bottomLeft: { x: 0.1, y: 0.9 },
-      bottomRight: { x: 0.9, y: 0.9 },
+      topLeft: { x: 0.08, y: 0.08 },
+      topRight: { x: 0.92, y: 0.08 },
+      bottomLeft: { x: 0.08, y: 0.92 },
+      bottomRight: { x: 0.92, y: 0.92 },
     });
   };
 
-  // SVG path for crop area
-  const cropPath = `
-    M ${bounds.topLeft.x * 100}% ${bounds.topLeft.y * 100}%
-    L ${bounds.topRight.x * 100}% ${bounds.topRight.y * 100}%
-    L ${bounds.bottomRight.x * 100}% ${bounds.bottomRight.y * 100}%
-    L ${bounds.bottomLeft.x * 100}% ${bounds.bottomLeft.y * 100}%
-    Z
-  `;
+  // Build SVG path for crop polygon
+  const buildPath = () => {
+    if (displaySize.width === 0) return '';
+    return `
+      M ${bounds.topLeft.x * displaySize.width} ${bounds.topLeft.y * displaySize.height}
+      L ${bounds.topRight.x * displaySize.width} ${bounds.topRight.y * displaySize.height}
+      L ${bounds.bottomRight.x * displaySize.width} ${bounds.bottomRight.y * displaySize.height}
+      L ${bounds.bottomLeft.x * displaySize.width} ${bounds.bottomLeft.y * displaySize.height}
+      Z
+    `;
+  };
 
   return (
     <div 
       ref={containerRef}
-      className="fixed inset-0 z-50 bg-black flex flex-col"
+      className="fixed inset-0 z-50 bg-black flex flex-col touch-none"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/80">
+      <div className="flex items-center justify-between px-4 py-3 bg-black/90 border-b border-white/10">
         <span className="text-white text-sm flex items-center gap-2">
           <Move className="h-4 w-4" />
-          Drag corners to adjust crop
+          Drag corners to adjust
         </span>
         <Button
           variant="ghost"
@@ -188,90 +190,114 @@ export function ManualCropOverlay({
 
       {/* Image with crop overlay */}
       <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
-        <div
-          className="relative"
-          style={{
-            width: displaySize.width,
-            height: displaySize.height,
-          }}
-        >
-          {/* Background image */}
-          <img
-            src={imageSource}
-            alt="Document to crop"
-            className="w-full h-full object-contain"
-            draggable={false}
-          />
-
-          {/* Dark overlay outside crop area */}
-          <svg
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            style={{ touchAction: 'none' }}
+        {displaySize.width > 0 && (
+          <div
+            className="relative"
+            style={{
+              width: displaySize.width,
+              height: displaySize.height,
+            }}
           >
-            {/* Dark mask */}
-            <defs>
-              <mask id="cropMask">
-                <rect width="100%" height="100%" fill="white" />
-                <path
-                  d={`M ${bounds.topLeft.x * displaySize.width} ${bounds.topLeft.y * displaySize.height}
-                     L ${bounds.topRight.x * displaySize.width} ${bounds.topRight.y * displaySize.height}
-                     L ${bounds.bottomRight.x * displaySize.width} ${bounds.bottomRight.y * displaySize.height}
-                     L ${bounds.bottomLeft.x * displaySize.width} ${bounds.bottomLeft.y * displaySize.height}
-                     Z`}
-                  fill="black"
-                />
-              </mask>
-            </defs>
-            <rect
-              width="100%"
-              height="100%"
-              fill="rgba(0,0,0,0.6)"
-              mask="url(#cropMask)"
+            {/* Background image */}
+            <img
+              src={imageSource}
+              alt="Document to crop"
+              className="w-full h-full object-contain pointer-events-none"
+              draggable={false}
             />
 
-            {/* Crop border */}
-            <path
-              d={`M ${bounds.topLeft.x * displaySize.width} ${bounds.topLeft.y * displaySize.height}
-                 L ${bounds.topRight.x * displaySize.width} ${bounds.topRight.y * displaySize.height}
-                 L ${bounds.bottomRight.x * displaySize.width} ${bounds.bottomRight.y * displaySize.height}
-                 L ${bounds.bottomLeft.x * displaySize.width} ${bounds.bottomLeft.y * displaySize.height}
-                 Z`}
-              fill="none"
-              stroke="hsl(var(--primary))"
-              strokeWidth="2"
-            />
-
-            {/* Grid lines */}
-            <line
-              x1={(bounds.topLeft.x + (bounds.topRight.x - bounds.topLeft.x) / 3) * displaySize.width}
-              y1={(bounds.topLeft.y + (bounds.bottomLeft.y - bounds.topLeft.y) / 3) * displaySize.height}
-              x2={(bounds.bottomLeft.x + (bounds.bottomRight.x - bounds.bottomLeft.x) / 3) * displaySize.width}
-              y2={(bounds.bottomLeft.y - (bounds.bottomLeft.y - bounds.topLeft.y) / 3) * displaySize.height}
-              stroke="rgba(255,255,255,0.3)"
-              strokeWidth="1"
-            />
-          </svg>
-
-          {/* Corner handles */}
-          {(['topLeft', 'topRight', 'bottomLeft', 'bottomRight'] as const).map((corner) => (
-            <div
-              key={corner}
-              className={`absolute w-8 h-8 -translate-x-1/2 -translate-y-1/2 touch-none
-                ${activeCorner === corner ? 'scale-125' : ''}`}
-              style={{
-                left: bounds[corner].x * displaySize.width,
-                top: bounds[corner].y * displaySize.height,
-              }}
-              onPointerDown={handlePointerDown(corner)}
+            {/* Overlay SVG */}
+            <svg
+              className="absolute inset-0 w-full h-full"
+              style={{ touchAction: 'none' }}
             >
-              <div className="w-full h-full rounded-full bg-primary border-2 border-white shadow-lg" />
-            </div>
-          ))}
-        </div>
+              {/* Dark mask outside crop area */}
+              <defs>
+                <mask id="cropMask">
+                  <rect width="100%" height="100%" fill="white" />
+                  <path d={buildPath()} fill="black" />
+                </mask>
+              </defs>
+              <rect
+                width="100%"
+                height="100%"
+                fill="rgba(0,0,0,0.7)"
+                mask="url(#cropMask)"
+              />
+
+              {/* Crop border */}
+              <path
+                d={buildPath()}
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth="2"
+              />
+
+              {/* Grid lines inside crop area */}
+              {[1, 2].map(i => {
+                const t = i / 3;
+                const leftX = bounds.topLeft.x + t * (bounds.bottomLeft.x - bounds.topLeft.x);
+                const leftY = bounds.topLeft.y + t * (bounds.bottomLeft.y - bounds.topLeft.y);
+                const rightX = bounds.topRight.x + t * (bounds.bottomRight.x - bounds.topRight.x);
+                const rightY = bounds.topRight.y + t * (bounds.bottomRight.y - bounds.topRight.y);
+                
+                return (
+                  <line
+                    key={`h${i}`}
+                    x1={leftX * displaySize.width}
+                    y1={leftY * displaySize.height}
+                    x2={rightX * displaySize.width}
+                    y2={rightY * displaySize.height}
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth="1"
+                  />
+                );
+              })}
+              {[1, 2].map(i => {
+                const t = i / 3;
+                const topX = bounds.topLeft.x + t * (bounds.topRight.x - bounds.topLeft.x);
+                const topY = bounds.topLeft.y + t * (bounds.topRight.y - bounds.topLeft.y);
+                const bottomX = bounds.bottomLeft.x + t * (bounds.bottomRight.x - bounds.bottomLeft.x);
+                const bottomY = bounds.bottomLeft.y + t * (bounds.bottomRight.y - bounds.bottomLeft.y);
+                
+                return (
+                  <line
+                    key={`v${i}`}
+                    x1={topX * displaySize.width}
+                    y1={topY * displaySize.height}
+                    x2={bottomX * displaySize.width}
+                    y2={bottomY * displaySize.height}
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth="1"
+                  />
+                );
+              })}
+            </svg>
+
+            {/* Corner handles */}
+            {(['topLeft', 'topRight', 'bottomLeft', 'bottomRight'] as const).map((corner) => (
+              <div
+                key={corner}
+                className={`absolute w-10 h-10 -translate-x-1/2 -translate-y-1/2 touch-none cursor-move
+                  ${activeCorner === corner ? 'scale-110' : ''}`}
+                style={{
+                  left: bounds[corner].x * displaySize.width,
+                  top: bounds[corner].y * displaySize.height,
+                }}
+                onPointerDown={handlePointerDown(corner)}
+              >
+                {/* Outer ring */}
+                <div className="absolute inset-1 rounded-full border-2 border-white/50" />
+                {/* Inner dot */}
+                <div className="absolute inset-2 rounded-full bg-primary border-2 border-white shadow-lg" />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Action buttons */}
-      <div className="flex gap-3 p-4 bg-black/80">
+      <div className="flex gap-3 p-4 bg-black/90 border-t border-white/10">
         <Button
           variant="outline"
           onClick={onCancel}
