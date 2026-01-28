@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Check, RotateCcw, Palette, Crop } from "lucide-react";
+import { Loader2, Check, RotateCcw, Palette, Crop, AlertCircle } from "lucide-react";
 import { scanDocument, detectCropBounds, ScanFilter, ScanResult, CropBounds } from "@/utils/documentScanner";
 import { ManualCropOverlay } from "./ManualCropOverlay";
 import { cn } from "@/lib/utils";
@@ -34,8 +34,10 @@ export function DocumentScanPreview({
   const [showCropOverlay, setShowCropOverlay] = useState(false);
   const [cropBounds, setCropBounds] = useState<CropBounds | null>(null);
   const [processingTime, setProcessingTime] = useState<number>(0);
+  const [autoCropFailed, setAutoCropFailed] = useState(false);
   
   const processedRef = useRef(false);
+  const originalImageRef = useRef<string>('');
 
   // Process document on mount
   useEffect(() => {
@@ -47,20 +49,26 @@ export function DocumentScanPreview({
     const processDocument = async () => {
       setProcessing(true);
       setError(null);
+      setAutoCropFailed(false);
       const startTime = performance.now();
       
       try {
-        // Detect crop bounds first (for potential manual adjustment)
+        // Store original for crop adjustment
+        if (typeof imageSource === 'string') {
+          originalImageRef.current = imageSource;
+        }
+        
+        // Detect crop bounds first
         const detectedBounds = await detectCropBounds(imageSource);
         if (mounted) {
           setCropBounds(detectedBounds);
         }
         
-        // Process with optimized settings
+        // Process with auto-crop and enhancement
         const result = await scanDocument(imageSource, {
           filter: 'color',
           enhanceContrast: true,
-          sharpen: false, // Skip for speed
+          sharpen: true,
           removeShadows: true,
           autoCrop: true,
           maxWidth: 1200,
@@ -71,8 +79,14 @@ export function DocumentScanPreview({
         if (mounted) {
           setScanResult(result);
           setDisplayImage(result.processedImage);
+          originalImageRef.current = result.originalImage;
           setCurrentFilter('color');
           setProcessingTime(Math.round(endTime - startTime));
+          
+          // Check if auto-crop was applied
+          if (!result.autoCropApplied) {
+            setAutoCropFailed(true);
+          }
         }
       } catch (err) {
         console.error('Document scan error:', err);
@@ -93,7 +107,7 @@ export function DocumentScanPreview({
     };
   }, [imageSource]);
 
-  // Handle filter change - fast path
+  // Handle filter change
   const handleFilterChange = useCallback(async (filter: ScanFilter) => {
     if (!scanResult || filter === currentFilter || applyingFilter) return;
     
@@ -101,11 +115,10 @@ export function DocumentScanPreview({
     setCurrentFilter(filter);
     
     try {
-      // Re-process from original with new filter
-      const result = await scanDocument(scanResult.originalImage, {
+      const result = await scanDocument(originalImageRef.current, {
         filter,
         enhanceContrast: true,
-        sharpen: false,
+        sharpen: true,
         removeShadows: true,
         autoCrop: true,
         maxWidth: 1200,
@@ -126,14 +139,13 @@ export function DocumentScanPreview({
     setShowCropOverlay(false);
     setCropBounds(newBounds);
     setApplyingFilter(true);
+    setAutoCropFailed(false);
     
     try {
-      if (!scanResult) return;
-      
-      const result = await scanDocument(scanResult.originalImage, {
+      const result = await scanDocument(originalImageRef.current, {
         filter: currentFilter,
         enhanceContrast: true,
-        sharpen: false,
+        sharpen: true,
         removeShadows: true,
         autoCrop: false,
         maxWidth: 1200,
@@ -147,20 +159,22 @@ export function DocumentScanPreview({
     } finally {
       setApplyingFilter(false);
     }
-  }, [scanResult, currentFilter]);
+  }, [currentFilter]);
 
-  // Handle confirm
+  // Handle confirm - ONLY allows processed image
   const handleConfirm = useCallback(() => {
-    if (displayImage) {
-      onConfirm(displayImage);
+    if (displayImage && scanResult) {
+      // Always save the processed image, never the raw one
+      onConfirm(scanResult.processedImage);
     }
-  }, [displayImage, onConfirm]);
+  }, [displayImage, scanResult, onConfirm]);
 
   if (error) {
     return (
       <Card className={cn("overflow-hidden", className)}>
         <CardContent className="p-4 space-y-4">
           <div className="text-center py-8">
+            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-3" />
             <p className="text-destructive mb-4">{error}</p>
             <Button variant="outline" onClick={onRetake}>
               <RotateCcw className="h-4 w-4 mr-2" />
@@ -181,8 +195,8 @@ export function DocumentScanPreview({
             {processing ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80">
                 <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-                <p className="text-sm text-muted-foreground">Scanning document...</p>
-                <p className="text-xs text-muted-foreground mt-1">Auto-detecting edges</p>
+                <p className="text-sm font-medium text-foreground">Scanning document...</p>
+                <p className="text-xs text-muted-foreground mt-1">Auto-detecting edges & enhancing</p>
               </div>
             ) : displayImage ? (
               <>
@@ -200,12 +214,22 @@ export function DocumentScanPreview({
             ) : null}
           </div>
 
+          {/* Auto-crop warning */}
+          {!processing && autoCropFailed && (
+            <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                Auto-crop couldn't detect document edges. Use "Adjust Crop" to manually select the document area.
+              </p>
+            </div>
+          )}
+
           {/* Filter and Crop Options */}
           {!processing && (
             <div className="space-y-3">
               {/* Filter selection */}
               <div className="flex items-center gap-2">
-                <Palette className="h-4 w-4 text-muted-foreground" />
+                <Palette className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <div className="flex gap-2 flex-1">
                   {FILTER_OPTIONS.map((option) => (
                     <Button
@@ -225,14 +249,14 @@ export function DocumentScanPreview({
 
               {/* Manual crop button */}
               <Button
-                variant="outline"
+                variant={autoCropFailed ? "default" : "outline"}
                 size="sm"
                 onClick={() => setShowCropOverlay(true)}
                 disabled={applyingFilter || !scanResult}
                 className="w-full"
               >
                 <Crop className="h-4 w-4 mr-2" />
-                Adjust Crop
+                {autoCropFailed ? "Select Document Area" : "Adjust Crop"}
               </Button>
             </div>
           )}
@@ -263,10 +287,10 @@ export function DocumentScanPreview({
           {/* Scan Info */}
           {!processing && scanResult && (
             <div className="text-xs text-muted-foreground text-center space-y-1">
-              <p>✓ Auto edge detection applied</p>
-              <p>✓ Contrast enhanced</p>
+              {scanResult.autoCropApplied && <p>✓ Auto-cropped & straightened</p>}
+              <p>✓ Enhanced for readability</p>
               {processingTime > 0 && (
-                <p className="text-primary">Processed in {processingTime}ms</p>
+                <p className="text-primary font-medium">Processed in {processingTime}ms</p>
               )}
             </div>
           )}
@@ -274,9 +298,9 @@ export function DocumentScanPreview({
       </Card>
 
       {/* Manual Crop Overlay */}
-      {showCropOverlay && scanResult && (
+      {showCropOverlay && originalImageRef.current && (
         <ManualCropOverlay
-          imageSource={scanResult.originalImage}
+          imageSource={originalImageRef.current}
           initialBounds={cropBounds}
           onConfirm={handleCropConfirm}
           onCancel={() => setShowCropOverlay(false)}
