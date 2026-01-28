@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Check, RotateCcw, Palette, Crop, AlertCircle } from "lucide-react";
+import { Loader2, Check, RotateCcw, Palette, Crop, AlertTriangle, ShieldCheck } from "lucide-react";
 import { scanDocument, detectCropBounds, ScanFilter, ScanResult, CropBounds } from "@/utils/documentScanner";
 import { ManualCropOverlay } from "./ManualCropOverlay";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,9 @@ const FILTER_OPTIONS: { value: ScanFilter; label: string; icon: string }[] = [
   { value: 'blackwhite', label: 'B&W', icon: '⬛' },
 ];
 
+// Minimum confidence required for auto-crop to be accepted
+const MIN_AUTO_CROP_CONFIDENCE = 0.35;
+
 export function DocumentScanPreview({
   imageSource,
   onConfirm,
@@ -34,7 +37,11 @@ export function DocumentScanPreview({
   const [showCropOverlay, setShowCropOverlay] = useState(false);
   const [cropBounds, setCropBounds] = useState<CropBounds | null>(null);
   const [processingTime, setProcessingTime] = useState<number>(0);
-  const [autoCropFailed, setAutoCropFailed] = useState(false);
+  
+  // Crop validation state - MANDATORY auto-crop or manual crop
+  const [cropApplied, setCropApplied] = useState(false);
+  const [cropConfidence, setCropConfidence] = useState(0);
+  const [requiresManualCrop, setRequiresManualCrop] = useState(false);
   
   const processedRef = useRef(false);
   const originalImageRef = useRef<string>('');
@@ -49,7 +56,8 @@ export function DocumentScanPreview({
     const processDocument = async () => {
       setProcessing(true);
       setError(null);
-      setAutoCropFailed(false);
+      setCropApplied(false);
+      setRequiresManualCrop(false);
       const startTime = performance.now();
       
       try {
@@ -82,10 +90,16 @@ export function DocumentScanPreview({
           originalImageRef.current = result.originalImage;
           setCurrentFilter('color');
           setProcessingTime(Math.round(endTime - startTime));
+          setCropConfidence(result.confidence);
           
-          // Check if auto-crop was applied
-          if (!result.autoCropApplied) {
-            setAutoCropFailed(true);
+          // Check if auto-crop was successful and confident
+          if (result.autoCropApplied && result.confidence >= MIN_AUTO_CROP_CONFIDENCE) {
+            setCropApplied(true);
+            setRequiresManualCrop(false);
+          } else {
+            // Auto-crop failed or low confidence - require manual crop
+            setCropApplied(false);
+            setRequiresManualCrop(true);
           }
         }
       } catch (err) {
@@ -120,7 +134,7 @@ export function DocumentScanPreview({
         enhanceContrast: true,
         sharpen: true,
         removeShadows: true,
-        autoCrop: true,
+        autoCrop: cropApplied, // Only auto-crop if already applied
         maxWidth: 1200,
         cropBounds: cropBounds || undefined,
       });
@@ -132,14 +146,13 @@ export function DocumentScanPreview({
     } finally {
       setApplyingFilter(false);
     }
-  }, [scanResult, currentFilter, applyingFilter, cropBounds]);
+  }, [scanResult, currentFilter, applyingFilter, cropBounds, cropApplied]);
 
-  // Handle manual crop
+  // Handle manual crop - ALWAYS marks crop as applied
   const handleCropConfirm = useCallback(async (newBounds: CropBounds) => {
     setShowCropOverlay(false);
     setCropBounds(newBounds);
     setApplyingFilter(true);
-    setAutoCropFailed(false);
     
     try {
       const result = await scanDocument(originalImageRef.current, {
@@ -147,13 +160,18 @@ export function DocumentScanPreview({
         enhanceContrast: true,
         sharpen: true,
         removeShadows: true,
-        autoCrop: false,
+        autoCrop: false, // Use manual bounds
         maxWidth: 1200,
         cropBounds: newBounds,
       });
       
       setDisplayImage(result.processedImage);
       setScanResult(result);
+      
+      // Manual crop is always accepted
+      setCropApplied(true);
+      setRequiresManualCrop(false);
+      setCropConfidence(1.0);
     } catch (err) {
       console.error('Crop error:', err);
     } finally {
@@ -161,20 +179,23 @@ export function DocumentScanPreview({
     }
   }, [currentFilter]);
 
-  // Handle confirm - ONLY allows processed image
+  // Handle confirm - ONLY allows if crop is applied
   const handleConfirm = useCallback(() => {
-    if (displayImage && scanResult) {
-      // Always save the processed image, never the raw one
+    if (displayImage && scanResult && cropApplied) {
+      // Always save the processed (cropped) image, never the raw one
       onConfirm(scanResult.processedImage);
     }
-  }, [displayImage, scanResult, onConfirm]);
+  }, [displayImage, scanResult, cropApplied, onConfirm]);
+
+  // Can save only if crop is applied
+  const canSave = cropApplied && !applyingFilter && displayImage;
 
   if (error) {
     return (
       <Card className={cn("overflow-hidden", className)}>
         <CardContent className="p-4 space-y-4">
           <div className="text-center py-8">
-            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-3" />
+            <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-3" />
             <p className="text-destructive mb-4">{error}</p>
             <Button variant="outline" onClick={onRetake}>
               <RotateCcw className="h-4 w-4 mr-2" />
@@ -210,53 +231,98 @@ export function DocumentScanPreview({
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                   </div>
                 )}
+                
+                {/* Crop status badge */}
+                <div className={cn(
+                  "absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1",
+                  cropApplied 
+                    ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300"
+                    : "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300"
+                )}>
+                  {cropApplied ? (
+                    <>
+                      <ShieldCheck className="h-3 w-3" />
+                      Cropped
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="h-3 w-3" />
+                      Not Cropped
+                    </>
+                  )}
+                </div>
               </>
             ) : null}
           </div>
 
-          {/* Auto-crop warning */}
-          {!processing && autoCropFailed && (
-            <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-              <p className="text-sm text-amber-700 dark:text-amber-300">
-                Auto-crop couldn't detect document edges. Use "Adjust Crop" to manually select the document area.
-              </p>
+          {/* Crop requirement warning - MANDATORY */}
+          {!processing && requiresManualCrop && (
+            <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  Manual crop required
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                  Auto-crop couldn't detect document edges. Please tap "Select Document Area" to manually crop the document.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Success message when crop is applied */}
+          {!processing && cropApplied && !requiresManualCrop && (
+            <div className="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+              <ShieldCheck className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                  Document detected & cropped
+                </p>
+                <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                  Edges detected with {Math.round(cropConfidence * 100)}% confidence. You can adjust the crop if needed.
+                </p>
+              </div>
             </div>
           )}
 
           {/* Filter and Crop Options */}
           {!processing && (
             <div className="space-y-3">
-              {/* Filter selection */}
-              <div className="flex items-center gap-2">
-                <Palette className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <div className="flex gap-2 flex-1">
-                  {FILTER_OPTIONS.map((option) => (
-                    <Button
-                      key={option.value}
-                      variant={currentFilter === option.value ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handleFilterChange(option.value)}
-                      disabled={applyingFilter}
-                      className="flex-1"
-                    >
-                      <span className="mr-1">{option.icon}</span>
-                      {option.label}
-                    </Button>
-                  ))}
+              {/* Filter selection - only show if crop is applied */}
+              {cropApplied && (
+                <div className="flex items-center gap-2">
+                  <Palette className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex gap-2 flex-1">
+                    {FILTER_OPTIONS.map((option) => (
+                      <Button
+                        key={option.value}
+                        variant={currentFilter === option.value ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleFilterChange(option.value)}
+                        disabled={applyingFilter}
+                        className="flex-1"
+                      >
+                        <span className="mr-1">{option.icon}</span>
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Manual crop button */}
+              {/* Manual crop button - highlighted when required */}
               <Button
-                variant={autoCropFailed ? "default" : "outline"}
+                variant={requiresManualCrop ? "default" : "outline"}
                 size="sm"
                 onClick={() => setShowCropOverlay(true)}
                 disabled={applyingFilter || !scanResult}
-                className="w-full"
+                className={cn(
+                  "w-full",
+                  requiresManualCrop && "bg-amber-500 hover:bg-amber-600 text-white"
+                )}
               >
                 <Crop className="h-4 w-4 mr-2" />
-                {autoCropFailed ? "Select Document Area" : "Adjust Crop"}
+                {requiresManualCrop ? "Select Document Area (Required)" : "Adjust Crop"}
               </Button>
             </div>
           )}
@@ -276,7 +342,7 @@ export function DocumentScanPreview({
               <Button
                 onClick={handleConfirm}
                 className="flex-1"
-                disabled={applyingFilter || !displayImage}
+                disabled={!canSave}
               >
                 <Check className="h-4 w-4 mr-2" />
                 Use This Scan
@@ -284,10 +350,17 @@ export function DocumentScanPreview({
             </div>
           )}
 
+          {/* Cannot save warning */}
+          {!processing && !cropApplied && (
+            <p className="text-xs text-muted-foreground text-center">
+              ⚠️ You must crop the document before saving
+            </p>
+          )}
+
           {/* Scan Info */}
-          {!processing && scanResult && (
+          {!processing && scanResult && cropApplied && (
             <div className="text-xs text-muted-foreground text-center space-y-1">
-              {scanResult.autoCropApplied && <p>✓ Auto-cropped & straightened</p>}
+              <p>✓ Document cropped & straightened</p>
               <p>✓ Enhanced for readability</p>
               {processingTime > 0 && (
                 <p className="text-primary font-medium">Processed in {processingTime}ms</p>
