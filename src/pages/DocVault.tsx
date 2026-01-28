@@ -14,6 +14,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { uploadDocumentOriginal } from "@/utils/documentStorage";
 import { PDFPreview } from "@/components/document/PDFPreview";
+import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,8 @@ export default function DocVault() {
   const [isUploading, setIsUploading] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [rawCapturedImage, setRawCapturedImage] = useState<string | null>(null);
+  const [showScanPreview, setShowScanPreview] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -105,10 +108,34 @@ export default function DocVault() {
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL("image/jpeg");
-        setCapturedImage(imageData);
+        // Capture at full quality for scanning
+        const imageData = canvas.toDataURL("image/jpeg", 1.0);
+        setRawCapturedImage(imageData);
+        setShowScanPreview(true);
+        // Stop camera while showing preview
+        if (videoRef.current?.srcObject) {
+          const stream = videoRef.current.srcObject as MediaStream;
+          stream.getTracks().forEach((track) => track.stop());
+        }
       }
     }
+  };
+
+  // Handle scan preview confirmation
+  const handleScanConfirm = async (scannedImage: string) => {
+    setCapturedImage(scannedImage);
+    setShowScanPreview(false);
+    // Auto-upload the scanned image
+    await uploadScannedImage(scannedImage);
+  };
+
+  // Handle scan preview retake
+  const handleScanRetake = () => {
+    setRawCapturedImage(null);
+    setCapturedImage(null);
+    setShowScanPreview(false);
+    // Restart camera
+    startCamera();
   };
 
   const handleDelete = async (docId: string, imagePath: string | null) => {
@@ -138,15 +165,16 @@ export default function DocVault() {
     }
   };
 
-  const uploadCapturedImage = async () => {
-    if (!capturedImage || !user) return;
+  // Upload scanned/processed image
+  const uploadScannedImage = async (imageData: string) => {
+    if (!user) return;
 
     setIsUploading(true);
     try {
-      const blob = await (await fetch(capturedImage)).blob();
+      const blob = await (await fetch(imageData)).blob();
       
       // Validate file size (max 20MB)
-      const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+      const maxSize = 20 * 1024 * 1024;
       if (blob.size > maxSize) {
         throw new Error("File size exceeds 20MB limit");
       }
@@ -176,7 +204,7 @@ export default function DocVault() {
           document_type: "other",
           image_path: fileName,
           issuing_authority: "DocVault",
-          expiry_date: "9999-12-31", // Far future date for vault documents (no expiry)
+          expiry_date: "9999-12-31",
           renewal_period_days: 0,
         });
 
@@ -184,6 +212,8 @@ export default function DocVault() {
 
       toast.success("Document saved successfully");
       stopCamera();
+      setRawCapturedImage(null);
+      setCapturedImage(null);
       refetch();
     } catch (error) {
       console.error("Upload error:", error);
@@ -191,6 +221,11 @@ export default function DocVault() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const uploadCapturedImage = async () => {
+    if (!capturedImage || !user) return;
+    await uploadScannedImage(capturedImage);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -204,58 +239,60 @@ export default function DocVault() {
       return;
     }
 
-    setIsUploading(true);
-    try {
-      // Generate unique file path
-      const docUuid = crypto.randomUUID();
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'file';
-      const filePath = `documents/${user.id}/${docUuid}/document.${fileExt}`;
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
 
-      console.log("Uploading file:", file.name, "to path:", filePath);
+    // Check if it's a PDF - PDFs don't need scan processing
+    if (file.type === 'application/pdf') {
+      // Upload PDF directly
+      setIsUploading(true);
+      try {
+        const docUuid = crypto.randomUUID();
+        const filePath = `documents/${user.id}/${docUuid}/document.pdf`;
 
-      // Upload file directly to Supabase storage
-      const { error: uploadError } = await supabase.storage
-        .from("document-images")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: file.type,
-        });
+        const { error: uploadError } = await supabase.storage
+          .from("document-images")
+          .upload(filePath, file, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type,
+          });
 
-      if (uploadError) {
-        console.error("Storage upload error:", uploadError);
-        throw uploadError;
+        if (uploadError) throw uploadError;
+
+        const { error: insertError } = await supabase
+          .from("documents")
+          .insert({
+            user_id: user.id,
+            name: file.name,
+            document_type: "other",
+            image_path: filePath,
+            issuing_authority: "DocVault",
+            expiry_date: "9999-12-31",
+            renewal_period_days: 0,
+          });
+
+        if (insertError) throw insertError;
+
+        toast.success("Document uploaded successfully");
+        refetch();
+      } catch (error: any) {
+        console.error("Upload error:", error);
+        toast.error(error?.message || "Failed to upload document");
+      } finally {
+        setIsUploading(false);
       }
-
-      console.log("File uploaded successfully, inserting document record");
-
-      const { error: insertError } = await supabase
-        .from("documents")
-        .insert({
-          user_id: user.id,
-          name: file.name,
-          document_type: "other",
-          image_path: filePath,
-          issuing_authority: "DocVault",
-          expiry_date: "9999-12-31",
-          renewal_period_days: 0,
-        });
-
-      if (insertError) {
-        console.error("Database insert error:", insertError);
-        throw insertError;
-      }
-
-      toast.success("Document uploaded successfully");
-      refetch();
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      toast.error(error?.message || "Failed to upload document");
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+    } else {
+      // For images, show scan preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setRawCapturedImage(result);
+        setShowScanPreview(true);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -446,61 +483,51 @@ export default function DocVault() {
       </div>
 
       {/* Camera Dialog */}
-      <Dialog open={showCamera} onOpenChange={stopCamera}>
+      <Dialog open={showCamera && !showScanPreview} onOpenChange={(open) => {
+        if (!open) stopCamera();
+      }}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Scan Document</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {!capturedImage ? (
-              <>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full rounded-lg bg-black"
-                />
-                <div className="flex gap-2 justify-center">
-                  <Button onClick={capturePhoto} size="lg">
-                    <CameraIcon className="h-5 w-5 mr-2" />
-                    Capture
-                  </Button>
-                  <Button onClick={stopCamera} variant="outline" size="lg">
-                    <X className="h-5 w-5 mr-2" />
-                    Cancel
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <img
-                  src={capturedImage}
-                  alt="Captured"
-                  className="w-full rounded-lg"
-                />
-                <div className="flex gap-2 justify-center">
-                  <Button
-                    onClick={uploadCapturedImage}
-                    disabled={isUploading}
-                    size="lg"
-                  >
-                    <Upload className="h-5 w-5 mr-2" />
-                    {isUploading ? "Saving..." : "Save Document"}
-                  </Button>
-                  <Button
-                    onClick={() => setCapturedImage(null)}
-                    variant="outline"
-                    size="lg"
-                    disabled={isUploading}
-                  >
-                    Retake
-                  </Button>
-                </div>
-              </>
-            )}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full rounded-lg bg-black"
+            />
+            <div className="flex gap-2 justify-center">
+              <Button onClick={capturePhoto} size="lg">
+                <CameraIcon className="h-5 w-5 mr-2" />
+                Capture
+              </Button>
+              <Button onClick={stopCamera} variant="outline" size="lg">
+                <X className="h-5 w-5 mr-2" />
+                Cancel
+              </Button>
+            </div>
           </div>
           <canvas ref={canvasRef} className="hidden" />
+        </DialogContent>
+      </Dialog>
+
+      {/* Scan Preview Dialog - CamScanner-style processing */}
+      <Dialog open={showScanPreview} onOpenChange={(open) => {
+        if (!open) handleScanRetake();
+      }}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Review Scanned Document</DialogTitle>
+          </DialogHeader>
+          {rawCapturedImage && (
+            <DocumentScanPreview
+              imageSource={rawCapturedImage}
+              onConfirm={handleScanConfirm}
+              onRetake={handleScanRetake}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
