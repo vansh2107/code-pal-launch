@@ -17,6 +17,7 @@ import { TwoFactorAuth } from "@/components/profile/TwoFactorAuth";
 import { exportToCSV, exportToJSON } from "@/utils/exportData";
 import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
 import { getCountryCode } from "@/utils/countryMapping";
+import { getSignedUrl } from "@/utils/signedUrl";
 
 interface Profile {
   id: string;
@@ -97,6 +98,7 @@ export default function Profile() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [saving, setSaving] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -121,6 +123,19 @@ export default function Profile() {
       setDisplayName(data.display_name || "");
       setCountry(data.country || "");
       setPhoneNumber(data.phone_number || "");
+      
+      // Fetch signed URL for avatar if it exists and is a path (not a full URL)
+      if (data.avatar_url) {
+        // Check if it's already a full URL (legacy) or a path
+        if (data.avatar_url.startsWith('http')) {
+          setAvatarSignedUrl(data.avatar_url);
+        } else {
+          const signedUrl = await getSignedUrl('document-images', data.avatar_url);
+          if (signedUrl) {
+            setAvatarSignedUrl(signedUrl);
+          }
+        }
+      }
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
@@ -219,15 +234,11 @@ export default function Profile() {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('document-images')
-        .getPublicUrl(fileName);
-
-      // Update profile with avatar URL
+      // Store the file path (not URL) in the database
+      // Signed URLs will be generated when displaying the avatar
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ avatar_url: urlData.publicUrl })
+        .update({ avatar_url: fileName })
         .eq('user_id', user.id);
 
       if (updateError) throw updateError;
@@ -341,9 +352,9 @@ export default function Profile() {
                 className="relative w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all hover:opacity-90"
                 aria-label="Edit profile photo"
               >
-                {avatarPreview || profile?.avatar_url ? (
+                {avatarPreview || avatarSignedUrl ? (
                   <img 
-                    src={avatarPreview || profile?.avatar_url || ''} 
+                    src={avatarPreview || avatarSignedUrl || ''} 
                     alt="Profile" 
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -352,7 +363,7 @@ export default function Profile() {
                     }}
                   />
                 ) : null}
-                <User className={`h-6 w-6 text-primary ${avatarPreview || profile?.avatar_url ? 'hidden' : ''}`} />
+                <User className={`h-6 w-6 text-primary ${avatarPreview || avatarSignedUrl ? 'hidden' : ''}`} />
                 {uploadingAvatar && (
                   <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>

@@ -1,10 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getSignedUrl } from "./signedUrl";
 
 /**
  * Upload original PDF or image with zero compression
  * 
  * This function stores the raw, original file without any quality reduction,
  * compression, or conversion. PDFs remain as PDFs, images remain as images.
+ * 
+ * Returns the file path (not a public URL) for secure signed URL generation.
  */
 export async function uploadDocumentOriginal(file: File, userId: string): Promise<string | null> {
   try {
@@ -26,12 +29,21 @@ export async function uploadDocumentOriginal(file: File, userId: string): Promis
 
     if (error) throw error;
 
-    const { data } = supabase.storage.from("document-images").getPublicUrl(filePath);
-    return data.publicUrl;
+    // Return the file path for database storage
+    // Signed URLs should be generated when displaying the document
+    return filePath;
   } catch (err) {
     console.error("Upload error:", err);
     throw err;
   }
+}
+
+/**
+ * Get a signed URL for a document image
+ * This should be used when displaying documents in the UI
+ */
+export async function getDocumentSignedUrl(imagePath: string): Promise<string | null> {
+  return getSignedUrl('document-images', imagePath);
 }
 
 /**

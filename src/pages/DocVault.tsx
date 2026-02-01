@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { Card } from "@/components/ui/card";
@@ -12,9 +12,9 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { formatInTimeZone } from "date-fns-tz";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { uploadDocumentOriginal } from "@/utils/documentStorage";
 import { PDFPreview } from "@/components/document/PDFPreview";
 import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
+import { getSignedUrls } from "@/utils/signedUrl";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +43,7 @@ export default function DocVault() {
   const [rawCapturedImage, setRawCapturedImage] = useState<string | null>(null);
   const [showScanPreview, setShowScanPreview] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,6 +64,24 @@ export default function DocVault() {
     },
     enabled: !!user?.id,
   });
+
+  // Fetch signed URLs for all documents when documents change
+  useEffect(() => {
+    const fetchSignedUrls = async () => {
+      const imagePaths = documents
+        .filter((doc) => doc.image_path)
+        .map((doc) => doc.image_path as string);
+
+      if (imagePaths.length > 0) {
+        const urls = await getSignedUrls("document-images", imagePaths);
+        setSignedUrls(urls);
+      }
+    };
+
+    if (documents.length > 0) {
+      fetchSignedUrls();
+    }
+  }, [documents]);
 
   // Filter documents based on search
   const filteredDocuments = documents.filter((doc) =>
@@ -396,17 +415,17 @@ export default function DocVault() {
                   className="cursor-pointer"
                   onClick={() => navigate(`/documents/${doc.id}`)}
                 >
-                  {doc.image_path && (
+                  {doc.image_path && signedUrls.get(doc.image_path) && (
                     <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
                       {doc.image_path.toLowerCase().endsWith('.pdf') ? (
                         <PDFPreview
-                          pdfUrl={supabase.storage.from("document-images").getPublicUrl(doc.image_path).data.publicUrl}
+                          pdfUrl={signedUrls.get(doc.image_path) || ''}
                           className="w-full h-full"
                           width={400}
                         />
                       ) : (
                         <img
-                          src={supabase.storage.from("document-images").getPublicUrl(doc.image_path).data.publicUrl}
+                          src={signedUrls.get(doc.image_path) || ''}
                           alt={doc.name}
                           className="w-full h-full object-cover"
                         />
@@ -416,19 +435,7 @@ export default function DocVault() {
                    <div className="p-4 space-y-2">
                     <h3 className="font-medium truncate">{doc.name}</h3>
                     <p className="text-xs text-muted-foreground">
-                      {(() => {
-                        const getTimezone = async () => {
-                          const { data: profile } = await supabase
-                            .from('profiles')
-                            .select('timezone')
-                            .eq('user_id', user?.id)
-                            .single();
-                          return profile?.timezone || 'UTC';
-                        };
-                        
-                        // For display, use a simplified approach
-                        return `Added: ${new Date(doc.created_at).toLocaleDateString()}`;
-                      })()}
+                      Added: {new Date(doc.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
