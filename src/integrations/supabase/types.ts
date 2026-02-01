@@ -93,13 +93,16 @@ export type Database = {
       }
       documents: {
         Row: {
+          access_count: number | null
           category_detail: string | null
           created_at: string
           document_type: Database["public"]["Enums"]["document_type"]
+          docvault_category_id: string | null
           expiry_date: string
           id: string
           image_path: string | null
           issuing_authority: string | null
+          last_accessed_at: string | null
           name: string
           notes: string | null
           organization_id: string | null
@@ -108,13 +111,16 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          access_count?: number | null
           category_detail?: string | null
           created_at?: string
           document_type: Database["public"]["Enums"]["document_type"]
+          docvault_category_id?: string | null
           expiry_date: string
           id?: string
           image_path?: string | null
           issuing_authority?: string | null
+          last_accessed_at?: string | null
           name: string
           notes?: string | null
           organization_id?: string | null
@@ -123,13 +129,16 @@ export type Database = {
           user_id: string
         }
         Update: {
+          access_count?: number | null
           category_detail?: string | null
           created_at?: string
           document_type?: Database["public"]["Enums"]["document_type"]
+          docvault_category_id?: string | null
           expiry_date?: string
           id?: string
           image_path?: string | null
           issuing_authority?: string | null
+          last_accessed_at?: string | null
           name?: string
           notes?: string | null
           organization_id?: string | null
@@ -139,6 +148,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "documents_docvault_category_id_fkey"
+            columns: ["docvault_category_id"]
+            isOneToOne: false
+            referencedRelation: "docvault_categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "documents_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -146,6 +162,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      docvault_categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       fcm_tokens: {
         Row: {
