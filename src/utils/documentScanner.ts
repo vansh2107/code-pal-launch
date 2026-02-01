@@ -50,7 +50,7 @@ function isMeaningfulCropScaled(bounds: CropBounds, width: number, height: numbe
   const area = quadArea(bounds);
   const ratio = area / (width * height);
   // Reject near-full-frame (background still present) and tiny boxes.
-  return ratio > 0.12 && ratio < 0.95;
+  return ratio >= MIN_CONTOUR_AREA_RATIO && ratio <= MAX_CONTOUR_AREA_RATIO;
 }
 
 export interface ScanOptions {
@@ -66,10 +66,15 @@ export interface ScanOptions {
 // Constants for performance and detection
 const MAX_PROCESS_WIDTH = 1200;
 const EDGE_THRESHOLD = 30; // Lower threshold for better edge detection
-const MIN_CONTOUR_AREA_RATIO = 0.10; // Minimum 10% of image area
-const MAX_CONTOUR_AREA_RATIO = 0.98; // Maximum 98% of image area
+// IMPORTANT: prevent the common false-positive where the "document" becomes the full frame/background.
+// We only accept candidates that occupy a reasonable part of the frame.
+const MIN_CONTOUR_AREA_RATIO = 0.20; // Minimum 20% of image area
+const MAX_CONTOUR_AREA_RATIO = 0.90; // Maximum 90% of image area
 const CANNY_LOW_THRESHOLD = 50;
 const CANNY_HIGH_THRESHOLD = 150;
+
+// Internal auto-apply threshold (conservative). If below this, we MUST fall back to manual crop.
+const MIN_AUTOCROP_APPLY_CONFIDENCE = 0.58;
 
 /**
  * Main document scanning function - Optimized for speed and accuracy
@@ -124,7 +129,7 @@ export async function scanDocument(
       confidence = detection.confidence;
 
       const canApplyAutoCrop =
-        detection.confidence >= 0.35 &&
+        detection.confidence >= MIN_AUTOCROP_APPLY_CONFIDENCE &&
         isMeaningfulCropScaled(detection.bounds, width, height);
 
       if (canApplyAutoCrop) {
@@ -446,14 +451,100 @@ function findDocumentContour(
   width: number,
   height: number
 ): { bounds: CropBounds; confidence: number } | null {
-  // Connected-component contour detection on the dilated edge map.
-  // We pick the largest component and approximate its quadrilateral by extreme points.
+  // Connected-component detection on the dilated edge map.
+  // CRITICAL: do NOT blindly pick the largest component (often the background/frame).
+  // We only accept "document-like" rectangles:
+  // - area 20%–90%
+  // - NOT touching image borders
+  // - reasonable aspect ratio
+  // - strong edge presence along the bbox sides
+  // - center-weighted
 
   const imgArea = width * height;
   const visited = new Uint8Array(imgArea);
   const stack = new Int32Array(imgArea); // worst-case, reused
 
-  let best: { bounds: CropBounds; confidence: number; area: number } | null = null;
+  let best: { bounds: CropBounds; confidence: number; score: number } | null = null;
+
+  const borderMargin = Math.max(10, Math.round(Math.min(width, height) * 0.02));
+
+  const computeCenterScore = (minX: number, minY: number, maxX: number, maxY: number) => {
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const dx = cx - width / 2;
+    const dy = cy - height / 2;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const diag = Math.sqrt(width * width + height * height);
+    return clamp01(1 - dist / (diag * 0.55));
+  };
+
+  const computeAreaScore = (areaRatio: number) => {
+    const mid = 0.55;
+    const halfSpan = 0.35;
+    return clamp01(1 - Math.abs(areaRatio - mid) / halfSpan);
+  };
+
+  const computeAspectScore = (aspect: number) => {
+    const targets = [0.707, 1.414, 1.586];
+    let bestRel = Infinity;
+    for (const t of targets) {
+      bestRel = Math.min(bestRel, Math.abs(aspect - t) / t);
+    }
+    return clamp01(1 - bestRel / 0.85);
+  };
+
+  const computeSideCoverage = (minX: number, minY: number, maxX: number, maxY: number) => {
+    const band = 2;
+    const bboxW = maxX - minX + 1;
+    const bboxH = maxY - minY + 1;
+    const step = Math.max(2, Math.floor(Math.min(bboxW, bboxH) / 70));
+
+    const sampleTopBottom = (yBase: number) => {
+      let hits = 0;
+      let total = 0;
+      for (let x = minX; x <= maxX; x += step) {
+        total++;
+        let ok = false;
+        for (let dy = -band; dy <= band; dy++) {
+          const y = yBase + dy;
+          if (y < 0 || y >= height) continue;
+          if (edges[y * width + x] > 0) {
+            ok = true;
+            break;
+          }
+        }
+        if (ok) hits++;
+      }
+      return total ? hits / total : 0;
+    };
+
+    const sampleLeftRight = (xBase: number) => {
+      let hits = 0;
+      let total = 0;
+      for (let y = minY; y <= maxY; y += step) {
+        total++;
+        let ok = false;
+        for (let dx = -band; dx <= band; dx++) {
+          const x = xBase + dx;
+          if (x < 0 || x >= width) continue;
+          if (edges[y * width + x] > 0) {
+            ok = true;
+            break;
+          }
+        }
+        if (ok) hits++;
+      }
+      return total ? hits / total : 0;
+    };
+
+    const top = sampleTopBottom(minY);
+    const bottom = sampleTopBottom(maxY);
+    const left = sampleLeftRight(minX);
+    const right = sampleLeftRight(maxX);
+    const overall = (top + bottom + left + right) / 4;
+    const strongSides = [top, bottom, left, right].filter((s) => s >= 0.18).length;
+    return { top, bottom, left, right, overall, strongSides };
+  };
 
   const neighbors = [
     -width - 1,
@@ -537,15 +628,26 @@ function findDocumentContour(
     const bboxH = maxY - minY;
     if (bboxW < 40 || bboxH < 40) continue;
 
+    // Reject components that touch the image borders (common background/frame false-positive)
+    if (
+      minX <= borderMargin ||
+      minY <= borderMargin ||
+      maxX >= width - 1 - borderMargin ||
+      maxY >= height - 1 - borderMargin
+    ) {
+      continue;
+    }
+
     const bboxArea = bboxW * bboxH;
     const bboxAreaRatio = bboxArea / imgArea;
     if (bboxAreaRatio < MIN_CONTOUR_AREA_RATIO || bboxAreaRatio > MAX_CONTOUR_AREA_RATIO) continue;
 
     const aspect = bboxW / bboxH;
-    if (aspect < 0.3 || aspect > 3.0) continue;
+    if (aspect < 0.45 || aspect > 2.2) continue;
 
-    // Component must be "edge-like" enough within the bbox.
-    const edgeDensity = clamp01(count / (bboxArea * 0.12));
+    // Reject very "busy" regions (bedsheet texture, floor patterns, etc.)
+    const rawEdgeDensity = count / Math.max(1, bboxArea);
+    if (rawEdgeDensity > 0.12) continue;
 
     const bounds: CropBounds = {
       topLeft: tl,
@@ -555,16 +657,33 @@ function findDocumentContour(
     };
 
     const area = quadArea(bounds);
+    const quadAreaRatio = area / imgArea;
+    if (quadAreaRatio < MIN_CONTOUR_AREA_RATIO || quadAreaRatio > MAX_CONTOUR_AREA_RATIO) continue;
     const quadFill = clamp01(area / bboxArea);
 
-    const confidence = clamp01(quadFill * 0.7 + edgeDensity * 0.3);
+    // Must behave like a rectangle border: edges should exist along 3-4 sides.
+    const coverage = computeSideCoverage(minX, minY, maxX, maxY);
+    if (coverage.overall < 0.20 || coverage.strongSides < 3) continue;
 
-    if (!best || area > best.area) {
-      best = { bounds, confidence, area };
+    const centerScore = computeCenterScore(minX, minY, maxX, maxY);
+    const areaScore = computeAreaScore(bboxAreaRatio);
+    const aspectScore = computeAspectScore(aspect);
+    const edgeScore = clamp01(coverage.overall);
+
+    // Final score: prioritize rectangle-like border edges + being centered.
+    const score = clamp01(edgeScore * 0.40 + centerScore * 0.28 + areaScore * 0.22 + aspectScore * 0.10);
+
+    // Confidence: conservative (used by scanDocument to decide auto-apply).
+    const confidence = clamp01(score * 0.75 + quadFill * 0.25);
+
+    if (!best || score > best.score) {
+      best = { bounds, confidence, score };
     }
   }
 
   if (!best) return null;
+  // If still weak, fail safely and let manual crop handle it.
+  if (best.score < 0.32) return null;
   return { bounds: best.bounds, confidence: best.confidence };
 }
 
@@ -652,6 +771,31 @@ function detectByColorContrast(
   if (areaRatio < MIN_CONTOUR_AREA_RATIO || areaRatio > MAX_CONTOUR_AREA_RATIO) {
     return null;
   }
+
+  // Reject near-border regions (likely background)
+  const borderMargin = Math.max(10, Math.round(Math.min(width, height) * 0.02));
+  if (
+    minX <= borderMargin ||
+    minY <= borderMargin ||
+    maxX >= width - 1 - borderMargin ||
+    maxY >= height - 1 - borderMargin
+  ) {
+    return null;
+  }
+
+  // Reject strange aspect ratios
+  const aspect = regionWidth / Math.max(1, regionHeight);
+  if (aspect < 0.45 || aspect > 2.2) return null;
+
+  // Center-weighted
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const dx = cx - width / 2;
+  const dy = cy - height / 2;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const diag = Math.sqrt(width * width + height * height);
+  const centerScore = clamp01(1 - dist / (diag * 0.55));
+  if (centerScore < 0.35) return null;
   
   // Add small padding
   const padding = Math.floor(Math.min(width, height) * 0.01);
@@ -667,7 +811,8 @@ function detectByColorContrast(
       bottomLeft: { x: minX, y: maxY },
       bottomRight: { x: maxX, y: maxY },
     },
-    confidence: 0.4 // Lower confidence for color-based detection
+    // Keep conservative so scanDocument won't auto-apply unless truly confident.
+    confidence: clamp01(0.30 + centerScore * 0.18)
   };
 }
 
