@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { formatDuration } from "@/utils/taskDuration";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { getSignedUrl } from "@/utils/signedUrl";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,10 +79,10 @@ export default function TaskDetail() {
       setTask(data);
 
       if (data.image_path) {
-        const { data: urlData } = supabase.storage
-          .from("task-images")
-          .getPublicUrl(data.image_path);
-        setImageUrl(urlData.publicUrl);
+        const signedUrl = await getSignedUrl("task-images", data.image_path);
+        if (signedUrl) {
+          setImageUrl(signedUrl);
+        }
       }
     } catch (error: any) {
       toast({

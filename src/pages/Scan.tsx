@@ -456,12 +456,8 @@ export default function Scan() {
           }
           
           // Upload ORIGINAL PDF - no conversion, no compression
-          const publicUrl = await uploadDocumentOriginal(pdfFile, user.id);
-          if (publicUrl) {
-            // Extract path from URL for database storage
-            const urlObj = new URL(publicUrl);
-            imagePath = urlObj.pathname.split('/storage/v1/object/public/document-images/')[1];
-          }
+          // uploadDocumentOriginal now returns the file path directly
+          imagePath = await uploadDocumentOriginal(pdfFile, user.id);
         } else if (capturedImage) {
           // Upload ORIGINAL image - no compression
           const blob = await fetch(capturedImage).then(r => r.blob());
@@ -474,11 +470,8 @@ export default function Scan() {
           const fileExt = (blob.type.split('/')[1]) || 'jpg';
           const imageFile = new File([blob], `document.${fileExt}`, { type: blob.type });
           
-          const publicUrl = await uploadDocumentOriginal(imageFile, user.id);
-          if (publicUrl) {
-            const urlObj = new URL(publicUrl);
-            imagePath = urlObj.pathname.split('/storage/v1/object/public/document-images/')[1];
-          }
+          // uploadDocumentOriginal now returns the file path directly
+          imagePath = await uploadDocumentOriginal(imageFile, user.id);
         }
       } catch (uploadErr) {
         console.error('Error uploading document file:', uploadErr);
