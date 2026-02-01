@@ -345,11 +345,24 @@ export default function Profile() {
                       Edit Profile
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="max-w-md">
                     <DialogHeader>
                       <DialogTitle>Edit Profile</DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4 pt-4">
+                    <div className="space-y-5 pt-4">
+                      {/* Profile Photo Section */}
+                      <div className="flex flex-col items-center gap-2">
+                        {user && (
+                          <AvatarEditPopover 
+                            userId={user.id}
+                            avatarUrl={avatarSignedUrl}
+                            onAvatarUpdate={fetchProfile}
+                            size="lg"
+                          />
+                        )}
+                        <p className="text-xs text-muted-foreground">Tap to change photo</p>
+                      </div>
+
                       <div className="space-y-2">
                         <Label htmlFor="display_name">Display Name</Label>
                         <Input
