@@ -10,9 +10,10 @@ interface AvatarEditPopoverProps {
   userId: string;
   avatarUrl: string | null;
   onAvatarUpdate: () => void;
+  size?: "sm" | "lg";
 }
 
-export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate }: AvatarEditPopoverProps) {
+export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "sm" }: AvatarEditPopoverProps) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -148,6 +149,13 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate }: AvatarE
   };
 
   const displayUrl = preview || avatarUrl;
+  
+  const sizeClasses = size === "lg" 
+    ? "w-24 h-24" 
+    : "w-14 h-14";
+  
+  const iconSize = size === "lg" ? "h-10 w-10" : "h-7 w-7";
+  const overlayIconSize = size === "lg" ? "h-8 w-8" : "h-5 w-5";
 
   return (
     <div className="relative shrink-0">
@@ -155,7 +163,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate }: AvatarE
         <PopoverTrigger asChild>
           <button
             disabled={uploading}
-            className="relative w-14 h-14 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all group"
+            className={`relative ${sizeClasses} rounded-full overflow-hidden bg-primary/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all group`}
             aria-label="Edit profile photo"
           >
             {displayUrl ? (
@@ -168,12 +176,12 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate }: AvatarE
                 }}
               />
             ) : (
-              <User className="h-7 w-7 text-primary" />
+              <User className={`${iconSize} text-primary`} />
             )}
             
             {/* Overlay on hover/focus */}
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity">
-              <Camera className="h-5 w-5 text-white" />
+              <Camera className={`${overlayIconSize} text-white`} />
             </div>
 
             {uploading && (
