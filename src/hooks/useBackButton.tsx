@@ -31,23 +31,34 @@ export const useBackButton = () => {
         );
 
         if (openOverlay) {
-          // Find and click the close button, or press Escape to dismiss
-          const closeBtn = openOverlay.querySelector('[data-radix-collection-item]') as HTMLElement | null;
-          if (closeBtn) {
-            closeBtn.click();
-          } else {
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-          }
+          // Dispatch Escape directly on the overlay element so Radix intercepts it
+          const escEvent = new KeyboardEvent('keydown', {
+            key: 'Escape',
+            code: 'Escape',
+            keyCode: 27,
+            which: 27,
+            bubbles: true,
+            cancelable: true,
+          });
+          openOverlay.dispatchEvent(escEvent);
           return;
         }
 
-        // Also check for any generic overlay that Radix renders as a sibling
+        // Also check for overlay backdrop (rendered as sibling)
         const overlayBackdrop = document.querySelector(
           '[data-state="open"][data-radix-dialog-overlay], ' +
           '[data-state="open"][data-radix-alert-dialog-overlay]'
         );
         if (overlayBackdrop) {
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          const escEvent = new KeyboardEvent('keydown', {
+            key: 'Escape',
+            code: 'Escape',
+            keyCode: 27,
+            which: 27,
+            bubbles: true,
+            cancelable: true,
+          });
+          overlayBackdrop.dispatchEvent(escEvent);
           return;
         }
 
