@@ -344,7 +344,13 @@ function dilateEdges(edges: Uint8Array, width: number, height: number): Uint8Arr
   return result;
 }
 
-// ─── Contour finding ──────────────────────────────────────────────────────────
+// ─── Document rectangle detection (projection-profile approach) ───────────────
+// Instead of connected-component analysis (which fails because document edges
+// are 4 separate disconnected lines), we use projection profiles:
+// 1. Sum edge pixels per row → find strong horizontal edges (top/bottom)
+// 2. Sum edge pixels per column → find strong vertical edges (left/right)
+// 3. Form candidate rectangles from combinations of detected lines
+// 4. Score each rectangle by how well edges run along all 4 sides
 
 function findDocumentContour(
   edges: Uint8Array,
@@ -352,187 +358,187 @@ function findDocumentContour(
   height: number
 ): { bounds: CropBounds; confidence: number } | null {
   const imgArea = width * height;
-  const visited = new Uint8Array(imgArea);
-  const stack = new Int32Array(imgArea);
 
+  // --- Step 1: Build projection profiles ---
+  // Horizontal profile: for each row, count edge pixels
+  const hProfile = new Float32Array(height);
+  for (let y = 0; y < height; y++) {
+    let count = 0;
+    const row = y * width;
+    for (let x = 0; x < width; x++) {
+      if (edges[row + x] > 0) count++;
+    }
+    hProfile[y] = count / width; // normalize to 0-1
+  }
+
+  // Vertical profile: for each column, count edge pixels
+  const vProfile = new Float32Array(width);
+  for (let x = 0; x < width; x++) {
+    let count = 0;
+    for (let y = 0; y < height; y++) {
+      if (edges[y * width + x] > 0) count++;
+    }
+    vProfile[x] = count / height;
+  }
+
+  // --- Step 2: Find peaks (strong edge lines) ---
+  const minGap = Math.floor(Math.min(width, height) * 0.08);
+  const borderSkip = Math.max(5, Math.floor(Math.min(width, height) * 0.02));
+
+  const findPeaks = (profile: Float32Array, len: number, minSep: number, skip: number): number[] => {
+    // Compute a dynamic threshold: top 15% of values
+    const sorted = Array.from(profile).sort((a, b) => b - a);
+    const threshold = Math.max(0.03, sorted[Math.floor(len * 0.15)] * 0.7);
+
+    const peaks: { pos: number; val: number }[] = [];
+    for (let i = skip; i < len - skip; i++) {
+      const v = profile[i];
+      if (v < threshold) continue;
+      // Local maximum in a window
+      let isMax = true;
+      const halfWin = Math.max(3, Math.floor(minSep * 0.3));
+      for (let j = Math.max(skip, i - halfWin); j <= Math.min(len - 1 - skip, i + halfWin); j++) {
+        if (j !== i && profile[j] > v) { isMax = false; break; }
+      }
+      if (isMax) peaks.push({ pos: i, val: v });
+    }
+
+    // Sort by strength
+    peaks.sort((a, b) => b.val - a.val);
+
+    // Non-maximum suppression: keep only peaks that are far enough apart
+    const kept: number[] = [];
+    for (const p of peaks) {
+      let tooClose = false;
+      for (const k of kept) {
+        if (Math.abs(p.pos - k) < minSep) { tooClose = true; break; }
+      }
+      if (!tooClose) kept.push(p.pos);
+      if (kept.length >= 8) break; // enough candidates
+    }
+    return kept.sort((a, b) => a - b);
+  };
+
+  const hPeaks = findPeaks(hProfile, height, minGap, borderSkip); // candidate top/bottom rows
+  const vPeaks = findPeaks(vProfile, width, minGap, borderSkip);  // candidate left/right cols
+
+  if (hPeaks.length < 2 || vPeaks.length < 2) {
+    return null; // Can't form a rectangle
+  }
+
+  // --- Step 3: Form candidate rectangles and score them ---
   let best: { bounds: CropBounds; confidence: number; score: number } | null = null;
 
-  const borderMargin = Math.max(6, Math.round(Math.min(width, height) * 0.015));
+  for (let ti = 0; ti < hPeaks.length - 1; ti++) {
+    for (let bi = ti + 1; bi < hPeaks.length; bi++) {
+      const top = hPeaks[ti];
+      const bottom = hPeaks[bi];
+      const rectH = bottom - top;
+      if (rectH < height * 0.15) continue; // too thin
 
-  // Helpers
-  const computeCenterScore = (minX: number, minY: number, maxX: number, maxY: number) => {
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    const dx = cx - width / 2;
-    const dy = cy - height / 2;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const diag = Math.sqrt(width * width + height * height);
-    return clamp01(1 - dist / (diag * 0.50));
-  };
+      for (let li = 0; li < vPeaks.length - 1; li++) {
+        for (let ri = li + 1; ri < vPeaks.length; ri++) {
+          const left = vPeaks[li];
+          const right = vPeaks[ri];
+          const rectW = right - left;
+          if (rectW < width * 0.15) continue; // too narrow
 
-  const computeAreaScore = (areaRatio: number) => {
-    const mid = 0.45;
-    const halfSpan = 0.40;
-    return clamp01(1 - Math.abs(areaRatio - mid) / halfSpan);
-  };
+          const rectArea = rectW * rectH;
+          const areaRatio = rectArea / imgArea;
+          if (areaRatio < MIN_CONTOUR_AREA_RATIO || areaRatio > MAX_CONTOUR_AREA_RATIO) continue;
 
-  const computeAspectScore = (aspect: number) => {
-    // Common document ratios: A4(0.707/1.414), letter, ID cards(1.586), etc.
-    const targets = [0.63, 0.707, 1.0, 1.414, 1.586];
-    let bestRel = Infinity;
-    for (const t of targets) {
-      bestRel = Math.min(bestRel, Math.abs(aspect - t) / t);
-    }
-    return clamp01(1 - bestRel / 0.80);
-  };
+          const aspect = rectW / rectH;
+          if (aspect < 0.30 || aspect > 3.3) continue;
 
-  const computeSideCoverage = (bMinX: number, bMinY: number, bMaxX: number, bMaxY: number) => {
-    const band = 3;
-    const bboxW = bMaxX - bMinX + 1;
-    const bboxH = bMaxY - bMinY + 1;
-    const step = Math.max(2, Math.floor(Math.min(bboxW, bboxH) / 60));
+          // --- Step 4: Score this rectangle ---
+          // Check edge presence along each side using a sampling band
+          const band = 3;
+          const step = Math.max(2, Math.floor(Math.min(rectW, rectH) / 50));
 
-    const sampleHorizontal = (yBase: number) => {
-      let hits = 0, total = 0;
-      for (let x = bMinX; x <= bMaxX; x += step) {
-        total++;
-        for (let dy = -band; dy <= band; dy++) {
-          const y = yBase + dy;
-          if (y >= 0 && y < height && edges[y * width + x] > 0) { hits++; break; }
+          const sampleSide = (
+            x1: number, y1: number, x2: number, y2: number, samples: number
+          ): number => {
+            let hits = 0;
+            for (let s = 0; s <= samples; s++) {
+              const t = s / Math.max(1, samples);
+              const sx = Math.round(x1 + t * (x2 - x1));
+              const sy = Math.round(y1 + t * (y2 - y1));
+              let found = false;
+              for (let d = -band; d <= band && !found; d++) {
+                // For horizontal lines, check vertically; for vertical, horizontally
+                const isHorizontal = Math.abs(y2 - y1) < Math.abs(x2 - x1);
+                const cx = isHorizontal ? sx : sx + d;
+                const cy = isHorizontal ? sy + d : sy;
+                if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
+                  if (edges[cy * width + cx] > 0) found = true;
+                }
+              }
+              if (found) hits++;
+            }
+            return hits / Math.max(1, samples + 1);
+          };
+
+          const numSamples = Math.max(10, Math.floor(Math.max(rectW, rectH) / step));
+          const topEdge = sampleSide(left, top, right, top, numSamples);
+          const bottomEdge = sampleSide(left, bottom, right, bottom, numSamples);
+          const leftEdge = sampleSide(left, top, left, bottom, numSamples);
+          const rightEdge = sampleSide(right, top, right, bottom, numSamples);
+
+          const avgEdge = (topEdge + bottomEdge + leftEdge + rightEdge) / 4;
+          const strongSides = [topEdge, bottomEdge, leftEdge, rightEdge].filter(s => s >= 0.15).length;
+          if (strongSides < 2) continue;
+
+          // Center score
+          const cx = (left + right) / 2;
+          const cy = (top + bottom) / 2;
+          const dx = cx - width / 2;
+          const dy = cy - height / 2;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const diag = Math.sqrt(width * width + height * height);
+          const centerScore = clamp01(1 - dist / (diag * 0.45));
+
+          // Area score: prefer documents that fill a reasonable portion
+          const mid = 0.45;
+          const areaScore = clamp01(1 - Math.abs(areaRatio - mid) / 0.40);
+
+          // Aspect score: prefer common document ratios
+          const aspectTargets = [0.63, 0.707, 1.0, 1.414, 1.586];
+          let bestAspectDiff = Infinity;
+          for (const t of aspectTargets) {
+            bestAspectDiff = Math.min(bestAspectDiff, Math.abs(aspect - t) / t);
+          }
+          const aspectScore = clamp01(1 - bestAspectDiff / 0.80);
+
+          // Strong sides bonus
+          const sidesBonus = clamp01((strongSides - 2) / 2);
+
+          // Combined score
+          const score = clamp01(
+            avgEdge * 0.35 +
+            centerScore * 0.25 +
+            areaScore * 0.15 +
+            aspectScore * 0.10 +
+            sidesBonus * 0.15
+          );
+
+          const confidence = clamp01(score * 0.85 + (avgEdge > 0.3 ? 0.15 : avgEdge * 0.5));
+
+          if (!best || score > best.score) {
+            const bounds: CropBounds = {
+              topLeft: { x: left, y: top },
+              topRight: { x: right, y: top },
+              bottomLeft: { x: left, y: bottom },
+              bottomRight: { x: right, y: bottom },
+            };
+            best = { bounds, confidence, score };
+          }
         }
       }
-      return total ? hits / total : 0;
-    };
-
-    const sampleVertical = (xBase: number) => {
-      let hits = 0, total = 0;
-      for (let y = bMinY; y <= bMaxY; y += step) {
-        total++;
-        for (let dx = -band; dx <= band; dx++) {
-          const x = xBase + dx;
-          if (x >= 0 && x < width && edges[y * width + x] > 0) { hits++; break; }
-        }
-      }
-      return total ? hits / total : 0;
-    };
-
-    const top = sampleHorizontal(bMinY);
-    const bottom = sampleHorizontal(bMaxY);
-    const left = sampleVertical(bMinX);
-    const right = sampleVertical(bMaxX);
-    const overall = (top + bottom + left + right) / 4;
-    const strongSides = [top, bottom, left, right].filter(s => s >= 0.15).length;
-    return { overall, strongSides };
-  };
-
-  const computeBorderPenalty = (minX: number, minY: number, maxX: number, maxY: number) => {
-    // Instead of hard reject, compute how much the bbox touches the border → penalty.
-    let touching = 0;
-    if (minX <= borderMargin) touching++;
-    if (minY <= borderMargin) touching++;
-    if (maxX >= width - 1 - borderMargin) touching++;
-    if (maxY >= height - 1 - borderMargin) touching++;
-    // 0 sides touching = 1.0 (no penalty), 4 sides = 0.0 (full-frame = background)
-    if (touching >= 4) return 0; // full frame → definitely background
-    return clamp01(1 - touching * 0.30);
-  };
-
-  const neighbors = [-width - 1, -width, -width + 1, -1, 1, width - 1, width, width + 1];
-
-  for (let i = 0; i < imgArea; i++) {
-    if (edges[i] === 0 || visited[i]) continue;
-
-    let sp = 0;
-    stack[sp++] = i;
-    visited[i] = 1;
-
-    let count = 0;
-    let minX = width, maxX = 0, minY = height, maxY = 0;
-    let minSum = Infinity, maxSum = -Infinity, minDiff = Infinity, maxDiff = -Infinity;
-    let tl = { x: 0, y: 0 }, tr = { x: 0, y: 0 }, bl = { x: 0, y: 0 }, br = { x: 0, y: 0 };
-
-    while (sp > 0) {
-      const idx = stack[--sp];
-      const y = Math.floor(idx / width);
-      const x = idx - y * width;
-      count++;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-
-      const sum = x + y;
-      const diff = x - y;
-      if (sum < minSum) { minSum = sum; tl = { x, y }; }
-      if (sum > maxSum) { maxSum = sum; br = { x, y }; }
-      if (diff > maxDiff) { maxDiff = diff; tr = { x, y }; }
-      if (diff < minDiff) { minDiff = diff; bl = { x, y }; }
-
-      for (let k = 0; k < neighbors.length; k++) {
-        const n = idx + neighbors[k];
-        if (n < 0 || n >= imgArea) continue;
-        const ny = Math.floor(n / width);
-        const nx = n - ny * width;
-        if (Math.abs(nx - x) > 1 || Math.abs(ny - y) > 1) continue;
-        if (edges[n] === 0 || visited[n]) continue;
-        visited[n] = 1;
-        stack[sp++] = n;
-      }
-    }
-
-    const bboxW = maxX - minX;
-    const bboxH = maxY - minY;
-    if (bboxW < 40 || bboxH < 40) continue;
-
-    const bboxArea = bboxW * bboxH;
-    const bboxAreaRatio = bboxArea / imgArea;
-    if (bboxAreaRatio < MIN_CONTOUR_AREA_RATIO || bboxAreaRatio > MAX_CONTOUR_AREA_RATIO) continue;
-
-    const aspect = bboxW / bboxH;
-    if (aspect < 0.30 || aspect > 3.3) continue;
-
-    // Edge density: reject very "busy" regions (textures, patterns)
-    const rawEdgeDensity = count / Math.max(1, bboxArea);
-    if (rawEdgeDensity > 0.15) continue;
-
-    const bounds: CropBounds = { topLeft: tl, topRight: tr, bottomLeft: bl, bottomRight: br };
-    const area = quadArea(bounds);
-    const quadAreaRatio = area / imgArea;
-    if (quadAreaRatio < MIN_CONTOUR_AREA_RATIO * 0.8 || quadAreaRatio > MAX_CONTOUR_AREA_RATIO) continue;
-    const quadFill = clamp01(area / bboxArea);
-
-    // Border penalty (soft, not hard reject)
-    const borderPenalty = computeBorderPenalty(minX, minY, maxX, maxY);
-    if (borderPenalty === 0) continue; // 4 sides touching = full frame = skip
-
-    // Side coverage: edges along bounding box sides (rectangle-like shape)
-    const coverage = computeSideCoverage(minX, minY, maxX, maxY);
-    if (coverage.strongSides < 2) continue;
-
-    const centerScore = computeCenterScore(minX, minY, maxX, maxY);
-    const areaScore = computeAreaScore(bboxAreaRatio);
-    const aspectScore = computeAspectScore(aspect);
-    const edgeScore = clamp01(coverage.overall);
-
-    // Combined score
-    const rawScore =
-      edgeScore * 0.30 +
-      centerScore * 0.22 +
-      areaScore * 0.18 +
-      aspectScore * 0.10 +
-      quadFill * 0.10 +
-      borderPenalty * 0.10;
-
-    const score = clamp01(rawScore);
-    const confidence = clamp01(score * 0.80 + quadFill * 0.20);
-
-    if (!best || score > best.score) {
-      best = { bounds, confidence, score };
     }
   }
 
   if (!best) return null;
-  if (best.score < 0.25) return null;
+  if (best.score < 0.22) return null;
   return { bounds: best.bounds, confidence: best.confidence };
 }
 
