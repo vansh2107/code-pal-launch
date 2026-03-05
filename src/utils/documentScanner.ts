@@ -382,13 +382,16 @@ function findDocumentContour(
   }
 
   // --- Step 2: Find peaks (strong edge lines) ---
-  const minGap = Math.floor(Math.min(width, height) * 0.08);
-  const borderSkip = Math.max(5, Math.floor(Math.min(width, height) * 0.02));
-
-  const findPeaks = (profile: Float32Array, len: number, minSep: number, skip: number): number[] => {
-    // Compute a dynamic threshold: top 15% of values
+  // Use dimension-specific parameters so vertical docs aren't penalized
+  const findPeaks = (
+    profile: Float32Array,
+    len: number,
+    minSep: number,
+    skip: number
+  ): number[] => {
+    // Dynamic threshold: top 20% of values, but with a very low floor
     const sorted = Array.from(profile).sort((a, b) => b - a);
-    const threshold = Math.max(0.03, sorted[Math.floor(len * 0.15)] * 0.7);
+    const threshold = Math.max(0.012, sorted[Math.floor(len * 0.20)] * 0.6);
 
     const peaks: { pos: number; val: number }[] = [];
     for (let i = skip; i < len - skip; i++) {
@@ -396,17 +399,16 @@ function findDocumentContour(
       if (v < threshold) continue;
       // Local maximum in a window
       let isMax = true;
-      const halfWin = Math.max(3, Math.floor(minSep * 0.3));
+      const halfWin = Math.max(3, Math.floor(minSep * 0.25));
       for (let j = Math.max(skip, i - halfWin); j <= Math.min(len - 1 - skip, i + halfWin); j++) {
         if (j !== i && profile[j] > v) { isMax = false; break; }
       }
       if (isMax) peaks.push({ pos: i, val: v });
     }
 
-    // Sort by strength
     peaks.sort((a, b) => b.val - a.val);
 
-    // Non-maximum suppression: keep only peaks that are far enough apart
+    // Non-maximum suppression
     const kept: number[] = [];
     for (const p of peaks) {
       let tooClose = false;
@@ -414,13 +416,19 @@ function findDocumentContour(
         if (Math.abs(p.pos - k) < minSep) { tooClose = true; break; }
       }
       if (!tooClose) kept.push(p.pos);
-      if (kept.length >= 8) break; // enough candidates
+      if (kept.length >= 10) break;
     }
     return kept.sort((a, b) => a - b);
   };
 
-  const hPeaks = findPeaks(hProfile, height, minGap, borderSkip); // candidate top/bottom rows
-  const vPeaks = findPeaks(vProfile, width, minGap, borderSkip);  // candidate left/right cols
+  // Dimension-specific: borderSkip and minGap per axis
+  const hBorderSkip = Math.max(3, Math.floor(height * 0.01)); // very small — don't skip doc edges near frame top/bottom
+  const vBorderSkip = Math.max(3, Math.floor(width * 0.01));
+  const hMinGap = Math.floor(height * 0.06); // min doc height
+  const vMinGap = Math.floor(width * 0.06);  // min doc width
+
+  const hPeaks = findPeaks(hProfile, height, hMinGap, hBorderSkip);
+  const vPeaks = findPeaks(vProfile, width, vMinGap, vBorderSkip);
 
   if (hPeaks.length < 2 || vPeaks.length < 2) {
     return null; // Can't form a rectangle
@@ -452,8 +460,8 @@ function findDocumentContour(
 
           // --- Step 4: Score this rectangle ---
           // Check edge presence along each side using a sampling band
-          const band = 3;
-          const step = Math.max(2, Math.floor(Math.min(rectW, rectH) / 50));
+          const band = 5; // wider band to catch edges that aren't pixel-perfect
+          const step = Math.max(2, Math.floor(Math.min(rectW, rectH) / 60));
 
           const sampleSide = (
             x1: number, y1: number, x2: number, y2: number, samples: number
@@ -485,7 +493,7 @@ function findDocumentContour(
           const rightEdge = sampleSide(right, top, right, bottom, numSamples);
 
           const avgEdge = (topEdge + bottomEdge + leftEdge + rightEdge) / 4;
-          const strongSides = [topEdge, bottomEdge, leftEdge, rightEdge].filter(s => s >= 0.15).length;
+          const strongSides = [topEdge, bottomEdge, leftEdge, rightEdge].filter(s => s >= 0.12).length;
           if (strongSides < 2) continue;
 
           // Center score
@@ -502,7 +510,7 @@ function findDocumentContour(
           const areaScore = clamp01(1 - Math.abs(areaRatio - mid) / 0.40);
 
           // Aspect score: prefer common document ratios
-          const aspectTargets = [0.63, 0.707, 1.0, 1.414, 1.586];
+          const aspectTargets = [0.50, 0.63, 0.707, 1.0, 1.414, 1.586, 2.0];
           let bestAspectDiff = Infinity;
           for (const t of aspectTargets) {
             bestAspectDiff = Math.min(bestAspectDiff, Math.abs(aspect - t) / t);
