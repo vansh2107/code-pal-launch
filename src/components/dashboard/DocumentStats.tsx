@@ -2,6 +2,7 @@ import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useEffect, useRef, useState } from "react";
 
 interface DocumentStatsProps {
   total: number;
@@ -10,26 +11,109 @@ interface DocumentStatsProps {
   valid: number;
 }
 
+/**
+ * SVG-based rotating gradient border that works reliably on Android WebView.
+ * Uses SVG animateTransform (hardware-accelerated) instead of CSS background tricks.
+ */
+function RotatingBorderSVG({ colors, id }: { colors: [string, string]; id: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = containerRef.current?.parentElement;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setSize({ w: Math.ceil(width), h: Math.ceil(height) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const { w, h } = size;
+  if (w === 0 || h === 0) return <div ref={containerRef} className="absolute inset-0" />;
+
+  const borderWidth = 2.5;
+  const radius = 16; // matches rounded-2xl
+  // Diagonal = hypotenuse of the card, used to size the rotating gradient circle
+  const diagonal = Math.sqrt(w * w + h * h);
+
+  return (
+    <div ref={containerRef} className="absolute inset-0 pointer-events-none" aria-hidden="true">
+      <svg
+        width={w}
+        height={h}
+        viewBox={`0 0 ${w} ${h}`}
+        className="absolute inset-0"
+        style={{ overflow: "visible" }}
+      >
+        <defs>
+          {/* Rotating gradient defined as a radial split — two semicircles */}
+          <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={colors[0]} />
+            <stop offset="50%" stopColor={colors[1]} />
+            <stop offset="100%" stopColor={colors[0]} />
+          </linearGradient>
+
+          {/* Clip to the border ring shape (outer rect minus inner rect) */}
+          <mask id={`mask-${id}`}>
+            <rect x="0" y="0" width={w} height={h} rx={radius} ry={radius} fill="white" />
+            <rect
+              x={borderWidth}
+              y={borderWidth}
+              width={w - borderWidth * 2}
+              height={h - borderWidth * 2}
+              rx={radius - borderWidth}
+              ry={radius - borderWidth}
+              fill="black"
+            />
+          </mask>
+        </defs>
+
+        {/* Rotating gradient rectangle, masked to only show the border ring */}
+        <g mask={`url(#mask-${id})`}>
+          <rect
+            x={w / 2 - diagonal / 2}
+            y={h / 2 - diagonal / 2}
+            width={diagonal}
+            height={diagonal}
+            fill={`url(#grad-${id})`}
+            style={{ transformOrigin: `${w / 2}px ${h / 2}px` }}
+          >
+            <animateTransform
+              attributeName="transform"
+              type="rotate"
+              from={`0 ${w / 2} ${h / 2}`}
+              to={`360 ${w / 2} ${h / 2}`}
+              dur="4s"
+              repeatCount="indefinite"
+            />
+          </rect>
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 function GradientBorderCard({
   children,
   className,
   onClick,
-  gradientStyle,
+  gradientColors,
+  cardId,
 }: {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
-  gradientStyle?: React.CSSProperties;
+  gradientColors: [string, string];
+  cardId: string;
 }) {
   return (
     <div
-      className="relative rounded-2xl p-[2px] cursor-pointer overflow-hidden"
+      className="relative rounded-2xl cursor-pointer"
       onClick={onClick}
     >
-      <div
-        className="absolute animate-gradient-rotate rounded-2xl"
-        style={gradientStyle}
-      />
+      <RotatingBorderSVG colors={gradientColors} id={cardId} />
       <div
         className={cn(
           "relative rounded-2xl border-0 bg-card text-card-foreground shadow-sm smooth card-hover w-full",
@@ -52,7 +136,8 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
   return (
     <div className="grid grid-cols-2 gap-3">
       <GradientBorderCard
-        gradientStyle={{ background: 'conic-gradient(hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))' }}
+        cardId="total"
+        gradientColors={["hsl(35,100%,51%)", "hsl(35,100%,60%)"]}
         onClick={() => handleCardClick('all')}
       >
         <CardHeader className="pb-2">
@@ -67,8 +152,9 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
       </GradientBorderCard>
 
       <GradientBorderCard
+        cardId="valid"
         className="bg-valid-bg"
-        gradientStyle={{ background: 'conic-gradient(hsl(var(--valid)), hsl(122, 70%, 55%), hsl(var(--valid)), hsl(122, 70%, 55%), hsl(var(--valid)))' }}
+        gradientColors={["hsl(122,46%,34%)", "hsl(122,70%,55%)"]}
         onClick={() => handleCardClick('valid')}
       >
         <CardHeader className="pb-2">
@@ -83,8 +169,9 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
       </GradientBorderCard>
 
       <GradientBorderCard
+        cardId="expiring"
         className="bg-expiring-bg"
-        gradientStyle={{ background: 'conic-gradient(hsl(var(--expiring)), hsl(45, 100%, 55%), hsl(var(--expiring)), hsl(45, 100%, 55%), hsl(var(--expiring)))' }}
+        gradientColors={["hsl(45,100%,33%)", "hsl(45,100%,55%)"]}
         onClick={() => handleCardClick('expiring')}
       >
         <CardHeader className="pb-2">
@@ -99,8 +186,9 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
       </GradientBorderCard>
 
       <GradientBorderCard
+        cardId="expired"
         className="bg-expired-bg"
-        gradientStyle={{ background: 'conic-gradient(hsl(var(--expired)), hsl(0, 80%, 70%), hsl(var(--expired)), hsl(0, 80%, 70%), hsl(var(--expired)))' }}
+        gradientColors={["hsl(0,65%,56%)", "hsl(0,80%,70%)"]}
         onClick={() => handleCardClick('expired')}
       >
         <CardHeader className="pb-2">

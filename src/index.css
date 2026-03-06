@@ -241,24 +241,7 @@ All colors MUST be HSL.
   }
 }
 
-/* Rotating gradient border */
-@keyframes gradient-rotate {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.animate-gradient-rotate {
-  animation: gradient-rotate 4s linear infinite;
-  transform-origin: center;
-  position: absolute;
-  width: 200%;
-  height: 200%;
-  top: -50%;
-  left: -50%;
-  will-change: transform;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-}
+/* Old gradient-rotate animation removed — now using SVG animateTransform */
 
 /* International Phone Input Styles */
 .international-phone-input .PhoneInput {
