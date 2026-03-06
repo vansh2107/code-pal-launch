@@ -56,10 +56,17 @@ export function useDocVaultDocuments(userId: string | undefined) {
     }
   }, [documents]);
 
-  // Frequently used documents (top 5 by access count)
+  // Frequently used documents: opened 3+ times within the last 3 days
   const frequentlyUsedDocuments = useMemo(() => {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
     return documents
-      .filter((doc) => (doc.access_count || 0) > 0)
+      .filter((doc) => {
+        const count = doc.access_count || 0;
+        const lastAccess = doc.last_accessed_at ? new Date(doc.last_accessed_at) : null;
+        return count >= 3 && lastAccess && lastAccess >= threeDaysAgo;
+      })
       .sort((a, b) => (b.access_count || 0) - (a.access_count || 0))
       .slice(0, 5);
   }, [documents]);
