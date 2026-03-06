@@ -14,21 +14,22 @@ function GradientBorderCard({
   children,
   className,
   onClick,
-  borderColorClass,
+  gradientStyle,
 }: {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
-  borderColorClass?: string;
+  gradientStyle?: React.CSSProperties;
 }) {
   return (
     <div
-      className={cn(
-        "relative rounded-2xl p-[2px] cursor-pointer overflow-hidden",
-        borderColorClass
-      )}
+      className="relative rounded-2xl p-[2px] cursor-pointer overflow-hidden"
       onClick={onClick}
     >
+      <div
+        className="absolute animate-gradient-rotate rounded-2xl"
+        style={gradientStyle}
+      />
       <div
         className={cn(
           "relative rounded-2xl border-0 bg-card text-card-foreground shadow-sm smooth card-hover w-full",
@@ -51,7 +52,7 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
   return (
     <div className="grid grid-cols-2 gap-3">
       <GradientBorderCard
-        borderColorClass="bg-gradient-to-br from-primary via-accent to-primary"
+        gradientStyle={{ background: 'conic-gradient(hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))' }}
         onClick={() => handleCardClick('all')}
       >
         <CardHeader className="pb-2">
@@ -67,7 +68,7 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
 
       <GradientBorderCard
         className="bg-valid-bg"
-        borderColorClass="bg-gradient-to-br from-valid via-green-400 to-valid"
+        gradientStyle={{ background: 'conic-gradient(hsl(var(--valid)), hsl(122, 70%, 55%), hsl(var(--valid)), hsl(122, 70%, 55%), hsl(var(--valid)))' }}
         onClick={() => handleCardClick('valid')}
       >
         <CardHeader className="pb-2">
@@ -83,7 +84,7 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
 
       <GradientBorderCard
         className="bg-expiring-bg"
-        borderColorClass="bg-gradient-to-br from-expiring via-yellow-400 to-expiring"
+        gradientStyle={{ background: 'conic-gradient(hsl(var(--expiring)), hsl(45, 100%, 55%), hsl(var(--expiring)), hsl(45, 100%, 55%), hsl(var(--expiring)))' }}
         onClick={() => handleCardClick('expiring')}
       >
         <CardHeader className="pb-2">
@@ -99,7 +100,7 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
 
       <GradientBorderCard
         className="bg-expired-bg"
-        borderColorClass="bg-gradient-to-br from-expired via-red-400 to-expired"
+        gradientStyle={{ background: 'conic-gradient(hsl(var(--expired)), hsl(0, 80%, 70%), hsl(var(--expired)), hsl(0, 80%, 70%), hsl(var(--expired)))' }}
         onClick={() => handleCardClick('expired')}
       >
         <CardHeader className="pb-2">
