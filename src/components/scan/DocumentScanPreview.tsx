@@ -5,6 +5,7 @@ import { Loader2, Check, RotateCcw, Palette, Crop, AlertTriangle, ShieldCheck } 
 import { scanDocument, ScanFilter, ScanResult, CropBounds } from "@/utils/documentScanner";
 import { ManualCropOverlay } from "./ManualCropOverlay";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DocumentScanPreviewProps {
   imageSource: string | File;
@@ -21,6 +22,59 @@ const FILTER_OPTIONS: { value: ScanFilter; label: string; icon: string }[] = [
 
 // Minimum confidence required for auto-crop to be accepted
 const MIN_AUTO_CROP_CONFIDENCE = 0.35;
+
+/**
+ * Use AI vision (Gemini) to detect document boundaries.
+ * Returns CropBounds in original image pixel coordinates, or null.
+ */
+async function detectBoundsWithAI(imageDataUrl: string): Promise<CropBounds | null> {
+  try {
+    // Get image dimensions
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = imageDataUrl;
+    });
+
+    // Downscale for the AI call to reduce payload size, but return coords in original space
+    const MAX_AI_DIM = 1200;
+    const scale = Math.min(1, MAX_AI_DIM / Math.max(img.width, img.height));
+    const sendW = Math.round(img.width * scale);
+    const sendH = Math.round(img.height * scale);
+
+    let sendDataUrl = imageDataUrl;
+    if (scale < 1) {
+      const c = document.createElement('canvas');
+      c.width = sendW;
+      c.height = sendH;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, sendW, sendH);
+      sendDataUrl = c.toDataURL('image/jpeg', 0.85);
+    }
+
+    const { data, error } = await supabase.functions.invoke('detect-document-bounds', {
+      body: { imageBase64: sendDataUrl, width: sendW, height: sendH },
+    });
+
+    if (error || !data?.success || !data?.found) {
+      return null;
+    }
+
+    const b = data.bounds;
+    // Scale coordinates back to original image size
+    const invScale = 1 / scale;
+    return {
+      topLeft: { x: b.topLeft.x * invScale, y: b.topLeft.y * invScale },
+      topRight: { x: b.topRight.x * invScale, y: b.topRight.y * invScale },
+      bottomLeft: { x: b.bottomLeft.x * invScale, y: b.bottomLeft.y * invScale },
+      bottomRight: { x: b.bottomRight.x * invScale, y: b.bottomRight.y * invScale },
+    };
+  } catch (err) {
+    console.warn('AI document detection failed, falling back to local:', err);
+    return null;
+  }
+}
 
 export function DocumentScanPreview({
   imageSource,
@@ -62,39 +116,82 @@ export function DocumentScanPreview({
       
       try {
         // Store original for crop adjustment
+        let originalDataUrl: string;
         if (typeof imageSource === 'string') {
+          originalDataUrl = imageSource;
           originalImageRef.current = imageSource;
+        } else {
+          // Convert File to data URL
+          originalDataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(imageSource);
+          });
+          originalImageRef.current = originalDataUrl;
         }
 
-        // Process with auto-crop and enhancement
-        const result = await scanDocument(imageSource, {
-          filter: 'color',
-          enhanceContrast: true,
-          sharpen: true,
-          removeShadows: true,
-          autoCrop: true,
-          maxWidth: 1200,
-        });
-        
-        const endTime = performance.now();
-        
-        if (mounted) {
-          setScanResult(result);
-          setDisplayImage(result.processedImage);
-          originalImageRef.current = result.originalImage;
-          setCurrentFilter('color');
-          setProcessingTime(Math.round(endTime - startTime));
-          setCropConfidence(result.confidence);
-          setCropBounds(result.cropBounds ?? null);
-          
-          // Check if auto-crop was successful and confident
-          if (result.autoCropApplied && result.confidence >= MIN_AUTO_CROP_CONFIDENCE) {
+        // === Try AI-powered detection first ===
+        let aiBounds: CropBounds | null = null;
+        try {
+          aiBounds = await detectBoundsWithAI(originalDataUrl);
+        } catch {
+          // AI failed — will fall back to local
+        }
+
+        if (aiBounds) {
+          // AI detected boundaries — use them directly
+          const result = await scanDocument(imageSource, {
+            filter: 'color',
+            enhanceContrast: true,
+            sharpen: true,
+            removeShadows: true,
+            autoCrop: false,
+            maxWidth: 1200,
+            cropBounds: aiBounds,
+          });
+
+          const endTime = performance.now();
+          if (mounted) {
+            setScanResult(result);
+            setDisplayImage(result.processedImage);
+            originalImageRef.current = result.originalImage;
+            setCurrentFilter('color');
+            setProcessingTime(Math.round(endTime - startTime));
+            setCropConfidence(0.95); // AI detection = high confidence
+            setCropBounds(aiBounds);
             setCropApplied(true);
             setRequiresManualCrop(false);
-          } else {
-            // Auto-crop failed or low confidence - require manual crop
-            setCropApplied(false);
-            setRequiresManualCrop(true);
+          }
+        } else {
+          // === Fallback: local edge detection ===
+          const result = await scanDocument(imageSource, {
+            filter: 'color',
+            enhanceContrast: true,
+            sharpen: true,
+            removeShadows: true,
+            autoCrop: true,
+            maxWidth: 1200,
+          });
+          
+          const endTime = performance.now();
+          
+          if (mounted) {
+            setScanResult(result);
+            setDisplayImage(result.processedImage);
+            originalImageRef.current = result.originalImage;
+            setCurrentFilter('color');
+            setProcessingTime(Math.round(endTime - startTime));
+            setCropConfidence(result.confidence);
+            setCropBounds(result.cropBounds ?? null);
+            
+            if (result.autoCropApplied && result.confidence >= MIN_AUTO_CROP_CONFIDENCE) {
+              setCropApplied(true);
+              setRequiresManualCrop(false);
+            } else {
+              setCropApplied(false);
+              setRequiresManualCrop(true);
+            }
           }
         }
       } catch (err) {
