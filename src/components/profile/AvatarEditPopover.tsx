@@ -68,7 +68,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
 
       const { error: uploadError } = await supabase.storage
         .from('document-images')
-        .upload(storagePath, file, { 
+        .upload(storagePath, croppedFile, { 
           cacheControl: '3600',
           upsert: true 
         });
