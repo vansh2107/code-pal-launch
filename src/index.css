@@ -241,6 +241,27 @@ All colors MUST be HSL.
   }
 }
 
+/* Rotating gradient border */
+@keyframes gradient-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.animate-gradient-rotate {
+  background: conic-gradient(
+    hsl(var(--primary)),
+    hsl(var(--valid)),
+    hsl(var(--expiring)),
+    hsl(var(--expired)),
+    hsl(var(--primary))
+  );
+  animation: gradient-rotate 4s linear infinite;
+  transform-origin: center;
+  /* Scale up so corners stay covered during rotation */
+  inset: -50%;
+  position: absolute;
+}
+
 /* International Phone Input Styles */
 .international-phone-input .PhoneInput {
   @apply w-full flex items-center gap-2;
