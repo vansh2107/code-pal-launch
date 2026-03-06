@@ -21,51 +21,92 @@ export const useBackButton = () => {
 
     const setupListener = async () => {
       listenerHandle = await App.addListener('backButton', () => {
-        // 1. Try to close any open Radix overlay (dialog, sheet, alert-dialog, popover, dropdown, drawer)
-        const openOverlay = document.querySelector(
-          '[data-state="open"][role="dialog"], ' +
-          '[data-state="open"][role="alertdialog"], ' +
-          'div[data-state="open"][data-radix-popper-content-wrapper], ' +
-          '[vaul-drawer][data-state="open"], ' +
-          '[data-radix-menu-content][data-state="open"]'
-        );
+        // Strategy 1: Find any open Radix/Vaul overlay and close it
+        // We use multiple selector strategies to catch all overlay types
 
-        if (openOverlay) {
-          // Dispatch Escape directly on the overlay element so Radix intercepts it
-          const escEvent = new KeyboardEvent('keydown', {
-            key: 'Escape',
-            code: 'Escape',
-            keyCode: 27,
-            which: 27,
-            bubbles: true,
-            cancelable: true,
-          });
-          openOverlay.dispatchEvent(escEvent);
+        // Radix dialogs, sheets, alert-dialogs
+        const selectors = [
+          '[role="dialog"][data-state="open"]',
+          '[role="alertdialog"][data-state="open"]',
+          '[vaul-drawer][data-state="open"]',
+          '[data-radix-menu-content][data-state="open"]',
+          '[data-radix-popper-content-wrapper] [data-state="open"]',
+          // Sonner toasts
+          '[data-sonner-toast]',
+        ];
+
+        let closedOverlay = false;
+
+        for (const selector of selectors) {
+          const overlay = document.querySelector(selector);
+          if (overlay) {
+            // Try dispatching Escape on the overlay itself
+            const escEvent = new KeyboardEvent('keydown', {
+              key: 'Escape',
+              code: 'Escape',
+              keyCode: 27,
+              which: 27,
+              bubbles: true,
+              cancelable: true,
+            });
+            overlay.dispatchEvent(escEvent);
+            closedOverlay = true;
+            break;
+          }
+        }
+
+        if (closedOverlay) {
+          // Double-check: if overlay is still there after a tick, try clicking the close button
+          setTimeout(() => {
+            const stillOpen = document.querySelector(
+              '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [vaul-drawer][data-state="open"]'
+            );
+            if (stillOpen) {
+              // Try finding a close button inside the overlay
+              const closeBtn = stillOpen.querySelector(
+                'button[data-radix-dialog-close], button[aria-label="Close"], [data-dismiss]'
+              ) as HTMLElement | null;
+              if (closeBtn) {
+                closeBtn.click();
+              } else {
+                // Try clicking the overlay backdrop to close
+                const backdrop = document.querySelector(
+                  '[data-radix-dialog-overlay][data-state="open"], [vaul-overlay][data-state="open"]'
+                ) as HTMLElement | null;
+                if (backdrop) backdrop.click();
+              }
+            }
+          }, 50);
           return;
         }
 
-        // Also check for overlay backdrop (rendered as sibling)
-        const overlayBackdrop = document.querySelector(
-          '[data-state="open"][data-radix-dialog-overlay], ' +
-          '[data-state="open"][data-radix-alert-dialog-overlay]'
-        );
-        if (overlayBackdrop) {
-          const escEvent = new KeyboardEvent('keydown', {
-            key: 'Escape',
-            code: 'Escape',
-            keyCode: 27,
-            which: 27,
-            bubbles: true,
-            cancelable: true,
-          });
-          overlayBackdrop.dispatchEvent(escEvent);
+        // Strategy 2: Check for any overlay/backdrop that might be open
+        const backdrop = document.querySelector(
+          '[data-radix-dialog-overlay][data-state="open"], [data-radix-alert-dialog-overlay][data-state="open"], [vaul-overlay][data-state="open"]'
+        ) as HTMLElement | null;
+        if (backdrop) {
+          backdrop.click();
           return;
         }
 
+        // Strategy 3: Check for any element with data-state="open" that looks like a popup
+        const anyOpen = document.querySelector(
+          '[data-state="open"][class*="fixed"], [data-state="open"][class*="absolute"]'
+        );
+        if (anyOpen) {
+          const esc = new KeyboardEvent('keydown', {
+            key: 'Escape', code: 'Escape', keyCode: 27, which: 27,
+            bubbles: true, cancelable: true,
+          });
+          document.dispatchEvent(esc);
+          return;
+        }
+
+        // No overlay open — handle navigation
         const currentPath = window.location.pathname;
 
         // Root page exits the app
-        if (currentPath === '/') {
+        if (currentPath === '/' || currentPath === '/dashboard') {
           App.exitApp();
           return;
         }
