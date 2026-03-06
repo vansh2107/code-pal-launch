@@ -48,12 +48,15 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
     setOpen(false);
 
     try {
-      // Create preview immediately
+      // Auto-crop the image to remove background edges
+      const croppedFile = await autoCropImage(file, { tolerance: 30, minCropPercent: 5 });
+
+      // Create preview from cropped image
       const reader = new FileReader();
       reader.onload = (event) => {
         setPreview(event.target?.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(croppedFile);
 
       // Determine file extension
       const ext = fileName?.split('.').pop()?.toLowerCase() || 
