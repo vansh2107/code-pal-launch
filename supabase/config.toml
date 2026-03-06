@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.document-reminder-scheduler]
 verify_jwt = false
+
+[functions.detect-document-bounds]
+verify_jwt = true
