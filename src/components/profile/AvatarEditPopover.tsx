@@ -5,6 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
+import { autoCropImage } from "@/utils/imageCrop";
 
 interface AvatarEditPopoverProps {
   userId: string;
@@ -47,12 +48,15 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
     setOpen(false);
 
     try {
-      // Create preview immediately
+      // Auto-crop the image to remove background edges
+      const croppedFile = await autoCropImage(file, { tolerance: 30, minCropPercent: 5 });
+
+      // Create preview from cropped image
       const reader = new FileReader();
       reader.onload = (event) => {
         setPreview(event.target?.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(croppedFile);
 
       // Determine file extension
       const ext = fileName?.split('.').pop()?.toLowerCase() || 
@@ -64,7 +68,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
 
       const { error: uploadError } = await supabase.storage
         .from('document-images')
-        .upload(storagePath, file, { 
+        .upload(storagePath, croppedFile, { 
           cacheControl: '3600',
           upsert: true 
         });
