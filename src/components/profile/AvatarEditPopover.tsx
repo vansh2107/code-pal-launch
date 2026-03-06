@@ -5,6 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
+import { autoCropImage } from "@/utils/imageCrop";
 
 interface AvatarEditPopoverProps {
   userId: string;
