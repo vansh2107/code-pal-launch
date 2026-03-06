@@ -14,17 +14,21 @@ function GradientBorderCard({
   children,
   className,
   onClick,
+  borderColorClass,
 }: {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
+  borderColorClass?: string;
 }) {
   return (
     <div
-      className="relative rounded-2xl p-[2px] cursor-pointer overflow-hidden"
+      className={cn(
+        "relative rounded-2xl p-[2px] cursor-pointer overflow-hidden",
+        borderColorClass
+      )}
       onClick={onClick}
     >
-      <div className="absolute inset-0 animate-gradient-rotate rounded-2xl" />
       <div
         className={cn(
           "relative rounded-2xl border-0 bg-card text-card-foreground shadow-sm smooth card-hover w-full",
@@ -46,7 +50,10 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      <GradientBorderCard onClick={() => handleCardClick('all')}>
+      <GradientBorderCard
+        borderColorClass="bg-gradient-to-br from-primary via-accent to-primary"
+        onClick={() => handleCardClick('all')}
+      >
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
@@ -60,6 +67,7 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
 
       <GradientBorderCard
         className="bg-valid-bg"
+        borderColorClass="bg-gradient-to-br from-valid via-green-400 to-valid"
         onClick={() => handleCardClick('valid')}
       >
         <CardHeader className="pb-2">
@@ -75,6 +83,7 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
 
       <GradientBorderCard
         className="bg-expiring-bg"
+        borderColorClass="bg-gradient-to-br from-expiring via-yellow-400 to-expiring"
         onClick={() => handleCardClick('expiring')}
       >
         <CardHeader className="pb-2">
@@ -90,6 +99,7 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: DocumentS
 
       <GradientBorderCard
         className="bg-expired-bg"
+        borderColorClass="bg-gradient-to-br from-expired via-red-400 to-expired"
         onClick={() => handleCardClick('expired')}
       >
         <CardHeader className="pb-2">
