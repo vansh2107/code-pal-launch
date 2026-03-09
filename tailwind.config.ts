@@ -133,6 +133,7 @@ export default {
         "slide-up": "slide-up 0.4s ease-out",
         "shimmer": "shimmer 2s linear infinite",
         "float": "float 3s ease-in-out infinite",
+        "spin-slow": "spin 3s linear infinite",
       },
     },
   },
