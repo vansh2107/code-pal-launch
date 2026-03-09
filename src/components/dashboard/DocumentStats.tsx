@@ -29,14 +29,14 @@ function RotatingBorderCard({
         <div
           className="w-full h-full animate-spin-slow"
           style={{
-            background: `conic-gradient(from 0deg, ${gradientColors[0]}, ${gradientColors[1]}, transparent, ${gradientColors[0]})`,
+            background: `conic-gradient(from 0deg, ${gradientColors[0]}, ${gradientColors[1]}, ${gradientColors[0]})`,
           }}
         />
       </div>
-      {/* Inner card */}
+      {/* Inner card — z-10 + isolate to guarantee it covers the gradient fully */}
       <div
         className={cn(
-          "relative bg-card text-card-foreground shadow-sm smooth card-hover w-full",
+          "relative z-10 bg-card text-card-foreground shadow-sm smooth card-hover w-full",
           className
         )}
         style={{ borderRadius: BORDER_RADIUS - BORDER_WIDTH }}
