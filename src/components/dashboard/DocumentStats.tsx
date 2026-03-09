@@ -6,6 +6,12 @@ import { cn } from "@/lib/utils";
 const BORDER_WIDTH = 3;
 const BORDER_RADIUS = 16;
 
+/**
+ * Uses an oversized rotating gradient square behind a clipped container.
+ * The outer div clips to rounded-rect, the gradient square rotates inside,
+ * and the inner card sits on top with inset = BORDER_WIDTH.
+ * This avoids @property (unsupported in Android WebView) and SVG masks.
+ */
 function GradientBorderCard({
   children,
   className,
@@ -17,24 +23,34 @@ function GradientBorderCard({
   onClick?: () => void;
   gradientColors: [string, string];
 }) {
+  // The rotating square needs to be large enough to cover the container at any angle
+  // 200% of container size ensures full coverage during rotation
   return (
     <div
-      className="relative cursor-pointer"
+      className="relative cursor-pointer overflow-hidden"
       onClick={onClick}
-      style={{
-        padding: BORDER_WIDTH,
-        borderRadius: BORDER_RADIUS,
-        background: `linear-gradient(var(--rotating-angle, 0deg), ${gradientColors[0]}, ${gradientColors[1]}, ${gradientColors[0]})`,
-        animation: "rotate-border 3s linear infinite",
-      }}
+      style={{ borderRadius: BORDER_RADIUS }}
     >
+      {/* Rotating gradient layer */}
+      <div
+        className="absolute inset-0 animate-spin-slow"
+        style={{
+          background: `conic-gradient(from 0deg, ${gradientColors[0]}, ${gradientColors[1]}, ${gradientColors[0]})`,
+          // Scale up so corners aren't visible during rotation
+          transform: "scale(1.5)",
+        }}
+      />
+      {/* Inner card content */}
       <div
         className={cn(
-          "bg-card text-card-foreground shadow-sm smooth card-hover w-full",
+          "relative bg-card text-card-foreground shadow-sm smooth card-hover w-full",
           className
         )}
         style={{
+          margin: BORDER_WIDTH,
           borderRadius: BORDER_RADIUS - BORDER_WIDTH,
+          // Compensate for margin taking space
+          width: `calc(100% - ${BORDER_WIDTH * 2}px)`,
         }}
       >
         {children}
