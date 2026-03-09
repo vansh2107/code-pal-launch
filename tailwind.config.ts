@@ -122,6 +122,10 @@ export default {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-10px)" },
         },
+        "border-glow": {
+          "0%, 100%": { boxShadow: "0 0 8px 1px var(--glow-color, hsl(35,100%,51%))" },
+          "50%": { boxShadow: "0 0 16px 3px var(--glow-color, hsl(35,100%,51%))" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.3s ease-out",
@@ -134,6 +138,7 @@ export default {
         "shimmer": "shimmer 2s linear infinite",
         "float": "float 3s ease-in-out infinite",
         "spin-slow": "spin 3s linear infinite",
+        "border-glow": "border-glow 2s ease-in-out infinite",
       },
     },
   },
