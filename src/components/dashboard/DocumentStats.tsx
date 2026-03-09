@@ -61,9 +61,8 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      <GlowBorderCard
-        borderColor="hsl(35,100%,51%)"
-        glowColor="hsl(35,100%,51%)"
+      <RotatingBorderCard
+        gradientColors={["hsl(35,100%,51%)", "hsl(35,100%,60%)"]}
         onClick={() => handleCardClick('all')}
       >
         <CardHeader className="pb-2">
@@ -75,12 +74,11 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
         <CardContent>
           <div className="text-2xl font-bold text-foreground">{total}</div>
         </CardContent>
-      </GlowBorderCard>
+      </RotatingBorderCard>
 
-      <GlowBorderCard
+      <RotatingBorderCard
         className="bg-valid-bg"
-        borderColor="hsl(122,46%,34%)"
-        glowColor="hsl(122,50%,45%)"
+        gradientColors={["hsl(122,46%,34%)", "hsl(122,70%,55%)"]}
         onClick={() => handleCardClick('valid')}
       >
         <CardHeader className="pb-2">
@@ -92,12 +90,11 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
         <CardContent>
           <div className="text-2xl font-bold text-valid-foreground">{valid}</div>
         </CardContent>
-      </GlowBorderCard>
+      </RotatingBorderCard>
 
-      <GlowBorderCard
+      <RotatingBorderCard
         className="bg-expiring-bg"
-        borderColor="hsl(45,100%,33%)"
-        glowColor="hsl(45,100%,45%)"
+        gradientColors={["hsl(45,100%,33%)", "hsl(45,100%,55%)"]}
         onClick={() => handleCardClick('expiring')}
       >
         <CardHeader className="pb-2">
@@ -109,12 +106,11 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
         <CardContent>
           <div className="text-2xl font-bold text-expiring-foreground">{expiringSoon}</div>
         </CardContent>
-      </GlowBorderCard>
+      </RotatingBorderCard>
 
-      <GlowBorderCard
+      <RotatingBorderCard
         className="bg-expired-bg"
-        borderColor="hsl(0,65%,56%)"
-        glowColor="hsl(0,65%,56%)"
+        gradientColors={["hsl(0,65%,56%)", "hsl(0,80%,70%)"]}
         onClick={() => handleCardClick('expired')}
       >
         <CardHeader className="pb-2">
@@ -126,7 +122,7 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
         <CardContent>
           <div className="text-2xl font-bold text-expired-foreground">{expired}</div>
         </CardContent>
-      </GlowBorderCard>
+      </RotatingBorderCard>
     </div>
   );
 }
