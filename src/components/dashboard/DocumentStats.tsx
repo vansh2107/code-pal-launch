@@ -19,27 +19,46 @@ function RotatingBorderCard({
 }) {
   return (
     <div
-      className="relative cursor-pointer overflow-hidden"
+      className="relative cursor-pointer"
       onClick={onClick}
-      style={{ borderRadius: BORDER_RADIUS, padding: BORDER_WIDTH }}
+      style={{
+        borderRadius: BORDER_RADIUS,
+        padding: BORDER_WIDTH,
+        isolation: "isolate",
+      }}
     >
-      {/* Scale wrapper (no animation) */}
-      <div className="absolute inset-[-50%] w-[200%] h-[200%]">
-        {/* Rotation child */}
-        <div
-          className="w-full h-full animate-spin-slow"
-          style={{
-            background: `conic-gradient(from 0deg, ${gradientColors[0]}, ${gradientColors[1]}, transparent, ${gradientColors[0]})`,
-          }}
-        />
+      {/* Rotating gradient layer - clipped to outer shape */}
+      <div
+        className="absolute inset-0 overflow-hidden"
+        style={{
+          borderRadius: BORDER_RADIUS,
+          zIndex: 0,
+        }}
+      >
+        <div className="absolute inset-[-50%] w-[200%] h-[200%]">
+          <div
+            className="w-full h-full animate-spin-slow"
+            style={{
+              background: `conic-gradient(from 0deg, ${gradientColors[0]}, ${gradientColors[1]}, transparent, ${gradientColors[0]})`,
+              willChange: "transform",
+              backfaceVisibility: "hidden",
+            }}
+          />
+        </div>
       </div>
-      {/* Inner card */}
+      {/* Inner card - fully opaque, covers gradient except border area */}
       <div
         className={cn(
-          "relative bg-card text-card-foreground shadow-sm smooth card-hover w-full",
+          "relative text-card-foreground shadow-sm smooth card-hover w-full",
           className
         )}
-        style={{ borderRadius: BORDER_RADIUS - BORDER_WIDTH }}
+        style={{
+          borderRadius: BORDER_RADIUS - BORDER_WIDTH,
+          zIndex: 1,
+          backgroundColor: className?.includes("bg-") ? undefined : "hsl(0 0% 100%)",
+          backfaceVisibility: "hidden",
+          transform: "translateZ(0)",
+        }}
       >
         {children}
       </div>
