@@ -3,58 +3,32 @@ import { FileText, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
-const BORDER_WIDTH = 3;
-const BORDER_RADIUS = 16;
-
-/**
- * Uses an oversized rotating gradient square behind a clipped container.
- * The outer div clips to rounded-rect, the gradient square rotates inside,
- * and the inner card sits on top with inset = BORDER_WIDTH.
- * This avoids @property (unsupported in Android WebView) and SVG masks.
- */
-function GradientBorderCard({
+function GlowBorderCard({
   children,
   className,
   onClick,
-  gradientColors,
+  borderColor,
+  glowColor,
 }: {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
-  gradientColors: [string, string];
+  borderColor: string;
+  glowColor: string;
 }) {
-  // The rotating square needs to be large enough to cover the container at any angle
-  // 200% of container size ensures full coverage during rotation
   return (
     <div
-      className="relative cursor-pointer overflow-hidden"
+      className={cn(
+        "relative cursor-pointer rounded-2xl border-2 bg-card text-card-foreground shadow-sm smooth card-hover w-full animate-border-glow",
+        className
+      )}
       onClick={onClick}
-      style={{ borderRadius: BORDER_RADIUS }}
+      style={{
+        borderColor,
+        "--glow-color": glowColor,
+      } as React.CSSProperties}
     >
-      {/* Rotating gradient layer — scale wrapper + rotating child to avoid transform conflict */}
-      <div className="absolute inset-0" style={{ transform: "scale(1.5)" }}>
-        <div
-          className="w-full h-full animate-spin-slow"
-          style={{
-            background: `conic-gradient(from 0deg, ${gradientColors[0]}, ${gradientColors[1]}, ${gradientColors[0]})`,
-          }}
-        />
-      </div>
-      {/* Inner card content */}
-      <div
-        className={cn(
-          "relative bg-card text-card-foreground shadow-sm smooth card-hover w-full",
-          className
-        )}
-        style={{
-          margin: BORDER_WIDTH,
-          borderRadius: BORDER_RADIUS - BORDER_WIDTH,
-          // Compensate for margin taking space
-          width: `calc(100% - ${BORDER_WIDTH * 2}px)`,
-        }}
-      >
-        {children}
-      </div>
+      {children}
     </div>
   );
 }
@@ -73,8 +47,9 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      <GradientBorderCard
-        gradientColors={["hsl(35,100%,51%)", "hsl(35,100%,60%)"]}
+      <GlowBorderCard
+        borderColor="hsl(35,100%,51%)"
+        glowColor="hsl(35,100%,51%)"
         onClick={() => handleCardClick('all')}
       >
         <CardHeader className="pb-2">
@@ -86,11 +61,12 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
         <CardContent>
           <div className="text-2xl font-bold text-foreground">{total}</div>
         </CardContent>
-      </GradientBorderCard>
+      </GlowBorderCard>
 
-      <GradientBorderCard
+      <GlowBorderCard
         className="bg-valid-bg"
-        gradientColors={["hsl(122,46%,34%)", "hsl(122,70%,55%)"]}
+        borderColor="hsl(122,46%,34%)"
+        glowColor="hsl(122,50%,45%)"
         onClick={() => handleCardClick('valid')}
       >
         <CardHeader className="pb-2">
@@ -102,11 +78,12 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
         <CardContent>
           <div className="text-2xl font-bold text-valid-foreground">{valid}</div>
         </CardContent>
-      </GradientBorderCard>
+      </GlowBorderCard>
 
-      <GradientBorderCard
+      <GlowBorderCard
         className="bg-expiring-bg"
-        gradientColors={["hsl(45,100%,33%)", "hsl(45,100%,55%)"]}
+        borderColor="hsl(45,100%,33%)"
+        glowColor="hsl(45,100%,45%)"
         onClick={() => handleCardClick('expiring')}
       >
         <CardHeader className="pb-2">
@@ -118,11 +95,12 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
         <CardContent>
           <div className="text-2xl font-bold text-expiring-foreground">{expiringSoon}</div>
         </CardContent>
-      </GradientBorderCard>
+      </GlowBorderCard>
 
-      <GradientBorderCard
+      <GlowBorderCard
         className="bg-expired-bg"
-        gradientColors={["hsl(0,65%,56%)", "hsl(0,80%,70%)"]}
+        borderColor="hsl(0,65%,56%)"
+        glowColor="hsl(0,65%,56%)"
         onClick={() => handleCardClick('expired')}
       >
         <CardHeader className="pb-2">
@@ -134,7 +112,7 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
         <CardContent>
           <div className="text-2xl font-bold text-expired-foreground">{expired}</div>
         </CardContent>
-      </GradientBorderCard>
+      </GlowBorderCard>
     </div>
   );
 }
