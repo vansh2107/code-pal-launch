@@ -3,32 +3,46 @@ import { FileText, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
-function GlowBorderCard({
+const BORDER_WIDTH = 2.5;
+const BORDER_RADIUS = 16;
+
+function RotatingBorderCard({
   children,
   className,
   onClick,
-  borderColor,
-  glowColor,
+  gradientColors,
 }: {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
-  borderColor: string;
-  glowColor: string;
+  gradientColors: [string, string];
 }) {
   return (
     <div
-      className={cn(
-        "relative cursor-pointer rounded-2xl border-2 bg-card text-card-foreground shadow-sm smooth card-hover w-full animate-border-glow",
-        className
-      )}
+      className="relative cursor-pointer overflow-hidden"
       onClick={onClick}
-      style={{
-        borderColor,
-        "--glow-color": glowColor,
-      } as React.CSSProperties}
+      style={{ borderRadius: BORDER_RADIUS, padding: BORDER_WIDTH }}
     >
-      {children}
+      {/* Scale wrapper (no animation) */}
+      <div className="absolute inset-[-50%] w-[200%] h-[200%]">
+        {/* Rotation child */}
+        <div
+          className="w-full h-full animate-spin-slow"
+          style={{
+            background: `conic-gradient(from 0deg, ${gradientColors[0]}, ${gradientColors[1]}, transparent, ${gradientColors[0]})`,
+          }}
+        />
+      </div>
+      {/* Inner card */}
+      <div
+        className={cn(
+          "relative bg-card text-card-foreground shadow-sm smooth card-hover w-full",
+          className
+        )}
+        style={{ borderRadius: BORDER_RADIUS - BORDER_WIDTH }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
