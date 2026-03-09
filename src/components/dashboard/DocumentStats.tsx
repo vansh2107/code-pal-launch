@@ -96,9 +96,9 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
       </RotatingBorderCard>
 
       <RotatingBorderCard
-        className="bg-valid-bg"
         gradientColors={["hsl(122,46%,34%)", "hsl(122,70%,55%)"]}
         onClick={() => handleCardClick('valid')}
+        innerBg="hsl(115 68% 94%)"
       >
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -112,9 +112,9 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
       </RotatingBorderCard>
 
       <RotatingBorderCard
-        className="bg-expiring-bg"
         gradientColors={["hsl(45,100%,33%)", "hsl(45,100%,55%)"]}
         onClick={() => handleCardClick('expiring')}
+        innerBg="hsl(48 100% 90%)"
       >
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
