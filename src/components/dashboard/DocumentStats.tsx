@@ -15,6 +15,8 @@ interface DocumentStatsProps {
  * SVG-based rotating gradient border that works reliably on Android WebView.
  * Uses SVG animateTransform (hardware-accelerated) instead of CSS background tricks.
  */
+const BORDER_WIDTH = 3;
+
 function RotatingBorderSVG({ colors, id }: { colors: [string, string]; id: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -33,9 +35,7 @@ function RotatingBorderSVG({ colors, id }: { colors: [string, string]; id: strin
   const { w, h } = size;
   if (w === 0 || h === 0) return <div ref={containerRef} className="absolute inset-0" />;
 
-  const borderWidth = 20;
-  const radius = 16; // matches rounded-2xl
-  // Diagonal = hypotenuse of the card, used to size the rotating gradient circle
+  const radius = 16;
   const diagonal = Math.sqrt(w * w + h * h);
 
   return (
@@ -48,36 +48,24 @@ function RotatingBorderSVG({ colors, id }: { colors: [string, string]; id: strin
         style={{ overflow: "visible" }}
       >
         <defs>
-          {/* Rotating gradient defined as a radial split — two semicircles */}
           <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor={colors[0]} />
             <stop offset="50%" stopColor={colors[1]} />
             <stop offset="100%" stopColor={colors[0]} />
           </linearGradient>
-
-          {/* Clip to the border ring shape (outer rect minus inner rect) */}
-          <mask id={`mask-${id}`}>
-            <rect x="0" y="0" width={w} height={h} rx={radius} ry={radius} fill="white" />
-            <rect
-              x={borderWidth}
-              y={borderWidth}
-              width={w - borderWidth * 2}
-              height={h - borderWidth * 2}
-              rx={radius - borderWidth}
-              ry={radius - borderWidth}
-              fill="black"
-            />
-          </mask>
         </defs>
 
-        {/* Rotating gradient rectangle, masked to only show the border ring */}
-        <g mask={`url(#mask-${id})`}>
+        {/* Full rounded rect filled with rotating gradient */}
+        <g>
           <rect
             x={w / 2 - diagonal / 2}
             y={h / 2 - diagonal / 2}
             width={diagonal}
             height={diagonal}
             fill={`url(#grad-${id})`}
+            rx={radius}
+            ry={radius}
+            clipPath={`inset(0 round ${radius}px)`}
             style={{ transformOrigin: `${w / 2}px ${h / 2}px` }}
           >
             <animateTransform
@@ -89,6 +77,8 @@ function RotatingBorderSVG({ colors, id }: { colors: [string, string]; id: strin
               repeatCount="indefinite"
             />
           </rect>
+          {/* Clip to rounded rect shape */}
+          <rect x="0" y="0" width={w} height={h} rx={radius} ry={radius} fill={`url(#grad-${id})`} opacity="0" />
         </g>
       </svg>
     </div>
