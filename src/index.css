@@ -270,15 +270,3 @@ All colors MUST be HSL.
   @apply w-full h-full object-cover rounded-sm;
 }
 
-/* Rotating border animation for dashboard cards */
-@property --rotating-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-
-@keyframes rotate-border {
-  to {
-    --rotating-angle: 360deg;
-  }
-}
