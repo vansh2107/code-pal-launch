@@ -31,15 +31,15 @@ function GradientBorderCard({
       onClick={onClick}
       style={{ borderRadius: BORDER_RADIUS }}
     >
-      {/* Rotating gradient layer */}
-      <div
-        className="absolute inset-0 animate-spin-slow"
-        style={{
-          background: `conic-gradient(from 0deg, ${gradientColors[0]}, ${gradientColors[1]}, ${gradientColors[0]})`,
-          // Scale up so corners aren't visible during rotation
-          transform: "scale(1.5)",
-        }}
-      />
+      {/* Rotating gradient layer — scale wrapper + rotating child to avoid transform conflict */}
+      <div className="absolute inset-0" style={{ transform: "scale(1.5)" }}>
+        <div
+          className="w-full h-full animate-spin-slow"
+          style={{
+            background: `conic-gradient(from 0deg, ${gradientColors[0]}, ${gradientColors[1]}, ${gradientColors[0]})`,
+          }}
+        />
+      </div>
       {/* Inner card content */}
       <div
         className={cn(
