@@ -33,7 +33,7 @@ function RotatingBorderSVG({ colors, id }: { colors: [string, string]; id: strin
   const { w, h } = size;
   if (w === 0 || h === 0) return <div ref={containerRef} className="absolute inset-0" />;
 
-  const borderWidth = 2.5;
+  const borderWidth = 4;
   const radius = 16; // matches rounded-2xl
   // Diagonal = hypotenuse of the card, used to size the rotating gradient circle
   const diagonal = Math.sqrt(w * w + h * h);
