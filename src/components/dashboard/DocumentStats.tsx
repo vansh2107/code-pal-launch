@@ -11,11 +11,13 @@ function RotatingBorderCard({
   className,
   onClick,
   gradientColors,
+  innerBg = "hsl(0 0% 100%)",
 }: {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
   gradientColors: [string, string];
+  innerBg?: string;
 }) {
   return (
     <div
@@ -27,13 +29,10 @@ function RotatingBorderCard({
         isolation: "isolate",
       }}
     >
-      {/* Rotating gradient layer - clipped to outer shape */}
+      {/* Rotating gradient layer */}
       <div
         className="absolute inset-0 overflow-hidden"
-        style={{
-          borderRadius: BORDER_RADIUS,
-          zIndex: 0,
-        }}
+        style={{ borderRadius: BORDER_RADIUS, zIndex: 0 }}
       >
         <div className="absolute inset-[-50%] w-[200%] h-[200%]">
           <div
@@ -46,7 +45,7 @@ function RotatingBorderCard({
           />
         </div>
       </div>
-      {/* Inner card - fully opaque, covers gradient except border area */}
+      {/* Inner card - explicit opaque bg via inline style */}
       <div
         className={cn(
           "relative text-card-foreground shadow-sm smooth card-hover w-full",
@@ -55,7 +54,7 @@ function RotatingBorderCard({
         style={{
           borderRadius: BORDER_RADIUS - BORDER_WIDTH,
           zIndex: 1,
-          backgroundColor: className?.includes("bg-") ? undefined : "hsl(0 0% 100%)",
+          backgroundColor: innerBg,
           backfaceVisibility: "hidden",
           transform: "translateZ(0)",
         }}
@@ -83,6 +82,7 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
       <RotatingBorderCard
         gradientColors={["hsl(35,100%,51%)", "hsl(35,100%,60%)"]}
         onClick={() => handleCardClick('all')}
+        innerBg="hsl(0 0% 100%)"
       >
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -128,9 +128,9 @@ export function DocumentStats({ total, expiringSoon, expired, valid }: {
       </RotatingBorderCard>
 
       <RotatingBorderCard
-        className="bg-expired-bg"
         gradientColors={["hsl(0,65%,56%)", "hsl(0,80%,70%)"]}
         onClick={() => handleCardClick('expired')}
+        innerBg="hsl(0 100% 95%)"
       >
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
