@@ -376,24 +376,59 @@ export default function Profile() {
                 <DialogHeader>
                   <DialogTitle>Terms & Privacy Policy</DialogTitle>
                 </DialogHeader>
-                <div className="pt-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="pt-4 space-y-5 max-h-[60vh] overflow-y-auto text-sm text-muted-foreground">
+                  <p className="text-base font-medium text-foreground">Your privacy matters to us.</p>
+                  <p>
+                    Remonk Reminder is designed to help you manage important deadlines and reminders while keeping your data secure.
+                  </p>
+
                   <div>
-                    <h3 className="font-semibold mb-2">Privacy Policy</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Your privacy is important to us. All document data is encrypted and stored securely. We never share your personal information with third parties.
-                    </p>
+                    <h3 className="font-semibold text-foreground mb-1">What We Collect</h3>
+                    <p className="mb-1">We may collect:</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      <li>Reminder details you create</li>
+                      <li>Document names and expiration dates</li>
+                      <li>Optional uploaded files</li>
+                      <li>Basic device information for app performance</li>
+                    </ul>
                   </div>
+
                   <div>
-                    <h3 className="font-semibold mb-2">Data Storage</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Documents are stored with end-to-end encryption. You have full control over your data and can export or delete it at any time.
-                    </p>
+                    <h3 className="font-semibold text-foreground mb-1">How We Use Your Data</h3>
+                    <p className="mb-1">Your data is used only to:</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      <li>Send reminder notifications</li>
+                      <li>Manage your stored documents</li>
+                      <li>Improve app performance</li>
+                    </ul>
+                    <p className="mt-1 font-medium text-foreground">We never sell your personal data.</p>
                   </div>
+
                   <div>
-                    <h3 className="font-semibold mb-2">Terms of Service</h3>
-                    <p className="text-sm text-muted-foreground">
-                      By using Remonk Reminder, you agree to our terms of service. The app is provided as-is for document management purposes.
-                    </p>
+                    <h3 className="font-semibold text-foreground mb-1">Notifications</h3>
+                    <p>The app sends notifications to remind you about upcoming deadlines. You can disable notifications anytime in your device settings.</p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-1">Document Storage</h3>
+                    <p>If you upload documents, they are stored securely and used only for reminder and organization purposes.</p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-1">Your Control</h3>
+                    <p className="mb-1">You can:</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      <li>Delete reminders anytime</li>
+                      <li>Remove uploaded documents</li>
+                      <li>Stop using the app by uninstalling it</li>
+                    </ul>
+                  </div>
+
+                  <p>For full details, please read the complete Privacy Policy.</p>
+
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-1">Contact</h3>
+                    <p>Email: support@remonk.com</p>
                   </div>
                 </div>
               </DialogContent>
