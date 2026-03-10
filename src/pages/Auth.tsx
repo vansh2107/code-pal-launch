@@ -64,6 +64,8 @@ export default function Auth() {
   const [signupOtpSent, setSignupOtpSent] = useState(false);
   const [signupOtpCode, setSignupOtpCode] = useState("");
   const [signupOtpVerified, setSignupOtpVerified] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [termsDialogOpen, setTermsDialogOpen] = useState(false);
   
   const navigate = useNavigate();
   const { user } = useAuth();
