@@ -2,10 +2,13 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/lib/utils";
+import { useOverlayBackHandler } from "@/hooks/useBackButton";
 
-const Drawer = ({ shouldScaleBackground = true, ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
-  <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
-);
+const Drawer = ({ shouldScaleBackground = true, open, onOpenChange, ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
+  const handleClose = React.useCallback(() => onOpenChange?.(false), [onOpenChange]);
+  useOverlayBackHandler(!!open, handleClose);
+  return <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} open={open} onOpenChange={onOpenChange} {...props} />;
+};
 Drawer.displayName = "Drawer";
 
 const DrawerTrigger = DrawerPrimitive.Trigger;

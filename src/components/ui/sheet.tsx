@@ -4,8 +4,13 @@ import { X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { useOverlayBackHandler } from "@/hooks/useBackButton";
 
-const Sheet = SheetPrimitive.Root;
+const Sheet = ({ open, onOpenChange, ...props }: SheetPrimitive.DialogProps) => {
+  const handleClose = React.useCallback(() => onOpenChange?.(false), [onOpenChange]);
+  useOverlayBackHandler(!!open, handleClose);
+  return <SheetPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />;
+};
 
 const SheetTrigger = SheetPrimitive.Trigger;
 

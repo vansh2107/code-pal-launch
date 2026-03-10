@@ -3,8 +3,13 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useOverlayBackHandler } from "@/hooks/useBackButton";
 
-const Dialog = DialogPrimitive.Root;
+const Dialog = ({ open, onOpenChange, ...props }: DialogPrimitive.DialogProps) => {
+  const handleClose = React.useCallback(() => onOpenChange?.(false), [onOpenChange]);
+  useOverlayBackHandler(!!open, handleClose);
+  return <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />;
+};
 
 const DialogTrigger = DialogPrimitive.Trigger;
 
