@@ -572,6 +572,38 @@ export default function Auth() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Terms & Conditions</DialogTitle>
+            <DialogDescription>
+              Please read the following terms carefully before using Softly Reminder.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
+            <p><strong className="text-foreground">1. Acceptance of Terms</strong><br />
+              By creating an account and using Softly Reminder, you agree to be bound by these Terms & Conditions. If you do not agree, please do not use the application.</p>
+            <p><strong className="text-foreground">2. Use of Service</strong><br />
+              Softly Reminder is a document management and reminder tool. You are responsible for the accuracy of documents and information you upload. The app is provided "as is" without warranties of any kind.</p>
+            <p><strong className="text-foreground">3. User Data & Privacy</strong><br />
+              We collect and store your personal information (name, email, phone number) and uploaded documents securely using encryption. We do not sell or share your data with third parties. You can request deletion of your account and all associated data at any time.</p>
+            <p><strong className="text-foreground">4. Document Storage</strong><br />
+              Documents are stored securely in encrypted cloud storage. While we take every precaution to protect your data, you acknowledge that no system is 100% secure and use the service at your own risk.</p>
+            <p><strong className="text-foreground">5. Notifications</strong><br />
+              By enabling notifications, you consent to receiving push notifications and emails related to document expiry reminders, task updates, and service announcements.</p>
+            <p><strong className="text-foreground">6. Account Termination</strong><br />
+              We reserve the right to suspend or terminate accounts that violate these terms or engage in abusive behavior.</p>
+            <p><strong className="text-foreground">7. Changes to Terms</strong><br />
+              We may update these terms from time to time. Continued use of the app after changes constitutes acceptance of the updated terms.</p>
+            <p><strong className="text-foreground">8. Contact</strong><br />
+              If you have questions about these terms, please reach out through the Help Center in the app.</p>
+          </div>
+          <Button onClick={() => setTermsDialogOpen(false)} className="w-full mt-4">
+            Close
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
