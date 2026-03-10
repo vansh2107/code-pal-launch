@@ -3,8 +3,13 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { useOverlayBackHandler } from "@/hooks/useBackButton";
 
-const AlertDialog = AlertDialogPrimitive.Root;
+const AlertDialog = ({ open, onOpenChange, ...props }: AlertDialogPrimitive.AlertDialogProps) => {
+  const handleClose = React.useCallback(() => onOpenChange?.(false), [onOpenChange]);
+  useOverlayBackHandler(!!open, handleClose);
+  return <AlertDialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />;
+};
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
