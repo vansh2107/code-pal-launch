@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,8 @@ export default function Auth() {
   const [signupOtpSent, setSignupOtpSent] = useState(false);
   const [signupOtpCode, setSignupOtpCode] = useState("");
   const [signupOtpVerified, setSignupOtpVerified] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [termsDialogOpen, setTermsDialogOpen] = useState(false);
   
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -433,6 +436,28 @@ export default function Auth() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex items-start space-x-2">
+                    <Checkbox
+                      id="terms"
+                      checked={agreedToTerms}
+                      onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
+                      disabled={loading}
+                      className="mt-0.5"
+                    />
+                    <label htmlFor="terms" className="text-sm leading-snug text-muted-foreground cursor-pointer">
+                      I agree to the{" "}
+                      <button
+                        type="button"
+                        className="text-primary underline hover:text-primary/80 font-medium"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setTermsDialogOpen(true);
+                        }}
+                      >
+                        Terms & Conditions
+                      </button>
+                    </label>
+                  </div>
                   {error && (
                     <Alert variant="destructive">
                       <AlertDescription>{error}</AlertDescription>
@@ -443,7 +468,7 @@ export default function Auth() {
                       <AlertDescription>{success}</AlertDescription>
                     </Alert>
                   )}
-                  <Button type="submit" className="w-full" disabled={loading}>
+                  <Button type="submit" className="w-full" disabled={loading || !agreedToTerms}>
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Send OTP
                   </Button>
@@ -545,6 +570,38 @@ export default function Auth() {
               Send Reset Link
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Terms & Conditions</DialogTitle>
+            <DialogDescription>
+              Please read the following terms carefully before using Softly Reminder.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
+            <p><strong className="text-foreground">1. Acceptance of Terms</strong><br />
+              By creating an account and using Softly Reminder, you agree to be bound by these Terms & Conditions. If you do not agree, please do not use the application.</p>
+            <p><strong className="text-foreground">2. Use of Service</strong><br />
+              Softly Reminder is a document management and reminder tool. You are responsible for the accuracy of documents and information you upload. The app is provided "as is" without warranties of any kind.</p>
+            <p><strong className="text-foreground">3. User Data & Privacy</strong><br />
+              We collect and store your personal information (name, email, phone number) and uploaded documents securely using encryption. We do not sell or share your data with third parties. You can request deletion of your account and all associated data at any time.</p>
+            <p><strong className="text-foreground">4. Document Storage</strong><br />
+              Documents are stored securely in encrypted cloud storage. While we take every precaution to protect your data, you acknowledge that no system is 100% secure and use the service at your own risk.</p>
+            <p><strong className="text-foreground">5. Notifications</strong><br />
+              By enabling notifications, you consent to receiving push notifications and emails related to document expiry reminders, task updates, and service announcements.</p>
+            <p><strong className="text-foreground">6. Account Termination</strong><br />
+              We reserve the right to suspend or terminate accounts that violate these terms or engage in abusive behavior.</p>
+            <p><strong className="text-foreground">7. Changes to Terms</strong><br />
+              We may update these terms from time to time. Continued use of the app after changes constitutes acceptance of the updated terms.</p>
+            <p><strong className="text-foreground">8. Contact</strong><br />
+              If you have questions about these terms, please reach out through the Help Center in the app.</p>
+          </div>
+          <Button onClick={() => setTermsDialogOpen(false)} className="w-full mt-4">
+            Close
+          </Button>
         </DialogContent>
       </Dialog>
     </div>
