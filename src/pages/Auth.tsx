@@ -436,6 +436,28 @@ export default function Auth() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex items-start space-x-2">
+                    <Checkbox
+                      id="terms"
+                      checked={agreedToTerms}
+                      onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
+                      disabled={loading}
+                      className="mt-0.5"
+                    />
+                    <label htmlFor="terms" className="text-sm leading-snug text-muted-foreground cursor-pointer">
+                      I agree to the{" "}
+                      <button
+                        type="button"
+                        className="text-primary underline hover:text-primary/80 font-medium"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setTermsDialogOpen(true);
+                        }}
+                      >
+                        Terms & Conditions
+                      </button>
+                    </label>
+                  </div>
                   {error && (
                     <Alert variant="destructive">
                       <AlertDescription>{error}</AlertDescription>
@@ -446,7 +468,7 @@ export default function Auth() {
                       <AlertDescription>{success}</AlertDescription>
                     </Alert>
                   )}
-                  <Button type="submit" className="w-full" disabled={loading}>
+                  <Button type="submit" className="w-full" disabled={loading || !agreedToTerms}>
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Send OTP
                   </Button>
