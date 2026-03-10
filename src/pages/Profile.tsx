@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronRight, FileText, Download, User, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck } from "lucide-react";
+import { ChevronRight, FileText, Download, User, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Volume2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
@@ -13,6 +13,7 @@ import { exportToCSV, exportToJSON } from "@/utils/exportData";
 import { getSignedUrl } from "@/utils/signedUrl";
 import { AvatarEditPopover } from "@/components/profile/AvatarEditPopover";
 import { EditProfileSheet } from "@/components/profile/EditProfileSheet";
+import { NotificationSounds } from "@/components/profile/NotificationSounds";
 
 interface Profile {
   id: string;
@@ -253,6 +254,11 @@ export default function Profile() {
                 </div>
               </DialogContent>
             </Dialog>
+          </SettingsSection>
+
+          {/* Notification Sounds Section */}
+          <SettingsSection title="Notification Sounds">
+            <NotificationSounds />
           </SettingsSection>
 
           {/* Support Section */}
