@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronRight, FileText, Download, User, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck } from "lucide-react";
+import { ChevronRight, FileText, Download, User, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Volume2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
