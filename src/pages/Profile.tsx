@@ -197,14 +197,18 @@ export default function Profile() {
         {/* Header with Profile Info */}
         <header className="bg-card border-b border-border/50 px-4 py-4 sticky top-0 z-10">
           <div className="w-full flex items-center gap-3">
-            {/* Avatar with WhatsApp-style Edit */}
-            {user && (
-              <AvatarEditPopover 
-                userId={user.id}
-                avatarUrl={avatarSignedUrl}
-                onAvatarUpdate={fetchProfile}
-              />
-            )}
+            {/* Static Avatar */}
+            <div className="relative shrink-0 w-14 h-14 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
+              {avatarSignedUrl ? (
+                <img 
+                  src={avatarSignedUrl} 
+                  alt="Profile" 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <User className="h-7 w-7 text-primary" />
+              )}
+            </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold text-foreground truncate">
                 {profile?.display_name || user?.email?.split('@')[0] || 'User'}
