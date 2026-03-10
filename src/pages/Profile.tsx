@@ -256,6 +256,11 @@ export default function Profile() {
             </Dialog>
           </SettingsSection>
 
+          {/* Notification Sounds Section */}
+          <SettingsSection title="Notification Sounds">
+            <NotificationSounds />
+          </SettingsSection>
+
           {/* Support Section */}
           <SettingsSection title="Support">
             <Dialog>
