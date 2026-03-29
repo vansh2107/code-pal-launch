@@ -240,7 +240,6 @@ export default function Dashboard() {
         </div>
       </main>
 
-      <ChatBot />
       <BottomNavigation />
     </div>
     </SafeAreaContainer>
