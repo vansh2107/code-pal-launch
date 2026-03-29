@@ -66,15 +66,6 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
   const [country, setCountry] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
-  
-  // Notification settings
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [pushNotifications, setPushNotifications] = useState(false);
-  const [expiryReminders, setExpiryReminders] = useState(true);
-  const [renewalReminders, setRenewalReminders] = useState(true);
-  const [weeklyDigest, setWeeklyDigest] = useState(false);
-  const [timezone, setTimezone] = useState("UTC");
-  const [notificationTime, setNotificationTime] = useState("09:00");
 
   useEffect(() => {
     if (open && user) {
