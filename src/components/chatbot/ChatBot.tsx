@@ -800,14 +800,35 @@ export function ChatBot() {
 
   return (
     <>
-      <Button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed right-4 md:right-6 h-12 w-12 md:h-14 md:w-14 rounded-full shadow-lg z-50"
-        style={{ bottom: 'calc(6rem + env(safe-area-inset-bottom))' }}
-        size="icon"
-      >
-        {isOpen ? <X className="h-5 w-5 md:h-6 md:w-6" /> : <MessageCircle className="h-5 w-5 md:h-6 md:w-6" />}
-      </Button>
+      {!isOpen && (
+        <button
+          ref={fabRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          className={`fixed h-12 w-12 md:h-14 md:w-14 rounded-full shadow-lg z-50 flex items-center justify-center bg-primary text-primary-foreground transition-shadow ${isDragging ? 'shadow-2xl scale-110' : 'hover:shadow-xl'}`}
+          style={{
+            left: fabPos.x,
+            top: fabPos.y,
+            touchAction: 'none',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            transition: isDragging ? 'none' : 'left 0.3s ease, top 0.3s ease, transform 0.15s ease, box-shadow 0.15s ease',
+          }}
+        >
+          <MessageCircle className="h-5 w-5 md:h-6 md:w-6" />
+        </button>
+      )}
+
+      {isOpen && (
+        <Button
+          onClick={() => setIsOpen(false)}
+          className="fixed right-4 md:right-6 h-12 w-12 md:h-14 md:w-14 rounded-full shadow-lg z-50"
+          style={{ bottom: 'calc(6rem + env(safe-area-inset-bottom))' }}
+          size="icon"
+        >
+          <X className="h-5 w-5 md:h-6 md:w-6" />
+        </Button>
+      )}
 
       {isOpen && (
         <Card 
