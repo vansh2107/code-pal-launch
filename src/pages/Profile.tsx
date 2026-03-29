@@ -231,7 +231,7 @@ export default function Profile() {
 
           {/* Documents Section */}
           <SettingsSection title="Documents">
-            <SettingsItem icon={FileText} title="My Documents" to="/documents" />
+            
             <Dialog>
               <DialogTrigger asChild>
                 <button className="w-full">
