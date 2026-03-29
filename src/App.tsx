@@ -37,6 +37,7 @@ import EditTask from "./pages/EditTask";
 import TaskHistory from "./pages/TaskHistory";
 import TaskDetail from "./pages/TaskDetail";
 import Settings from "./pages/Settings";
+import NotificationSoundSettings from "./pages/NotificationSoundSettings";
 import AuthEventListener from "./components/auth/AuthEventListener";
 
 const queryClient = new QueryClient({
