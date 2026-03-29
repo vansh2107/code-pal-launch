@@ -10,7 +10,7 @@ import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { DocumentStats } from "@/components/dashboard/DocumentStats";
 import { ExpiryTimeline } from "@/components/dashboard/ExpiryTimeline";
-import { ChatBot } from "@/components/chatbot/ChatBot";
+
 import { useToast } from "@/hooks/use-toast";
 import { getDocumentStatus } from "@/utils/documentStatus";
 import { sendTestNotification } from "@/utils/notifications";
@@ -240,7 +240,6 @@ export default function Dashboard() {
         </div>
       </main>
 
-      <ChatBot />
       <BottomNavigation />
     </div>
     </SafeAreaContainer>
