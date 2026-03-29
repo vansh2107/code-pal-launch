@@ -174,7 +174,14 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-
+              <Route
+                path="/notification-sound-settings"
+                element={
+                  <ProtectedRoute>
+                    <NotificationSoundSettings />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/profile"
                 element={
