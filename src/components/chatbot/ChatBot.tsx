@@ -86,7 +86,89 @@ export function ChatBot() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  
+
+  // Draggable state
+  const STORAGE_KEY = 'chatbot-fab-position';
+  const FAB_SIZE = 56;
+  const EDGE_PADDING = 12;
+  const DRAG_THRESHOLD = 6;
+
+  const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { x: -1, y: -1 }; // sentinel for "use default"
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{
+    startX: number; startY: number;
+    startPosX: number; startPosY: number;
+    moved: boolean;
+  } | null>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
+
+  // Set default position on mount
+  useLayoutEffect(() => {
+    if (fabPos.x === -1 && fabPos.y === -1) {
+      const defaultX = window.innerWidth - FAB_SIZE - 16;
+      const defaultY = window.innerHeight - FAB_SIZE - 96 - 16;
+      setFabPos({ x: defaultX, y: defaultY });
+    }
+  }, []);
+
+  const clampPosition = useCallback((x: number, y: number) => {
+    const maxX = window.innerWidth - FAB_SIZE - EDGE_PADDING;
+    const maxY = window.innerHeight - FAB_SIZE - EDGE_PADDING;
+    return {
+      x: Math.max(EDGE_PADDING, Math.min(x, maxX)),
+      y: Math.max(EDGE_PADDING, Math.min(y, maxY)),
+    };
+  }, []);
+
+  const snapToEdge = useCallback((x: number, y: number) => {
+    const midX = window.innerWidth / 2;
+    const snappedX = x + FAB_SIZE / 2 < midX ? EDGE_PADDING : window.innerWidth - FAB_SIZE - EDGE_PADDING;
+    return { x: snappedX, y };
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (isOpen) return;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = {
+      startX: e.clientX, startY: e.clientY,
+      startPosX: fabPos.x, startPosY: fabPos.y,
+      moved: false,
+    };
+  }, [fabPos, isOpen]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    if (!dragRef.current.moved && Math.abs(dx) + Math.abs(dy) < DRAG_THRESHOLD) return;
+    dragRef.current.moved = true;
+    setIsDragging(true);
+    const newPos = clampPosition(dragRef.current.startPosX + dx, dragRef.current.startPosY + dy);
+    setFabPos(newPos);
+  }, [clampPosition]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const wasDragged = dragRef.current.moved;
+    dragRef.current = null;
+    setIsDragging(false);
+
+    if (wasDragged) {
+      const snapped = snapToEdge(fabPos.x, fabPos.y);
+      const clamped = clampPosition(snapped.x, snapped.y);
+      setFabPos(clamped);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(clamped)); } catch {}
+    } else {
+      setIsOpen(true);
+    }
+  }, [fabPos, snapToEdge, clampPosition]);
+
   const isAuthPage = location.pathname === '/auth' || location.pathname === '/reset-password';
   const shouldShow = !isAuthPage && user;
 
