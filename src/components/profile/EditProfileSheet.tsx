@@ -90,13 +90,6 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
         setDisplayName(data.display_name || "");
         setCountry(data.country || "");
         setPhoneNumber(data.phone_number || "");
-        setEmailNotifications(data.email_notifications_enabled ?? true);
-        setPushNotifications(data.push_notifications_enabled ?? false);
-        setExpiryReminders(data.expiry_reminders_enabled ?? true);
-        setRenewalReminders(data.renewal_reminders_enabled ?? true);
-        setWeeklyDigest(data.weekly_digest_enabled ?? false);
-        setTimezone(data.timezone ?? "UTC");
-        setNotificationTime(data.preferred_notification_time?.substring(0, 5) ?? "09:00");
         
         // Load avatar
         if (data.avatar_url) {
