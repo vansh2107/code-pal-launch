@@ -56,11 +56,6 @@ const TIMEZONES = [
   "Pacific/Auckland",
 ];
 
-const TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => {
-  const hour = i.toString().padStart(2, '0');
-  return `${hour}:00`;
-});
-
 export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
