@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { User, Shield, Trash2, Camera, Upload, X } from "lucide-react";
+import { User, Shield, Trash2, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,34 +34,11 @@ const COUNTRIES = [
   "Saudi Arabia", "Israel", "Turkey", "Russia", "Ukraine", "Other"
 ];
 
-const TIMEZONES = [
-  "UTC",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Toronto",
-  "America/Mexico_City",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Europe/Rome",
-  "Europe/Madrid",
-  "Asia/Dubai",
-  "Asia/Kolkata",
-  "Asia/Shanghai",
-  "Asia/Tokyo",
-  "Asia/Singapore",
-  "Australia/Sydney",
-  "Pacific/Auckland",
-];
-
 export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   
-  // Profile info
   const [displayName, setDisplayName] = useState("");
   const [country, setCountry] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -91,7 +68,6 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
         setCountry(data.country || "");
         setPhoneNumber(data.phone_number || "");
         
-        // Load avatar
         if (data.avatar_url) {
           if (data.avatar_url.startsWith('http')) {
             setAvatarSignedUrl(data.avatar_url);
@@ -121,13 +97,6 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
           display_name: displayName || null,
           country: country || null,
           phone_number: phoneNumber || null,
-          email_notifications_enabled: emailNotifications,
-          push_notifications_enabled: pushNotifications,
-          expiry_reminders_enabled: expiryReminders,
-          renewal_reminders_enabled: renewalReminders,
-          weekly_digest_enabled: weeklyDigest,
-          timezone: timezone,
-          preferred_notification_time: `${notificationTime}:00`,
         })
         .eq("user_id", user.id);
 
@@ -135,7 +104,7 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
 
       toast({
         title: "Profile updated",
-        description: "All your settings have been saved successfully.",
+        description: "Your profile has been saved successfully.",
       });
       
       onOpenChange(false);
@@ -155,7 +124,6 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
     if (!user) return;
     
     try {
-      // Get current avatar path
       const { data: profile } = await supabase
         .from("profiles")
         .select("avatar_url")
@@ -163,11 +131,9 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
         .single();
       
       if (profile?.avatar_url && !profile.avatar_url.startsWith('http')) {
-        // Remove from storage
         await supabase.storage.from('document-images').remove([profile.avatar_url]);
       }
       
-      // Clear avatar URL in profile
       const { error } = await supabase
         .from("profiles")
         .update({ avatar_url: null })
@@ -308,123 +274,6 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
                   </h3>
                   
                   <Accordion type="multiple" className="w-full space-y-2">
-                    {/* Notification Settings */}
-                    <AccordionItem value="notifications" className="border rounded-lg px-4">
-                      <AccordionTrigger className="hover:no-underline">
-                        <div className="flex items-center gap-3">
-                          <Bell className="h-5 w-5 text-muted-foreground" />
-                          <span className="font-medium">Notification Preferences</span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="pt-4 space-y-6">
-                        {/* Channels */}
-                        <div className="space-y-4">
-                          <p className="text-sm font-medium text-muted-foreground">Channels</p>
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label htmlFor="email-notifications">Email Notifications</Label>
-                              <p className="text-xs text-muted-foreground">Reminders via email</p>
-                            </div>
-                            <Switch
-                              id="email-notifications"
-                              checked={emailNotifications}
-                              onCheckedChange={setEmailNotifications}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label htmlFor="push-notifications">Push Notifications</Label>
-                              <p className="text-xs text-muted-foreground">Real-time push alerts</p>
-                            </div>
-                            <Switch
-                              id="push-notifications"
-                              checked={pushNotifications}
-                              onCheckedChange={setPushNotifications}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Reminder Types */}
-                        <div className="space-y-4">
-                          <p className="text-sm font-medium text-muted-foreground">Reminder Types</p>
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label htmlFor="expiry-reminders">Document Expiry</Label>
-                              <p className="text-xs text-muted-foreground">When documents expire</p>
-                            </div>
-                            <Switch
-                              id="expiry-reminders"
-                              checked={expiryReminders}
-                              onCheckedChange={setExpiryReminders}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label htmlFor="renewal-reminders">Task Reminders</Label>
-                              <p className="text-xs text-muted-foreground">For active tasks</p>
-                            </div>
-                            <Switch
-                              id="renewal-reminders"
-                              checked={renewalReminders}
-                              onCheckedChange={setRenewalReminders}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label htmlFor="weekly-digest">Incomplete Task Alerts</Label>
-                              <p className="text-xs text-muted-foreground">Daily pending reminders</p>
-                            </div>
-                            <Switch
-                              id="weekly-digest"
-                              checked={weeklyDigest}
-                              onCheckedChange={setWeeklyDigest}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Timing */}
-                        <div className="space-y-4">
-                          <p className="text-sm font-medium text-muted-foreground">Timing</p>
-                          <div className="space-y-2">
-                            <Label htmlFor="timezone" className="flex items-center gap-2">
-                              <Globe className="h-4 w-4" />
-                              Timezone
-                            </Label>
-                            <Select value={timezone} onValueChange={setTimezone}>
-                              <SelectTrigger id="timezone">
-                                <SelectValue placeholder="Select timezone" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TIMEZONES.map((tz) => (
-                                  <SelectItem key={tz} value={tz}>
-                                    {tz}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="notification-time" className="flex items-center gap-2">
-                              <Clock className="h-4 w-4" />
-                              Preferred Time
-                            </Label>
-                            <Select value={notificationTime} onValueChange={setNotificationTime}>
-                              <SelectTrigger id="notification-time">
-                                <SelectValue placeholder="Select time" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TIME_OPTIONS.map((time) => (
-                                  <SelectItem key={time} value={time}>
-                                    {time}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-
                     {/* Security Settings */}
                     <AccordionItem value="security" className="border rounded-lg px-4">
                       <AccordionTrigger className="hover:no-underline">
