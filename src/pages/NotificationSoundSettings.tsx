@@ -3,19 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Bell, Play, Check, RotateCcw, Volume2, Upload } from "lucide-react";
+import { ArrowLeft, Bell, Play, Check, RotateCcw, Volume2, Upload, Pause, AlertTriangle, FileText, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 const NOTIFICATION_TYPES = [
-  { key: "expiring_soon", label: "Document Expiring Soon", description: "When a document is about to expire" },
-  { key: "expired", label: "Document Expired", description: "When a document has expired" },
-  { key: "document_added", label: "Document Added / Scanned", description: "When a new document is added" },
-  { key: "important_alerts", label: "Important Alerts", description: "Critical notifications and reminders" },
+  { key: "expiring_soon", label: "Document Expiring Soon", description: "When a document is about to expire", icon: Bell },
+  { key: "expired", label: "Document Expired", description: "When a document has expired", icon: AlertTriangle },
+  { key: "document_added", label: "Document Added / Scanned", description: "When a new document is added", icon: Plus },
+  { key: "important_alerts", label: "Important Alerts", description: "Critical notifications and reminders", icon: FileText },
 ] as const;
 
 type NotificationType = (typeof NOTIFICATION_TYPES)[number]["key"];
@@ -31,8 +31,14 @@ const AVAILABLE_SOUNDS = [
   { id: "none", label: "Silent", frequency: 0, pattern: [] },
 ] as const;
 
-type SoundId = (typeof AVAILABLE_SOUNDS)[number]["id"];
-type SoundPreferences = Partial<Record<NotificationType, SoundId>>;
+type SoundId = string;
+
+interface NotificationPref {
+  enabled: boolean;
+  sound: string;
+}
+
+type NotificationPreferences = Partial<Record<NotificationType, NotificationPref>>;
 
 function playTone(frequency: number, pattern: number[]) {
   if (frequency === 0 || pattern.length === 0) return;
@@ -58,13 +64,39 @@ function playTone(frequency: number, pattern: number[]) {
   setTimeout(() => audioCtx.close(), pattern.reduce((a, b) => a + b, 0) + 200);
 }
 
+function getDefaultPrefs(): NotificationPreferences {
+  const defaults: NotificationPreferences = {};
+  NOTIFICATION_TYPES.forEach((t) => {
+    defaults[t.key] = { enabled: true, sound: "default" };
+  });
+  return defaults;
+}
+
+// Migrate old format (just sound id strings) to new format (enabled + sound)
+function migratePreferences(raw: any): NotificationPreferences {
+  if (!raw || typeof raw !== "object") return getDefaultPrefs();
+  
+  const result: NotificationPreferences = {};
+  for (const type of NOTIFICATION_TYPES) {
+    const val = raw[type.key];
+    if (val && typeof val === "object" && "enabled" in val) {
+      result[type.key] = val as NotificationPref;
+    } else if (typeof val === "string") {
+      // Old format: just a sound id
+      result[type.key] = { enabled: val !== "none", sound: val === "none" ? "default" : val };
+    } else {
+      result[type.key] = { enabled: true, sound: "default" };
+    }
+  }
+  return result;
+}
+
 export default function NotificationSoundSettings() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [preferences, setPreferences] = useState<SoundPreferences>({});
+  const [preferences, setPreferences] = useState<NotificationPreferences>(getDefaultPrefs());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [globalEnabled, setGlobalEnabled] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [activeType, setActiveType] = useState<NotificationType | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -79,64 +111,57 @@ export default function NotificationSoundSettings() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("notification_sounds, push_notifications_enabled")
+        .select("notification_sounds")
         .eq("user_id", user.id)
         .single();
       if (error) throw error;
-      if (data?.notification_sounds && typeof data.notification_sounds === "object") {
-        setPreferences(data.notification_sounds as SoundPreferences);
-      }
-      setGlobalEnabled(data?.push_notifications_enabled ?? true);
+      setPreferences(migratePreferences(data?.notification_sounds));
     } catch (err) {
-      console.error("Error fetching sound preferences:", err);
+      console.error("Error fetching preferences:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGlobalToggle = async (enabled: boolean) => {
+  const savePreferences = useCallback(async (updated: NotificationPreferences) => {
     if (!user) return;
-    setGlobalEnabled(enabled);
+    setSaving(true);
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ push_notifications_enabled: enabled })
+        .update({ notification_sounds: updated as any })
         .eq("user_id", user.id);
       if (error) throw error;
-      toast({
-        title: enabled ? "Notifications enabled" : "Notifications disabled",
-        description: enabled ? "You'll receive notification sounds" : "All notification sounds are muted",
-      });
     } catch {
-      toast({ title: "Error", description: "Failed to update setting", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to save preference", variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
-  };
+  }, [user]);
 
-  const handleSelect = useCallback(
-    async (soundId: SoundId) => {
-      if (!user || !activeType) return;
-      const updated = { ...preferences, [activeType]: soundId };
-      setPreferences(updated);
-      setSaving(true);
-      try {
-        const { error } = await supabase
-          .from("profiles")
-          .update({ notification_sounds: updated as any })
-          .eq("user_id", user.id);
-        if (error) throw error;
-        toast({
-          title: "Sound updated",
-          description: `Sound for "${NOTIFICATION_TYPES.find((t) => t.key === activeType)?.label}" saved.`,
-        });
-      } catch {
-        toast({ title: "Error", description: "Failed to save sound preference", variant: "destructive" });
-      } finally {
-        setSaving(false);
-        setPickerOpen(false);
-      }
-    },
-    [user, preferences, activeType]
-  );
+  const handleToggle = useCallback(async (type: NotificationType, enabled: boolean) => {
+    const current = preferences[type] || { enabled: true, sound: "default" };
+    const updated = { ...preferences, [type]: { ...current, enabled } };
+    setPreferences(updated);
+    await savePreferences(updated);
+    toast({
+      title: enabled ? "Notification enabled" : "Notification muted",
+      description: `${NOTIFICATION_TYPES.find(t => t.key === type)?.label}`,
+    });
+  }, [preferences, savePreferences]);
+
+  const handleSoundSelect = useCallback(async (soundId: SoundId) => {
+    if (!activeType) return;
+    const current = preferences[activeType] || { enabled: true, sound: "default" };
+    const updated = { ...preferences, [activeType]: { ...current, sound: soundId } };
+    setPreferences(updated);
+    setPickerOpen(false);
+    await savePreferences(updated);
+    toast({
+      title: "Sound updated",
+      description: `${NOTIFICATION_TYPES.find(t => t.key === activeType)?.label} → ${AVAILABLE_SOUNDS.find(s => s.id === soundId)?.label || soundId}`,
+    });
+  }, [activeType, preferences, savePreferences]);
 
   const handlePlay = useCallback((id: string, frequency: number, pattern: number[]) => {
     setPlayingId(id);
@@ -146,28 +171,19 @@ export default function NotificationSoundSettings() {
   }, []);
 
   const handleResetAll = async () => {
-    if (!user) return;
-    setSaving(true);
-    const defaults: SoundPreferences = {};
-    NOTIFICATION_TYPES.forEach((t) => { defaults[t.key] = "default"; });
+    const defaults = getDefaultPrefs();
     setPreferences(defaults);
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ notification_sounds: defaults as any })
-        .eq("user_id", user.id);
-      if (error) throw error;
-      toast({ title: "Reset complete", description: "All notification sounds set to default." });
-    } catch {
-      toast({ title: "Error", description: "Failed to reset sounds", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    await savePreferences(defaults);
+    toast({ title: "Reset complete", description: "All notification preferences set to default." });
   };
 
   const openPicker = (type: NotificationType) => {
     setActiveType(type);
     setPickerOpen(true);
+  };
+
+  const getSoundLabel = (soundId: string) => {
+    return AVAILABLE_SOUNDS.find(s => s.id === soundId)?.label || "Default";
   };
 
   if (loading) {
@@ -187,57 +203,60 @@ export default function NotificationSoundSettings() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Notification Sounds</h1>
-            <p className="text-sm text-muted-foreground">Manage sounds for each notification type</p>
+            <h1 className="text-xl font-bold text-foreground">Notification Preferences</h1>
+            <p className="text-sm text-muted-foreground">Control each notification individually</p>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 px-4 py-6 w-full max-w-2xl mx-auto space-y-6">
-        {/* Global Toggle */}
-        <div className="bg-card rounded-2xl border border-border/50 shadow-sm p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Bell className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <Label htmlFor="global-toggle" className="text-base font-medium text-foreground">Notification Sounds</Label>
-                <p className="text-sm text-muted-foreground">Enable or disable all sounds</p>
-              </div>
-            </div>
-            <Switch
-              id="global-toggle"
-              checked={globalEnabled}
-              onCheckedChange={handleGlobalToggle}
-            />
-          </div>
-        </div>
-
-        {/* Sound Categories */}
+      <main className="flex-1 px-4 py-6 w-full max-w-2xl mx-auto space-y-4">
+        {/* Per-notification cards */}
         <div className="bg-card rounded-2xl border border-border/50 shadow-sm overflow-hidden">
           {NOTIFICATION_TYPES.map((type, index) => {
-            const selectedLabel = AVAILABLE_SOUNDS.find((s) => s.id === (preferences[type.key] || "default"))?.label || "Default";
+            const pref = preferences[type.key] || { enabled: true, sound: "default" };
+            const Icon = type.icon;
             return (
-              <button
+              <div
                 key={type.key}
-                onClick={() => openPicker(type.key)}
-                disabled={!globalEnabled}
                 className={cn(
-                  "w-full flex items-center justify-between p-4 hover:bg-accent/5 transition-colors text-left",
-                  index < NOTIFICATION_TYPES.length - 1 && "border-b border-border/30",
-                  !globalEnabled && "opacity-50 cursor-not-allowed"
+                  "p-4",
+                  index < NOTIFICATION_TYPES.length - 1 && "border-b border-border/30"
                 )}
               >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <Volume2 className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">{type.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{type.description}</p>
+                <div className="flex items-start gap-3">
+                  {/* Icon */}
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <Icon className="h-5 w-5 text-primary" />
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-semibold text-foreground">{type.label}</p>
+                      <Switch
+                        checked={pref.enabled}
+                        onCheckedChange={(checked) => handleToggle(type.key, checked)}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">{type.description}</p>
+                    
+                    {/* Sound selector row */}
+                    <button
+                      onClick={() => openPicker(type.key)}
+                      disabled={!pref.enabled}
+                      className={cn(
+                        "flex items-center gap-2 text-xs rounded-lg px-2.5 py-1.5 transition-colors",
+                        pref.enabled
+                          ? "bg-accent/10 text-primary hover:bg-accent/20 cursor-pointer"
+                          : "bg-muted/50 text-muted-foreground/50 cursor-not-allowed"
+                      )}
+                    >
+                      <Volume2 className="h-3.5 w-3.5" />
+                      <span className="font-medium">{getSoundLabel(pref.sound)}</span>
+                    </button>
                   </div>
                 </div>
-                <span className="text-xs text-primary font-medium shrink-0 ml-2">{selectedLabel}</span>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -247,7 +266,7 @@ export default function NotificationSoundSettings() {
           variant="outline"
           className="w-full"
           onClick={handleResetAll}
-          disabled={saving || !globalEnabled}
+          disabled={saving}
         >
           <RotateCcw className="h-4 w-4 mr-2" />
           Reset All to Default
@@ -262,52 +281,58 @@ export default function NotificationSoundSettings() {
               {NOTIFICATION_TYPES.find((t) => t.key === activeType)?.label || "Select Sound"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-1 max-h-[60vh] overflow-y-auto py-2">
-            {AVAILABLE_SOUNDS.map((sound) => {
-              const isSelected = (preferences[activeType!] || "default") === sound.id;
-              const uniqueId = `${activeType}-${sound.id}`;
-              const isPlaying = playingId === uniqueId;
+          <ScrollArea className="max-h-[60vh]">
+            <div className="space-y-1 py-2">
+              {AVAILABLE_SOUNDS.map((sound) => {
+                const isSelected = (preferences[activeType!]?.sound || "default") === sound.id;
+                const uniqueId = `${activeType}-${sound.id}`;
+                const isPlaying = playingId === uniqueId;
 
-              return (
-                <div
-                  key={sound.id}
-                  className={cn(
-                    "flex items-center justify-between rounded-xl px-3 py-3 transition-colors cursor-pointer",
-                    isSelected ? "bg-primary/10 border border-primary/20" : "hover:bg-accent/5"
-                  )}
-                  onClick={() => handleSelect(sound.id)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
-                        isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
-                      )}
-                    >
-                      {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                return (
+                  <div
+                    key={sound.id}
+                    className={cn(
+                      "flex items-center justify-between rounded-xl px-3 py-3 transition-colors cursor-pointer",
+                      isSelected ? "bg-primary/10 border border-primary/20" : "hover:bg-accent/5"
+                    )}
+                    onClick={() => handleSoundSelect(sound.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
+                          isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
+                        )}
+                      >
+                        {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                      </div>
+                      <span className={cn("text-sm", isSelected ? "font-medium text-foreground" : "text-muted-foreground")}>
+                        {sound.label}
+                      </span>
                     </div>
-                    <span className={cn("text-sm", isSelected ? "font-medium text-foreground" : "text-muted-foreground")}>
-                      {sound.label}
-                    </span>
-                  </div>
 
-                  {sound.id !== "none" && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePlay(uniqueId, sound.frequency, [...sound.pattern]);
-                      }}
-                    >
-                      <Play className={cn("h-4 w-4", isPlaying ? "text-primary" : "text-muted-foreground")} />
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    {sound.id !== "none" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePlay(uniqueId, sound.frequency, [...sound.pattern]);
+                        }}
+                      >
+                        {isPlaying ? (
+                          <Pause className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Play className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
 
           {/* Import Sound placeholder */}
           <div className="pt-2 border-t border-border/50">
