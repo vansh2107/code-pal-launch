@@ -90,8 +90,9 @@ export function ChatBot() {
   // Draggable state
   const STORAGE_KEY = 'chatbot-fab-position';
   const FAB_SIZE = 56;
-  const EDGE_PADDING = 12;
+  const EDGE_PADDING = 10;
   const DRAG_THRESHOLD = 6;
+  const BOTTOM_NAV_HEIGHT = 90; // Bottom navigation bar height + safe area
 
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
     try {
@@ -111,15 +112,15 @@ export function ChatBot() {
   // Set default position on mount
   useLayoutEffect(() => {
     if (fabPos.x === -1 && fabPos.y === -1) {
-      const defaultX = window.innerWidth - FAB_SIZE - 16;
-      const defaultY = window.innerHeight - FAB_SIZE - 96 - 16;
+      const defaultX = window.innerWidth - FAB_SIZE - EDGE_PADDING;
+      const defaultY = window.innerHeight - FAB_SIZE - BOTTOM_NAV_HEIGHT - EDGE_PADDING;
       setFabPos({ x: defaultX, y: defaultY });
     }
   }, []);
 
   const clampPosition = useCallback((x: number, y: number) => {
     const maxX = window.innerWidth - FAB_SIZE - EDGE_PADDING;
-    const maxY = window.innerHeight - FAB_SIZE - EDGE_PADDING;
+    const maxY = window.innerHeight - FAB_SIZE - BOTTOM_NAV_HEIGHT - EDGE_PADDING;
     return {
       x: Math.max(EDGE_PADDING, Math.min(x, maxX)),
       y: Math.max(EDGE_PADDING, Math.min(y, maxY)),
