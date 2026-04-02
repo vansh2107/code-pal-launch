@@ -351,7 +351,7 @@ export default function DocVault() {
   return (
     <SafeAreaContainer>
       <div 
-        className="min-h-screen bg-background flex w-full overflow-x-hidden" 
+        className="min-h-screen page-bg flex w-full overflow-x-hidden" 
         style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom))" }}
       >
         {/* Desktop Sidebar */}

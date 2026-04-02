@@ -213,17 +213,63 @@
 
   /* Card hover */
   .card-hover {
-    @apply smooth hover:shadow-[0_6px_20px_rgba(255,107,0,0.1)] hover:scale-[1.01];
+    @apply smooth hover:scale-[1.01];
+    box-shadow: 0 0 0 1px rgba(245,166,35,0.15), 0 2px 12px rgba(245,166,35,0.08);
+  }
+  .card-hover:hover {
+    box-shadow: 0 0 0 1px rgba(245,166,35,0.25), 0 4px 16px rgba(245,166,35,0.14);
   }
 
-  /* Button glow */
+  /* Metallic button glow */
   .btn-glow {
-    @apply shadow-[0_4px_14px_rgba(255,107,0,0.25)] hover:shadow-[0_6px_20px_rgba(255,107,0,0.35)] smooth;
+    background: linear-gradient(145deg, #FFD080 0%, #F5A623 35%, #E8920A 65%, #FFB84D 100%);
+    box-shadow: 0 2px 8px rgba(230,140,0,0.35), 0 1px 2px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.22);
+    border: 1px solid rgba(255,200,80,0.4);
+    position: relative;
+    overflow: hidden;
+    text-shadow: 0 1px 2px rgba(140,70,0,0.3);
+    @apply smooth;
+  }
+  .btn-glow::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.18), transparent);
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .btn-glow:hover {
+    background: linear-gradient(145deg, #FFE09A, #FFAE35 40%, #F09500 100%);
+    box-shadow: 0 4px 16px rgba(230,140,0,0.45), 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.28);
+    transform: translateY(-1px);
+  }
+  .btn-glow:active {
+    transform: translateY(0px) scale(0.98);
+    box-shadow: 0 1px 4px rgba(180,100,0,0.3), inset 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  /* Metallic page background */
+  .page-bg {
+    background: linear-gradient(160deg, #FFFDF8 0%, #FFF6E8 50%, #FFF0D6 100%);
+  }
+
+  /* Metallic card borders */
+  .card-metallic {
+    border-color: rgba(245,166,35,0.3);
+    box-shadow: 0 0 0 1px rgba(245,166,35,0.15), 0 2px 12px rgba(245,166,35,0.08);
   }
 
   /* Text gradients */
   .text-gradient {
     @apply bg-gradient-to-r from-primary to-[hsl(25,100%,61%)] bg-clip-text text-transparent;
+  }
+
+  /* Icon on orange drop shadow */
+  .icon-on-orange {
+    filter: drop-shadow(0 1px 1px rgba(140,70,0,0.3));
   }
 }
 

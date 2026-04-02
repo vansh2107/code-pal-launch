@@ -65,7 +65,7 @@ const categories = [
     id: "family_shared", 
     name: "Family & Shared Renewals", 
     iconSrc: familyIcon, 
-    color: "bg-amber-500/10 text-amber-500",
+    color: "bg-primary-soft text-primary",
     types: ["children_documents", "school_enrollment", "family_insurance", "joint_subscription", "pet_care", "property_lease"]
   },
   { 
@@ -338,7 +338,7 @@ export default function Documents() {
   return (
     <SafeAreaContainer>
       <div 
-        className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
+        className="min-h-screen page-bg flex flex-col w-full overflow-x-hidden" 
         style={{ 
           paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
         }}

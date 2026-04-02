@@ -190,7 +190,7 @@ export default function Profile() {
   return (
     <SafeAreaContainer>
       <div 
-        className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden" 
+        className="min-h-screen page-bg flex flex-col w-full overflow-x-hidden" 
         style={{ 
           paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
         }}

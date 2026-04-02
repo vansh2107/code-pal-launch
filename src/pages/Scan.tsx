@@ -655,7 +655,7 @@ export default function Scan() {
 
   return (
     <SafeAreaContainer>
-      <div className="min-h-screen bg-background pb-20">
+      <div className="min-h-screen page-bg pb-20">
         <header className="bg-card border-b border-border px-4 py-2 sticky top-0 z-10">
           <div className="flex items-center gap-2 max-w-2xl mx-auto">
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
