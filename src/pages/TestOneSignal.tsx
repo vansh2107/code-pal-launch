@@ -104,7 +104,7 @@ export default function TestOneSignal() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen page-bg">
       <div className="container max-w-3xl mx-auto p-6">
         <Button
           variant="ghost"

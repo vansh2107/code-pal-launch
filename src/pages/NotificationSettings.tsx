@@ -121,7 +121,7 @@ export default function NotificationSettings() {
   });
 
   return (
-    <div className="min-h-screen bg-background pb-24" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <div className="min-h-screen page-bg pb-24" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       <header className="bg-card border-b border-border px-4 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>

@@ -329,7 +329,7 @@ export default function EditDocument() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen page-bg pb-20">
       <header className="bg-card border-b border-border px-4 py-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate(`/documents/${id}`)}>

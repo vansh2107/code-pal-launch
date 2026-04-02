@@ -296,7 +296,7 @@ export default function DocumentDetail() {
 
   return (
     <div 
-      className="min-h-screen bg-background flex flex-col w-full overflow-x-hidden"
+      className="min-h-screen page-bg flex flex-col w-full overflow-x-hidden"
       style={{ 
         paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
