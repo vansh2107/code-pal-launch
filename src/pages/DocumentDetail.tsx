@@ -374,7 +374,7 @@ export default function DocumentDetail() {
           <div className="mt-4 flex justify-center">
             <Button
               size="lg"
-              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl shadow-lg w-full max-w-sm"
+              className="btn-glow text-white font-semibold rounded-xl w-full max-w-sm"
               onClick={() => setRenewalSheetOpen(true)}
             >
               <RefreshCw className="h-5 w-5 mr-2" />
