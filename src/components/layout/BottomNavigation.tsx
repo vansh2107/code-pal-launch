@@ -16,7 +16,7 @@ export function BottomNavigation() {
 
   return (
     <nav 
-      className="fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-xl border-t border-border/50 z-50 pb-[env(safe-area-inset-bottom)]"
+      className="fixed bottom-0 left-0 right-0 bg-background/90 backdrop-blur-xl border-t border-border z-50 pb-[env(safe-area-inset-bottom)]"
       style={{ height: 'calc(70px + env(safe-area-inset-bottom))' }}
     >
       <div className="grid grid-cols-6 w-full h-full py-3 px-2">

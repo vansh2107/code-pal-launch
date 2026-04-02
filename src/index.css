@@ -2,164 +2,152 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Orange & White Brand Design System — all colors HSL */
 
 @layer base {
   :root {
     /* Safe area insets for mobile devices */
     --safe-bottom: env(safe-area-inset-bottom, 0px);
-    
-    /* Warm neutral background - #FFF7F0 */
-    --background: 30 100% 97%;
-    --foreground: 0 0% 0%; /* Pure black #000000 */
-
-    /* Card styling with warm tone */
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 0%; /* Pure black #000000 */
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 0%; /* Pure black #000000 */
-
-    /* Brand Orange - #FF9506 */
-    --primary: 35 100% 51%;
-    --primary-foreground: 0 0% 0%; /* Pure black #000000 */
-
-    /* Status Colors */
-    /* Expired Red - #D64545 bg #FFE5E5 */
-    --expired: 0 65% 56%;
-    --expired-foreground: 0 0% 0%; /* Pure black #000000 */
-    --expired-bg: 0 100% 95%;
-    
-    /* Expiring Yellow - #A87800 bg #FFF7C9 */
-    --expiring: 45 100% 33%;
-    --expiring-foreground: 0 0% 0%; /* Pure black #000000 */
-    --expiring-bg: 48 100% 90%;
-    
-    /* Valid Green - #2F7D32 bg #E9FBE6 */
-    --valid: 122 46% 34%;
-    --valid-foreground: 0 0% 0%; /* Pure black #000000 */
-    --valid-bg: 115 68% 94%;
-
-    /* Secondary */
-    --secondary: 30 20% 95%;
-    --secondary-foreground: 0 0% 0%; /* Pure black #000000 */
-
-    /* Muted */
-    --muted: 30 15% 92%;
-    --muted-foreground: 0 0% 0%; /* Pure black #000000 */
-
-    /* Accent - brighter orange */
-    --accent: 35 100% 60%;
-    --accent-foreground: 0 0% 0%; /* Pure black #000000 */
-
-    /* Warning - matches brand */
-    --warning: 35 100% 51%;
-    --warning-foreground: 0 0% 0%; /* Pure black #000000 */
-
-    /* Destructive */
-    --destructive: 0 65% 56%;
-    --destructive-foreground: 0 0% 0%; /* Pure black #000000 */
-
-    /* Borders with subtle warm tone */
-    --border: 24 15% 88%;
-    --input: 24 15% 92%;
-    --ring: 35 100% 51%;
-
-    --radius: 0.875rem;
-
-    /* Sidebar */
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 0%; /* Pure black #000000 */
-    --sidebar-primary: 35 100% 51%;
-    --sidebar-primary-foreground: 0 0% 0%; /* Pure black #000000 */
-    --sidebar-accent: 30 20% 96%;
-    --sidebar-accent-foreground: 0 0% 0%; /* Pure black #000000 */
-    --sidebar-border: 24 15% 90%;
-    --sidebar-ring: 35 100% 51%;
-  }
-
-  .dark {
-    /* Dark warm background */
-    --background: 24 8% 12%;
-    --foreground: 30 5% 90%;
-
-    /* Dark cards */
-    --card: 24 6% 16%;
-    --card-foreground: 30 5% 90%;
-
-    --popover: 24 6% 16%;
-    --popover-foreground: 30 5% 90%;
-
-    /* Brand Orange brighter for dark */
-    --primary: 35 100% 58%;
-    --primary-foreground: 0 0% 100%;
-
-    /* Status Colors - adjusted for dark mode */
-    --expired: 0 70% 65%;
-    --expired-foreground: 0 100% 80%;
-    --expired-bg: 0 60% 20%;
-    
-    --expiring: 45 95% 60%;
-    --expiring-foreground: 45 100% 85%;
-    --expiring-bg: 45 50% 20%;
-    
-    --valid: 122 50% 55%;
-    --valid-foreground: 122 70% 80%;
-    --valid-bg: 122 40% 18%;
-
-    /* Dark secondary */
-    --secondary: 24 6% 20%;
-    --secondary-foreground: 30 5% 85%;
-
-    /* Dark muted */
-    --muted: 24 6% 18%;
-    --muted-foreground: 30 5% 90%;
-
-    /* Accent */
-    --accent: 35 100% 62%;
-    --accent-foreground: 0 0% 100%;
-
-    /* Warning */
-    --warning: 35 100% 58%;
-    --warning-foreground: 0 0% 100%;
-
-    /* Destructive */
-    --destructive: 0 70% 65%;
-    --destructive-foreground: 0 0% 100%;
-
-    /* Dark borders */
-    --border: 24 8% 25%;
-    --input: 24 6% 20%;
-    --ring: 35 100% 58%;
-
-    /* Dark sidebar */
-    --sidebar-background: 24 8% 14%;
-    --sidebar-foreground: 30 5% 88%;
-    --sidebar-primary: 35 100% 58%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 24 6% 20%;
-    --sidebar-accent-foreground: 35 100% 58%;
-    --sidebar-border: 24 8% 22%;
-    --sidebar-ring: 35 100% 58%;
-  }
-}
-
-@layer base {
-  :root {
-    /* Safe area CSS variables for Android/iOS */
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
     --safe-area-left: env(safe-area-inset-left, 0px);
     --safe-area-right: env(safe-area-inset-right, 0px);
+
+    /* Background: pure white */
+    --background: 0 0% 100%;
+    /* Foreground: deep warm black #1A0A00 */
+    --foreground: 20 100% 5%;
+
+    /* Card/surface: warm white #FFF9F5 */
+    --card: 27 100% 98%;
+    --card-foreground: 20 100% 5%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 100% 5%;
+
+    /* Primary: bold brand orange #FF6B00 */
+    --primary: 25 100% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Primary variants */
+    --primary-light: 25 100% 61%;
+    --primary-soft: 25 100% 96%;
+    --primary-dark: 22 100% 43%;
+
+    /* Status Colors */
+    --expired: 0 84% 60%;
+    --expired-foreground: 20 100% 5%;
+    --expired-bg: 0 100% 95%;
+
+    --expiring: 38 92% 50%;
+    --expiring-foreground: 20 100% 5%;
+    --expiring-bg: 48 100% 93%;
+
+    --valid: 142 71% 45%;
+    --valid-foreground: 20 100% 5%;
+    --valid-bg: 142 76% 94%;
+
+    /* Secondary: warm tint */
+    --secondary: 25 100% 96%;
+    --secondary-foreground: 22 100% 43%;
+
+    /* Muted: warm muted tone */
+    --muted: 25 30% 95%;
+    --muted-foreground: 20 40% 52%;
+
+    /* Accent: orange light */
+    --accent: 25 100% 96%;
+    --accent-foreground: 25 100% 50%;
+
+    /* Warning */
+    --warning: 38 92% 50%;
+    --warning-foreground: 20 100% 5%;
+
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders: soft orange tint #FFE0C8 */
+    --border: 25 100% 89%;
+    --input: 25 100% 93%;
+    --ring: 25 100% 50%;
+
+    --radius: 1rem;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 20 100% 5%;
+    --sidebar-primary: 25 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 25 100% 96%;
+    --sidebar-accent-foreground: 25 100% 50%;
+    --sidebar-border: 25 100% 89%;
+    --sidebar-ring: 25 100% 50%;
+  }
+
+  .dark {
+    /* Dark mode with warm orange tones */
+    --background: 20 15% 8%;
+    --foreground: 25 20% 90%;
+
+    --card: 20 12% 12%;
+    --card-foreground: 25 20% 90%;
+
+    --popover: 20 12% 12%;
+    --popover-foreground: 25 20% 90%;
+
+    --primary: 25 100% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --primary-light: 25 100% 65%;
+    --primary-soft: 25 50% 15%;
+    --primary-dark: 22 100% 45%;
+
+    --expired: 0 70% 60%;
+    --expired-foreground: 0 100% 85%;
+    --expired-bg: 0 50% 15%;
+
+    --expiring: 38 90% 55%;
+    --expiring-foreground: 38 100% 85%;
+    --expiring-bg: 38 40% 15%;
+
+    --valid: 142 60% 50%;
+    --valid-foreground: 142 70% 85%;
+    --valid-bg: 142 35% 14%;
+
+    --secondary: 20 12% 16%;
+    --secondary-foreground: 25 20% 85%;
+
+    --muted: 20 10% 14%;
+    --muted-foreground: 25 15% 60%;
+
+    --accent: 25 60% 18%;
+    --accent-foreground: 25 100% 65%;
+
+    --warning: 38 90% 55%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 20 12% 20%;
+    --input: 20 10% 16%;
+    --ring: 25 100% 55%;
+
+    --sidebar-background: 20 15% 10%;
+    --sidebar-foreground: 25 20% 88%;
+    --sidebar-primary: 25 100% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 25 50% 15%;
+    --sidebar-accent-foreground: 25 100% 65%;
+    --sidebar-border: 20 12% 18%;
+    --sidebar-ring: 25 100% 55%;
   }
 
   html {
     height: 100%;
     scroll-behavior: smooth;
     overflow-x: hidden;
-    /* Do NOT add padding here - let SafeAreaContainer handle it */
   }
 
   body {
@@ -170,8 +158,7 @@ All colors MUST be HSL.
     overflow-x: hidden;
     overflow-y: auto;
     @apply bg-background text-foreground antialiased;
-    background: linear-gradient(135deg, hsl(30 100% 97%), hsl(30 60% 94%));
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   #root {
@@ -185,10 +172,9 @@ All colors MUST be HSL.
   }
 
   .dark body {
-    background: linear-gradient(135deg, hsl(24 8% 12%), hsl(24 10% 8%));
+    background: hsl(20 15% 8%);
   }
 
-  /* Safe area utility class */
   .safe-area {
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -211,9 +197,9 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
-  /* Glassmorphism effect */
+  /* Glassmorphism */
   .glass {
-    @apply bg-white/70 backdrop-blur-xl border border-white/20;
+    @apply bg-white/80 backdrop-blur-xl border border-border;
   }
 
   .dark .glass {
@@ -225,23 +211,21 @@ All colors MUST be HSL.
     @apply transition-all duration-200 ease-out;
   }
 
-  /* Premium card hover - subtle */
+  /* Card hover */
   .card-hover {
-    @apply smooth hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] hover:scale-[1.01];
+    @apply smooth hover:shadow-[0_6px_20px_rgba(255,107,0,0.1)] hover:scale-[1.01];
   }
 
-  /* Premium button shadow */
+  /* Button glow */
   .btn-glow {
-    @apply shadow-[0_4px_14px_rgba(255,149,6,0.28)] hover:shadow-[0_6px_20px_rgba(255,149,6,0.35)] smooth;
+    @apply shadow-[0_4px_14px_rgba(255,107,0,0.25)] hover:shadow-[0_6px_20px_rgba(255,107,0,0.35)] smooth;
   }
 
   /* Text gradients */
   .text-gradient {
-    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-primary to-[hsl(25,100%,61%)] bg-clip-text text-transparent;
   }
 }
-
-/* Old gradient-rotate animation removed — now using SVG animateTransform */
 
 /* International Phone Input Styles */
 .international-phone-input .PhoneInput {
@@ -249,7 +233,7 @@ All colors MUST be HSL.
 }
 
 .international-phone-input .PhoneInputInput {
-  @apply flex-1 rounded-xl border border-input bg-input px-4 py-3 text-base text-foreground transition-colors;
+  @apply flex-1 rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground transition-colors;
   @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
   @apply placeholder:text-muted-foreground;
 }
@@ -269,4 +253,3 @@ All colors MUST be HSL.
 .international-phone-input .PhoneInputCountryIconImg {
   @apply w-full h-full object-cover rounded-sm;
 }
-
