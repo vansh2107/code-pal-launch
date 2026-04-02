@@ -109,7 +109,7 @@ export default function TaskHistory() {
   if (loading) {
     return (
       <div className="min-h-screen page-bg pb-20">
-        <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6">
+        <div className="bg-gradient-to-br from-[#FFF6E8] via-[#FFF0D6] to-[#FFFDF8] p-6">
           <Skeleton className="h-8 w-48" />
         </div>
         <div className="p-4 space-y-4">
@@ -124,7 +124,7 @@ export default function TaskHistory() {
   return (
     <div className="min-h-screen page-bg pb-24 px-4" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       {/* Header */}
-      <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-background p-6 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+      <div className="bg-gradient-to-br from-[#FFF6E8] via-[#FFF0D6] to-[#FFFDF8] p-6 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
