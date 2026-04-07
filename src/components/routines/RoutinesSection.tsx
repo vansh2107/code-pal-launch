@@ -17,7 +17,7 @@ interface TodayProgress {
 export function RoutinesSection() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { routines, loading, createRoutine, deleteRoutine, startRoutine } = useRoutines();
+  const { routines, loading, createRoutine, deleteRoutine } = useRoutines();
   const [showCreate, setShowCreate] = useState(false);
   const [progressMap, setProgressMap] = useState<Record<string, TodayProgress>>({});
 
