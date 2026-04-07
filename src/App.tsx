@@ -38,6 +38,7 @@ import TaskHistory from "./pages/TaskHistory";
 import TaskDetail from "./pages/TaskDetail";
 import Settings from "./pages/Settings";
 import NotificationSoundSettings from "./pages/NotificationSoundSettings";
+import RoutineExecution from "./pages/RoutineExecution";
 import AuthEventListener from "./components/auth/AuthEventListener";
 
 const queryClient = new QueryClient({
@@ -250,6 +251,15 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Settings />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/routine/:id"
+                element={
+                  <ProtectedRoute>
+                    <RoutineExecution />
                   </ProtectedRoute>
                 }
               />
