@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { TaskListSkeleton } from "@/components/ui/loading-skeleton";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { useTasksData } from "@/hooks/useTasksData";
+import { RoutinesSection } from "@/components/routines/RoutinesSection";
 
 interface Task {
   id: string;
@@ -36,6 +37,7 @@ const FUNNY_MESSAGES = [
 export default function Tasks() {
   const navigate = useNavigate();
   const { tasks, futureTasks, loading, userTimezone, refreshTasks } = useTasksData();
+  const [activeTab, setActiveTab] = useState<"tasks" | "routines">("tasks");
 
   // Memoize status calculation
   const getTaskStatusInfo = useCallback((task: Task) => {
@@ -143,64 +145,72 @@ export default function Tasks() {
         </div>
 
         <div className="p-4 space-y-6">
-          {/* Today's Tasks */}
-          <div className="space-y-4">
-            {tasks.length === 0 ? (
-              <div className="text-center py-16 space-y-4 animate-fade-in">
-                <div className="text-6xl mb-4">📋</div>
-                <h3 className="text-lg font-semibold text-foreground">No tasks for today</h3>
-                <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                  Start planning your day by adding your first task
-                </p>
-                <Button
-                  onClick={() => navigate("/add-task")}
-                  className="rounded-full px-8"
-                >
-                  <Plus className="h-5 w-5 mr-2" />
-                  Add Your First Task
-                </Button>
+          {activeTab === "routines" ? (
+            <RoutinesSection />
+          ) : (
+            <>
+              {/* Today's Tasks */}
+              <div className="space-y-4">
+                {tasks.length === 0 ? (
+                  <div className="text-center py-16 space-y-4 animate-fade-in">
+                    <div className="text-6xl mb-4">📋</div>
+                    <h3 className="text-lg font-semibold text-foreground">No tasks for today</h3>
+                    <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                      Start planning your day by adding your first task
+                    </p>
+                    <Button
+                      onClick={() => navigate("/add-task")}
+                      className="rounded-full px-8"
+                    >
+                      <Plus className="h-5 w-5 mr-2" />
+                      Add Your First Task
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {tasks.map((task) => {
+                      const statusInfo = getTaskStatusInfo(task);
+                      const funnyMessage = getFunnyMessage(task.consecutive_missed_days);
+                      
+                      return (
+                        <OptimizedTaskCard
+                          key={task.id}
+                          task={task}
+                          statusInfo={statusInfo}
+                          funnyMessage={funnyMessage}
+                          onRefresh={refreshTasks}
+                          userTimezone={userTimezone}
+                        />
+                      );
+                    })}
+                  </>
+                )}
               </div>
-            ) : (
-              <>
-                {tasks.map((task) => {
-                  const statusInfo = getTaskStatusInfo(task);
-                  const funnyMessage = getFunnyMessage(task.consecutive_missed_days);
-                  
-                  return (
-                    <OptimizedTaskCard
-                      key={task.id}
-                      task={task}
-                      statusInfo={statusInfo}
-                      funnyMessage={funnyMessage}
-                      onRefresh={refreshTasks}
-                      userTimezone={userTimezone}
-                    />
-                  );
-                })}
-              </>
-            )}
-          </div>
 
-          {/* Future Tasks */}
-          {futureTasks.length > 0 && (
-            <div className="pt-6 border-t border-border">
-              <TaskFutureList tasks={futureTasks} userTimezone={userTimezone} />
-            </div>
+              {/* Future Tasks */}
+              {futureTasks.length > 0 && (
+                <div className="pt-6 border-t border-border">
+                  <TaskFutureList tasks={futureTasks} userTimezone={userTimezone} />
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        <Button
-          onClick={() => navigate("/add-task")}
-          className="fixed h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-transform z-40"
-          style={{
-            bottom: '80px',
-            left: '50%',
-            transform: 'translateX(-50%)'
-          }}
-          size="icon"
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
+        {activeTab === "tasks" && (
+          <Button
+            onClick={() => navigate("/add-task")}
+            className="fixed h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-transform z-40"
+            style={{
+              bottom: '80px',
+              left: '50%',
+              transform: 'translateX(-50%)'
+            }}
+            size="icon"
+          >
+            <Plus className="h-6 w-6" />
+          </Button>
+        )}
 
         <BottomNavigation />
       </div>
