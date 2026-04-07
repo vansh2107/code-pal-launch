@@ -256,6 +256,15 @@ const App = () => (
               />
 
               <Route
+                path="/routine/:id"
+                element={
+                  <ProtectedRoute>
+                    <RoutineExecution />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
                 path="/test-emails"
                 element={
                   <ProtectedRoute>
