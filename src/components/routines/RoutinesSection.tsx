@@ -17,7 +17,7 @@ interface TodayProgress {
 export function RoutinesSection() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { routines, loading, createRoutine, startRoutine } = useRoutines();
+  const { routines, loading, createRoutine, deleteRoutine, startRoutine } = useRoutines();
   const [showCreate, setShowCreate] = useState(false);
   const [progressMap, setProgressMap] = useState<Record<string, TodayProgress>>({});
 
@@ -75,10 +75,7 @@ export function RoutinesSection() {
   };
 
   const handleStart = async (routineId: string) => {
-    const log = await startRoutine(routineId);
-    if (log) {
-      navigate(`/routine/${routineId}`);
-    }
+    navigate(`/routine/${routineId}`);
   };
 
   const handleContinue = (routineId: string) => {
@@ -146,6 +143,7 @@ export function RoutinesSection() {
               onStart={handleStart}
               onContinue={handleContinue}
               onClick={handleClick}
+              onDelete={deleteRoutine}
             />
           ))}
         </div>
