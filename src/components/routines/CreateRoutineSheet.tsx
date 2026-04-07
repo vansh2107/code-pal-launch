@@ -19,6 +19,11 @@ const CATEGORIES = [
   { value: "custom", label: "Custom", icon: "⚡" },
 ];
 
+const MODES = [
+  { value: "flexible", label: "Flexible", desc: "Soft reminders, delay tolerance", icon: "🌊" },
+  { value: "strict", label: "Strict", desc: "Persistent reminders, strong nudges", icon: "⚡" },
+];
+
 interface Step {
   title: string;
   duration_minutes: number;
@@ -31,7 +36,8 @@ interface CreateRoutineSheetProps {
     name: string,
     category: string,
     icon: string,
-    steps: Step[]
+    steps: Step[],
+    options?: { mode?: string; auto_adjust?: boolean; start_time?: string }
   ) => void;
 }
 
