@@ -466,30 +466,42 @@ export type Database = {
       }
       routine_logs: {
         Row: {
+          auto_adjust: boolean
           completed_at: string | null
           created_at: string
           current_step_index: number
+          discipline_score: number | null
+          execution_date: string
           id: string
+          mode: string
           routine_id: string
           started_at: string
           status: string
           user_id: string
         }
         Insert: {
+          auto_adjust?: boolean
           completed_at?: string | null
           created_at?: string
           current_step_index?: number
+          discipline_score?: number | null
+          execution_date?: string
           id?: string
+          mode?: string
           routine_id: string
           started_at?: string
           status?: string
           user_id: string
         }
         Update: {
+          auto_adjust?: boolean
           completed_at?: string | null
           created_at?: string
           current_step_index?: number
+          discipline_score?: number | null
+          execution_date?: string
           id?: string
+          mode?: string
           routine_id?: string
           started_at?: string
           status?: string
@@ -508,23 +520,35 @@ export type Database = {
       routine_step_logs: {
         Row: {
           action: string
+          activated_at: string | null
           completed_at: string
+          delay_seconds: number | null
           id: string
+          rescheduled_to: string | null
           routine_log_id: string
+          scheduled_at: string | null
           step_id: string
         }
         Insert: {
           action?: string
+          activated_at?: string | null
           completed_at?: string
+          delay_seconds?: number | null
           id?: string
+          rescheduled_to?: string | null
           routine_log_id: string
+          scheduled_at?: string | null
           step_id: string
         }
         Update: {
           action?: string
+          activated_at?: string | null
           completed_at?: string
+          delay_seconds?: number | null
           id?: string
+          rescheduled_to?: string | null
           routine_log_id?: string
+          scheduled_at?: string | null
           step_id?: string
         }
         Relationships: [
@@ -549,24 +573,30 @@ export type Database = {
           created_at: string
           duration_minutes: number
           id: string
+          reminder_type: string
           routine_id: string
           sort_order: number
+          start_offset_minutes: number
           title: string
         }
         Insert: {
           created_at?: string
           duration_minutes?: number
           id?: string
+          reminder_type?: string
           routine_id: string
           sort_order?: number
+          start_offset_minutes?: number
           title: string
         }
         Update: {
           created_at?: string
           duration_minutes?: number
           id?: string
+          reminder_type?: string
           routine_id?: string
           sort_order?: number
+          start_offset_minutes?: number
           title?: string
         }
         Relationships: [
@@ -579,37 +609,105 @@ export type Database = {
           },
         ]
       }
-      routines: {
+      routine_streaks: {
         Row: {
-          category: string
+          avg_delay_seconds: number | null
+          avg_discipline_score: number | null
+          best_streak: number
           created_at: string
-          icon: string | null
+          current_streak: number
           id: string
-          is_active: boolean | null
-          name: string
-          repeat_days: number[] | null
+          last_completed_date: string | null
+          routine_id: string
+          total_completions: number
+          total_skips: number
           updated_at: string
           user_id: string
         }
         Insert: {
-          category?: string
+          avg_delay_seconds?: number | null
+          avg_discipline_score?: number | null
+          best_streak?: number
           created_at?: string
-          icon?: string | null
+          current_streak?: number
           id?: string
-          is_active?: boolean | null
-          name: string
-          repeat_days?: number[] | null
+          last_completed_date?: string | null
+          routine_id: string
+          total_completions?: number
+          total_skips?: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          avg_delay_seconds?: number | null
+          avg_discipline_score?: number | null
+          best_streak?: number
+          created_at?: string
+          current_streak?: number
+          id?: string
+          last_completed_date?: string | null
+          routine_id?: string
+          total_completions?: number
+          total_skips?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_streaks_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "routines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routines: {
+        Row: {
+          auto_adjust: boolean
+          category: string
+          created_at: string
+          end_time: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          mode: string
+          name: string
+          repeat_days: number[] | null
+          repeat_type: string
+          start_time: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_adjust?: boolean
           category?: string
           created_at?: string
+          end_time?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
+          mode?: string
+          name: string
+          repeat_days?: number[] | null
+          repeat_type?: string
+          start_time?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_adjust?: boolean
+          category?: string
+          created_at?: string
+          end_time?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          mode?: string
           name?: string
           repeat_days?: number[] | null
+          repeat_type?: string
+          start_time?: string | null
           updated_at?: string
           user_id?: string
         }
