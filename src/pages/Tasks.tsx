@@ -132,15 +132,41 @@ export default function Tasks() {
             </Button>
           </div>
 
-          <div className="flex gap-3">
-            <div className="flex-1 bg-card/50 backdrop-blur-sm rounded-[16px] p-3 border border-border/50">
-              <p className="text-xs text-muted-foreground mb-1">Pending</p>
-              <p className="text-xl font-bold text-foreground">{pendingTasks.length}</p>
+          {activeTab === "tasks" && (
+            <div className="flex gap-3">
+              <div className="flex-1 bg-card/50 backdrop-blur-sm rounded-[16px] p-3 border border-border/50">
+                <p className="text-xs text-muted-foreground mb-1">Pending</p>
+                <p className="text-xl font-bold text-foreground">{pendingTasks.length}</p>
+              </div>
+              <div className="flex-1 bg-valid-bg/50 backdrop-blur-sm rounded-[16px] p-3 border border-valid/30">
+                <p className="text-xs text-valid-foreground mb-1">Completed</p>
+                <p className="text-xl font-bold text-valid">{completedTasks.length}</p>
+              </div>
             </div>
-            <div className="flex-1 bg-valid-bg/50 backdrop-blur-sm rounded-[16px] p-3 border border-valid/30">
-              <p className="text-xs text-valid-foreground mb-1">Completed</p>
-              <p className="text-xl font-bold text-valid">{completedTasks.length}</p>
-            </div>
+          )}
+
+          {/* Tab Switcher */}
+          <div className="flex gap-1 mt-3 bg-muted/50 rounded-xl p-1">
+            <button
+              onClick={() => setActiveTab("tasks")}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                activeTab === "tasks"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              📋 Tasks
+            </button>
+            <button
+              onClick={() => setActiveTab("routines")}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                activeTab === "routines"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              🔄 Routines
+            </button>
           </div>
         </div>
 
