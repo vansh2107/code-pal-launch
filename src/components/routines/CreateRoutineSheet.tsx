@@ -140,6 +140,30 @@ export function CreateRoutineSheet({
                 ))}
               </div>
             </div>
+
+            {/* Mode */}
+            <div className="space-y-2">
+              <Label>Mode</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {MODES.map((m) => (
+                  <button
+                    key={m.value}
+                    onClick={() => setMode(m.value)}
+                    className={`flex flex-col items-start gap-1 p-3 rounded-xl border-2 transition-all ${
+                      mode === m.value
+                        ? "border-primary bg-primary-soft"
+                        : "border-border bg-card hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{m.icon}</span>
+                      <span className="text-sm font-semibold">{m.label}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{m.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-3 animate-fade-in overflow-y-auto max-h-[50vh] pr-1">
