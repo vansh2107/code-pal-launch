@@ -142,7 +142,7 @@ export default function Dashboard() {
           paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
         }}
       >
-        <header className="bg-gradient-to-r from-[#FFF6E8] via-[#FFF0D6] to-[#FFF6E8] border-b border-border/50 px-4 py-4">
+        <header className="bg-background/80 backdrop-blur-xl border-b border-border/50 px-4 py-4">
           <div className="w-full max-w-4xl mx-auto">
             <h1 className="text-2xl font-semibold text-gradient mb-1">Dashboard</h1>
             <p className="text-base text-muted-foreground">Welcome back! Here's your document overview.</p>
