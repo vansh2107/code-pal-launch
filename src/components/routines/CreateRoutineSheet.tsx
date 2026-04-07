@@ -50,6 +50,8 @@ export function CreateRoutineSheet({
   const [name, setName] = useState("");
   const [category, setCategory] = useState("morning");
   const [icon, setIcon] = useState("☀️");
+  const [mode, setMode] = useState("flexible");
+  const [autoAdjust, setAutoAdjust] = useState(true);
   const [steps, setSteps] = useState<Step[]>([
     { title: "", duration_minutes: 5 },
   ]);
@@ -68,12 +70,14 @@ export function CreateRoutineSheet({
   const handleSubmit = () => {
     const validSteps = steps.filter((s) => s.title.trim());
     if (!name.trim() || validSteps.length === 0) return;
-    onSubmit(name.trim(), category, icon, validSteps);
+    onSubmit(name.trim(), category, icon, validSteps, { mode, auto_adjust: autoAdjust });
     // Reset
     setPage(0);
     setName("");
     setCategory("morning");
     setIcon("☀️");
+    setMode("flexible");
+    setAutoAdjust(true);
     setSteps([{ title: "", duration_minutes: 5 }]);
   };
 
