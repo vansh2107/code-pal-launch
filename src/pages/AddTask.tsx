@@ -137,7 +137,7 @@ export default function AddTask() {
   return (
     <div className="min-h-screen page-bg pb-24 px-4" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       {/* Header */}
-      <div className="bg-gradient-to-br from-[#FFF6E8] via-[#FFF0D6] to-[#FFFDF8] p-6 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+      <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
