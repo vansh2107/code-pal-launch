@@ -19,6 +19,11 @@ const CATEGORIES = [
   { value: "custom", label: "Custom", icon: "⚡" },
 ];
 
+const MODES = [
+  { value: "flexible", label: "Flexible", desc: "Soft reminders, delay tolerance", icon: "🌊" },
+  { value: "strict", label: "Strict", desc: "Persistent reminders, strong nudges", icon: "⚡" },
+];
+
 interface Step {
   title: string;
   duration_minutes: number;
@@ -31,7 +36,8 @@ interface CreateRoutineSheetProps {
     name: string,
     category: string,
     icon: string,
-    steps: Step[]
+    steps: Step[],
+    options?: { mode?: string; auto_adjust?: boolean; start_time?: string }
   ) => void;
 }
 
@@ -44,6 +50,8 @@ export function CreateRoutineSheet({
   const [name, setName] = useState("");
   const [category, setCategory] = useState("morning");
   const [icon, setIcon] = useState("☀️");
+  const [mode, setMode] = useState("flexible");
+  const [autoAdjust, setAutoAdjust] = useState(true);
   const [steps, setSteps] = useState<Step[]>([
     { title: "", duration_minutes: 5 },
   ]);
@@ -62,12 +70,14 @@ export function CreateRoutineSheet({
   const handleSubmit = () => {
     const validSteps = steps.filter((s) => s.title.trim());
     if (!name.trim() || validSteps.length === 0) return;
-    onSubmit(name.trim(), category, icon, validSteps);
+    onSubmit(name.trim(), category, icon, validSteps, { mode, auto_adjust: autoAdjust });
     // Reset
     setPage(0);
     setName("");
     setCategory("morning");
     setIcon("☀️");
+    setMode("flexible");
+    setAutoAdjust(true);
     setSteps([{ title: "", duration_minutes: 5 }]);
   };
 
@@ -126,6 +136,30 @@ export function CreateRoutineSheet({
                   >
                     <span className="text-2xl">{cat.icon}</span>
                     <span className="text-xs font-medium">{cat.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Mode */}
+            <div className="space-y-2">
+              <Label>Mode</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {MODES.map((m) => (
+                  <button
+                    key={m.value}
+                    onClick={() => setMode(m.value)}
+                    className={`flex flex-col items-start gap-1 p-3 rounded-xl border-2 transition-all ${
+                      mode === m.value
+                        ? "border-primary bg-primary-soft"
+                        : "border-border bg-card hover:border-primary/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{m.icon}</span>
+                      <span className="text-sm font-semibold">{m.label}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{m.desc}</span>
                   </button>
                 ))}
               </div>
