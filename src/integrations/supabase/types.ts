@@ -464,6 +464,157 @@ export type Database = {
           },
         ]
       }
+      routine_logs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          current_step_index: number
+          id: string
+          routine_id: string
+          started_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          current_step_index?: number
+          id?: string
+          routine_id: string
+          started_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          current_step_index?: number
+          id?: string
+          routine_id?: string
+          started_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_logs_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "routines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routine_step_logs: {
+        Row: {
+          action: string
+          completed_at: string
+          id: string
+          routine_log_id: string
+          step_id: string
+        }
+        Insert: {
+          action?: string
+          completed_at?: string
+          id?: string
+          routine_log_id: string
+          step_id: string
+        }
+        Update: {
+          action?: string
+          completed_at?: string
+          id?: string
+          routine_log_id?: string
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_step_logs_routine_log_id_fkey"
+            columns: ["routine_log_id"]
+            isOneToOne: false
+            referencedRelation: "routine_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routine_step_logs_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "routine_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routine_steps: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          id: string
+          routine_id: string
+          sort_order: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          routine_id: string
+          sort_order?: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          routine_id?: string
+          sort_order?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_steps_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "routines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routines: {
+        Row: {
+          category: string
+          created_at: string
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          repeat_days: number[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          repeat_days?: number[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          repeat_days?: number[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           consecutive_missed_days: number | null
