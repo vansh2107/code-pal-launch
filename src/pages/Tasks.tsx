@@ -177,21 +177,14 @@ export default function Tasks() {
             <>
               {/* Today's Tasks */}
               <div className="space-y-4">
-                {tasks.length === 0 ? (
-                  <div className="text-center py-16 space-y-4 animate-fade-in">
-                    <div className="text-6xl mb-4">📋</div>
-                    <h3 className="text-lg font-semibold text-foreground">No tasks for today</h3>
-                    <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                      Start planning your day by adding your first task
-                    </p>
-                    <Button
-                      onClick={() => navigate("/add-task")}
-                      className="rounded-full px-8"
-                    >
-                      <Plus className="h-5 w-5 mr-2" />
-                      Add Your First Task
-                    </Button>
-                  </div>
+              {tasks.length === 0 ? (
+                <div className="text-center py-16 animate-fade-in">
+                  <div className="text-6xl mb-4">📋</div>
+                  <h3 className="text-lg font-semibold text-foreground">No tasks for today</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Tap + to add a new task
+                  </p>
+                </div>
                 ) : (
                   <>
                     {tasks.map((task) => {
