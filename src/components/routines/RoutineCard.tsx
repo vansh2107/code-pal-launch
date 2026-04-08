@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { ChevronRight, Play, CheckCircle2, Trash2, Clock, Power } from "lucide-react";
+import { ChevronRight, Play, CheckCircle2, Trash2, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import {
