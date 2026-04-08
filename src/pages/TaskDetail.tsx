@@ -33,63 +33,44 @@ export default function TaskDetail() {
   const [timezone, setTimezone] = useState("UTC");
 
   useEffect(() => {
-    fetchUserTimezone();
-    fetchTask();
+    if (id) fetchAll();
   }, [id]);
 
-  const fetchUserTimezone = async () => {
+  const fetchAll = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
+      if (!user) return;
+
+      // Fetch task + timezone in PARALLEL
+      const [taskResult, profileResult] = await Promise.all([
+        supabase.from("tasks")
+          .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date")
+          .eq("id", id)
+          .maybeSingle(),
+        supabase.from("profiles")
           .select("timezone")
           .eq("user_id", user.id)
-          .maybeSingle();
-        
-        if (profile?.timezone) {
-          setTimezone(profile.timezone);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching timezone:", error);
-    }
-  };
+          .maybeSingle(),
+      ]);
 
-  const fetchTask = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      if (profileResult.data?.timezone) setTimezone(profileResult.data.timezone);
 
-      if (error) throw error;
-      
-      if (!data) {
-        toast({
-          title: "Task not found",
-          description: "The requested task could not be found.",
-          variant: "destructive",
-        });
+      if (taskResult.error) throw taskResult.error;
+      if (!taskResult.data) {
+        toast({ title: "Task not found", variant: "destructive" });
         navigate("/tasks");
         return;
       }
 
-      setTask(data);
+      setTask(taskResult.data);
 
-      if (data.image_path) {
-        const signedUrl = await getSignedUrl("task-images", data.image_path);
-        if (signedUrl) {
-          setImageUrl(signedUrl);
-        }
+      if (taskResult.data.image_path) {
+        getSignedUrl("task-images", taskResult.data.image_path).then(url => {
+          if (url) setImageUrl(url);
+        });
       }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to fetch task",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message || "Failed to fetch task", variant: "destructive" });
       navigate("/tasks");
     } finally {
       setLoading(false);
