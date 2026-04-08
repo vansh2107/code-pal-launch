@@ -464,65 +464,6 @@ export type Database = {
           },
         ]
       }
-      routine_logs: {
-        Row: {
-          auto_adjust: boolean
-          completed_at: string | null
-          created_at: string
-          current_step_index: number
-          discipline_score: number | null
-          execution_date: string
-          id: string
-          last_notified_at: string | null
-          last_notified_step_id: string | null
-          mode: string
-          routine_id: string
-          started_at: string
-          status: string
-          user_id: string
-        }
-        Insert: {
-          auto_adjust?: boolean
-          completed_at?: string | null
-          created_at?: string
-          current_step_index?: number
-          discipline_score?: number | null
-          execution_date?: string
-          id?: string
-          last_notified_at?: string | null
-          last_notified_step_id?: string | null
-          mode?: string
-          routine_id: string
-          started_at?: string
-          status?: string
-          user_id: string
-        }
-        Update: {
-          auto_adjust?: boolean
-          completed_at?: string | null
-          created_at?: string
-          current_step_index?: number
-          discipline_score?: number | null
-          execution_date?: string
-          id?: string
-          last_notified_at?: string | null
-          last_notified_step_id?: string | null
-          mode?: string
-          routine_id?: string
-          started_at?: string
-          status?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "routine_logs_routine_id_fkey"
-            columns: ["routine_id"]
-            isOneToOne: false
-            referencedRelation: "routines"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       routine_notification_log: {
         Row: {
           id: string
@@ -553,179 +494,60 @@ export type Database = {
         }
         Relationships: []
       }
-      routine_slots: {
+      routine_task_slots: {
         Row: {
           created_at: string
           days_of_week: number[]
           id: string
-          routine_id: string
-          start_time: string
+          task_id: string
+          time: string
         }
         Insert: {
           created_at?: string
           days_of_week?: number[]
           id?: string
-          routine_id: string
-          start_time?: string
+          task_id: string
+          time?: string
         }
         Update: {
           created_at?: string
           days_of_week?: number[]
           id?: string
-          routine_id?: string
-          start_time?: string
+          task_id?: string
+          time?: string
         }
         Relationships: [
           {
-            foreignKeyName: "routine_slots_routine_id_fkey"
-            columns: ["routine_id"]
+            foreignKeyName: "routine_task_slots_task_id_fkey"
+            columns: ["task_id"]
             isOneToOne: false
-            referencedRelation: "routines"
+            referencedRelation: "routine_tasks"
             referencedColumns: ["id"]
           },
         ]
       }
-      routine_step_logs: {
-        Row: {
-          action: string
-          activated_at: string | null
-          completed_at: string
-          delay_seconds: number | null
-          id: string
-          rescheduled_to: string | null
-          routine_log_id: string
-          scheduled_at: string | null
-          step_id: string
-        }
-        Insert: {
-          action?: string
-          activated_at?: string | null
-          completed_at?: string
-          delay_seconds?: number | null
-          id?: string
-          rescheduled_to?: string | null
-          routine_log_id: string
-          scheduled_at?: string | null
-          step_id: string
-        }
-        Update: {
-          action?: string
-          activated_at?: string | null
-          completed_at?: string
-          delay_seconds?: number | null
-          id?: string
-          rescheduled_to?: string | null
-          routine_log_id?: string
-          scheduled_at?: string | null
-          step_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "routine_step_logs_routine_log_id_fkey"
-            columns: ["routine_log_id"]
-            isOneToOne: false
-            referencedRelation: "routine_logs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "routine_step_logs_step_id_fkey"
-            columns: ["step_id"]
-            isOneToOne: false
-            referencedRelation: "routine_steps"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      routine_steps: {
+      routine_tasks: {
         Row: {
           created_at: string
-          duration_minutes: number
           id: string
-          reminder_type: string
+          name: string
           routine_id: string
-          sort_order: number
-          start_offset_minutes: number
-          step_start_time: string | null
-          title: string
         }
         Insert: {
           created_at?: string
-          duration_minutes?: number
           id?: string
-          reminder_type?: string
+          name: string
           routine_id: string
-          sort_order?: number
-          start_offset_minutes?: number
-          step_start_time?: string | null
-          title: string
         }
         Update: {
           created_at?: string
-          duration_minutes?: number
           id?: string
-          reminder_type?: string
+          name?: string
           routine_id?: string
-          sort_order?: number
-          start_offset_minutes?: number
-          step_start_time?: string | null
-          title?: string
         }
         Relationships: [
           {
-            foreignKeyName: "routine_steps_routine_id_fkey"
-            columns: ["routine_id"]
-            isOneToOne: false
-            referencedRelation: "routines"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      routine_streaks: {
-        Row: {
-          avg_delay_seconds: number | null
-          avg_discipline_score: number | null
-          best_streak: number
-          created_at: string
-          current_streak: number
-          id: string
-          last_completed_date: string | null
-          routine_id: string
-          total_completions: number
-          total_skips: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          avg_delay_seconds?: number | null
-          avg_discipline_score?: number | null
-          best_streak?: number
-          created_at?: string
-          current_streak?: number
-          id?: string
-          last_completed_date?: string | null
-          routine_id: string
-          total_completions?: number
-          total_skips?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          avg_delay_seconds?: number | null
-          avg_discipline_score?: number | null
-          best_streak?: number
-          created_at?: string
-          current_streak?: number
-          id?: string
-          last_completed_date?: string | null
-          routine_id?: string
-          total_completions?: number
-          total_skips?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "routine_streaks_routine_id_fkey"
+            foreignKeyName: "routine_tasks_routine_id_fkey"
             columns: ["routine_id"]
             isOneToOne: false
             referencedRelation: "routines"
@@ -735,53 +557,29 @@ export type Database = {
       }
       routines: {
         Row: {
-          auto_adjust: boolean
-          category: string
           created_at: string
-          end_time: string | null
           icon: string | null
           id: string
           is_active: boolean | null
-          mode: string
           name: string
-          notifications_enabled: boolean
-          repeat_days: number[] | null
-          repeat_type: string
-          start_time: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
-          auto_adjust?: boolean
-          category?: string
           created_at?: string
-          end_time?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
-          mode?: string
           name: string
-          notifications_enabled?: boolean
-          repeat_days?: number[] | null
-          repeat_type?: string
-          start_time?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
-          auto_adjust?: boolean
-          category?: string
           created_at?: string
-          end_time?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
-          mode?: string
           name?: string
-          notifications_enabled?: boolean
-          repeat_days?: number[] | null
-          repeat_type?: string
-          start_time?: string | null
           updated_at?: string
           user_id?: string
         }
