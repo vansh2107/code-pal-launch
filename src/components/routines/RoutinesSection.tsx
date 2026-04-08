@@ -1,80 +1,26 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RoutineCard } from "./RoutineCard";
 import { CreateRoutineSheet } from "./CreateRoutineSheet";
+import { AddRoutineTaskSheet } from "./AddRoutineTaskSheet";
 import { useRoutines } from "@/hooks/useRoutines";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-
-interface TodayProgress {
-  completed: number;
-  total: number;
-  status: string;
-}
 
 export function RoutinesSection() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { routines, loading, createRoutine, deleteRoutine, toggleRoutineActive } = useRoutines();
+  const { routines, loading, createRoutine, deleteRoutine, toggleRoutineActive, addTask, deleteTask } = useRoutines();
   const [showCreate, setShowCreate] = useState(false);
-  const [progressMap, setProgressMap] = useState<Record<string, TodayProgress>>({});
+  const [addTaskTarget, setAddTaskTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const fetchProgress = useCallback(async () => {
-    if (!user || routines.length === 0) return;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    try {
-      const { data: logs } = await supabase
-        .from("routine_logs" as any)
-        .select("*")
-        .eq("user_id", user.id)
-        .gte("started_at", today.toISOString());
-
-      if (!logs) return;
-
-      const map: Record<string, TodayProgress> = {};
-      for (const log of logs as any[]) {
-        const routine = routines.find((r) => r.id === log.routine_id);
-        if (!routine) continue;
-
-        const { data: stepLogs } = await supabase
-          .from("routine_step_logs" as any)
-          .select("id")
-          .eq("routine_log_id", log.id);
-
-        map[log.routine_id] = {
-          completed: stepLogs?.length || 0,
-          total: routine.steps?.length || 0,
-          status: log.status,
-        };
-      }
-      setProgressMap(map);
-    } catch (error) {
-      console.error("Error fetching routine progress:", error);
-    }
-  }, [user, routines]);
-
-  useEffect(() => {
-    fetchProgress();
-  }, [fetchProgress]);
-
-  const handleCreate = async (
-    name: string,
-    category: string,
-    icon: string,
-    steps: { title: string; duration_minutes: number; step_start_time: string }[],
-    options?: any
-  ) => {
-    await createRoutine(name, category, icon, steps, options);
+  const handleCreate = async (name: string, icon: string) => {
+    await createRoutine(name, icon);
     setShowCreate(false);
   };
 
-  const handleStart = (routineId: string) => navigate(`/routine/${routineId}`);
-  const handleContinue = (routineId: string) => navigate(`/routine/${routineId}`);
-  const handleClick = (routineId: string) => navigate(`/routine/${routineId}`);
+  const handleAddTask = async (name: string, slots: { time: string; days_of_week: number[] }[]) => {
+    if (!addTaskTarget) return;
+    await addTask(addTaskTarget.id, name, slots);
+    setAddTaskTarget(null);
+  };
 
   if (loading) {
     return (
@@ -91,7 +37,7 @@ export function RoutinesSection() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Routines</h2>
-          <p className="text-sm text-muted-foreground">Your guided daily flows</p>
+          <p className="text-sm text-muted-foreground">Groups of scheduled tasks</p>
         </div>
         <Button
           size="sm"
@@ -108,7 +54,7 @@ export function RoutinesSection() {
           <div className="text-5xl">🧘</div>
           <h3 className="font-semibold text-foreground">No routines yet</h3>
           <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-            Create your first routine to get guided through your day, one step at a time.
+            Create a routine to group your daily tasks with flexible schedules.
           </p>
           <Button onClick={() => setShowCreate(true)} className="rounded-full px-6">
             <Plus className="h-4 w-4 mr-2" />
@@ -121,12 +67,12 @@ export function RoutinesSection() {
             <RoutineCard
               key={routine.id}
               routine={routine}
-              todayProgress={progressMap[routine.id]}
-              onStart={handleStart}
-              onContinue={handleContinue}
-              onClick={handleClick}
               onDelete={deleteRoutine}
               onToggleActive={toggleRoutineActive}
+              onAddTask={(id) =>
+                setAddTaskTarget({ id, name: routine.name })
+              }
+              onDeleteTask={deleteTask}
             />
           ))}
         </div>
@@ -136,6 +82,13 @@ export function RoutinesSection() {
         open={showCreate}
         onOpenChange={setShowCreate}
         onSubmit={handleCreate}
+      />
+
+      <AddRoutineTaskSheet
+        open={!!addTaskTarget}
+        onOpenChange={(open) => !open && setAddTaskTarget(null)}
+        onSubmit={handleAddTask}
+        routineName={addTaskTarget?.name || ""}
       />
     </div>
   );
