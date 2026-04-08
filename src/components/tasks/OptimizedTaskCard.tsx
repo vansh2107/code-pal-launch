@@ -90,6 +90,14 @@ function OptimizedTaskCardComponent({
       const durationMs = endTime.getTime() - startTime.getTime();
       const durationMinutes = Math.max(0, Math.floor(durationMs / 60000));
 
+      // Optimistic: close dialog and refresh immediately
+      setShowCompleteDialog(false);
+      toast({
+        title: "Task completed! 🎉",
+        description: `Great job finishing "${task.title}"!`,
+      });
+      onRefresh();
+
       const { error } = await supabase
         .from("tasks")
         .update({
@@ -101,15 +109,11 @@ function OptimizedTaskCardComponent({
         })
         .eq("id", task.id);
 
-      if (error) throw error;
-
-      toast({
-        title: "Task completed! 🎉",
-        description: `Great job finishing "${task.title}"!`,
-      });
-
-      setShowCompleteDialog(false);
-      onRefresh();
+      if (error) {
+        // Rollback on error
+        onRefresh();
+        throw error;
+      }
     } catch (error) {
       toast({
         title: "Error",
