@@ -676,6 +676,7 @@ export type Database = {
           is_active: boolean | null
           mode: string
           name: string
+          notifications_enabled: boolean
           repeat_days: number[] | null
           repeat_type: string
           start_time: string | null
@@ -692,6 +693,7 @@ export type Database = {
           is_active?: boolean | null
           mode?: string
           name: string
+          notifications_enabled?: boolean
           repeat_days?: number[] | null
           repeat_type?: string
           start_time?: string | null
@@ -708,6 +710,7 @@ export type Database = {
           is_active?: boolean | null
           mode?: string
           name?: string
+          notifications_enabled?: boolean
           repeat_days?: number[] | null
           repeat_type?: string
           start_time?: string | null
