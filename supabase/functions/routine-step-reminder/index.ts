@@ -4,16 +4,11 @@ import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_
 import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
 
 /**
- * Routine Step Reminder — Dedup-safe, idempotent.
+ * Routine Step Reminder — Slot-aware, dedup-safe, idempotent.
  *
- * Runs every 5 minutes via cron. For each user with active in-progress routines:
- * 1. Checks repeat_days to skip wrong days
- * 2. Uses `routine_notification_log` table with unique keys for deduplication
- * 3. Sends exactly ONE notification per step per event type per day
- *
- * Notification key format:
- *   {user_id}_{routine_id}_{step_id}_{date}_{type}
- * e.g. abc123_routine5_step3_2026-04-08_step_start
+ * Uses routine_slots table for multi-time/day scheduling.
+ * Checks is_active flag to respect activate/deactivate toggle.
+ * Each notification key includes slot start_time for uniqueness.
  */
 
 interface RoutineLogRow {
@@ -35,12 +30,18 @@ interface StepRow {
   sort_order: number;
 }
 
+interface SlotRow {
+  id: string;
+  routine_id: string;
+  days_of_week: number[];
+  start_time: string;
+}
+
 function parseTimeToMinutes(time: string): number {
   const parts = time.split(':').map(Number);
   return (parts[0] || 0) * 60 + (parts[1] || 0);
 }
 
-// Playful notification messages
 const stepStartMessages = [
   { title: '🎯 Time for:', message: 'STEP is up! Let\'s go! 💪' },
   { title: '⏰ Routine step!', message: 'It\'s STEP time. You got this! 🚀' },
@@ -53,7 +54,6 @@ const nudgeMessages = [
   { title: '😤 Hey!', message: 'You\'re late on STEP! Catch up NOW 🏃' },
   { title: '⚠️ Falling behind!', message: 'STEP was supposed to start already! 😬' },
   { title: '🔥 Strict mode!', message: 'STEP is overdue. Don\'t break your streak! 💪' },
-  { title: '👀 Still waiting...', message: 'STEP needs you. Don\'t ghost your routine! 👻' },
 ];
 
 const previewMessages = [
@@ -73,16 +73,13 @@ function buildMessage(templates: { title: string; message: string }[], stepTitle
   };
 }
 
-/**
- * Idempotent notification sender. Returns true only if notification was actually sent (not a duplicate).
- */
 async function scheduleNotification(
   supabase: ReturnType<typeof createClient>,
   params: {
     userId: string;
     routineId: string;
     stepId: string;
-    date: string; // YYYY-MM-DD
+    date: string;
     type: 'step_start' | 'nudge' | 'preview';
     title: string;
     message: string;
@@ -91,7 +88,6 @@ async function scheduleNotification(
 ): Promise<boolean> {
   const notificationKey = `${params.userId}_${params.routineId}_${params.stepId}_${params.date}_${params.type}`;
 
-  // Check if already sent
   const { data: existing } = await supabase
     .from('routine_notification_log')
     .select('id')
@@ -103,7 +99,6 @@ async function scheduleNotification(
     return false;
   }
 
-  // Send notification
   const sent = await sendUnifiedNotification(supabase, {
     userId: params.userId,
     title: params.title,
@@ -112,7 +107,6 @@ async function scheduleNotification(
   });
 
   if (sent) {
-    // Record in dedup log (use upsert to handle race conditions)
     const { error: logError } = await supabase
       .from('routine_notification_log')
       .upsert({
@@ -126,11 +120,9 @@ async function scheduleNotification(
     if (logError) {
       console.error(`Failed to log notification ${notificationKey}:`, logError);
     }
-
     console.log(`✅ Scheduling notification: ${notificationKey}`);
     return true;
   }
-
   return false;
 }
 
@@ -148,12 +140,9 @@ Deno.serve(async (req) => {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // 0. Cleanup old notification logs (older than 2 days)
+    // Cleanup old notification logs (older than 2 days)
     const twoDaysAgo = new Date(Date.now() - 2 * 86400 * 1000).toISOString();
-    await supabase
-      .from('routine_notification_log')
-      .delete()
-      .lt('sent_at', twoDaysAgo);
+    await supabase.from('routine_notification_log').delete().lt('sent_at', twoDaysAgo);
 
     // 1. Get all in-progress routine logs for today
     const { data: logs, error: logsErr } = await supabase
@@ -169,20 +158,22 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${logs.length} active routine logs`);
 
-    // 2. Batch-fetch all related data
     const routineIds = [...new Set((logs as RoutineLogRow[]).map(l => l.routine_id))];
     const userIds = [...new Set((logs as RoutineLogRow[]).map(l => l.user_id))];
     const logIds = (logs as RoutineLogRow[]).map(l => l.id);
 
-    const [stepsResult, routinesResult, profilesResult, stepLogsResult] = await Promise.all([
+    // 2. Batch fetch all data including slots
+    const [stepsResult, routinesResult, profilesResult, stepLogsResult, slotsResult] = await Promise.all([
       supabase.from('routine_steps').select('id, routine_id, title, step_start_time, duration_minutes, sort_order')
         .in('routine_id', routineIds).order('sort_order', { ascending: true }),
-      supabase.from('routines').select('id, name, notifications_enabled, repeat_days')
+      supabase.from('routines').select('id, name, notifications_enabled, repeat_days, is_active')
         .in('id', routineIds),
       supabase.from('profiles').select('user_id, timezone, push_notifications_enabled')
         .in('user_id', userIds),
       supabase.from('routine_step_logs').select('routine_log_id, step_id')
         .in('routine_log_id', logIds),
+      supabase.from('routine_slots').select('id, routine_id, days_of_week, start_time')
+        .in('routine_id', routineIds),
     ]);
 
     // Build lookup maps
@@ -192,13 +183,20 @@ Deno.serve(async (req) => {
       stepsMap[s.routine_id].push(s);
     }
 
-    const routineMap: Record<string, { name: string; notifications_enabled: boolean; repeat_days: number[] }> = {};
+    const routineMap: Record<string, { name: string; notifications_enabled: boolean; repeat_days: number[]; is_active: boolean }> = {};
     for (const r of (routinesResult.data || []) as any[]) {
       routineMap[r.id] = {
         name: r.name,
         notifications_enabled: r.notifications_enabled ?? true,
         repeat_days: r.repeat_days || [1, 2, 3, 4, 5, 6, 7],
+        is_active: r.is_active !== false,
       };
+    }
+
+    const slotsMap: Record<string, SlotRow[]> = {};
+    for (const s of (slotsResult.data || []) as SlotRow[]) {
+      if (!slotsMap[s.routine_id]) slotsMap[s.routine_id] = [];
+      slotsMap[s.routine_id].push(s);
     }
 
     const userMap: Record<string, { tz: string; pushEnabled: boolean }> = {};
@@ -226,14 +224,33 @@ Deno.serve(async (req) => {
         const routineInfo = routineMap[log.routine_id];
         if (!routineInfo?.notifications_enabled) continue;
 
-        const tz = userInfo.tz;
+        // ❌ Skip if routine is deactivated
+        if (!routineInfo.is_active) {
+          console.log(`⏭️ Skipping routine ${log.routine_id} — deactivated`);
+          continue;
+        }
 
-        // Check if today is a repeat day for this routine
+        const tz = userInfo.tz;
         const userNow = toZonedTime(new Date(), tz);
         const dayOfWeek = userNow.getDay() === 0 ? 7 : userNow.getDay();
-        if (!routineInfo.repeat_days.includes(dayOfWeek)) {
-          console.log(`⏭️ Skipping routine ${log.routine_id} — not a repeat day (today=${dayOfWeek}, allowed=${routineInfo.repeat_days})`);
-          continue;
+
+        // Check slots first, then fall back to repeat_days
+        const routineSlots = slotsMap[log.routine_id] || [];
+        let todaySlot: SlotRow | null = null;
+
+        if (routineSlots.length > 0) {
+          // Use slot-based scheduling
+          todaySlot = routineSlots.find(s => s.days_of_week.includes(dayOfWeek)) || null;
+          if (!todaySlot) {
+            console.log(`⏭️ Skipping routine ${log.routine_id} — no slot for today (day=${dayOfWeek})`);
+            continue;
+          }
+        } else {
+          // Legacy: use repeat_days from routine
+          if (!routineInfo.repeat_days.includes(dayOfWeek)) {
+            console.log(`⏭️ Skipping routine ${log.routine_id} — not a repeat day (today=${dayOfWeek})`);
+            continue;
+          }
         }
 
         const steps = (stepsMap[log.routine_id] || []).filter(s => s.step_start_time);
@@ -242,7 +259,6 @@ Deno.serve(async (req) => {
         const completedIds = completedMap[log.id] || new Set();
         const routineName = routineInfo.name;
 
-        // Get user's current time in minutes
         const nowMin = userNow.getHours() * 60 + userNow.getMinutes();
         const userDate = `${userNow.getFullYear()}-${String(userNow.getMonth() + 1).padStart(2, '0')}-${String(userNow.getDate()).padStart(2, '0')}`;
 
@@ -253,7 +269,7 @@ Deno.serve(async (req) => {
 
           const stepMin = parseTimeToMinutes(step.step_start_time);
 
-          // A. Step is starting now (within the 5-min cron window)
+          // A. Step starting now (within 5-min window)
           if (nowMin >= stepMin && nowMin < stepMin + 5) {
             const msg = buildMessage(stepStartMessages, step.title, routineName);
             const sent = await scheduleNotification(supabase, {
@@ -267,10 +283,10 @@ Deno.serve(async (req) => {
               data: { type: 'routine_step', routine_id: log.routine_id, step_id: step.id },
             });
             if (sent) sentCount++;
-            break; // Only handle one step per log per cron run
+            break;
           }
 
-          // B. Strict mode nudge: if overdue by >= 10 min (only one nudge per step per day)
+          // B. Strict mode nudge (overdue by >= 10 min, one per step per day)
           if (log.mode === 'strict' && nowMin >= stepMin + 10) {
             const msg = buildMessage(nudgeMessages, step.title, routineName);
             const sent = await scheduleNotification(supabase, {
@@ -287,7 +303,7 @@ Deno.serve(async (req) => {
             break;
           }
 
-          // C. Preview: 5 minutes before step (within the 5-min cron window)
+          // C. Preview (5 min before)
           if (nowMin >= stepMin - 5 && nowMin < stepMin) {
             const msg = buildMessage(previewMessages, step.title, routineName);
             const sent = await scheduleNotification(supabase, {

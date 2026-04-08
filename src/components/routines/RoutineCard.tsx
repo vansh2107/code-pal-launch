@@ -1,6 +1,7 @@
 import { memo, useState } from "react";
 import { ChevronRight, Play, CheckCircle2, Trash2, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,7 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { Routine } from "@/hooks/useRoutines";
+import { type Routine, getNextSlotInfo, getTodaySlot, parseTimeToMinutes } from "@/hooks/useRoutines";
 
 interface RoutineCardProps {
   routine: Routine;
@@ -20,6 +21,7 @@ interface RoutineCardProps {
   onContinue: (id: string) => void;
   onClick: (id: string) => void;
   onDelete?: (id: string) => void;
+  onToggleActive?: (id: string, active: boolean) => void;
 }
 
 function formatTime12(time24: string): string {
@@ -36,13 +38,20 @@ export const RoutineCard = memo(function RoutineCard({
   onContinue,
   onClick,
   onDelete,
+  onToggleActive,
 }: RoutineCardProps) {
   const [showDelete, setShowDelete] = useState(false);
   const stepCount = routine.steps?.length || 0;
+  const isActive = routine.is_active !== false;
 
-  // Show time range from steps
+  // Slot-based info
+  const slots = routine.slots || [];
+  const todaySlot = getTodaySlot(slots);
+  const nextInfo = getNextSlotInfo(slots);
+
+  // Fallback to step time range if no slots
   const stepsWithTime = (routine.steps || []).filter((s) => s.step_start_time);
-  const firstTime = stepsWithTime[0]?.step_start_time;
+  const firstTime = todaySlot?.start_time || stepsWithTime[0]?.step_start_time;
   const lastTime = stepsWithTime[stepsWithTime.length - 1]?.step_start_time;
 
   const progress = todayProgress
@@ -54,7 +63,9 @@ export const RoutineCard = memo(function RoutineCard({
   return (
     <>
       <div
-        className="bg-card rounded-2xl p-4 border border-border/60 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+        className={`bg-card rounded-2xl p-4 border border-border/60 shadow-sm hover:shadow-md transition-all cursor-pointer ${
+          !isActive ? "opacity-50" : ""
+        }`}
         onClick={() => onClick(routine.id)}
       >
         <div className="flex items-start gap-3">
@@ -65,7 +76,19 @@ export const RoutineCard = memo(function RoutineCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-foreground truncate">{routine.name}</h3>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
+                {onToggleActive && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center"
+                  >
+                    <Switch
+                      checked={isActive}
+                      onCheckedChange={(checked) => onToggleActive(routine.id, checked)}
+                      className="scale-75"
+                    />
+                  </div>
+                )}
                 {onDelete && (
                   <button
                     onClick={(e) => {
@@ -85,7 +108,7 @@ export const RoutineCard = memo(function RoutineCard({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-sm text-muted-foreground">{stepCount} steps</span>
               {firstTime && lastTime && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -94,6 +117,20 @@ export const RoutineCard = memo(function RoutineCard({
                 </span>
               )}
             </div>
+
+            {/* Next slot info */}
+            {nextInfo && isActive && !isCompleted && (
+              <p className="text-xs text-primary font-medium mt-1">
+                Next: {formatTime12(nextInfo.slot.start_time)} ({nextInfo.dayLabel})
+              </p>
+            )}
+
+            {/* Today's slot highlight */}
+            {todaySlot && isActive && !nextInfo?.isToday && !isCompleted && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Today at {formatTime12(todaySlot.start_time)}
+              </p>
+            )}
 
             {todayProgress && (
               <div className="mt-2">
@@ -108,7 +145,7 @@ export const RoutineCard = memo(function RoutineCard({
           </div>
         </div>
 
-        {!isCompleted && stepCount > 0 && (
+        {isActive && !isCompleted && stepCount > 0 && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -119,6 +156,12 @@ export const RoutineCard = memo(function RoutineCard({
             <Play className="h-4 w-4" />
             {isInProgress ? "Continue" : "Start"}
           </button>
+        )}
+
+        {!isActive && (
+          <div className="mt-3 text-center text-xs text-muted-foreground py-2">
+            ⏸️ Paused — toggle to resume
+          </div>
         )}
       </div>
 

@@ -11,7 +11,14 @@ export interface RoutineStep {
   sort_order: number;
   start_offset_minutes: number;
   reminder_type: string;
-  step_start_time: string | null; // e.g. "07:00:00"
+  step_start_time: string | null;
+}
+
+export interface RoutineSlot {
+  id: string;
+  routine_id: string;
+  days_of_week: number[];
+  start_time: string; // "HH:mm:ss"
 }
 
 export interface Routine {
@@ -30,6 +37,7 @@ export interface Routine {
   notifications_enabled: boolean;
   created_at: string;
   steps?: RoutineStep[];
+  slots?: RoutineSlot[];
 }
 
 export interface RoutineLog {
@@ -82,24 +90,16 @@ function calculateDisciplineScore(
   return Math.max(0, Math.min(100, score));
 }
 
-/**
- * Parse a time string "HH:mm" or "HH:mm:ss" into total minutes since midnight.
- */
 export function parseTimeToMinutes(time: string): number {
   const parts = time.split(":").map(Number);
   return (parts[0] || 0) * 60 + (parts[1] || 0);
 }
 
-/**
- * Given sorted steps with step_start_time, find the current active step index
- * based on the current clock time.
- */
 export function resolveCurrentStepByTime(
   steps: RoutineStep[],
   completedStepIds: Set<string>,
   nowMinutes: number
 ): number {
-  // Walk backwards to find the latest step whose start_time <= now and is not completed
   for (let i = steps.length - 1; i >= 0; i--) {
     const step = steps[i];
     if (!step.step_start_time) continue;
@@ -108,11 +108,54 @@ export function resolveCurrentStepByTime(
       return i;
     }
   }
-  // If all past steps are completed, find the next uncompleted step
   for (let i = 0; i < steps.length; i++) {
     if (!completedStepIds.has(steps[i].id)) return i;
   }
-  return steps.length; // all done
+  return steps.length;
+}
+
+const DAYS_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/**
+ * Get today's matching slot for a routine.
+ * Returns the slot whose days_of_week includes today's day number (1=Mon..7=Sun).
+ */
+export function getTodaySlot(slots: RoutineSlot[]): RoutineSlot | null {
+  const now = new Date();
+  const day = now.getDay() === 0 ? 7 : now.getDay();
+  return slots.find((s) => s.days_of_week.includes(day)) || null;
+}
+
+/**
+ * Get the next upcoming slot (today or future).
+ */
+export function getNextSlotInfo(slots: RoutineSlot[]): { slot: RoutineSlot; dayLabel: string; isToday: boolean } | null {
+  if (!slots || slots.length === 0) return null;
+  const now = new Date();
+  const todayDay = now.getDay() === 0 ? 7 : now.getDay();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  // Check today first
+  for (const slot of slots) {
+    if (slot.days_of_week.includes(todayDay)) {
+      const slotMin = parseTimeToMinutes(slot.start_time);
+      if (slotMin > nowMin) {
+        return { slot, dayLabel: "Today", isToday: true };
+      }
+    }
+  }
+
+  // Check future days (up to 7 days ahead)
+  for (let offset = 1; offset <= 7; offset++) {
+    const futureDay = ((todayDay - 1 + offset) % 7) + 1;
+    for (const slot of slots) {
+      if (slot.days_of_week.includes(futureDay)) {
+        const label = offset === 1 ? "Tomorrow" : DAYS_LABELS[futureDay];
+        return { slot, dayLabel: label, isToday: false };
+      }
+    }
+  }
+  return null;
 }
 
 export function useRoutines() {
@@ -134,28 +177,43 @@ export function useRoutines() {
 
       const routineIds = (data as any[])?.map((r: any) => r.id) || [];
       let stepsMap: Record<string, RoutineStep[]> = {};
+      let slotsMap: Record<string, RoutineSlot[]> = {};
 
       if (routineIds.length > 0) {
-        const { data: steps, error: stepsError } = await supabase
-          .from("routine_steps" as any)
-          .select("*")
-          .in("routine_id", routineIds)
-          .order("sort_order", { ascending: true });
+        const [stepsResult, slotsResult] = await Promise.all([
+          supabase
+            .from("routine_steps" as any)
+            .select("*")
+            .in("routine_id", routineIds)
+            .order("sort_order", { ascending: true }),
+          supabase
+            .from("routine_slots" as any)
+            .select("*")
+            .in("routine_id", routineIds),
+        ]);
 
-        if (!stepsError && steps) {
-          for (const step of steps as any[]) {
+        if (!stepsResult.error && stepsResult.data) {
+          for (const step of stepsResult.data as any[]) {
             if (!stepsMap[step.routine_id]) stepsMap[step.routine_id] = [];
             stepsMap[step.routine_id].push(step as RoutineStep);
           }
         }
+
+        if (!slotsResult.error && slotsResult.data) {
+          for (const slot of slotsResult.data as any[]) {
+            if (!slotsMap[slot.routine_id]) slotsMap[slot.routine_id] = [];
+            slotsMap[slot.routine_id].push(slot as RoutineSlot);
+          }
+        }
       }
 
-      const routinesWithSteps = (data as any[])?.map((r: any) => ({
+      const routinesWithData = (data as any[])?.map((r: any) => ({
         ...r,
         steps: stepsMap[r.id] || [],
+        slots: slotsMap[r.id] || [],
       })) as Routine[];
 
-      setRoutines(routinesWithSteps || []);
+      setRoutines(routinesWithData || []);
     } catch (error) {
       console.error("Error fetching routines:", error);
     } finally {
@@ -179,10 +237,16 @@ export function useRoutines() {
       repeat_days?: number[];
       notifications_enabled?: boolean;
       start_date?: string;
+      slots?: { days_of_week: number[]; start_time: string }[];
     }
   ) => {
     if (!user) return null;
     try {
+      // Compute all days from slots for backward compat
+      const allDays = options?.slots
+        ? [...new Set(options.slots.flatMap((s) => s.days_of_week))].sort()
+        : options?.repeat_days || [1, 2, 3, 4, 5, 6, 7];
+
       const insertData: any = {
         user_id: user.id,
         name,
@@ -191,9 +255,9 @@ export function useRoutines() {
         mode: options?.mode || "flexible",
         auto_adjust: options?.auto_adjust ?? true,
         notifications_enabled: options?.notifications_enabled ?? true,
+        repeat_days: allDays,
       };
       if (options?.start_time) insertData.start_time = options.start_time;
-      if (options?.repeat_days) insertData.repeat_days = options.repeat_days;
 
       const { data: routine, error } = await supabase
         .from("routines" as any)
@@ -202,12 +266,24 @@ export function useRoutines() {
         .single();
 
       if (error) throw error;
+      const routineId = (routine as any).id;
 
+      // Insert slots
+      if (options?.slots && options.slots.length > 0) {
+        const slotsData = options.slots.map((s) => ({
+          routine_id: routineId,
+          days_of_week: s.days_of_week,
+          start_time: s.start_time,
+        }));
+        await supabase.from("routine_slots" as any).insert(slotsData as any);
+      }
+
+      // Insert steps
       if (steps.length > 0) {
         let offsetAccum = 0;
         const stepsData = steps.map((s, i) => {
           const stepData = {
-            routine_id: (routine as any).id,
+            routine_id: routineId,
             title: s.title,
             duration_minutes: s.duration_minutes,
             sort_order: i,
@@ -227,11 +303,41 @@ export function useRoutines() {
 
       toast({ title: "Routine created! 🎯" });
       await fetchRoutines();
-      return (routine as any).id;
+      return routineId;
     } catch (error) {
       console.error("Error creating routine:", error);
       toast({ title: "Failed to create routine", variant: "destructive" });
       return null;
+    }
+  };
+
+  const toggleRoutineActive = async (id: string, isActive: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("routines" as any)
+        .update({ is_active: isActive } as any)
+        .eq("id", id);
+      if (error) throw error;
+
+      // If deactivating, clear today's notification logs to prevent future sends
+      if (!isActive && user) {
+        const today = new Date().toISOString().split("T")[0];
+        await supabase
+          .from("routine_notification_log" as any)
+          .delete()
+          .eq("routine_id", id)
+          .eq("user_id", user.id);
+      }
+
+      setRoutines((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, is_active: isActive } : r))
+      );
+      toast({
+        title: isActive ? "Routine activated ✅" : "Routine paused ⏸️",
+      });
+    } catch (error) {
+      console.error("Error toggling routine:", error);
+      toast({ title: "Failed to update routine", variant: "destructive" });
     }
   };
 
@@ -451,6 +557,7 @@ export function useRoutines() {
     fetchRoutines,
     createRoutine,
     deleteRoutine,
+    toggleRoutineActive,
     startRoutine,
     completeStep,
     getTodayLog,
