@@ -78,7 +78,7 @@ export const RoutineCard = memo(function RoutineCard({
                   </button>
                 )}
                 {isCompleted ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
                 ) : (
                   <ChevronRight className="h-5 w-5 text-muted-foreground" />
                 )}

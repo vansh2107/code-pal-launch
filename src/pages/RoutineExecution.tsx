@@ -175,7 +175,7 @@ export default function RoutineExecution() {
           <p className="text-muted-foreground text-center mb-2">
             You completed <span className="font-semibold text-foreground">{routine.name}</span>
           </p>
-          <p className="text-sm text-green-500 font-medium mb-8">
+          <p className="text-sm text-primary font-medium mb-8">
             {totalSteps} steps completed
           </p>
           <Button onClick={() => navigate("/tasks")} className="w-full max-w-xs h-12 rounded-xl">
