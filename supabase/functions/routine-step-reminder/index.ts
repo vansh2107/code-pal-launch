@@ -23,6 +23,8 @@ interface RoutineLogRow {
   auto_adjust: boolean;
   current_step_index: number;
   status: string;
+  last_notified_step_id: string | null;
+  last_notified_at: string | null;
 }
 
 interface StepRow {
