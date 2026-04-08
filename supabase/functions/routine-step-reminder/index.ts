@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     // 1. Get all in-progress routine logs for today
     const { data: logs, error: logsErr } = await supabase
       .from('routine_logs')
-      .select('id, routine_id, user_id, mode, auto_adjust, current_step_index, status')
+      .select('id, routine_id, user_id, mode, auto_adjust, current_step_index, status, last_notified_step_id, last_notified_at')
       .eq('status', 'in_progress')
       .eq('execution_date', today);
 
