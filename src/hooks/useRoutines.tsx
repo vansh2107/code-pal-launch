@@ -27,6 +27,7 @@ export interface Routine {
   repeat_type: string;
   mode: string;
   auto_adjust: boolean;
+  notifications_enabled: boolean;
   created_at: string;
   steps?: RoutineStep[];
 }
@@ -171,7 +172,14 @@ export function useRoutines() {
     category: string,
     icon: string,
     steps: { title: string; duration_minutes: number; step_start_time: string }[],
-    options?: { mode?: string; auto_adjust?: boolean; start_time?: string }
+    options?: {
+      mode?: string;
+      auto_adjust?: boolean;
+      start_time?: string;
+      repeat_days?: number[];
+      notifications_enabled?: boolean;
+      start_date?: string;
+    }
   ) => {
     if (!user) return null;
     try {
@@ -182,8 +190,10 @@ export function useRoutines() {
         icon,
         mode: options?.mode || "flexible",
         auto_adjust: options?.auto_adjust ?? true,
+        notifications_enabled: options?.notifications_enabled ?? true,
       };
       if (options?.start_time) insertData.start_time = options.start_time;
+      if (options?.repeat_days) insertData.repeat_days = options.repeat_days;
 
       const { data: routine, error } = await supabase
         .from("routines" as any)

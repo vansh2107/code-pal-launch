@@ -128,15 +128,19 @@ Deno.serve(async (req) => {
       stepsMap[s.routine_id].push(s);
     }
 
-    // 4. Fetch routines for names
+    // 4. Fetch routines for names and notification settings
     const { data: routinesData } = await supabase
       .from('routines')
-      .select('id, name')
+      .select('id, name, notifications_enabled, repeat_days')
       .in('id', routineIds);
 
     const routineNameMap: Record<string, string> = {};
-    for (const r of (routinesData || []) as { id: string; name: string }[]) {
+    const routineNotifMap: Record<string, boolean> = {};
+    const routineRepeatMap: Record<string, number[]> = {};
+    for (const r of (routinesData || []) as { id: string; name: string; notifications_enabled: boolean; repeat_days: number[] }[]) {
       routineNameMap[r.id] = r.name;
+      routineNotifMap[r.id] = r.notifications_enabled ?? true;
+      routineRepeatMap[r.id] = r.repeat_days || [1, 2, 3, 4, 5, 6, 7];
     }
 
     // 5. Fetch user profiles for timezone
@@ -171,8 +175,16 @@ Deno.serve(async (req) => {
     for (const log of logs as RoutineLogRow[]) {
       try {
         if (!pushEnabledMap[log.user_id]) continue;
+        if (!routineNotifMap[log.routine_id]) continue;
 
         const tz = tzMap[log.user_id] || 'UTC';
+
+        // Check if today is a repeat day for this routine
+        const userNowFull = toZonedTime(new Date(), tz);
+        const dayOfWeek = userNowFull.getDay() === 0 ? 7 : userNowFull.getDay(); // 1=Mon, 7=Sun
+        const allowedDays = routineRepeatMap[log.routine_id] || [1, 2, 3, 4, 5, 6, 7];
+        if (!allowedDays.includes(dayOfWeek)) continue;
+
         const steps = (stepsMap[log.routine_id] || []).filter(s => s.step_start_time);
         if (steps.length === 0) continue;
 
