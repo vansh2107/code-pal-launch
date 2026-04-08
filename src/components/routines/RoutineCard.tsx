@@ -1,6 +1,5 @@
 import { memo, useState } from "react";
-import { ChevronRight, Play, CheckCircle2, Trash2, Clock } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
+import { Trash2, Clock, ChevronDown, ChevronUp } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
@@ -12,154 +11,121 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { type Routine, getNextSlotInfo, getTodaySlot, parseTimeToMinutes } from "@/hooks/useRoutines";
+import { type Routine, type RoutineTask, formatTime12, formatDaysShort } from "@/hooks/useRoutines";
 
 interface RoutineCardProps {
   routine: Routine;
-  todayProgress?: { completed: number; total: number; status: string };
-  onStart: (id: string) => void;
-  onContinue: (id: string) => void;
-  onClick: (id: string) => void;
-  onDelete?: (id: string) => void;
-  onToggleActive?: (id: string, active: boolean) => void;
+  onDelete: (id: string) => void;
+  onToggleActive: (id: string, active: boolean) => void;
+  onAddTask: (routineId: string) => void;
+  onDeleteTask: (taskId: string) => void;
 }
 
-function formatTime12(time24: string): string {
-  const [h, m] = time24.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+function TaskSlotDisplay({ task }: { task: RoutineTask }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-sm font-medium text-foreground">{task.name}</p>
+      {task.slots.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic">No time slots set</p>
+      ) : (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+          {task.slots.map((slot) => (
+            <span key={slot.id} className="text-xs text-muted-foreground flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatDaysShort(slot.days_of_week)} → {formatTime12(slot.time)}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export const RoutineCard = memo(function RoutineCard({
   routine,
-  todayProgress,
-  onStart,
-  onContinue,
-  onClick,
   onDelete,
   onToggleActive,
+  onAddTask,
+  onDeleteTask,
 }: RoutineCardProps) {
   const [showDelete, setShowDelete] = useState(false);
-  const stepCount = routine.steps?.length || 0;
+  const [expanded, setExpanded] = useState(true);
   const isActive = routine.is_active !== false;
-
-  // Slot-based info
-  const slots = routine.slots || [];
-  const todaySlot = getTodaySlot(slots);
-  const nextInfo = getNextSlotInfo(slots);
-
-  // Fallback to step time range if no slots
-  const stepsWithTime = (routine.steps || []).filter((s) => s.step_start_time);
-  const firstTime = todaySlot?.start_time || stepsWithTime[0]?.step_start_time;
-  const lastTime = stepsWithTime[stepsWithTime.length - 1]?.step_start_time;
-
-  const progress = todayProgress
-    ? Math.round((todayProgress.completed / todayProgress.total) * 100)
-    : 0;
-  const isCompleted = todayProgress?.status === "completed";
-  const isInProgress = todayProgress?.status === "in_progress";
 
   return (
     <>
       <div
-        className={`bg-card rounded-2xl p-4 border border-border/60 shadow-sm hover:shadow-md transition-all cursor-pointer ${
+        className={`bg-card rounded-2xl border border-border/60 shadow-sm transition-all ${
           !isActive ? "opacity-50" : ""
         }`}
-        onClick={() => onClick(routine.id)}
       >
-        <div className="flex items-start gap-3">
-          <div className="w-12 h-12 rounded-xl bg-primary/5 flex items-center justify-center text-2xl shrink-0">
+        {/* Header */}
+        <div className="flex items-center gap-3 p-4 pb-2">
+          <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center text-xl shrink-0">
             {routine.icon}
           </div>
-
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-foreground truncate">{routine.name}</h3>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {onToggleActive && (
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center"
-                  >
-                    <Switch
-                      checked={isActive}
-                      onCheckedChange={(checked) => onToggleActive(routine.id, checked)}
-                      className="scale-75"
-                    />
-                  </div>
-                )}
-                {onDelete && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowDelete(true);
-                    }}
-                    className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                  </button>
-                )}
-                {isCompleted ? (
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                ) : (
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <span className="text-sm text-muted-foreground">{stepCount} steps</span>
-              {firstTime && lastTime && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  {formatTime12(firstTime)} – {formatTime12(lastTime)}
-                </span>
+            <h3 className="font-semibold text-foreground truncate">{routine.name}</h3>
+            <p className="text-xs text-muted-foreground">
+              {routine.tasks.length} task{routine.tasks.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Switch
+              checked={isActive}
+              onCheckedChange={(checked) => onToggleActive(routine.id, checked)}
+              className="scale-75"
+            />
+            <button
+              onClick={() => setShowDelete(true)}
+              className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+            </button>
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+            >
+              {expanded ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
               )}
-            </div>
-
-            {/* Next slot info */}
-            {nextInfo && isActive && !isCompleted && (
-              <p className="text-xs text-primary font-medium mt-1">
-                Next: {formatTime12(nextInfo.slot.start_time)} ({nextInfo.dayLabel})
-              </p>
-            )}
-
-            {/* Today's slot highlight */}
-            {todaySlot && isActive && !nextInfo?.isToday && !isCompleted && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Today at {formatTime12(todaySlot.start_time)}
-              </p>
-            )}
-
-            {todayProgress && (
-              <div className="mt-2">
-                <Progress value={progress} className="h-2" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isCompleted
-                    ? "Completed today ✅"
-                    : `${todayProgress.completed}/${todayProgress.total} steps done`}
-                </p>
-              </div>
-            )}
+            </button>
           </div>
         </div>
 
-        {isActive && !isCompleted && stepCount > 0 && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              isInProgress ? onContinue(routine.id) : onStart(routine.id);
-            }}
-            className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 transition-opacity"
-          >
-            <Play className="h-4 w-4" />
-            {isInProgress ? "Continue" : "Start"}
-          </button>
+        {/* Task List */}
+        {expanded && (
+          <div className="px-4 pb-3 space-y-2">
+            {routine.tasks.map((task) => (
+              <div
+                key={task.id}
+                className="flex items-start gap-2 bg-muted/40 rounded-xl p-2.5 border border-border/30"
+              >
+                <div className="flex-1 min-w-0">
+                  <TaskSlotDisplay task={task} />
+                </div>
+                <button
+                  onClick={() => onDeleteTask(task.id)}
+                  className="p-1 rounded-md hover:bg-destructive/10 transition-colors shrink-0 mt-0.5"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                </button>
+              </div>
+            ))}
+
+            <button
+              onClick={() => onAddTask(routine.id)}
+              className="w-full py-2.5 rounded-xl border-2 border-dashed border-border/60 text-sm font-medium text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+            >
+              ➕ Add Task
+            </button>
+          </div>
         )}
 
         {!isActive && (
-          <div className="mt-3 text-center text-xs text-muted-foreground py-2">
+          <div className="px-4 pb-3 text-center text-xs text-muted-foreground">
             ⏸️ Paused — toggle to resume
           </div>
         )}
@@ -170,13 +136,13 @@ export const RoutineCard = memo(function RoutineCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Routine</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{routine.name}"? This action cannot be undone.
+              Are you sure you want to delete "{routine.name}"? All tasks and slots will be removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => onDelete?.(routine.id)}
+              onClick={() => onDelete(routine.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
