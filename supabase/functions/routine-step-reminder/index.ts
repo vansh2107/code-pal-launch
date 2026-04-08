@@ -4,15 +4,16 @@ import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_
 import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
 
 /**
- * Routine Step Reminder Function
- * 
- * Runs every 5 minutes via cron. For each user with active routines today:
- * 1. Finds in-progress routine logs
- * 2. Determines the current/upcoming step based on step_start_time
- * 3. Sends smart reminders:
- *    - "Step starting now" when a step's time arrives
- *    - "Nudge" if strict mode and step is overdue by >5 min
- *    - "Next step preview" 5 min before next step
+ * Routine Step Reminder — Dedup-safe, idempotent.
+ *
+ * Runs every 5 minutes via cron. For each user with active in-progress routines:
+ * 1. Checks repeat_days to skip wrong days
+ * 2. Uses `routine_notification_log` table with unique keys for deduplication
+ * 3. Sends exactly ONE notification per step per event type per day
+ *
+ * Notification key format:
+ *   {user_id}_{routine_id}_{step_id}_{date}_{type}
+ * e.g. abc123_routine5_step3_2026-04-08_step_start
  */
 
 interface RoutineLogRow {
@@ -23,7 +24,6 @@ interface RoutineLogRow {
   auto_adjust: boolean;
   current_step_index: number;
   status: string;
-  last_notified_at: string | null;
 }
 
 interface StepRow {
@@ -40,17 +40,7 @@ function parseTimeToMinutes(time: string): number {
   return (parts[0] || 0) * 60 + (parts[1] || 0);
 }
 
-function getMinuteKey(date: Date): string {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-    String(date.getHours()).padStart(2, '0'),
-    String(date.getMinutes()).padStart(2, '0'),
-  ].join('-');
-}
-
-// Playful routine notification messages
+// Playful notification messages
 const stepStartMessages = [
   { title: '🎯 Time for:', message: 'STEP is up! Let\'s go! 💪' },
   { title: '⏰ Routine step!', message: 'It\'s STEP time. You got this! 🚀' },
@@ -83,6 +73,67 @@ function buildMessage(templates: { title: string; message: string }[], stepTitle
   };
 }
 
+/**
+ * Idempotent notification sender. Returns true only if notification was actually sent (not a duplicate).
+ */
+async function scheduleNotification(
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    userId: string;
+    routineId: string;
+    stepId: string;
+    date: string; // YYYY-MM-DD
+    type: 'step_start' | 'nudge' | 'preview';
+    title: string;
+    message: string;
+    data: Record<string, string>;
+  }
+): Promise<boolean> {
+  const notificationKey = `${params.userId}_${params.routineId}_${params.stepId}_${params.date}_${params.type}`;
+
+  // Check if already sent
+  const { data: existing } = await supabase
+    .from('routine_notification_log')
+    .select('id')
+    .eq('notification_key', notificationKey)
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    console.log(`⏭️ Notification already exists: ${notificationKey}`);
+    return false;
+  }
+
+  // Send notification
+  const sent = await sendUnifiedNotification(supabase, {
+    userId: params.userId,
+    title: params.title,
+    message: params.message,
+    data: params.data,
+  });
+
+  if (sent) {
+    // Record in dedup log (use upsert to handle race conditions)
+    const { error: logError } = await supabase
+      .from('routine_notification_log')
+      .upsert({
+        notification_key: notificationKey,
+        user_id: params.userId,
+        routine_id: params.routineId,
+        step_id: params.stepId,
+        notification_type: params.type,
+      }, { onConflict: 'notification_key' });
+
+    if (logError) {
+      console.error(`Failed to log notification ${notificationKey}:`, logError);
+    }
+
+    console.log(`✅ Scheduling notification: ${notificationKey}`);
+    return true;
+  }
+
+  return false;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return handleCorsOptions();
@@ -97,10 +148,17 @@ Deno.serve(async (req) => {
 
     const today = new Date().toISOString().split('T')[0];
 
+    // 0. Cleanup old notification logs (older than 2 days)
+    const twoDaysAgo = new Date(Date.now() - 2 * 86400 * 1000).toISOString();
+    await supabase
+      .from('routine_notification_log')
+      .delete()
+      .lt('sent_at', twoDaysAgo);
+
     // 1. Get all in-progress routine logs for today
     const { data: logs, error: logsErr } = await supabase
       .from('routine_logs')
-      .select('id, routine_id, user_id, mode, auto_adjust, current_step_index, status, last_notified_at')
+      .select('id, routine_id, user_id, mode, auto_adjust, current_step_index, status')
       .eq('status', 'in_progress')
       .eq('execution_date', today);
 
@@ -111,99 +169,82 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${logs.length} active routine logs`);
 
-    // 2. Collect routine IDs and user IDs
+    // 2. Batch-fetch all related data
     const routineIds = [...new Set((logs as RoutineLogRow[]).map(l => l.routine_id))];
     const userIds = [...new Set((logs as RoutineLogRow[]).map(l => l.user_id))];
+    const logIds = (logs as RoutineLogRow[]).map(l => l.id);
 
-    // 3. Fetch all steps for these routines
-    const { data: allSteps } = await supabase
-      .from('routine_steps')
-      .select('id, routine_id, title, step_start_time, duration_minutes, sort_order')
-      .in('routine_id', routineIds)
-      .order('sort_order', { ascending: true });
+    const [stepsResult, routinesResult, profilesResult, stepLogsResult] = await Promise.all([
+      supabase.from('routine_steps').select('id, routine_id, title, step_start_time, duration_minutes, sort_order')
+        .in('routine_id', routineIds).order('sort_order', { ascending: true }),
+      supabase.from('routines').select('id, name, notifications_enabled, repeat_days')
+        .in('id', routineIds),
+      supabase.from('profiles').select('user_id, timezone, push_notifications_enabled')
+        .in('user_id', userIds),
+      supabase.from('routine_step_logs').select('routine_log_id, step_id')
+        .in('routine_log_id', logIds),
+    ]);
 
+    // Build lookup maps
     const stepsMap: Record<string, StepRow[]> = {};
-    for (const s of (allSteps || []) as StepRow[]) {
+    for (const s of (stepsResult.data || []) as StepRow[]) {
       if (!stepsMap[s.routine_id]) stepsMap[s.routine_id] = [];
       stepsMap[s.routine_id].push(s);
     }
 
-    // 4. Fetch routines for names and notification settings
-    const { data: routinesData } = await supabase
-      .from('routines')
-      .select('id, name, notifications_enabled, repeat_days')
-      .in('id', routineIds);
-
-    const routineNameMap: Record<string, string> = {};
-    const routineNotifMap: Record<string, boolean> = {};
-    const routineRepeatMap: Record<string, number[]> = {};
-    for (const r of (routinesData || []) as { id: string; name: string; notifications_enabled: boolean; repeat_days: number[] }[]) {
-      routineNameMap[r.id] = r.name;
-      routineNotifMap[r.id] = r.notifications_enabled ?? true;
-      routineRepeatMap[r.id] = r.repeat_days || [1, 2, 3, 4, 5, 6, 7];
+    const routineMap: Record<string, { name: string; notifications_enabled: boolean; repeat_days: number[] }> = {};
+    for (const r of (routinesResult.data || []) as any[]) {
+      routineMap[r.id] = {
+        name: r.name,
+        notifications_enabled: r.notifications_enabled ?? true,
+        repeat_days: r.repeat_days || [1, 2, 3, 4, 5, 6, 7],
+      };
     }
 
-    // 5. Fetch user profiles for timezone
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('user_id, timezone, push_notifications_enabled')
-      .in('user_id', userIds);
-
-    const tzMap: Record<string, string> = {};
-    const pushEnabledMap: Record<string, boolean> = {};
-    for (const p of (profiles || []) as { user_id: string; timezone: string; push_notifications_enabled: boolean }[]) {
-      tzMap[p.user_id] = p.timezone || 'UTC';
-      pushEnabledMap[p.user_id] = p.push_notifications_enabled ?? false;
+    const userMap: Record<string, { tz: string; pushEnabled: boolean }> = {};
+    for (const p of (profilesResult.data || []) as any[]) {
+      userMap[p.user_id] = {
+        tz: p.timezone || 'UTC',
+        pushEnabled: p.push_notifications_enabled ?? false,
+      };
     }
-
-    // 6. Fetch completed step IDs for each log
-    const logIds = (logs as RoutineLogRow[]).map(l => l.id);
-    const { data: stepLogs } = await supabase
-      .from('routine_step_logs')
-      .select('routine_log_id, step_id')
-      .in('routine_log_id', logIds);
 
     const completedMap: Record<string, Set<string>> = {};
-    for (const sl of (stepLogs || []) as { routine_log_id: string; step_id: string }[]) {
+    for (const sl of (stepLogsResult.data || []) as any[]) {
       if (!completedMap[sl.routine_log_id]) completedMap[sl.routine_log_id] = new Set();
       completedMap[sl.routine_log_id].add(sl.step_id);
     }
 
-    // 7. Process each log
+    // 3. Process each log
     let sentCount = 0;
 
     for (const log of logs as RoutineLogRow[]) {
       try {
-        if (!pushEnabledMap[log.user_id]) continue;
-        if (!routineNotifMap[log.routine_id]) continue;
+        const userInfo = userMap[log.user_id];
+        if (!userInfo?.pushEnabled) continue;
 
-        const tz = tzMap[log.user_id] || 'UTC';
+        const routineInfo = routineMap[log.routine_id];
+        if (!routineInfo?.notifications_enabled) continue;
+
+        const tz = userInfo.tz;
 
         // Check if today is a repeat day for this routine
-        const userNowFull = toZonedTime(new Date(), tz);
-        const dayOfWeek = userNowFull.getDay() === 0 ? 7 : userNowFull.getDay();
-        const allowedDays = routineRepeatMap[log.routine_id] || [1, 2, 3, 4, 5, 6, 7];
-        if (!allowedDays.includes(dayOfWeek)) continue;
+        const userNow = toZonedTime(new Date(), tz);
+        const dayOfWeek = userNow.getDay() === 0 ? 7 : userNow.getDay();
+        if (!routineInfo.repeat_days.includes(dayOfWeek)) {
+          console.log(`⏭️ Skipping routine ${log.routine_id} — not a repeat day (today=${dayOfWeek}, allowed=${routineInfo.repeat_days})`);
+          continue;
+        }
 
         const steps = (stepsMap[log.routine_id] || []).filter(s => s.step_start_time);
         if (steps.length === 0) continue;
 
         const completedIds = completedMap[log.id] || new Set();
-        const routineName = routineNameMap[log.routine_id] || 'Routine';
+        const routineName = routineInfo.name;
 
         // Get user's current time in minutes
-        const nowUtc = new Date();
-        const userNow = toZonedTime(nowUtc, tz);
         const nowMin = userNow.getHours() * 60 + userNow.getMinutes();
-        const nowMinuteKey = getMinuteKey(userNow);
-
-        // Dedup only within the same cron minute
-        if (log.last_notified_at) {
-          const lastNotifiedUserTime = toZonedTime(new Date(log.last_notified_at), tz);
-          if (getMinuteKey(lastNotifiedUserTime) === nowMinuteKey) {
-            continue;
-          }
-        }
+        const userDate = `${userNow.getFullYear()}-${String(userNow.getMonth() + 1).padStart(2, '0')}-${String(userNow.getDate()).padStart(2, '0')}`;
 
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
@@ -212,63 +253,54 @@ Deno.serve(async (req) => {
 
           const stepMin = parseTimeToMinutes(step.step_start_time);
 
-          // A. Step is starting now (exact minute only)
-          if (nowMin === stepMin) {
+          // A. Step is starting now (within the 5-min cron window)
+          if (nowMin >= stepMin && nowMin < stepMin + 5) {
             const msg = buildMessage(stepStartMessages, step.title, routineName);
-            const sent = await sendUnifiedNotification(supabase, {
+            const sent = await scheduleNotification(supabase, {
               userId: log.user_id,
+              routineId: log.routine_id,
+              stepId: step.id,
+              date: userDate,
+              type: 'step_start',
               title: msg.title,
               message: msg.message,
               data: { type: 'routine_step', routine_id: log.routine_id, step_id: step.id },
             });
-            if (sent) {
-              sentCount++;
-              await supabase
-                .from('routine_logs')
-                .update({ last_notified_at: new Date().toISOString() })
-                .eq('id', log.id);
-            }
+            if (sent) sentCount++;
+            break; // Only handle one step per log per cron run
+          }
+
+          // B. Strict mode nudge: if overdue by >= 10 min (only one nudge per step per day)
+          if (log.mode === 'strict' && nowMin >= stepMin + 10) {
+            const msg = buildMessage(nudgeMessages, step.title, routineName);
+            const sent = await scheduleNotification(supabase, {
+              userId: log.user_id,
+              routineId: log.routine_id,
+              stepId: step.id,
+              date: userDate,
+              type: 'nudge',
+              title: msg.title,
+              message: msg.message,
+              data: { type: 'routine_nudge', routine_id: log.routine_id, step_id: step.id },
+            });
+            if (sent) sentCount++;
             break;
           }
 
-          // B. Strict mode nudge: only on exact 10-minute overdue marks
-          if (log.mode === 'strict' && nowMin >= stepMin + 5) {
-            const overdueMin = nowMin - stepMin;
-            if (overdueMin % 10 === 0) {
-              const msg = buildMessage(nudgeMessages, step.title, routineName);
-              const sent = await sendUnifiedNotification(supabase, {
-                userId: log.user_id,
-                title: msg.title,
-                message: msg.message,
-                data: { type: 'routine_nudge', routine_id: log.routine_id, step_id: step.id },
-              });
-              if (sent) {
-                sentCount++;
-                await supabase
-                  .from('routine_logs')
-                  .update({ last_notified_at: new Date().toISOString() })
-                  .eq('id', log.id);
-              }
-              break;
-            }
-          }
-
-          // C. Preview: exactly 5 minutes before
-          if (nowMin === stepMin - 5) {
+          // C. Preview: 5 minutes before step (within the 5-min cron window)
+          if (nowMin >= stepMin - 5 && nowMin < stepMin) {
             const msg = buildMessage(previewMessages, step.title, routineName);
-            const sent = await sendUnifiedNotification(supabase, {
+            const sent = await scheduleNotification(supabase, {
               userId: log.user_id,
+              routineId: log.routine_id,
+              stepId: step.id,
+              date: userDate,
+              type: 'preview',
               title: msg.title,
               message: msg.message,
               data: { type: 'routine_preview', routine_id: log.routine_id, step_id: step.id },
             });
-            if (sent) {
-              sentCount++;
-              await supabase
-                .from('routine_logs')
-                .update({ last_notified_at: new Date().toISOString() })
-                .eq('id', log.id);
-            }
+            if (sent) sentCount++;
             break;
           }
         }
