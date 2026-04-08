@@ -473,6 +473,8 @@ export type Database = {
           discipline_score: number | null
           execution_date: string
           id: string
+          last_notified_at: string | null
+          last_notified_step_id: string | null
           mode: string
           routine_id: string
           started_at: string
@@ -487,6 +489,8 @@ export type Database = {
           discipline_score?: number | null
           execution_date?: string
           id?: string
+          last_notified_at?: string | null
+          last_notified_step_id?: string | null
           mode?: string
           routine_id: string
           started_at?: string
@@ -501,6 +505,8 @@ export type Database = {
           discipline_score?: number | null
           execution_date?: string
           id?: string
+          last_notified_at?: string | null
+          last_notified_step_id?: string | null
           mode?: string
           routine_id?: string
           started_at?: string
