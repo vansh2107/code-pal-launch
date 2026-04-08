@@ -17,11 +17,10 @@ interface TodayProgress {
 export function RoutinesSection() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { routines, loading, createRoutine, deleteRoutine } = useRoutines();
+  const { routines, loading, createRoutine, deleteRoutine, toggleRoutineActive } = useRoutines();
   const [showCreate, setShowCreate] = useState(false);
   const [progressMap, setProgressMap] = useState<Record<string, TodayProgress>>({});
 
-  // Fetch today's progress for all routines
   const fetchProgress = useCallback(async () => {
     if (!user || routines.length === 0) return;
     const today = new Date();
@@ -41,7 +40,6 @@ export function RoutinesSection() {
         const routine = routines.find((r) => r.id === log.routine_id);
         if (!routine) continue;
 
-        // Get completed step logs for this log
         const { data: stepLogs } = await supabase
           .from("routine_step_logs" as any)
           .select("id")
@@ -68,32 +66,21 @@ export function RoutinesSection() {
     category: string,
     icon: string,
     steps: { title: string; duration_minutes: number; step_start_time: string }[],
-    options?: { mode?: string; auto_adjust?: boolean; start_time?: string; repeat_days?: number[]; notifications_enabled?: boolean; start_date?: string }
+    options?: any
   ) => {
     await createRoutine(name, category, icon, steps, options);
     setShowCreate(false);
   };
 
-  const handleStart = async (routineId: string) => {
-    navigate(`/routine/${routineId}`);
-  };
-
-  const handleContinue = (routineId: string) => {
-    navigate(`/routine/${routineId}`);
-  };
-
-  const handleClick = (routineId: string) => {
-    navigate(`/routine/${routineId}`);
-  };
+  const handleStart = (routineId: string) => navigate(`/routine/${routineId}`);
+  const handleContinue = (routineId: string) => navigate(`/routine/${routineId}`);
+  const handleClick = (routineId: string) => navigate(`/routine/${routineId}`);
 
   if (loading) {
     return (
       <div className="space-y-3">
         {[1, 2].map((i) => (
-          <div
-            key={i}
-            className="h-32 bg-muted/50 rounded-2xl animate-pulse"
-          />
+          <div key={i} className="h-32 bg-muted/50 rounded-2xl animate-pulse" />
         ))}
       </div>
     );
@@ -101,13 +88,10 @@ export function RoutinesSection() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Routines</h2>
-          <p className="text-sm text-muted-foreground">
-            Your guided daily flows
-          </p>
+          <p className="text-sm text-muted-foreground">Your guided daily flows</p>
         </div>
         <Button
           size="sm"
@@ -119,14 +103,12 @@ export function RoutinesSection() {
         </Button>
       </div>
 
-      {/* Routine cards */}
       {routines.length === 0 ? (
         <div className="text-center py-12 space-y-4">
           <div className="text-5xl">🧘</div>
           <h3 className="font-semibold text-foreground">No routines yet</h3>
           <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-            Create your first routine to get guided through your day,
-            one step at a time.
+            Create your first routine to get guided through your day, one step at a time.
           </p>
           <Button onClick={() => setShowCreate(true)} className="rounded-full px-6">
             <Plus className="h-4 w-4 mr-2" />
@@ -144,6 +126,7 @@ export function RoutinesSection() {
               onContinue={handleContinue}
               onClick={handleClick}
               onDelete={deleteRoutine}
+              onToggleActive={toggleRoutineActive}
             />
           ))}
         </div>
