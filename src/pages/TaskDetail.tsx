@@ -97,33 +97,24 @@ export default function TaskDetail() {
   };
 
   const handleDelete = async () => {
+    // Navigate immediately (optimistic) — clear cache so tasks list refreshes
+    toast({
+      title: "Task deleted",
+      description: "Your task has been removed.",
+    });
+    
+    // Clear task cache before navigating
+    import("@/hooks/useTasksData").then(m => m.clearTasksCache());
+    navigate("/tasks");
+
     try {
-      // Delete image if exists
+      // Delete in background
       if (task.image_path) {
-        await supabase.storage
-          .from("task-images")
-          .remove([task.image_path]);
+        supabase.storage.from("task-images").remove([task.image_path]);
       }
-
-      const { error } = await supabase
-        .from("tasks")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Task deleted",
-        description: "Your task has been removed.",
-      });
-
-      navigate("/tasks");
+      await supabase.from("tasks").delete().eq("id", id);
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.error("Error deleting task:", error);
     }
   };
 
