@@ -20,6 +20,14 @@ import {
 import { cn } from "@/lib/utils";
 import { Plus, Trash2, GripVertical, ArrowRight, ArrowLeft, Bell } from "lucide-react";
 
+const CATEGORIES = [
+  { value: "morning", label: "Morning", icon: "☀️" },
+  { value: "gym", label: "Gym", icon: "💪" },
+  { value: "medicine", label: "Medicine", icon: "💊" },
+  { value: "work", label: "Work", icon: "💼" },
+  { value: "evening", label: "Evening", icon: "🌙" },
+  { value: "custom", label: "Custom", icon: "⚡" },
+];
 
 const MODES = [
   { value: "flexible", label: "Flexible", desc: "Soft reminders, delay tolerance", icon: "🌊" },
@@ -70,8 +78,8 @@ export function CreateRoutineSheet({
 }: CreateRoutineSheetProps) {
   const [page, setPage] = useState(0);
   const [name, setName] = useState("");
-  const [category] = useState("custom");
-  const [icon] = useState("⚡");
+  const [category, setCategory] = useState("morning");
+  const [icon, setIcon] = useState("☀️");
   const [mode, setMode] = useState("flexible");
   const [autoAdjust, setAutoAdjust] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -121,6 +129,8 @@ export function CreateRoutineSheet({
     // Reset
     setPage(0);
     setName("");
+    setCategory("morning");
+    setIcon("☀️");
     setMode("flexible");
     setAutoAdjust(true);
     setNotificationsEnabled(true);
@@ -229,6 +239,29 @@ export function CreateRoutineSheet({
               )}
             </div>
 
+            {/* Category */}
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.value}
+                    onClick={() => {
+                      setCategory(cat.value);
+                      setIcon(cat.icon);
+                    }}
+                    className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                      category === cat.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-card hover:border-primary/40"
+                    }`}
+                  >
+                    <span className="text-2xl">{cat.icon}</span>
+                    <span className="text-xs font-medium">{cat.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Mode */}
             <div className="space-y-2">
