@@ -229,29 +229,6 @@ export function CreateRoutineSheet({
               )}
             </div>
 
-            {/* Category */}
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.value}
-                    onClick={() => {
-                      setCategory(cat.value);
-                      setIcon(cat.icon);
-                    }}
-                    className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
-                      category === cat.value
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-card hover:border-primary/40"
-                    }`}
-                  >
-                    <span className="text-2xl">{cat.icon}</span>
-                    <span className="text-xs font-medium">{cat.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Mode */}
             <div className="space-y-2">
