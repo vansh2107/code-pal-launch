@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -8,7 +10,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, GripVertical, ArrowRight, ArrowLeft, Clock } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { Plus, Trash2, GripVertical, ArrowRight, ArrowLeft, Bell } from "lucide-react";
 
 const CATEGORIES = [
   { value: "morning", label: "Morning", icon: "☀️" },
@@ -24,10 +34,29 @@ const MODES = [
   { value: "strict", label: "Strict", desc: "Persistent reminders, strong nudges", icon: "⚡" },
 ];
 
+const DAYS_OF_WEEK = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 7, label: "Sun" },
+];
+
 interface Step {
   title: string;
   duration_minutes: number;
-  step_start_time: string; // "HH:mm"
+  step_start_time: string;
+}
+
+export interface RoutineCreateOptions {
+  mode?: string;
+  auto_adjust?: boolean;
+  start_time?: string;
+  repeat_days?: number[];
+  notifications_enabled?: boolean;
+  start_date?: string; // YYYY-MM-DD
 }
 
 interface CreateRoutineSheetProps {
@@ -38,7 +67,7 @@ interface CreateRoutineSheetProps {
     category: string,
     icon: string,
     steps: Step[],
-    options?: { mode?: string; auto_adjust?: boolean; start_time?: string }
+    options?: RoutineCreateOptions
   ) => void;
 }
 
@@ -53,12 +82,20 @@ export function CreateRoutineSheet({
   const [icon, setIcon] = useState("☀️");
   const [mode, setMode] = useState("flexible");
   const [autoAdjust, setAutoAdjust] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [repeatDays, setRepeatDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7]);
+  const [startDate, setStartDate] = useState<Date | undefined>(new Date());
   const [steps, setSteps] = useState<Step[]>([
     { title: "", duration_minutes: 5, step_start_time: "07:00" },
   ]);
 
+  const toggleDay = (day: number) => {
+    setRepeatDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()
+    );
+  };
+
   const addStep = () => {
-    // Auto-suggest next time based on last step
     const lastStep = steps[steps.length - 1];
     let nextTime = "07:00";
     if (lastStep?.step_start_time) {
@@ -81,8 +118,14 @@ export function CreateRoutineSheet({
 
   const handleSubmit = () => {
     const validSteps = steps.filter((s) => s.title.trim() && s.step_start_time);
-    if (!name.trim() || validSteps.length === 0) return;
-    onSubmit(name.trim(), category, icon, validSteps, { mode, auto_adjust: autoAdjust });
+    if (!name.trim() || validSteps.length === 0 || repeatDays.length === 0) return;
+    onSubmit(name.trim(), category, icon, validSteps, {
+      mode,
+      auto_adjust: autoAdjust,
+      repeat_days: repeatDays,
+      notifications_enabled: notificationsEnabled,
+      start_date: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
+    });
     // Reset
     setPage(0);
     setName("");
@@ -90,12 +133,17 @@ export function CreateRoutineSheet({
     setIcon("☀️");
     setMode("flexible");
     setAutoAdjust(true);
+    setNotificationsEnabled(true);
+    setRepeatDays([1, 2, 3, 4, 5, 6, 7]);
+    setStartDate(new Date());
     setSteps([{ title: "", duration_minutes: 5, step_start_time: "07:00" }]);
   };
 
-  const canProceed = page === 0 ? name.trim().length > 0 : steps.some((s) => s.title.trim() && s.step_start_time);
+  const canProceed =
+    page === 0
+      ? name.trim().length > 0 && repeatDays.length > 0
+      : steps.some((s) => s.title.trim() && s.step_start_time);
 
-  // Check for overlapping times
   const hasOverlap = () => {
     const times = steps
       .filter((s) => s.step_start_time && s.title.trim())
@@ -106,7 +154,7 @@ export function CreateRoutineSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl px-4 pb-8">
+      <SheetContent side="bottom" className="h-[90vh] rounded-t-3xl px-4 pb-8">
         <SheetHeader className="mb-4">
           <SheetTitle>
             {page === 0 ? "Create Routine" : "Add Steps & Times"}
@@ -126,7 +174,7 @@ export function CreateRoutineSheet({
         </div>
 
         {page === 0 ? (
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-5 animate-fade-in overflow-y-auto max-h-[60vh] pr-1">
             {/* Name */}
             <div className="space-y-2">
               <Label>Routine Name</Label>
@@ -136,6 +184,59 @@ export function CreateRoutineSheet({
                 placeholder="e.g. Morning Routine"
                 className="h-12 text-base rounded-xl"
               />
+            </div>
+
+            {/* Start Date */}
+            <div className="space-y-2">
+              <Label>Start Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full h-12 justify-start text-left font-normal rounded-xl",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, "PPP") : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={setStartDate}
+                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Repeat Days */}
+            <div className="space-y-2">
+              <Label>Repeat Days</Label>
+              <div className="flex gap-1.5">
+                {DAYS_OF_WEEK.map((day) => (
+                  <button
+                    key={day.value}
+                    onClick={() => toggleDay(day.value)}
+                    className={cn(
+                      "flex-1 py-2.5 rounded-xl text-xs font-semibold border-2 transition-all",
+                      repeatDays.includes(day.value)
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-card text-muted-foreground hover:border-primary/40"
+                    )}
+                  >
+                    {day.label}
+                  </button>
+                ))}
+              </div>
+              {repeatDays.length === 0 && (
+                <p className="text-xs text-destructive">Select at least one day</p>
+              )}
             </div>
 
             {/* Category */}
@@ -185,6 +286,23 @@ export function CreateRoutineSheet({
                 ))}
               </div>
             </div>
+
+            {/* Notifications Toggle */}
+            <div className="flex items-center justify-between bg-muted/50 rounded-xl p-4 border border-border/50">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Bell className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Notifications</p>
+                  <p className="text-xs text-muted-foreground">Get step reminders</p>
+                </div>
+              </div>
+              <Switch
+                checked={notificationsEnabled}
+                onCheckedChange={setNotificationsEnabled}
+              />
+            </div>
           </div>
         ) : (
           <div className="space-y-3 animate-fade-in overflow-y-auto max-h-[50vh] pr-1">
@@ -202,7 +320,6 @@ export function CreateRoutineSheet({
                 className="flex items-center gap-2 bg-muted/50 rounded-xl p-3 border border-border/50"
               >
                 <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-                {/* Start time */}
                 <div className="shrink-0">
                   <Input
                     type="time"
@@ -211,7 +328,6 @@ export function CreateRoutineSheet({
                     className="w-[100px] h-9 text-sm rounded-lg"
                   />
                 </div>
-                {/* Title */}
                 <div className="flex-1 min-w-0">
                   <Input
                     value={step.title}
@@ -220,7 +336,6 @@ export function CreateRoutineSheet({
                     className="h-9 border-0 bg-transparent p-0 text-sm focus-visible:ring-0"
                   />
                 </div>
-                {/* Optional duration (UI only) */}
                 <div className="flex items-center gap-1 shrink-0">
                   <Input
                     type="number"

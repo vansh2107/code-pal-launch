@@ -16,6 +16,8 @@ const NOTIFICATION_TYPES = [
   { key: "expired", label: "Document Expired", description: "When a document has expired", icon: AlertTriangle },
   { key: "document_added", label: "Document Added / Scanned", description: "When a new document is added", icon: Plus },
   { key: "important_alerts", label: "Important Alerts", description: "Critical notifications and reminders", icon: FileText },
+  { key: "routine_steps", label: "Routine Step Reminders", description: "When a routine step is starting or overdue", icon: Bell },
+  { key: "routine_nudge", label: "Routine Nudges (Strict)", description: "Persistent nudges when you're late in strict mode", icon: AlertTriangle },
 ] as const;
 
 type NotificationType = (typeof NOTIFICATION_TYPES)[number]["key"];
