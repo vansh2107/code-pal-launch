@@ -553,6 +553,38 @@ export type Database = {
         }
         Relationships: []
       }
+      routine_slots: {
+        Row: {
+          created_at: string
+          days_of_week: number[]
+          id: string
+          routine_id: string
+          start_time: string
+        }
+        Insert: {
+          created_at?: string
+          days_of_week?: number[]
+          id?: string
+          routine_id: string
+          start_time?: string
+        }
+        Update: {
+          created_at?: string
+          days_of_week?: number[]
+          id?: string
+          routine_id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_slots_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "routines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       routine_step_logs: {
         Row: {
           action: string
