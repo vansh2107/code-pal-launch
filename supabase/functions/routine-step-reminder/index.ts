@@ -23,7 +23,6 @@ interface RoutineLogRow {
   auto_adjust: boolean;
   current_step_index: number;
   status: string;
-  last_notified_step_id: string | null;
   last_notified_at: string | null;
 }
 
@@ -36,20 +35,19 @@ interface StepRow {
   sort_order: number;
 }
 
-interface StepLogRow {
-  step_id: string;
-}
-
 function parseTimeToMinutes(time: string): number {
   const parts = time.split(':').map(Number);
   return (parts[0] || 0) * 60 + (parts[1] || 0);
 }
 
-function formatTime12(time24: string): string {
-  const [h, m] = time24.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+function getMinuteKey(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+    String(date.getHours()).padStart(2, '0'),
+    String(date.getMinutes()).padStart(2, '0'),
+  ].join('-');
 }
 
 // Playful routine notification messages
@@ -102,7 +100,7 @@ Deno.serve(async (req) => {
     // 1. Get all in-progress routine logs for today
     const { data: logs, error: logsErr } = await supabase
       .from('routine_logs')
-      .select('id, routine_id, user_id, mode, auto_adjust, current_step_index, status, last_notified_step_id, last_notified_at')
+      .select('id, routine_id, user_id, mode, auto_adjust, current_step_index, status, last_notified_at')
       .eq('status', 'in_progress')
       .eq('execution_date', today);
 
@@ -197,13 +195,12 @@ Deno.serve(async (req) => {
         const nowUtc = new Date();
         const userNow = toZonedTime(nowUtc, tz);
         const nowMin = userNow.getHours() * 60 + userNow.getMinutes();
+        const nowMinuteKey = getMinuteKey(userNow);
 
-        // Dedup check: skip if we already notified for any step within the last 8 minutes
+        // Dedup only within the same cron minute
         if (log.last_notified_at) {
-          const lastNotifTime = new Date(log.last_notified_at).getTime();
-          const elapsedMs = Date.now() - lastNotifTime;
-          if (elapsedMs < 8 * 60 * 1000) {
-            console.log(`Skipping log ${log.id}: already notified ${Math.round(elapsedMs / 1000)}s ago`);
+          const lastNotifiedUserTime = toZonedTime(new Date(log.last_notified_at), tz);
+          if (getMinuteKey(lastNotifiedUserTime) === nowMinuteKey) {
             continue;
           }
         }
@@ -215,68 +212,64 @@ Deno.serve(async (req) => {
 
           const stepMin = parseTimeToMinutes(step.step_start_time);
 
-          // Skip if we already sent a notification for THIS exact step
-          if (log.last_notified_step_id === step.id) {
-            // For nudges in strict mode, allow re-notify after 10 min
-            if (log.mode === 'strict' && nowMin >= stepMin + 5) {
-              const lastNotifTime = log.last_notified_at ? new Date(log.last_notified_at).getTime() : 0;
-              const elapsedMs = Date.now() - lastNotifTime;
-              if (elapsedMs < 10 * 60 * 1000) continue;
-              // Allow nudge to proceed below
-            } else {
-              continue;
-            }
-          }
-
-          let sent = false;
-          let notificationType = '';
-
-          // A. Step is starting now (within 2-minute window)
-          if (nowMin >= stepMin && nowMin <= stepMin + 2) {
+          // A. Step is starting now (exact minute only)
+          if (nowMin === stepMin) {
             const msg = buildMessage(stepStartMessages, step.title, routineName);
-            sent = await sendUnifiedNotification(supabase, {
+            const sent = await sendUnifiedNotification(supabase, {
               userId: log.user_id,
               title: msg.title,
               message: msg.message,
               data: { type: 'routine_step', routine_id: log.routine_id, step_id: step.id },
             });
-            notificationType = 'step_start';
+            if (sent) {
+              sentCount++;
+              await supabase
+                .from('routine_logs')
+                .update({ last_notified_at: new Date().toISOString() })
+                .eq('id', log.id);
+            }
+            break;
           }
-          // B. Strict mode nudge: step is 5+ min overdue
-          else if (log.mode === 'strict' && nowMin >= stepMin + 5) {
-            const msg = buildMessage(nudgeMessages, step.title, routineName);
-            sent = await sendUnifiedNotification(supabase, {
-              userId: log.user_id,
-              title: msg.title,
-              message: msg.message,
-              data: { type: 'routine_nudge', routine_id: log.routine_id, step_id: step.id },
-            });
-            notificationType = 'nudge';
+
+          // B. Strict mode nudge: only on exact 10-minute overdue marks
+          if (log.mode === 'strict' && nowMin >= stepMin + 5) {
+            const overdueMin = nowMin - stepMin;
+            if (overdueMin % 10 === 0) {
+              const msg = buildMessage(nudgeMessages, step.title, routineName);
+              const sent = await sendUnifiedNotification(supabase, {
+                userId: log.user_id,
+                title: msg.title,
+                message: msg.message,
+                data: { type: 'routine_nudge', routine_id: log.routine_id, step_id: step.id },
+              });
+              if (sent) {
+                sentCount++;
+                await supabase
+                  .from('routine_logs')
+                  .update({ last_notified_at: new Date().toISOString() })
+                  .eq('id', log.id);
+              }
+              break;
+            }
           }
-          // C. Preview: next step starts in ~5 min (window: 3-5 min before)
-          else if (nowMin >= stepMin - 5 && nowMin <= stepMin - 3) {
+
+          // C. Preview: exactly 5 minutes before
+          if (nowMin === stepMin - 5) {
             const msg = buildMessage(previewMessages, step.title, routineName);
-            sent = await sendUnifiedNotification(supabase, {
+            const sent = await sendUnifiedNotification(supabase, {
               userId: log.user_id,
               title: msg.title,
               message: msg.message,
               data: { type: 'routine_preview', routine_id: log.routine_id, step_id: step.id },
             });
-            notificationType = 'preview';
-          }
-
-          if (sent) {
-            sentCount++;
-            // Record dedup: mark this step as notified
-            await supabase
-              .from('routine_logs')
-              .update({
-                last_notified_step_id: step.id,
-                last_notified_at: new Date().toISOString(),
-              })
-              .eq('id', log.id);
-            console.log(`Sent ${notificationType} for step "${step.title}" (log ${log.id})`);
-            break; // one notification per routine per cycle
+            if (sent) {
+              sentCount++;
+              await supabase
+                .from('routine_logs')
+                .update({ last_notified_at: new Date().toISOString() })
+                .eq('id', log.id);
+            }
+            break;
           }
         }
       } catch (logError) {
