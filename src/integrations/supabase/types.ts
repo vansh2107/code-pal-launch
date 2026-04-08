@@ -523,6 +523,36 @@ export type Database = {
           },
         ]
       }
+      routine_notification_log: {
+        Row: {
+          id: string
+          notification_key: string
+          notification_type: string
+          routine_id: string
+          sent_at: string
+          step_id: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          notification_key: string
+          notification_type: string
+          routine_id: string
+          sent_at?: string
+          step_id?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          notification_key?: string
+          notification_type?: string
+          routine_id?: string
+          sent_at?: string
+          step_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       routine_step_logs: {
         Row: {
           action: string
