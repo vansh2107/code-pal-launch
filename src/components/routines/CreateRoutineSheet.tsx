@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, GripVertical, ArrowRight, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, GripVertical, ArrowRight, ArrowLeft, Clock } from "lucide-react";
 
 const CATEGORIES = [
   { value: "morning", label: "Morning", icon: "☀️" },
@@ -27,6 +27,7 @@ const MODES = [
 interface Step {
   title: string;
   duration_minutes: number;
+  step_start_time: string; // "HH:mm"
 }
 
 interface CreateRoutineSheetProps {
@@ -53,11 +54,22 @@ export function CreateRoutineSheet({
   const [mode, setMode] = useState("flexible");
   const [autoAdjust, setAutoAdjust] = useState(true);
   const [steps, setSteps] = useState<Step[]>([
-    { title: "", duration_minutes: 5 },
+    { title: "", duration_minutes: 5, step_start_time: "07:00" },
   ]);
 
-  const addStep = () =>
-    setSteps((s) => [...s, { title: "", duration_minutes: 5 }]);
+  const addStep = () => {
+    // Auto-suggest next time based on last step
+    const lastStep = steps[steps.length - 1];
+    let nextTime = "07:00";
+    if (lastStep?.step_start_time) {
+      const [h, m] = lastStep.step_start_time.split(":").map(Number);
+      const totalMin = h * 60 + m + (lastStep.duration_minutes || 5);
+      const nh = Math.floor(totalMin / 60) % 24;
+      const nm = totalMin % 60;
+      nextTime = `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
+    }
+    setSteps((s) => [...s, { title: "", duration_minutes: 5, step_start_time: nextTime }]);
+  };
 
   const removeStep = (i: number) =>
     setSteps((s) => s.filter((_, idx) => idx !== i));
@@ -68,7 +80,7 @@ export function CreateRoutineSheet({
     );
 
   const handleSubmit = () => {
-    const validSteps = steps.filter((s) => s.title.trim());
+    const validSteps = steps.filter((s) => s.title.trim() && s.step_start_time);
     if (!name.trim() || validSteps.length === 0) return;
     onSubmit(name.trim(), category, icon, validSteps, { mode, auto_adjust: autoAdjust });
     // Reset
@@ -78,17 +90,26 @@ export function CreateRoutineSheet({
     setIcon("☀️");
     setMode("flexible");
     setAutoAdjust(true);
-    setSteps([{ title: "", duration_minutes: 5 }]);
+    setSteps([{ title: "", duration_minutes: 5, step_start_time: "07:00" }]);
   };
 
-  const canProceed = page === 0 ? name.trim().length > 0 : steps.some((s) => s.title.trim());
+  const canProceed = page === 0 ? name.trim().length > 0 : steps.some((s) => s.title.trim() && s.step_start_time);
+
+  // Check for overlapping times
+  const hasOverlap = () => {
+    const times = steps
+      .filter((s) => s.step_start_time && s.title.trim())
+      .map((s) => s.step_start_time)
+      .sort();
+    return new Set(times).size !== times.length;
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl px-4 pb-8">
         <SheetHeader className="mb-4">
           <SheetTitle>
-            {page === 0 ? "Create Routine" : "Add Steps"}
+            {page === 0 ? "Create Routine" : "Add Steps & Times"}
           </SheetTitle>
         </SheetHeader>
 
@@ -130,7 +151,7 @@ export function CreateRoutineSheet({
                     }}
                     className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
                       category === cat.value
-                        ? "border-primary bg-primary-soft"
+                        ? "border-primary bg-primary/5"
                         : "border-border bg-card hover:border-primary/40"
                     }`}
                   >
@@ -151,7 +172,7 @@ export function CreateRoutineSheet({
                     onClick={() => setMode(m.value)}
                     className={`flex flex-col items-start gap-1 p-3 rounded-xl border-2 transition-all ${
                       mode === m.value
-                        ? "border-primary bg-primary-soft"
+                        ? "border-primary bg-primary/5"
                         : "border-border bg-card hover:border-primary/40"
                     }`}
                   >
@@ -167,12 +188,30 @@ export function CreateRoutineSheet({
           </div>
         ) : (
           <div className="space-y-3 animate-fade-in overflow-y-auto max-h-[50vh] pr-1">
+            <p className="text-xs text-muted-foreground mb-2">
+              Set a fixed start time for each step. The app will notify you based on real clock time.
+            </p>
+            {hasOverlap() && (
+              <div className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+                ⚠️ Some steps have the same start time. Please use unique times.
+              </div>
+            )}
             {steps.map((step, i) => (
               <div
                 key={i}
                 className="flex items-center gap-2 bg-muted/50 rounded-xl p-3 border border-border/50"
               >
                 <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                {/* Start time */}
+                <div className="shrink-0">
+                  <Input
+                    type="time"
+                    value={step.step_start_time}
+                    onChange={(e) => updateStep(i, "step_start_time", e.target.value)}
+                    className="w-[100px] h-9 text-sm rounded-lg"
+                  />
+                </div>
+                {/* Title */}
                 <div className="flex-1 min-w-0">
                   <Input
                     value={step.title}
@@ -181,6 +220,7 @@ export function CreateRoutineSheet({
                     className="h-9 border-0 bg-transparent p-0 text-sm focus-visible:ring-0"
                   />
                 </div>
+                {/* Optional duration (UI only) */}
                 <div className="flex items-center gap-1 shrink-0">
                   <Input
                     type="number"
@@ -188,10 +228,10 @@ export function CreateRoutineSheet({
                     onChange={(e) =>
                       updateStep(i, "duration_minutes", Number(e.target.value) || 1)
                     }
-                    className="w-14 h-9 text-center text-sm rounded-lg"
+                    className="w-12 h-9 text-center text-xs rounded-lg"
                     min={1}
                   />
-                  <span className="text-xs text-muted-foreground">min</span>
+                  <span className="text-[10px] text-muted-foreground">min</span>
                 </div>
                 {steps.length > 1 && (
                   <button onClick={() => removeStep(i)}>
@@ -233,7 +273,7 @@ export function CreateRoutineSheet({
           ) : (
             <Button
               onClick={handleSubmit}
-              disabled={!canProceed}
+              disabled={!canProceed || hasOverlap()}
               className="flex-1 h-12 rounded-xl"
             >
               Create Routine 🎯

@@ -67,7 +67,7 @@ export function RoutinesSection() {
     name: string,
     category: string,
     icon: string,
-    steps: { title: string; duration_minutes: number }[],
+    steps: { title: string; duration_minutes: number; step_start_time: string }[],
     options?: { mode?: string; auto_adjust?: boolean; start_time?: string }
   ) => {
     await createRoutine(name, category, icon, steps, options);

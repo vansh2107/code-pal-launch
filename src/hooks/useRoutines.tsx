@@ -11,6 +11,7 @@ export interface RoutineStep {
   sort_order: number;
   start_offset_minutes: number;
   reminder_type: string;
+  step_start_time: string | null; // e.g. "07:00:00"
 }
 
 export interface Routine {
@@ -74,10 +75,43 @@ function calculateDisciplineScore(
   let score = 100;
   for (const log of stepLogs) {
     if (log.action === "skipped") score -= 15;
-    else if (log.delay_seconds > 900) score -= 10; // >15min
-    else if (log.delay_seconds > 300) score -= 5;  // >5min
+    else if (log.delay_seconds > 900) score -= 10;
+    else if (log.delay_seconds > 300) score -= 5;
   }
   return Math.max(0, Math.min(100, score));
+}
+
+/**
+ * Parse a time string "HH:mm" or "HH:mm:ss" into total minutes since midnight.
+ */
+export function parseTimeToMinutes(time: string): number {
+  const parts = time.split(":").map(Number);
+  return (parts[0] || 0) * 60 + (parts[1] || 0);
+}
+
+/**
+ * Given sorted steps with step_start_time, find the current active step index
+ * based on the current clock time.
+ */
+export function resolveCurrentStepByTime(
+  steps: RoutineStep[],
+  completedStepIds: Set<string>,
+  nowMinutes: number
+): number {
+  // Walk backwards to find the latest step whose start_time <= now and is not completed
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const step = steps[i];
+    if (!step.step_start_time) continue;
+    const stepMin = parseTimeToMinutes(step.step_start_time);
+    if (stepMin <= nowMinutes && !completedStepIds.has(step.id)) {
+      return i;
+    }
+  }
+  // If all past steps are completed, find the next uncompleted step
+  for (let i = 0; i < steps.length; i++) {
+    if (!completedStepIds.has(steps[i].id)) return i;
+  }
+  return steps.length; // all done
 }
 
 export function useRoutines() {
@@ -136,7 +170,7 @@ export function useRoutines() {
     name: string,
     category: string,
     icon: string,
-    steps: { title: string; duration_minutes: number }[],
+    steps: { title: string; duration_minutes: number; step_start_time: string }[],
     options?: { mode?: string; auto_adjust?: boolean; start_time?: string }
   ) => {
     if (!user) return null;
@@ -168,6 +202,7 @@ export function useRoutines() {
             duration_minutes: s.duration_minutes,
             sort_order: i,
             start_offset_minutes: offsetAccum,
+            step_start_time: s.step_start_time || null,
           };
           offsetAccum += s.duration_minutes;
           return stepData;
@@ -231,6 +266,18 @@ export function useRoutines() {
     }
   };
 
+  const getCompletedStepIds = async (logId: string): Promise<Set<string>> => {
+    try {
+      const { data } = await supabase
+        .from("routine_step_logs" as any)
+        .select("step_id")
+        .eq("routine_log_id", logId);
+      return new Set((data as any[] || []).map((d: any) => d.step_id));
+    } catch {
+      return new Set();
+    }
+  };
+
   const completeStep = async (
     logId: string,
     stepId: string,
@@ -263,7 +310,6 @@ export function useRoutines() {
         updates.status = "completed";
         updates.completed_at = now;
 
-        // Calculate discipline score
         const { data: stepLogs } = await supabase
           .from("routine_step_logs" as any)
           .select("action, delay_seconds")
@@ -279,7 +325,6 @@ export function useRoutines() {
         .update(updates)
         .eq("id", logId);
 
-      // Update streak if completed
       if (isLast) {
         await updateStreak(logId);
       }
@@ -400,5 +445,6 @@ export function useRoutines() {
     completeStep,
     getTodayLog,
     getStreak,
+    getCompletedStepIds,
   };
 }

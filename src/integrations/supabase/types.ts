@@ -577,6 +577,7 @@ export type Database = {
           routine_id: string
           sort_order: number
           start_offset_minutes: number
+          step_start_time: string | null
           title: string
         }
         Insert: {
@@ -587,6 +588,7 @@ export type Database = {
           routine_id: string
           sort_order?: number
           start_offset_minutes?: number
+          step_start_time?: string | null
           title: string
         }
         Update: {
@@ -597,6 +599,7 @@ export type Database = {
           routine_id?: string
           sort_order?: number
           start_offset_minutes?: number
+          step_start_time?: string | null
           title?: string
         }
         Relationships: [
