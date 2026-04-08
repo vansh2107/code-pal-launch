@@ -234,7 +234,7 @@ export default function RoutineExecution() {
             >
               {/* Status indicator */}
               {isUpcoming && (
-                <div className="flex items-center justify-center gap-2 mb-3 text-amber-500">
+                <div className="flex items-center justify-center gap-2 mb-3 text-warning">
                   <Clock className="h-4 w-4" />
                   <span className="text-sm font-medium">
                     Starts {getCountdownText(stepStartMin, nowMinutes)}
