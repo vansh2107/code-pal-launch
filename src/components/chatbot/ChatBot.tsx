@@ -740,20 +740,32 @@ export function ChatBot() {
     }
   };
 
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+  const MAX_INPUT_LENGTH = 2000;
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const validFiles = files.filter(file => {
-      const isImage = file.type.startsWith('image/');
-      const isPDF = file.type === 'application/pdf';
-      return isImage || isPDF;
-    });
+    const validFiles: File[] = [];
 
-    if (validFiles.length < files.length) {
-      toast({
-        title: "Invalid files",
-        description: "Only images and PDFs are supported",
-        variant: "destructive",
-      });
+    for (const file of files) {
+      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: `"${file.name}" is not supported. Only images and PDFs are allowed.`,
+          variant: "destructive",
+        });
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        toast({
+          title: "File too large",
+          description: `"${file.name}" exceeds 10MB limit.`,
+          variant: "destructive",
+        });
+        continue;
+      }
+      validFiles.push(file);
     }
 
     setUploadedFiles(prev => [...prev, ...validFiles]);
@@ -765,6 +777,15 @@ export function ChatBot() {
 
   const handleSend = () => {
     if ((!input.trim() && uploadedFiles.length === 0) || isLoading) return;
+
+    if (input.length > MAX_INPUT_LENGTH) {
+      toast({
+        title: "Message too long",
+        description: `Maximum ${MAX_INPUT_LENGTH} characters allowed.`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     const message = uploadedFiles.length > 0 
       ? `${input.trim() || 'I want to upload these documents'}\n\nFiles attached: ${uploadedFiles.map(f => f.name).join(', ')}`
