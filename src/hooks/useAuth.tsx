@@ -18,8 +18,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const initialized = React.useRef(false);
+  const loadingRef = React.useRef(true);
+
+  // Keep ref in sync
+  loadingRef.current = loading;
 
   useEffect(() => {
+    // Fail-safe: never stay loading longer than 2 seconds
+    const failSafe = setTimeout(() => {
+      if (loadingRef.current) {
+        console.warn('⚠️ Auth fail-safe triggered after 2s');
+        setLoading(false);
+      }
+    }, 2000);
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -27,36 +40,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
         setLoading(false);
         
-        // Register OneSignal Player ID when user logs in
+        // Register OneSignal Player ID when user logs in (deferred, non-blocking)
         if (session?.user && Capacitor.isNativePlatform()) {
           setTimeout(() => {
             savePlayerIdToSupabase(session.user.id);
             if (session.user.email) {
               setUserEmail(session.user.email);
             }
-          }, 2000); // Wait 2 seconds for OneSignal to initialize
+          }, 3000);
         }
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      
-      // Register OneSignal Player ID for existing session
-      if (session?.user && Capacitor.isNativePlatform()) {
-        setTimeout(() => {
-          savePlayerIdToSupabase(session.user.id);
-          if (session.user.email) {
-            setUserEmail(session.user.email);
-          }
-        }, 2000);
-      }
-    });
+    // THEN check for existing session (only once)
+    if (!initialized.current) {
+      initialized.current = true;
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+        
+        if (session?.user && Capacitor.isNativePlatform()) {
+          setTimeout(() => {
+            savePlayerIdToSupabase(session.user.id);
+            if (session.user.email) {
+              setUserEmail(session.user.email);
+            }
+          }, 3000);
+        }
+      }).catch(() => {
+        setLoading(false);
+      });
+    }
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(failSafe);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
