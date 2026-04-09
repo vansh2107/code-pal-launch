@@ -169,7 +169,7 @@ export default function Tasks() {
           {/* Tab Switcher */}
           <div className="flex gap-1 mt-3 bg-muted/50 rounded-xl p-1">
             <button
-              onClick={() => setActiveTab("tasks")}
+              onClick={() => switchTab("tasks")}
               className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                 activeTab === "tasks"
                   ? "bg-card text-foreground shadow-sm"
@@ -179,7 +179,7 @@ export default function Tasks() {
               📋 Tasks
             </button>
             <button
-              onClick={() => setActiveTab("routines")}
+              onClick={() => switchTab("routines")}
               className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                 activeTab === "routines"
                   ? "bg-card text-foreground shadow-sm"
