@@ -121,10 +121,8 @@ export function useTasksData() {
         setState(prev => ({ ...prev, userTimezone: timezone }));
       }
 
-      // Step 2: Run carry-forward + fetch tasks in PARALLEL
-      const [, todayTasksResult, futureTasksResult] = await Promise.all([
-        // Carry forward overdue tasks (fire and forget)
-        carryForwardTasks(user.id, today),
+      // Step 2: Fetch tasks FIRST (don't wait for carry-forward)
+      const [todayTasksResult, futureTasksResult] = await Promise.all([
         // Fetch today's tasks
         supabase
           .from("tasks")
