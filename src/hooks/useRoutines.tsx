@@ -232,6 +232,46 @@ export function useRoutines() {
     }
   };
 
+  const updateTask = async (
+    taskId: string,
+    name: string,
+    slots: { id?: string; time: string; days_of_week: number[] }[]
+  ) => {
+    try {
+      // Update task name
+      const { error: nameError } = await supabase
+        .from("routine_tasks" as any)
+        .update({ name } as any)
+        .eq("id", taskId);
+      if (nameError) throw nameError;
+
+      // Delete old slots and insert new ones
+      const { error: delError } = await supabase
+        .from("routine_task_slots" as any)
+        .delete()
+        .eq("task_id", taskId);
+      if (delError) throw delError;
+
+      if (slots.length > 0) {
+        const slotData = slots.map((s) => ({
+          task_id: taskId,
+          time: s.time,
+          days_of_week: s.days_of_week,
+        }));
+        const { error: slotError } = await supabase
+          .from("routine_task_slots" as any)
+          .insert(slotData as any);
+        if (slotError) throw slotError;
+      }
+
+      toast({ title: "Task updated! ✅" });
+      await fetchRoutines();
+    } catch (error) {
+      console.error("Error updating task:", error);
+      toast({ title: "Failed to update task", variant: "destructive" });
+    }
+  };
+
   return {
     routines,
     loading,
@@ -240,6 +280,7 @@ export function useRoutines() {
     toggleRoutineActive,
     addTask,
     deleteTask,
+    updateTask,
     refetch: fetchRoutines,
   };
 }
