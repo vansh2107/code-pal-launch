@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { RoutineCard } from "./RoutineCard";
 import { CreateRoutineSheet } from "./CreateRoutineSheet";
 import { AddRoutineTaskSheet } from "./AddRoutineTaskSheet";
-import { useRoutines } from "@/hooks/useRoutines";
+import { EditRoutineTaskSheet } from "./EditRoutineTaskSheet";
+import { useRoutines, type RoutineTask } from "@/hooks/useRoutines";
 
 export function RoutinesSection() {
-  const { routines, loading, createRoutine, deleteRoutine, toggleRoutineActive, addTask, deleteTask } = useRoutines();
+  const { routines, loading, createRoutine, deleteRoutine, toggleRoutineActive, addTask, deleteTask, updateTask } = useRoutines();
   const [showCreate, setShowCreate] = useState(false);
   const [addTaskTarget, setAddTaskTarget] = useState<{ id: string; name: string } | null>(null);
+  const [editingTask, setEditingTask] = useState<RoutineTask | null>(null);
 
   const handleCreate = async (name: string, icon: string) => {
     await createRoutine(name, icon);
@@ -20,6 +22,11 @@ export function RoutinesSection() {
     if (!addTaskTarget) return;
     await addTask(addTaskTarget.id, name, slots);
     setAddTaskTarget(null);
+  };
+
+  const handleEditTask = async (taskId: string, name: string, slots: { time: string; days_of_week: number[] }[]) => {
+    await updateTask(taskId, name, slots);
+    setEditingTask(null);
   };
 
   if (loading) {
@@ -73,6 +80,7 @@ export function RoutinesSection() {
                 setAddTaskTarget({ id, name: routine.name })
               }
               onDeleteTask={deleteTask}
+              onEditTask={setEditingTask}
             />
           ))}
         </div>
@@ -89,6 +97,13 @@ export function RoutinesSection() {
         onOpenChange={(open) => !open && setAddTaskTarget(null)}
         onSubmit={handleAddTask}
         routineName={addTaskTarget?.name || ""}
+      />
+
+      <EditRoutineTaskSheet
+        open={!!editingTask}
+        onOpenChange={(open) => !open && setEditingTask(null)}
+        onSubmit={handleEditTask}
+        task={editingTask}
       />
     </div>
   );

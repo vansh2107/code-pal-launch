@@ -1,6 +1,5 @@
 import { memo, useState } from "react";
-import { Trash2, Clock, ChevronDown, ChevronUp } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+import { Trash2, Clock, ChevronDown, ChevronUp, Pencil, Power } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +18,7 @@ interface RoutineCardProps {
   onToggleActive: (id: string, active: boolean) => void;
   onAddTask: (routineId: string) => void;
   onDeleteTask: (taskId: string) => void;
+  onEditTask: (task: RoutineTask) => void;
 }
 
 function TaskSlotDisplay({ task }: { task: RoutineTask }) {
@@ -47,6 +47,7 @@ export const RoutineCard = memo(function RoutineCard({
   onToggleActive,
   onAddTask,
   onDeleteTask,
+  onEditTask,
 }: RoutineCardProps) {
   const [showDelete, setShowDelete] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -70,12 +71,19 @@ export const RoutineCard = memo(function RoutineCard({
               {routine.tasks.length} task{routine.tasks.length !== 1 ? "s" : ""}
             </p>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Switch
-              checked={isActive}
-              onCheckedChange={(checked) => onToggleActive(routine.id, checked)}
-              className="scale-75"
-            />
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Power icon as active toggle */}
+            <button
+              onClick={() => onToggleActive(routine.id, !isActive)}
+              className={`p-2 rounded-xl transition-all ${
+                isActive
+                  ? "bg-primary/15 text-primary"
+                  : "bg-muted text-muted-foreground"
+              }`}
+              title={isActive ? "Pause routine" : "Activate routine"}
+            >
+              <Power className="h-4.5 w-4.5" strokeWidth={isActive ? 2.5 : 2} />
+            </button>
             <button
               onClick={() => setShowDelete(true)}
               className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors"
@@ -106,12 +114,21 @@ export const RoutineCard = memo(function RoutineCard({
                 <div className="flex-1 min-w-0">
                   <TaskSlotDisplay task={task} />
                 </div>
-                <button
-                  onClick={() => onDeleteTask(task.id)}
-                  className="p-1 rounded-md hover:bg-destructive/10 transition-colors shrink-0 mt-0.5"
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                </button>
+                <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
+                  <button
+                    onClick={() => onEditTask(task)}
+                    className="p-1 rounded-md hover:bg-primary/10 transition-colors"
+                    title="Edit task"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
+                  </button>
+                  <button
+                    onClick={() => onDeleteTask(task.id)}
+                    className="p-1 rounded-md hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                  </button>
+                </div>
               </div>
             ))}
 
@@ -126,7 +143,7 @@ export const RoutineCard = memo(function RoutineCard({
 
         {!isActive && (
           <div className="px-4 pb-3 text-center text-xs text-muted-foreground">
-            ⏸️ Paused — toggle to resume
+            ⏸️ Paused — tap <Power className="h-3 w-3 inline" /> to resume
           </div>
         )}
       </div>
