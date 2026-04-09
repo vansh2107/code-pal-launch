@@ -39,7 +39,27 @@ export default function Tasks() {
   const navigate = useNavigate();
   const { tasks, futureTasks, loading, userTimezone, refreshTasks } = useTasksData();
   const [activeTab, setActiveTab] = useState<"tasks" | "routines">("tasks");
+  const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
+  const switchTab = useCallback((tab: "tasks" | "routines") => {
+    if (tab === activeTab) return;
+    setSlideDir(tab === "routines" ? "left" : "right");
+    // Brief delay for exit animation, then switch
+    setTimeout(() => {
+      setActiveTab(tab);
+      setSlideDir(null);
+    }, 150);
+  }, [activeTab]);
+
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () => switchTab("routines"),
+    onSwipedRight: () => switchTab("tasks"),
+    delta: 50,
+    preventScrollOnSwipe: false,
+    trackTouch: true,
+    trackMouse: false,
+  });
   // Memoize status calculation
   const getTaskStatusInfo = useCallback((task: Task) => {
     if (task.status === "completed") {
