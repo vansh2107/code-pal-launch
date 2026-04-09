@@ -1,4 +1,5 @@
-import { useMemo, useCallback, useState } from "react";
+import { useMemo, useCallback, useState, useRef } from "react";
+import { useSwipeable } from "react-swipeable";
 import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,27 @@ export default function Tasks() {
   const navigate = useNavigate();
   const { tasks, futureTasks, loading, userTimezone, refreshTasks } = useTasksData();
   const [activeTab, setActiveTab] = useState<"tasks" | "routines">("tasks");
+  const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
+  const switchTab = useCallback((tab: "tasks" | "routines") => {
+    if (tab === activeTab) return;
+    setSlideDir(tab === "routines" ? "left" : "right");
+    // Brief delay for exit animation, then switch
+    setTimeout(() => {
+      setActiveTab(tab);
+      setSlideDir(null);
+    }, 150);
+  }, [activeTab]);
+
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () => switchTab("routines"),
+    onSwipedRight: () => switchTab("tasks"),
+    delta: 50,
+    preventScrollOnSwipe: false,
+    trackTouch: true,
+    trackMouse: false,
+  });
   // Memoize status calculation
   const getTaskStatusInfo = useCallback((task: Task) => {
     if (task.status === "completed") {
@@ -148,7 +169,7 @@ export default function Tasks() {
           {/* Tab Switcher */}
           <div className="flex gap-1 mt-3 bg-muted/50 rounded-xl p-1">
             <button
-              onClick={() => setActiveTab("tasks")}
+              onClick={() => switchTab("tasks")}
               className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                 activeTab === "tasks"
                   ? "bg-card text-foreground shadow-sm"
@@ -158,7 +179,7 @@ export default function Tasks() {
               📋 Tasks
             </button>
             <button
-              onClick={() => setActiveTab("routines")}
+              onClick={() => switchTab("routines")}
               className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                 activeTab === "routines"
                   ? "bg-card text-foreground shadow-sm"
@@ -170,7 +191,17 @@ export default function Tasks() {
           </div>
         </div>
 
-        <div className="p-4 space-y-6">
+        <div
+          {...swipeHandlers}
+          ref={contentRef}
+          className={`p-4 space-y-6 transition-all duration-150 ease-out ${
+            slideDir === "left"
+              ? "-translate-x-8 opacity-0"
+              : slideDir === "right"
+              ? "translate-x-8 opacity-0"
+              : "translate-x-0 opacity-100"
+          }`}
+        >
           {activeTab === "routines" ? (
             <RoutinesSection />
           ) : (
