@@ -160,6 +160,26 @@ export function useTasksData() {
           error: null,
         });
       }
+
+      // Carry-forward runs AFTER UI update (non-blocking)
+      carryForwardTasks(user.id, today).then(() => {
+        // Re-fetch only if carry-forward actually ran
+        if (isMounted.current) {
+          supabase
+            .from("tasks")
+            .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date")
+            .eq("user_id", user.id)
+            .eq("task_date", today)
+            .order("start_time", { ascending: true })
+            .limit(100)
+            .then(({ data }) => {
+              if (data && isMounted.current) {
+                sessionCache.tasks = data;
+                setState(prev => ({ ...prev, tasks: data }));
+              }
+            });
+        }
+      });
     } catch (error) {
       console.error("Error fetching tasks:", error);
       if (isMounted.current) {
