@@ -191,7 +191,17 @@ export default function Tasks() {
           </div>
         </div>
 
-        <div className="p-4 space-y-6">
+        <div
+          {...swipeHandlers}
+          ref={contentRef}
+          className={`p-4 space-y-6 transition-all duration-150 ease-out ${
+            slideDir === "left"
+              ? "-translate-x-8 opacity-0"
+              : slideDir === "right"
+              ? "translate-x-8 opacity-0"
+              : "translate-x-0 opacity-100"
+          }`}
+        >
           {activeTab === "routines" ? (
             <RoutinesSection />
           ) : (
