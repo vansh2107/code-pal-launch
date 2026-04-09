@@ -19,11 +19,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const initialized = React.useRef(false);
+  const loadingRef = React.useRef(true);
+
+  // Keep ref in sync
+  loadingRef.current = loading;
 
   useEffect(() => {
     // Fail-safe: never stay loading longer than 2 seconds
     const failSafe = setTimeout(() => {
-      if (loading) {
+      if (loadingRef.current) {
         console.warn('⚠️ Auth fail-safe triggered after 2s');
         setLoading(false);
       }
