@@ -55,10 +55,11 @@ export default function Tasks() {
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => switchTab("routines"),
     onSwipedRight: () => switchTab("tasks"),
-    delta: 50,
-    preventScrollOnSwipe: false,
+    delta: 30,
+    preventScrollOnSwipe: true,
     trackTouch: true,
     trackMouse: false,
+    swipeDuration: 500,
   });
   // Memoize status calculation
   const getTaskStatusInfo = useCallback((task: Task) => {
