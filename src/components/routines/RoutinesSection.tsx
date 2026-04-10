@@ -13,8 +13,13 @@ export function RoutinesSection() {
   const [addTaskTarget, setAddTaskTarget] = useState<{ id: string; name: string } | null>(null);
   const [editingTask, setEditingTask] = useState<RoutineTask | null>(null);
 
-  const handleCreate = async (name: string, icon: string) => {
-    await createRoutine(name, icon);
+  const handleCreate = async (name: string, icon: string, tasks: { name: string; slots: { time: string; days_of_week: number[] }[] }[]) => {
+    const routineId = await createRoutine(name, icon);
+    if (routineId && tasks.length > 0) {
+      for (const task of tasks) {
+        await addTask(routineId, task.name, task.slots);
+      }
+    }
     setShowCreate(false);
   };
 
