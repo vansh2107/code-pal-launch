@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             personalizations: [{ to: [{ email: user.email }] }],
-            from: { email: 'notifications@softlyreminder.app', name: 'Softly Reminder' },
+            from: { email: 'notifications@softlyreminder.app', name: 'Remonk Reminder' },
             subject: 'Your Documents Are Grateful! 📄✨',
             content: [{ type: 'text/html', value: emailHtml }],
           }),
