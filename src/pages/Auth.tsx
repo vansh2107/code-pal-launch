@@ -303,7 +303,7 @@ export default function Auth() {
               <Shield className="h-6 w-6 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Softly Reminder</CardTitle>
+          <CardTitle className="text-2xl font-bold">Remonk Reminder</CardTitle>
           <CardDescription>
             Secure document management and reminders
           </CardDescription>
@@ -578,14 +578,14 @@ export default function Auth() {
           <DialogHeader>
             <DialogTitle>Terms & Conditions</DialogTitle>
             <DialogDescription>
-              Please read the following terms carefully before using Softly Reminder.
+              Please read the following terms carefully before using Remonk Reminder.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 text-sm text-muted-foreground leading-relaxed">
             <p><strong className="text-foreground">1. Acceptance of Terms</strong><br />
-              By creating an account and using Softly Reminder, you agree to be bound by these Terms & Conditions. If you do not agree, please do not use the application.</p>
+              By creating an account and using Remonk Reminder, you agree to be bound by these Terms & Conditions. If you do not agree, please do not use the application.</p>
             <p><strong className="text-foreground">2. Use of Service</strong><br />
-              Softly Reminder is a document management and reminder tool. You are responsible for the accuracy of documents and information you upload. The app is provided "as is" without warranties of any kind.</p>
+              Remonk Reminder is a document management and reminder tool. You are responsible for the accuracy of documents and information you upload. The app is provided "as is" without warranties of any kind.</p>
             <p><strong className="text-foreground">3. User Data & Privacy</strong><br />
               We collect and store your personal information (name, email, phone number) and uploaded documents securely using encryption. We do not sell or share your data with third parties. You can request deletion of your account and all associated data at any time.</p>
             <p><strong className="text-foreground">4. Document Storage</strong><br />

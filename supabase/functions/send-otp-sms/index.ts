@@ -106,7 +106,7 @@ const handler = async (req: Request): Promise<Response> => {
     const requestBody = {
       sender_id: msgrushSenderId,
       recipients: [normalizedPhone],
-      message: `Your OTP for Softly Reminder is: ${otp}. Valid for 10 minutes.`
+      message: `Your OTP for Remonk Reminder is: ${otp}. Valid for 10 minutes.`
     };
 
     const smsResponse = await fetch(msgrushUrl, {
