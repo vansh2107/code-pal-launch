@@ -171,6 +171,11 @@ export function useTasksData() {
       sessionCache.userTimezone = timezone;
       sessionCache.lastFetch = now;
 
+      // ── Persist to IndexedDB for offline access ──
+      try {
+        await saveTasksOffline([...tasks, ...futureTasks] as OfflineTask[]);
+      } catch { /* IndexedDB may not be available */ }
+
       if (isMounted.current) {
         setState({
           tasks,
