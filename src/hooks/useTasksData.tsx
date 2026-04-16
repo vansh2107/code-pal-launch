@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  getOfflineTasks,
+  getOfflineFutureTasks,
+  saveTasksOffline,
+  type OfflineTask,
+} from "@/utils/offlineStorage";
 
 interface Task {
   id: string;
