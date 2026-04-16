@@ -104,6 +104,20 @@ export function useTasksData() {
     isInitializing.current = true;
 
     try {
+      // ── Offline-first: show cached IndexedDB data immediately ──
+      if (!sessionCache.tasks) {
+        try {
+          const cachedTasks = await getOfflineTasks();
+          if (cachedTasks.length > 0 && isMounted.current) {
+            setState(prev => ({
+              ...prev,
+              tasks: cachedTasks.filter(t => t.task_date === getTodayInTimezone(prev.userTimezone)) as Task[],
+              loading: false,
+            }));
+          }
+        } catch { /* IndexedDB may not be available */ }
+      }
+
       // Step 1: Get user and profile in ONE call
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
