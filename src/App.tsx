@@ -11,6 +11,7 @@ import { Capacitor } from "@capacitor/core";
 import { speakWelcome } from "@/utils/voiceGreeting";
 
 import AuthEventListener from "./components/auth/AuthEventListener";
+import { OfflineIndicator } from "./components/layout/OfflineIndicator";
 
 // ── Only eagerly load the landing page (Dashboard) ──
 import Dashboard from "./pages/Dashboard";
@@ -153,6 +154,7 @@ const App = () => (
           <BrowserRouter>
             <AuthEventListener />
             <BackgroundInitializer />
+            <OfflineIndicator />
 
             {/* ChatBot loaded lazily after main content */}
             <Suspense fallback={null}>
