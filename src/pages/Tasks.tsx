@@ -137,7 +137,7 @@ export default function Tasks() {
 
   return (
     <SafeAreaContainer>
-      <div className="min-h-screen page-bg pb-24 animate-fade-in px-4" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
+      <div {...swipeHandlers} className="min-h-screen page-bg pb-24 animate-fade-in px-4" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
         <div className="bg-background/80 backdrop-blur-xl p-4 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -193,7 +193,6 @@ export default function Tasks() {
         </div>
 
         <div
-          {...swipeHandlers}
           ref={contentRef}
           className={`p-4 space-y-6 transition-all duration-150 ease-out ${
             slideDir === "left"
