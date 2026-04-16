@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  getOfflineTasks,
+  getOfflineFutureTasks,
+  saveTasksOffline,
+  type OfflineTask,
+} from "@/utils/offlineStorage";
 
 interface Task {
   id: string;
@@ -98,6 +104,20 @@ export function useTasksData() {
     isInitializing.current = true;
 
     try {
+      // ── Offline-first: show cached IndexedDB data immediately ──
+      if (!sessionCache.tasks) {
+        try {
+          const cachedTasks = await getOfflineTasks();
+          if (cachedTasks.length > 0 && isMounted.current) {
+            setState(prev => ({
+              ...prev,
+              tasks: cachedTasks.filter(t => t.task_date === getTodayInTimezone(prev.userTimezone)) as Task[],
+              loading: false,
+            }));
+          }
+        } catch { /* IndexedDB may not be available */ }
+      }
+
       // Step 1: Get user and profile in ONE call
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -150,6 +170,11 @@ export function useTasksData() {
       sessionCache.futureTasks = futureTasks;
       sessionCache.userTimezone = timezone;
       sessionCache.lastFetch = now;
+
+      // ── Persist to IndexedDB for offline access ──
+      try {
+        await saveTasksOffline([...tasks, ...futureTasks] as OfflineTask[]);
+      } catch { /* IndexedDB may not be available */ }
 
       if (isMounted.current) {
         setState({
