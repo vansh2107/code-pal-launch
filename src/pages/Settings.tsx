@@ -12,6 +12,7 @@ import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
 import { getCountryCode } from "@/utils/countryMapping";
+import { VoiceGreetingToggle } from "@/components/settings/VoiceGreetingToggle";
 
 interface Profile {
   id: string;
@@ -189,6 +190,16 @@ export default function Settings() {
                 </SelectContent>
               </Select>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* App Preferences */}
+        <Card>
+          <CardHeader>
+            <CardTitle>App Preferences</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <VoiceGreetingToggle />
           </CardContent>
         </Card>
 
