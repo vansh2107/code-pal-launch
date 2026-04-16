@@ -124,6 +124,15 @@ async function initializeBackground() {
       const { App: CapacitorApp } = await import("@capacitor/app");
       // Back button is handled via the hook, but app listener for exit
     }
+    // Pull latest data into IndexedDB for offline access
+    if (navigator.onLine) {
+      try {
+        const { pullLatestData } = await import("@/utils/syncEngine");
+        await pullLatestData();
+      } catch (e) {
+        console.warn("Offline sync pull skipped:", e);
+      }
+    }
   } catch (error) {
     console.error("Background initialization error:", error);
   }
