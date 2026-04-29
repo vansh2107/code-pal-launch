@@ -127,11 +127,18 @@ async function initializeBackground() {
     // Pull latest data into IndexedDB for offline access
     if (navigator.onLine) {
       try {
-        const { pullLatestData } = await import("@/utils/syncEngine");
-        await pullLatestData();
+        const { fullSync, registerAutoSync } = await import("@/utils/syncEngine");
+        registerAutoSync();
+        await fullSync();
       } catch (e) {
         console.warn("Offline sync pull skipped:", e);
       }
+    } else {
+      // Offline at startup: still register auto-sync so queue flushes when back online
+      try {
+        const { registerAutoSync } = await import("@/utils/syncEngine");
+        registerAutoSync();
+      } catch { /* noop */ }
     }
   } catch (error) {
     console.error("Background initialization error:", error);

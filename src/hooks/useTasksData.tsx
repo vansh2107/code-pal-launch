@@ -207,12 +207,39 @@ export function useTasksData() {
       });
     } catch (error) {
       console.error("Error fetching tasks:", error);
-      if (isMounted.current) {
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          error: error instanceof Error ? error.message : "Failed to fetch tasks",
-        }));
+      // ── Offline fallback: try IndexedDB before surfacing an error ──
+      try {
+        const tz = sessionCache.userTimezone || "UTC";
+        const today = getTodayInTimezone(tz);
+        const [cachedToday, cachedFuture] = await Promise.all([
+          getOfflineTasks(today),
+          getOfflineFutureTasks(today),
+        ]);
+        if (isMounted.current) {
+          if (cachedToday.length > 0 || cachedFuture.length > 0) {
+            setState({
+              tasks: cachedToday as Task[],
+              futureTasks: cachedFuture as FutureTask[],
+              userTimezone: tz,
+              loading: false,
+              error: null,
+            });
+          } else {
+            setState(prev => ({
+              ...prev,
+              loading: false,
+              error: error instanceof Error ? error.message : "Failed to fetch tasks",
+            }));
+          }
+        }
+      } catch {
+        if (isMounted.current) {
+          setState(prev => ({
+            ...prev,
+            loading: false,
+            error: error instanceof Error ? error.message : "Failed to fetch tasks",
+          }));
+        }
       }
     } finally {
       isInitializing.current = false;
