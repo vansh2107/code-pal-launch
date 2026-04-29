@@ -15,6 +15,7 @@ import { exportToCSV } from "@/utils/exportData";
 import { getDocumentStatus } from "@/utils/documentStatus";
 import { SwipeableDocumentCard } from "@/components/document/SwipeableDocumentCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getOfflineDocuments } from "@/utils/offlineStorage";
 import governmentIcon from "@/assets/category-icons/government-icon.png";
 import financialIcon from "@/assets/category-icons/financial-icon.png";
 import personalIcon from "@/assets/category-icons/personal-icon.png";
@@ -107,7 +108,28 @@ export default function Documents() {
       setDocuments(data || []);
     } catch (error: any) {
       console.error('Error fetching documents:', error);
-      toast({ title: "Error", description: error.message || "Failed to fetch documents", variant: "destructive" });
+      // Offline / network failure → fall back to IndexedDB cache
+      try {
+        const cached = await getOfflineDocuments();
+        const filtered = cached
+          .filter((d) => d.user_id === user?.id && d.issuing_authority !== 'DocVault')
+          .map((d) => ({
+            id: d.id,
+            name: d.name,
+            document_type: d.document_type,
+            category_detail: d.category_detail || undefined,
+            issuing_authority: d.issuing_authority || '',
+            expiry_date: d.expiry_date,
+            created_at: d.created_at || d.updated_at,
+          })) as Document[];
+        if (filtered.length > 0) {
+          setDocuments(filtered);
+        } else {
+          toast({ title: "Error", description: error.message || "Failed to fetch documents", variant: "destructive" });
+        }
+      } catch {
+        toast({ title: "Error", description: error.message || "Failed to fetch documents", variant: "destructive" });
+      }
     } finally {
       setLoading(false);
     }

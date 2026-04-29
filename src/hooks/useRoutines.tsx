@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import {
+  getOfflineRoutines,
+  saveRoutinesOffline,
+  type OfflineRoutineBundle,
+} from "@/utils/offlineStorage";
 
 export interface RoutineTaskSlot {
   id: string;
@@ -70,6 +75,8 @@ export function useRoutines() {
       if (!routineRows || routineRows.length === 0) {
         setRoutines([]);
         setLoading(false);
+        // Persist empty state too
+        saveRoutinesOffline([]).catch(() => {});
         return;
       }
 
@@ -120,8 +127,17 @@ export function useRoutines() {
       }));
 
       setRoutines(result);
+      // Persist for offline use (best-effort)
+      saveRoutinesOffline(result as unknown as OfflineRoutineBundle[]).catch(() => {});
     } catch (error) {
       console.error("Error fetching routines:", error);
+      // Offline / network failure → fall back to IndexedDB
+      try {
+        const cached = await getOfflineRoutines(user.id);
+        if (cached.length > 0) {
+          setRoutines(cached as unknown as Routine[]);
+        }
+      } catch { /* noop */ }
     } finally {
       setLoading(false);
     }
