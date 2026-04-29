@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { cacheSignedUrl, getCachedSignedUrl } from "./offlineStorage";
 
 /**
  * Default signed URL expiration time (1 hour in seconds)
@@ -41,6 +42,12 @@ export async function getSignedUrl(
     return cached.url;
   }
 
+  // Offline: serve last-known URL from IndexedDB if available
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    const persisted = await getCachedSignedUrl(bucket, path).catch(() => null);
+    if (persisted) return persisted;
+  }
+
   try {
     const { data, error } = await supabase.storage
       .from(bucket)
@@ -48,7 +55,9 @@ export async function getSignedUrl(
 
     if (error) {
       console.error(`Error creating signed URL for ${bucket}/${path}:`, error);
-      return null;
+      // Network/permission error → try persistent cache as last resort
+      const persisted = await getCachedSignedUrl(bucket, path).catch(() => null);
+      return persisted;
     }
 
     if (data?.signedUrl) {
@@ -57,13 +66,16 @@ export async function getSignedUrl(
         url: data.signedUrl,
         expiresAt: now + expiresIn * 1000,
       });
+      // Persist for offline use (best-effort, non-blocking)
+      cacheSignedUrl(bucket, path, data.signedUrl, expiresIn).catch(() => {});
       return data.signedUrl;
     }
 
     return null;
   } catch (err) {
     console.error(`Failed to get signed URL for ${bucket}/${path}:`, err);
-    return null;
+    const persisted = await getCachedSignedUrl(bucket, path).catch(() => null);
+    return persisted;
   }
 }
 
