@@ -8,13 +8,11 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { speakWelcome } from "@/utils/voiceGreeting";
 
 import AuthEventListener from "./components/auth/AuthEventListener";
 import { OfflineIndicator } from "./components/layout/OfflineIndicator";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { ThemePreferenceProvider } from "./components/theme/ThemePreferenceProvider";
-import SplashVideo from "./components/splash/SplashVideo";
 
 // ── Only eagerly load the landing page (Dashboard) ──
 import Dashboard from "./pages/Dashboard";
@@ -67,9 +65,6 @@ const PageFallback = () => (
 // ── Background initializer: defers non-critical work ──
 const BackgroundInitializer = () => {
   useEffect(() => {
-    // Play voice greeting on first visit
-    speakWelcome();
-
     // Defer all non-critical initialization to after first paint
     const timeoutId = requestIdleCallback(
       () => {
@@ -163,18 +158,9 @@ if (typeof window !== 'undefined') {
 
 // ── MAIN APP ──
 const App = () => {
-  const [splashDone, setSplashDone] = useState(false);
-
   return (
     <ErrorBoundary>
-      {!splashDone && <SplashVideo onComplete={() => setSplashDone(true)} />}
-      <div
-        style={{
-          visibility: splashDone ? "visible" : "hidden",
-          opacity: splashDone ? 1 : 0,
-          transition: "opacity 400ms ease-out",
-        }}
-      >
+      <div>
         <ThemeProvider>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
@@ -185,7 +171,7 @@ const App = () => {
 
                 <BrowserRouter>
                   <AuthEventListener />
-                  {splashDone && <BackgroundInitializer />}
+                  <BackgroundInitializer />
                   <OfflineIndicator />
 
                   {/* ChatBot loaded lazily after main content */}
