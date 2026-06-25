@@ -65,9 +65,6 @@ const PageFallback = () => (
 // ── Background initializer: defers non-critical work ──
 const BackgroundInitializer = () => {
   useEffect(() => {
-    // Play voice greeting on first visit
-    speakWelcome();
-
     // Defer all non-critical initialization to after first paint
     const timeoutId = requestIdleCallback(
       () => {
