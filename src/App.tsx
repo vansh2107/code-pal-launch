@@ -171,7 +171,7 @@ const App = () => {
 
                 <BrowserRouter>
                   <AuthEventListener />
-                  {splashDone && <BackgroundInitializer />}
+                  <BackgroundInitializer />
                   <OfflineIndicator />
 
                   {/* ChatBot loaded lazily after main content */}
