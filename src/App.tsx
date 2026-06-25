@@ -8,13 +8,11 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { speakWelcome } from "@/utils/voiceGreeting";
 
 import AuthEventListener from "./components/auth/AuthEventListener";
 import { OfflineIndicator } from "./components/layout/OfflineIndicator";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { ThemePreferenceProvider } from "./components/theme/ThemePreferenceProvider";
-import SplashVideo from "./components/splash/SplashVideo";
 
 // ── Only eagerly load the landing page (Dashboard) ──
 import Dashboard from "./pages/Dashboard";
