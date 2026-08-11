@@ -69,7 +69,8 @@ export default function Scan() {
   const [showScanPreview, setShowScanPreview] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<string>("personal");
@@ -254,13 +255,27 @@ export default function Scan() {
     }
   };
 
+  // Open a native file picker cleanly. Resetting value first guarantees a
+  // change event even if the user re-picks the same file after cancelling.
+  const openPicker = (ref: React.RefObject<HTMLInputElement>) => {
+    const input = ref.current;
+    if (!input) return;
+    input.value = "";
+    input.click();
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const input = e.target;
+    const file = input.files?.[0];
+    // Cancelled picker: leave every flag untouched so the buttons stay usable.
+    if (!file) {
+      input.value = "";
+      return;
+    }
 
     try {
       // Check if file is a PDF
-      if (file.type === 'application/pdf') {
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         // Store the ORIGINAL PDF file - NO conversion
         setPdfFile(file);
         setShowPdfSelector(true);
@@ -273,6 +288,14 @@ export default function Scan() {
           setRawCapturedImage(result);
           setShowScanPreview(true);
         };
+        reader.onerror = () => {
+          setExtracting(false);
+          toast({
+            title: "Upload Error",
+            description: "Failed to read the selected image. Please try again.",
+            variant: "destructive",
+          });
+        };
         reader.readAsDataURL(file);
       }
     } catch (error) {
@@ -284,6 +307,9 @@ export default function Scan() {
         description: message,
         variant: "destructive",
       });
+    } finally {
+      // Always clear so re-selecting the same file fires change again.
+      input.value = "";
     }
   };
 
@@ -742,7 +768,8 @@ export default function Scan() {
         <div className="flex gap-1.5 w-full">
           <Button
             variant="outline"
-            onClick={() => fileInputRef.current?.click()}
+            type="button"
+            onClick={() => openPicker(pdfInputRef)}
             className="flex-1 h-9 text-xs px-1.5 flex-col gap-0.5"
             size="sm"
           >
@@ -751,7 +778,8 @@ export default function Scan() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => fileInputRef.current?.click()}
+            type="button"
+            onClick={() => openPicker(imageInputRef)}
             className="flex-1 h-9 text-xs px-1.5 flex-col gap-0.5"
             size="sm"
           >
@@ -773,11 +801,18 @@ export default function Scan() {
           </Button>
         </div>
         
-        {/* Hidden file input for PDF/Image upload */}
+        {/* Hidden file inputs — separate pickers, no camera/gallery/video intents */}
         <input
-          ref={fileInputRef}
+          ref={pdfInputRef}
           type="file"
-          accept="image/*,application/pdf"
+          accept="application/pdf,.pdf"
+          className="hidden"
+          onChange={handleFileUpload}
+        />
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
           className="hidden"
           onChange={handleFileUpload}
         />
