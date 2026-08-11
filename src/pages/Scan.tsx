@@ -17,7 +17,7 @@ import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
-import { PDFPageSelector } from "@/components/scan/PDFPageSelector";
+import { processAllPages, type ProcessedPdfPage } from "@/utils/pdfPageProcessor";
 import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
