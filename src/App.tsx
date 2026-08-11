@@ -8,7 +8,7 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { lazy, Suspense, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
-import { speakWelcome } from "@/utils/voiceGreeting";
+
 
 import AuthEventListener from "./components/auth/AuthEventListener";
 import { OfflineIndicator } from "./components/layout/OfflineIndicator";
@@ -67,9 +67,6 @@ const PageFallback = () => (
 // ── Background initializer: defers non-critical work ──
 const BackgroundInitializer = () => {
   useEffect(() => {
-    // Play voice greeting on first visit
-    speakWelcome();
-
     // Defer all non-critical initialization to after first paint
     const timeoutId = requestIdleCallback(
       () => {
