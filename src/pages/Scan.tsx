@@ -17,11 +17,12 @@ import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
-import { PDFPageSelector } from "@/components/scan/PDFPageSelector";
 import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
 import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
+import { renderAllPdfPages } from "@/utils/pdfPages";
+import { Progress } from "@/components/ui/progress";
 import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstraints, setupVideoElement, requestCamera, stopMediaStream } from "@/utils/cameraManager";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
@@ -79,6 +80,12 @@ export default function Scan() {
   const [enableCountrySelect, setEnableCountrySelect] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [showPdfSelector, setShowPdfSelector] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<{
+    phase: "rendering" | "extracting" | "analyzing";
+    current: number;
+    total: number;
+    failedPages: number[];
+  } | null>(null);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -251,6 +258,46 @@ export default function Scan() {
     setShowScanPreview(false);
     if (scanMode === "camera") {
       startCamera();
+    }
+  };
+
+  const extractDocumentData = async (imageBase64: string) => {
+    setExtracting(true);
+    setError("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke("scan-document", {
+        body: {
+          imageBase64,
+          country: documentCountry || null,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.success && data.data) {
+        setFormData(prev => ({
+          ...prev,
+          ...data.data,
+          document_type: data.data.document_type,
+        }));
+        toast({
+          title: "Document Scanned",
+          description: "Document information extracted successfully. Please review and save.",
+        });
+      } else {
+        throw new Error(data.error || "Failed to extract document data");
+      }
+    } catch (err) {
+      console.error("Extraction error:", err);
+      setError("Failed to extract document data. Please enter manually.");
+      toast({
+        title: "Extraction Failed",
+        description: "Please enter document details manually.",
+        variant: "destructive",
+      });
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -862,17 +909,32 @@ export default function Scan() {
           onChange={handleFileUpload}
         />
 
-        {/* PDF Page Selector */}
-        {pdfFile && showPdfSelector && (
-          <PDFPageSelector
-            file={pdfFile}
-            onPageSelect={handlePDFPageSelect}
-            onCancel={() => {
-              setShowPdfSelector(false);
-              setPdfFile(null);
-              setExtracting(false);
-            }}
-          />
+        {/* Multi-page PDF processing progress */}
+        {pdfProgress && (
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <p className="text-sm font-medium text-foreground">
+                  {pdfProgress.phase === "analyzing"
+                    ? "Analyzing complete document..."
+                    : "Processing document..."}
+                </p>
+              </div>
+              {pdfProgress.phase !== "analyzing" && pdfProgress.total > 1 && (
+                <p className="text-xs text-muted-foreground">
+                  Page {pdfProgress.current} of {pdfProgress.total}
+                </p>
+              )}
+              <Progress
+                value={
+                  pdfProgress.phase === "analyzing" || pdfProgress.total === 0
+                    ? 100
+                    : Math.round((pdfProgress.current / pdfProgress.total) * 100)
+                }
+              />
+            </CardContent>
+          </Card>
         )}
 
         {/* Document Scan Preview - CamScanner-style processing */}
