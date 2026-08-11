@@ -114,7 +114,9 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a document data extraction and renewal analysis assistant. Extract document information and intelligently determine renewal reminder periods based on document type and country-specific regulations.
+            content: (partial && !combineMode)
+              ? `You are a precise OCR and document reading assistant. You are given some pages of a SINGLE document. Read every page carefully and list all readable fields and values as plain text, noting the page number for each. Do not guess, do not summarise away details, and do not output JSON.`
+              : `You are a document data extraction and renewal analysis assistant. Extract document information and intelligently determine renewal reminder periods based on document type and country-specific regulations.
 
 Extract the following information:
 - document_type: Choose the MOST SPECIFIC type from the detailed list below
