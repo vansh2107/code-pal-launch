@@ -78,7 +78,8 @@ export default function Scan() {
   const [documentCountry, setDocumentCountry] = useState<string>("");
   const [enableCountrySelect, setEnableCountrySelect] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [showPdfSelector, setShowPdfSelector] = useState(false);
+  const [pdfPhase, setPdfPhase] = useState<null | "processing" | "analyzing">(null);
+  const [pdfProgress, setPdfProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   
   const [formData, setFormData] = useState({
     name: "",
