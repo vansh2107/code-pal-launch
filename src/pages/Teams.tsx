@@ -115,7 +115,7 @@ export default function Teams() {
       profiles: profiles?.find(p => p.user_id === member.user_id) || null
     })) || [];
 
-    setMembers(membersWithProfiles);
+    setMembers(membersWithProfiles as any);
   };
 
   const createOrganization = async () => {

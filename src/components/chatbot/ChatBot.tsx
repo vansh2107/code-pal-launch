@@ -367,7 +367,7 @@ export function ChatBot() {
               end_time: args.end_time ? new Date(`${args.task_date}T${args.end_time}:00`).toISOString() : null,
               timezone: timezone,
               status: 'pending'
-            })
+            } as any)
             .select()
             .single();
             

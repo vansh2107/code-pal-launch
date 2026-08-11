@@ -72,7 +72,7 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
         .select("theme_preference")
         .eq("user_id", user.id)
         .maybeSingle();
-      const pref = (data?.theme_preference ?? null) as
+      const pref = ((data as any)?.theme_preference ?? null) as
         | { mode?: ThemeMode; theme?: PaletteId }
         | null;
       if (!pref) return;
@@ -93,7 +93,7 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
       if (!user) return;
       await supabase
         .from("profiles")
-        .update({ theme_preference: { theme: next.palette, mode: next.mode } })
+        .update({ theme_preference: { theme: next.palette, mode: next.mode } } as any)
         .eq("user_id", user.id);
     },
     [user]
