@@ -134,7 +134,7 @@ export default function Auth() {
         if (error.message.includes("Invalid login credentials")) {
           setError("Invalid email or password. Please try again.");
         } else if (error.message.includes("Email not confirmed")) {
-          setError("Please check your email and confirm your account before signing in.");
+          setError("Please verify your email with the code we sent before signing in.");
         } else {
           setError(error.message);
         }
@@ -287,27 +287,13 @@ export default function Auth() {
     setError("");
 
     try {
-      // Signup confirmation token
-      let { data, error: verifyError } = await supabase.auth.verifyOtp({
+      // The token is issued by Supabase's Confirm signup template via {{ .Token }}.
+      // Keep this as `signup`: `email` is for passwordless signInWithOtp flows.
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
         email,
         token: signupOtpCode,
         type: "signup",
       });
-
-      // Fallback for accounts where the code was issued as a generic email OTP
-      if (verifyError || !data?.session) {
-        const retry = await supabase.auth.verifyOtp({
-          email,
-          token: signupOtpCode,
-          type: "email",
-        });
-        if (retry.data?.session) {
-          data = retry.data;
-          verifyError = null;
-        } else {
-          verifyError = verifyError ?? retry.error;
-        }
-      }
 
       if (verifyError || !data?.session) {
 
