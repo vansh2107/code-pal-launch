@@ -499,10 +499,12 @@ export default function Auth() {
               {signupOtpSent && !signupOtpVerified && (
                 <form onSubmit={handleVerifySignupOTP} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-otp-code">Enter OTP</Label>
+                    <Label htmlFor="signup-otp-code">Enter email verification code</Label>
                     <Input
                       id="signup-otp-code"
                       type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
                       value={signupOtpCode}
                       onChange={(e) => setSignupOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       placeholder="123456"
@@ -512,7 +514,7 @@ export default function Auth() {
                       className="text-center text-2xl tracking-widest"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Enter the 6-digit code sent to {phoneNumber}
+                      Enter the 6-digit code sent to {email}
                     </p>
                   </div>
                   {error && (
@@ -527,7 +529,16 @@ export default function Auth() {
                   )}
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Verify OTP & Create Account
+                    Verify email & continue
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full text-sm"
+                    disabled={loading || resendCooldown > 0}
+                    onClick={handleResendSignupOTP}
+                  >
+                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}
                   </Button>
                   <Button
                     type="button"
@@ -540,8 +551,9 @@ export default function Auth() {
                       setSuccess("");
                     }}
                   >
-                    Change phone number
+                    Back
                   </Button>
+
                 </form>
               )}
 
