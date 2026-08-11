@@ -256,12 +256,27 @@ export default function Scan() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Open a native file picker cleanly. Resetting value first guarantees a
+  // change event even if the user re-picks the same file after cancelling.
+  const openPicker = (ref: React.RefObject<HTMLInputElement>) => {
+    const input = ref.current;
+    if (!input) return;
+    input.value = "";
+    input.click();
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    // Cancelled picker: leave every flag untouched so the buttons stay usable.
+    if (!file) {
+      input.value = "";
+      return;
+    }
 
     try {
       // Check if file is a PDF
-      if (file.type === 'application/pdf') {
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         // Store the ORIGINAL PDF file - NO conversion
         setPdfFile(file);
         setShowPdfSelector(true);
@@ -274,6 +289,14 @@ export default function Scan() {
           setRawCapturedImage(result);
           setShowScanPreview(true);
         };
+        reader.onerror = () => {
+          setExtracting(false);
+          toast({
+            title: "Upload Error",
+            description: "Failed to read the selected image. Please try again.",
+            variant: "destructive",
+          });
+        };
         reader.readAsDataURL(file);
       }
     } catch (error) {
@@ -285,6 +308,9 @@ export default function Scan() {
         description: message,
         variant: "destructive",
       });
+    } finally {
+      // Always clear so re-selecting the same file fires change again.
+      input.value = "";
     }
   };
 
