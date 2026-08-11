@@ -109,7 +109,7 @@ export function UploadDocumentDialog({
               <Button
                 variant="outline"
                 className="h-24 flex flex-col gap-2"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={openPicker}
               >
                 <ImageIcon className="h-6 w-6 text-primary" />
                 <span className="text-sm">Choose File</span>
@@ -128,7 +128,7 @@ export function UploadDocumentDialog({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,application/pdf"
+            accept="application/pdf,.pdf,image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             onChange={handleFileChange}
             className="hidden"
           />
