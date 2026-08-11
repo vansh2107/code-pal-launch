@@ -256,15 +256,17 @@ export default function Scan() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // allow re-selecting the same file later
+    e.target.value = "";
     if (!file) return;
 
     try {
       // Check if file is a PDF
       if (file.type === 'application/pdf') {
-        // Store the ORIGINAL PDF file - NO conversion
+        // Store the ORIGINAL PDF file - NO conversion for upload
         setPdfFile(file);
-        setShowPdfSelector(true);
-        setExtracting(false);
+        // Process the WHOLE PDF automatically (all pages, in order)
+        await processPdfDocument(file);
       } else {
         // Handle image files - show scan preview
         const reader = new FileReader();
@@ -278,6 +280,7 @@ export default function Scan() {
     } catch (error) {
       console.error('Error processing file:', error);
       setExtracting(false);
+      setPdfProgress(null);
       const message = (error as Error)?.message || 'Failed to process the uploaded file. Please try again.';
       toast({
         title: "Upload Error",
@@ -287,53 +290,130 @@ export default function Scan() {
     }
   };
 
-  const extractDocumentData = async (imageBase64: string) => {
-    setExtracting(true);
+  // Call the extraction edge function once, with one or more page images
+  const callScanFunction = async (body: Record<string, unknown>) => {
+    const { data, error } = await supabase.functions.invoke("scan-document", { body });
+    if (error) throw error;
+    if (!data?.success) throw new Error(data?.error || "Extraction failed");
+    return data;
+  };
+
+  /**
+   * Full multi-page PDF pipeline:
+   * render every page -> extract each batch of pages -> combine -> final document analysis.
+   * Requires NO user interaction between pages.
+   */
+  const processPdfDocument = async (file: File) => {
     setError("");
-    
+    setExtracting(true);
+    setPdfProgress({ phase: "rendering", current: 0, total: 0, failedPages: [] });
+
     try {
-      const { data, error } = await supabase.functions.invoke("scan-document", {
-        body: { 
-          imageBase64,
-          country: documentCountry || null
-        },
+      const pages = await renderAllPdfPages(file, (current, total) => {
+        setPdfProgress({ phase: "rendering", current, total, failedPages: [] });
       });
 
-      if (error) throw error;
+      if (pages.length === 0) throw new Error("The PDF contains no pages.");
 
-      if (data.success && data.data) {
-        // Use detailed document type from AI as-is; we'll map it to enum on save
-        setFormData(prev => ({
-          ...prev,
-          ...data.data,
-          document_type: data.data.document_type,
-        }));
-        toast({
-          title: "Document Scanned",
-          description: "Document information extracted successfully. Please review and save.",
+      // Show the first page as the document preview
+      setCapturedImage(pages[0].dataUrl);
+      setProcessedImage(pages[0].dataUrl);
+
+      const BATCH_SIZE = 4;
+      const failedPages: number[] = [];
+
+      // Single-page (or small) PDF: one call, straight to the final analysis
+      if (pages.length <= BATCH_SIZE) {
+        setPdfProgress({ phase: "analyzing", current: pages.length, total: pages.length, failedPages: [] });
+        const data = await callScanFunction({
+          imagesBase64: pages.map(p => p.dataUrl),
+          pageNumbers: pages.map(p => p.pageNumber),
+          country: documentCountry || null,
         });
-      } else {
-        throw new Error(data.error || "Failed to extract document data");
+        applyExtractedData(data.data, pages.length, []);
+        return;
       }
+
+      // Larger PDFs: batch the pages, then combine everything into one document
+      const partials: string[] = [];
+      for (let i = 0; i < pages.length; i += BATCH_SIZE) {
+        const batch = pages.slice(i, i + BATCH_SIZE);
+        setPdfProgress({
+          phase: "extracting",
+          current: Math.min(i + batch.length, pages.length),
+          total: pages.length,
+          failedPages: [...failedPages],
+        });
+
+        let lastErr: unknown = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const res = await callScanFunction({
+              imagesBase64: batch.map(p => p.dataUrl),
+              pageNumbers: batch.map(p => p.pageNumber),
+              partial: true,
+              country: documentCountry || null,
+            });
+            if (res.text) partials.push(res.text);
+            lastErr = null;
+            break;
+          } catch (err) {
+            lastErr = err;
+            console.warn(`Batch starting at page ${batch[0].pageNumber} failed (attempt ${attempt + 1})`, err);
+          }
+        }
+        if (lastErr) {
+          failedPages.push(...batch.map(p => p.pageNumber));
+        }
+      }
+
+      if (partials.length === 0) {
+        throw new Error("None of the pages could be processed.");
+      }
+
+      setPdfProgress({ phase: "analyzing", current: pages.length, total: pages.length, failedPages: [...failedPages] });
+      const data = await callScanFunction({
+        partials,
+        country: documentCountry || null,
+      });
+      applyExtractedData(data.data, pages.length, failedPages);
     } catch (err) {
-      console.error("Extraction error:", err);
+      console.error("PDF extraction error:", err);
       setError("Failed to extract document data. Please enter manually.");
       toast({
         title: "Extraction Failed",
-        description: "Please enter document details manually.",
+        description: (err as Error)?.message || "Please enter document details manually.",
         variant: "destructive",
       });
     } finally {
       setExtracting(false);
+      setPdfProgress(null);
     }
   };
 
-  const handlePDFPageSelect = (pageImageBase64: string) => {
-    setShowPdfSelector(false);
-    // Show scan preview for PDF page as well
-    setRawCapturedImage(pageImageBase64);
-    setShowScanPreview(true);
+  const applyExtractedData = (extracted: any, totalPages: number, failedPages: number[]) => {
+    setFormData(prev => ({
+      ...prev,
+      ...extracted,
+      document_type: extracted.document_type,
+    }));
+
+    if (failedPages.length > 0) {
+      toast({
+        title: "Partially Processed",
+        description: `Extracted from ${totalPages - failedPages.length} of ${totalPages} pages. Failed page(s): ${failedPages.join(", ")}. Please review the details.`,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Document Scanned",
+        description: totalPages > 1
+          ? `All ${totalPages} pages processed. Please review and save.`
+          : "Document information extracted successfully. Please review and save.",
+      });
+    }
   };
+
 
   const retakePhoto = () => {
     setCapturedImage(null);
