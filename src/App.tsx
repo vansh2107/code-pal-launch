@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { speakWelcome } from "@/utils/voiceGreeting";
 
