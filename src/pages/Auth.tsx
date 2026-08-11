@@ -65,8 +65,6 @@ export default function Auth() {
   const [signupOtpSent, setSignupOtpSent] = useState(false);
   const [signupOtpCode, setSignupOtpCode] = useState("");
   const [signupOtpVerified, setSignupOtpVerified] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [termsDialogOpen, setTermsDialogOpen] = useState(false);
   
@@ -78,16 +76,6 @@ export default function Auth() {
       navigate("/", { replace: true });
     }
   }, [user, navigate]);
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setInterval(() => {
-      setResendCooldown((s) => (s <= 1 ? 0 : s - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [resendCooldown]);
-
-
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,7 +122,7 @@ export default function Auth() {
         if (error.message.includes("Invalid login credentials")) {
           setError("Invalid email or password. Please try again.");
         } else if (error.message.includes("Email not confirmed")) {
-          setError("Please verify your email with the code we sent before signing in.");
+          setError("Please check your email and confirm your account before signing in.");
         } else {
           setError(error.message);
         }
@@ -153,11 +141,6 @@ export default function Auth() {
     }
   };
 
-  const startResendCooldown = () => {
-    setResendCooldown(60);
-  };
-
-  // Step 1: create the account, then send a 6-digit code to the user's email
   const handleSendSignupOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -165,170 +148,151 @@ export default function Auth() {
     setSuccess("");
 
     try {
+      // Validate initial fields
       if (!name.trim() || name.trim().length < 2) {
         setError("Name must be at least 2 characters");
+        setLoading(false);
         return;
       }
 
       if (!country) {
         setError("Please select your country");
+        setLoading(false);
         return;
       }
 
-      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, "");
-
+      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
+      
+      // Validate phone number format
       if (!/^\+?[0-9]{10,15}$/.test(cleanedPhoneNumber)) {
         setError("Please enter a valid phone number with country code (e.g., +1234567890)");
+        setLoading(false);
         return;
       }
 
-      const validation = signUpSchema.parse({
-        name,
-        email,
-        password,
-        phone_number: cleanedPhoneNumber,
-      });
-
-      // Create the account with email + password. Supabase sends the signup
-      // confirmation email, whose template emits {{ .Token }} (a 6-digit code).
-      // No emailRedirectTo -> nothing links back to an external URL.
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: validation.email,
-        password: validation.password,
-        options: {
-          data: {
-            display_name: validation.name,
-            country: country,
-            phone_number: validation.phone_number,
-          },
+      const { data, error } = await supabase.functions.invoke("send-otp-sms", {
+        body: {
+          phone_number: cleanedPhoneNumber,
         },
       });
 
-      if (signUpError) {
-        const msg = signUpError.message.toLowerCase();
-        if (msg.includes("already registered") || msg.includes("already been registered")) {
-          // Existing but unverified signup: resend the code instead of duplicating the account
-          const { error: resendError } = await supabase.auth.resend({
-            type: "signup",
-            email: validation.email,
-          });
-
-          if (resendError) {
-            setError("An account with this email already exists. Please sign in instead.");
-            return;
-          }
-
-          setSignupOtpSent(true);
-          setSuccess(`We've sent a verification code to ${validation.email}`);
-          startResendCooldown();
-          return;
-        }
-        setError(signUpError.message);
+      if (error || !data?.success) {
+        console.error("Failed to send OTP:", error);
+        setError(data?.error || "Failed to send OTP. Please try again.");
         return;
       }
 
-      // If the project has email confirmation disabled, a session already exists
-      if (signUpData.session) {
-        setSignupOtpVerified(true);
-        return;
-      }
-
+      console.log("OTP sent:", data);
       setSignupOtpSent(true);
-      setSuccess(`We've sent a 6-digit verification code to ${validation.email}`);
-      startResendCooldown();
+      setSuccess("OTP sent to your phone!");
     } catch (err: any) {
-      if (err instanceof z.ZodError) {
-        setError(err.errors[0].message);
-      } else {
-        console.error("Signup error:", err);
-        setError("An unexpected error occurred");
-      }
+      console.error("Error:", err);
+      setError("An unexpected error occurred");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendSignupOTP = async () => {
-    if (resendCooldown > 0 || loading) return;
-    setLoading(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      // Re-sends the same signup confirmation email (OTP code), keeps password auth intact
-      const { error: resendError } = await supabase.auth.resend({
-        type: "signup",
-        email,
-      });
-
-      if (resendError) {
-        setError(resendError.message || "Failed to resend the code. Please try again.");
-        return;
-      }
-
-      setSuccess("A new verification code has been sent to your email.");
-      startResendCooldown();
-    } catch {
-      setError("Failed to resend the code. Please check your connection.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Step 2: verify the email OTP -> confirms email and creates the session
   const handleVerifySignupOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return; // prevent duplicate submissions
-    if (signupOtpCode.length !== 6) {
-      setError("Please enter the 6-digit code");
-      return;
-    }
     setLoading(true);
     setError("");
 
     try {
-      // The token is issued by Supabase's Confirm signup template via {{ .Token }}.
-      // Keep this as `signup`: `email` is for passwordless signInWithOtp flows.
-      const { data, error: verifyError } = await supabase.auth.verifyOtp({
-        email,
-        token: signupOtpCode,
-        type: "signup",
+      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
+      
+      const { data, error } = await supabase.functions.invoke("verify-otp", {
+        body: {
+          phone_number: cleanedPhoneNumber,
+          otp_code: signupOtpCode,
+        },
       });
 
-      if (verifyError || !data?.session) {
-
-        setError(
-          verifyError?.message?.toLowerCase().includes("expired")
-            ? "This code has expired. Please request a new one."
-            : "Invalid code. Please check and try again."
-        );
-        setSignupOtpCode("");
+      if (error || !data?.success) {
+        console.error("OTP verification failed:", error);
+        setError(data?.error || "Invalid OTP. Please try again.");
         return;
       }
 
-      // Make sure profile details are stored
-      if (data.user) {
+      console.log("OTP verified successfully");
+      setSignupOtpVerified(true);
+      setSuccess("Phone verified! Creating your account...");
+      
+      // Automatically proceed to sign up
+      await completeSignUp();
+    } catch (err: any) {
+      console.error("Error:", err);
+      setError("An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeSignUp = async () => {
+    try {
+      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
+      const validation = signUpSchema.parse({ 
+        name, 
+        email, 
+        password, 
+        phone_number: cleanedPhoneNumber 
+      });
+
+      const redirectUrl = `${window.location.origin}/`;
+
+      const { error, data } = await supabase.auth.signUp({
+        email: validation.email,
+        password: validation.password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            display_name: validation.name,
+            country: country,
+            phone_number: validation.phone_number
+          }
+        }
+      });
+
+      // Store phone number in profiles table
+      if (data.user && !error) {
         await supabase
           .from("profiles")
-          .update({
-            phone_number: phoneNumber.replace(/\s+/g, ""),
-            display_name: name.trim(),
-            country: country,
+          .update({ 
+            phone_number: validation.phone_number,
+            display_name: validation.name,
+            country: country
           })
           .eq("user_id", data.user.id);
       }
 
-      setSignupOtpVerified(true);
-      setSuccess("Email verified! Taking you into the app...");
-      // The useEffect on `user` will redirect once the session propagates
-    } catch (err: any) {
-      console.error("Verification error:", err);
-      setError("An unexpected error occurred. Please try again.");
-    } finally {
-      setLoading(false);
+      if (error) {
+        if (error.message.includes("already registered")) {
+          setError("An account with this email already exists. Please sign in instead.");
+        } else {
+          setError(error.message);
+        }
+      } else {
+        setSuccess("Account created! Check your email for the confirmation link.");
+        // Reset form
+        setTimeout(() => {
+          setName("");
+          setEmail("");
+          setPassword("");
+          setPhoneNumber("");
+          setCountry("");
+          setSignupOtpSent(false);
+          setSignupOtpCode("");
+          setSignupOtpVerified(false);
+        }, 2000);
+      }
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        setError(err.errors[0].message);
+      } else {
+        setError("An unexpected error occurred");
+      }
     }
   };
-
 
   return (
     <div className="min-h-screen flex items-center justify-center page-bg px-4">
@@ -506,7 +470,7 @@ export default function Auth() {
                   )}
                   <Button type="submit" className="w-full" disabled={loading || !agreedToTerms}>
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Send verification code
+                    Send OTP
                   </Button>
                 </form>
               )}
@@ -514,12 +478,10 @@ export default function Auth() {
               {signupOtpSent && !signupOtpVerified && (
                 <form onSubmit={handleVerifySignupOTP} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-otp-code">Enter email verification code</Label>
+                    <Label htmlFor="signup-otp-code">Enter OTP</Label>
                     <Input
                       id="signup-otp-code"
                       type="text"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
                       value={signupOtpCode}
                       onChange={(e) => setSignupOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       placeholder="123456"
@@ -529,7 +491,7 @@ export default function Auth() {
                       className="text-center text-2xl tracking-widest"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Enter the 6-digit code sent to {email}
+                      Enter the 6-digit code sent to {phoneNumber}
                     </p>
                   </div>
                   {error && (
@@ -544,16 +506,7 @@ export default function Auth() {
                   )}
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Verify email & continue
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full text-sm"
-                    disabled={loading || resendCooldown > 0}
-                    onClick={handleResendSignupOTP}
-                  >
-                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}
+                    Verify OTP & Create Account
                   </Button>
                   <Button
                     type="button"
@@ -566,9 +519,8 @@ export default function Auth() {
                       setSuccess("");
                     }}
                   >
-                    Back
+                    Change phone number
                   </Button>
-
                 </form>
               )}
 

@@ -37,31 +37,22 @@ export function UploadDocumentDialog({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const openPicker = () => {
-    const input = fileInputRef.current;
-    if (!input) return;
-    input.value = "";
-    input.click();
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target;
-    const file = input.files?.[0];
-    input.value = "";
-    if (!file) return;
-
-    setSelectedFile(file);
-    setDocumentName(file.name.replace(/\.[^/.]+$/, "")); // Remove extension
-
-    // Create preview for images
-    if (file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setPreviewUrl(null); // PDF preview handled separately
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setDocumentName(file.name.replace(/\.[^/.]+$/, "")); // Remove extension
+      
+      // Create preview for images
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPreviewUrl(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else if (file.type === "application/pdf") {
+        setPreviewUrl(null); // PDF preview handled separately
+      }
     }
   };
 
@@ -109,7 +100,7 @@ export function UploadDocumentDialog({
               <Button
                 variant="outline"
                 className="h-24 flex flex-col gap-2"
-                onClick={openPicker}
+                onClick={() => fileInputRef.current?.click()}
               >
                 <ImageIcon className="h-6 w-6 text-primary" />
                 <span className="text-sm">Choose File</span>
@@ -128,7 +119,7 @@ export function UploadDocumentDialog({
           <input
             ref={fileInputRef}
             type="file"
-            accept="application/pdf,.pdf,image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            accept="image/*,application/pdf"
             onChange={handleFileChange}
             className="hidden"
           />

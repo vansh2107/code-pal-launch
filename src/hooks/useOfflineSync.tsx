@@ -46,7 +46,9 @@ export const useOfflineSync = () => {
   useEffect(() => {
     const unsub = onSyncStatus((status, message) => {
       setSyncStatus(status);
-      // Successful syncs stay silent — no "Sync Complete" toast on screen.
+      if (status === "success" && message) {
+        toast({ title: "Sync Complete", description: message });
+      }
       if (status === "error" && message) {
         toast({ title: "Sync Error", description: message, variant: "destructive" });
       }
