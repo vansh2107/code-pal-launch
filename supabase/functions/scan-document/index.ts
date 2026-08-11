@@ -22,8 +22,8 @@ serve(async (req) => {
   try {
     const requestBody = await req.text();
     
-    // Validate request size (max 15MB for base64 encoded image ~10MB actual)
-    if (requestBody.length > 15 * 1024 * 1024) {
+    // Validate request size (max 40MB for multi-page base64 payloads)
+    if (requestBody.length > 40 * 1024 * 1024) {
       console.error('Request too large:', requestBody.length);
       return new Response(
         JSON.stringify({ success: false, error: 'Image too large. Maximum size is 10MB.' }),
@@ -31,7 +31,24 @@ serve(async (req) => {
       );
     }
 
-    const { imageBase64, country } = JSON.parse(requestBody);
+    const { imageBase64, pages, country } = JSON.parse(requestBody);
+
+    // Build the ordered list of page images: multi-page PDF payload or single image
+    const pageImages: { pageNumber: number; content: string }[] = Array.isArray(pages) && pages.length > 0
+      ? [...pages]
+          .filter((p: any) => typeof p?.content === "string")
+          .sort((a: any, b: any) => (a.pageNumber ?? 0) - (b.pageNumber ?? 0))
+          .map((p: any, i: number) => ({ pageNumber: p.pageNumber ?? i + 1, content: p.content }))
+      : imageBase64
+        ? [{ pageNumber: 1, content: imageBase64 }]
+        : [];
+
+    if (pageImages.length === 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'No document content provided.' }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     
     // Validate and sanitize country input
     if (country && (typeof country !== 'string' || country.length > 100)) {
@@ -48,7 +65,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("Processing document image with AI...");
+    console.log(`Analyzing complete document with AI (${pageImages.length} page(s))...`);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -120,14 +137,12 @@ CRITICAL VALIDATION RULES:
             content: [
               {
                 type: "text",
-                text: `Extract the document information from this image and determine an intelligent renewal reminder period based on the document type${safeCountry ? ` and ${safeCountry}'s regulations` : ''}.`,
+                text: `This document has ${pageImages.length} page(s), provided below in page order. Consider ALL pages together as ONE single document - information may be spread across different pages (e.g. name on one page, dates on another). Combine everything into one final result. Determine an intelligent renewal reminder period based on the document type${safeCountry ? ` and ${safeCountry}'s regulations` : ''}.`,
               },
-              {
-                type: "image_url",
-                image_url: {
-                  url: imageBase64,
-                },
-              },
+              ...pageImages.flatMap((p) => ([
+                { type: "text", text: `--- Page ${p.pageNumber} of ${pageImages.length} ---` },
+                { type: "image_url", image_url: { url: p.content } },
+              ])),
             ],
           },
         ],
