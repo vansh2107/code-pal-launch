@@ -347,7 +347,10 @@ export type Database = {
       }
       otp_codes: {
         Row: {
+          consumed_at: string | null
           created_at: string | null
+          delivery_error: string | null
+          delivery_status: string
           expires_at: string
           failed_attempts: number | null
           id: string
@@ -355,12 +358,18 @@ export type Database = {
           is_verified: boolean | null
           last_otp_sent_at: string | null
           locked_until: string | null
-          otp_code: string
+          otp_code: string | null
+          otp_hash: string | null
           phone_number: string
+          purpose: string
+          request_id: string | null
           user_id: string | null
         }
         Insert: {
+          consumed_at?: string | null
           created_at?: string | null
+          delivery_error?: string | null
+          delivery_status?: string
           expires_at: string
           failed_attempts?: number | null
           id?: string
@@ -368,12 +377,18 @@ export type Database = {
           is_verified?: boolean | null
           last_otp_sent_at?: string | null
           locked_until?: string | null
-          otp_code: string
+          otp_code?: string | null
+          otp_hash?: string | null
           phone_number: string
+          purpose?: string
+          request_id?: string | null
           user_id?: string | null
         }
         Update: {
+          consumed_at?: string | null
           created_at?: string | null
+          delivery_error?: string | null
+          delivery_status?: string
           expires_at?: string
           failed_attempts?: number | null
           id?: string
@@ -381,8 +396,11 @@ export type Database = {
           is_verified?: boolean | null
           last_otp_sent_at?: string | null
           locked_until?: string | null
-          otp_code?: string
+          otp_code?: string | null
+          otp_hash?: string | null
           phone_number?: string
+          purpose?: string
+          request_id?: string | null
           user_id?: string | null
         }
         Relationships: []
