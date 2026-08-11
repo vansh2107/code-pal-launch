@@ -163,18 +163,9 @@ if (typeof window !== 'undefined') {
 
 // ── MAIN APP ──
 const App = () => {
-  const [splashDone, setSplashDone] = useState(false);
-
   return (
     <ErrorBoundary>
-      {!splashDone && <SplashVideo onComplete={() => setSplashDone(true)} />}
-      <div
-        style={{
-          visibility: splashDone ? "visible" : "hidden",
-          opacity: splashDone ? 1 : 0,
-          transition: "opacity 400ms ease-out",
-        }}
-      >
+      <div>
         <ThemeProvider>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
