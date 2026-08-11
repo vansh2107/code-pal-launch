@@ -65,6 +65,8 @@ export default function Auth() {
   const [signupOtpSent, setSignupOtpSent] = useState(false);
   const [signupOtpCode, setSignupOtpCode] = useState("");
   const [signupOtpVerified, setSignupOtpVerified] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [termsDialogOpen, setTermsDialogOpen] = useState(false);
   
