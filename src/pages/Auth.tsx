@@ -189,12 +189,13 @@ export default function Auth() {
         phone_number: cleanedPhoneNumber,
       });
 
-      // Create the account (profile data is stored via user metadata + profiles trigger)
-      const { error: signUpError } = await supabase.auth.signUp({
+      // Create the account with email + password. Supabase sends the signup
+      // confirmation email, whose template emits {{ .Token }} (a 6-digit code).
+      // No emailRedirectTo -> nothing links back to an external URL.
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: validation.email,
         password: validation.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
           data: {
             display_name: validation.name,
             country: country,
@@ -204,22 +205,31 @@ export default function Auth() {
       });
 
       if (signUpError) {
-        if (signUpError.message.toLowerCase().includes("already registered")) {
-          setError("An account with this email already exists. Please sign in instead.");
-        } else {
-          setError(signUpError.message);
+        const msg = signUpError.message.toLowerCase();
+        if (msg.includes("already registered") || msg.includes("already been registered")) {
+          // Existing but unverified signup: resend the code instead of duplicating the account
+          const { error: resendError } = await supabase.auth.resend({
+            type: "signup",
+            email: validation.email,
+          });
+
+          if (resendError) {
+            setError("An account with this email already exists. Please sign in instead.");
+            return;
+          }
+
+          setSignupOtpSent(true);
+          setSuccess(`We've sent a verification code to ${validation.email}`);
+          startResendCooldown();
+          return;
         }
+        setError(signUpError.message);
         return;
       }
 
-      // Send the 6-digit email verification code (server-side, via Supabase Auth)
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: validation.email,
-        options: { shouldCreateUser: false },
-      });
-
-      if (otpError) {
-        setError(otpError.message || "Failed to send verification code. Please try again.");
+      // If the project has email confirmation disabled, a session already exists
+      if (signUpData.session) {
+        setSignupOtpVerified(true);
         return;
       }
 
@@ -245,13 +255,14 @@ export default function Auth() {
     setSuccess("");
 
     try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({
+      // Re-sends the same signup confirmation email (OTP code), keeps password auth intact
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
         email,
-        options: { shouldCreateUser: false },
       });
 
-      if (otpError) {
-        setError(otpError.message || "Failed to resend the code. Please try again.");
+      if (resendError) {
+        setError(resendError.message || "Failed to resend the code. Please try again.");
         return;
       }
 
