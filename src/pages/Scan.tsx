@@ -264,8 +264,8 @@ export default function Scan() {
       if (file.type === 'application/pdf') {
         // Store the ORIGINAL PDF file - NO conversion
         setPdfFile(file);
-        setShowPdfSelector(true);
         setExtracting(false);
+        await handlePdfPipeline(file);
       } else {
         // Handle image files - show scan preview
         const reader = new FileReader();
