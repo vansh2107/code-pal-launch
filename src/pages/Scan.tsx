@@ -17,12 +17,11 @@ import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
+import { processAllPages, type ProcessedPdfPage } from "@/utils/pdfPageProcessor";
 import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
 import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
-import { renderAllPdfPages } from "@/utils/pdfPages";
-import { Progress } from "@/components/ui/progress";
 import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstraints, setupVideoElement, requestCamera, stopMediaStream } from "@/utils/cameraManager";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
@@ -79,13 +78,8 @@ export default function Scan() {
   const [documentCountry, setDocumentCountry] = useState<string>("");
   const [enableCountrySelect, setEnableCountrySelect] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [showPdfSelector, setShowPdfSelector] = useState(false);
-  const [pdfProgress, setPdfProgress] = useState<{
-    phase: "rendering" | "extracting" | "analyzing";
-    current: number;
-    total: number;
-    failedPages: number[];
-  } | null>(null);
+  const [pdfPhase, setPdfPhase] = useState<null | "processing" | "analyzing">(null);
+  const [pdfProgress, setPdfProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   
   const [formData, setFormData] = useState({
     name: "",
@@ -261,21 +255,55 @@ export default function Scan() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Check if file is a PDF
+      if (file.type === 'application/pdf') {
+        // Store the ORIGINAL PDF file - NO conversion
+        setPdfFile(file);
+        setExtracting(false);
+        await handlePdfPipeline(file);
+      } else {
+        // Handle image files - show scan preview
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          setRawCapturedImage(result);
+          setShowScanPreview(true);
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (error) {
+      console.error('Error processing file:', error);
+      setExtracting(false);
+      const message = (error as Error)?.message || 'Failed to process the uploaded file. Please try again.';
+      toast({
+        title: "Upload Error",
+        description: message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const extractDocumentData = async (imageBase64: string) => {
     setExtracting(true);
     setError("");
-
+    
     try {
       const { data, error } = await supabase.functions.invoke("scan-document", {
-        body: {
+        body: { 
           imageBase64,
-          country: documentCountry || null,
+          country: documentCountry || null
         },
       });
 
       if (error) throw error;
 
       if (data.success && data.data) {
+        // Use detailed document type from AI as-is; we'll map it to enum on save
         setFormData(prev => ({
           ...prev,
           ...data.data,
@@ -301,166 +329,99 @@ export default function Scan() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    // allow re-selecting the same file later
-    e.target.value = "";
-    if (!file) return;
-
-    try {
-      // Check if file is a PDF
-      if (file.type === 'application/pdf') {
-        // Store the ORIGINAL PDF file - NO conversion for upload
-        setPdfFile(file);
-        // Process the WHOLE PDF automatically (all pages, in order)
-        await processPdfDocument(file);
-      } else {
-        // Handle image files - show scan preview
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          setRawCapturedImage(result);
-          setShowScanPreview(true);
-        };
-        reader.readAsDataURL(file);
-      }
-    } catch (error) {
-      console.error('Error processing file:', error);
-      setExtracting(false);
-      setPdfProgress(null);
-      const message = (error as Error)?.message || 'Failed to process the uploaded file. Please try again.';
-      toast({
-        title: "Upload Error",
-        description: message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Call the extraction edge function once, with one or more page images
-  const callScanFunction = async (body: Record<string, unknown>) => {
-    const { data, error } = await supabase.functions.invoke("scan-document", { body });
-    if (error) throw error;
-    if (!data?.success) throw new Error(data?.error || "Extraction failed");
-    return data;
-  };
-
   /**
-   * Full multi-page PDF pipeline:
-   * render every page -> extract each batch of pages -> combine -> final document analysis.
-   * Requires NO user interaction between pages.
+   * PHASE 2 — document-level extraction, run ONCE on the combined content
+   * of every processed page. Never called from inside the page loop.
    */
-  const processPdfDocument = async (file: File) => {
-    setError("");
+  const extractDocumentInformation = async (pages: ProcessedPdfPage[]) => {
     setExtracting(true);
-    setPdfProgress({ phase: "rendering", current: 0, total: 0, failedPages: [] });
+    setError("");
 
     try {
-      const pages = await renderAllPdfPages(file, (current, total) => {
-        setPdfProgress({ phase: "rendering", current, total, failedPages: [] });
-      });
-
-      if (pages.length === 0) throw new Error("The PDF contains no pages.");
-
-      // Show the first page as the document preview
-      setCapturedImage(pages[0].dataUrl);
-      setProcessedImage(pages[0].dataUrl);
-
-      const BATCH_SIZE = 4;
-      const failedPages: number[] = [];
-
-      // Single-page (or small) PDF: one call, straight to the final analysis
-      if (pages.length <= BATCH_SIZE) {
-        setPdfProgress({ phase: "analyzing", current: pages.length, total: pages.length, failedPages: [] });
-        const data = await callScanFunction({
-          imagesBase64: pages.map(p => p.dataUrl),
-          pageNumbers: pages.map(p => p.pageNumber),
+      const { data, error } = await supabase.functions.invoke("scan-document", {
+        body: {
+          pages: pages.map((p) => ({ pageNumber: p.pageNumber, content: p.content })),
           country: documentCountry || null,
-        });
-        applyExtractedData(data.data, pages.length, []);
-        return;
-      }
-
-      // Larger PDFs: batch the pages, then combine everything into one document
-      const partials: string[] = [];
-      for (let i = 0; i < pages.length; i += BATCH_SIZE) {
-        const batch = pages.slice(i, i + BATCH_SIZE);
-        setPdfProgress({
-          phase: "extracting",
-          current: Math.min(i + batch.length, pages.length),
-          total: pages.length,
-          failedPages: [...failedPages],
-        });
-
-        let lastErr: unknown = null;
-        for (let attempt = 0; attempt < 2; attempt++) {
-          try {
-            const res = await callScanFunction({
-              imagesBase64: batch.map(p => p.dataUrl),
-              pageNumbers: batch.map(p => p.pageNumber),
-              partial: true,
-              country: documentCountry || null,
-            });
-            if (res.text) partials.push(res.text);
-            lastErr = null;
-            break;
-          } catch (err) {
-            lastErr = err;
-            console.warn(`Batch starting at page ${batch[0].pageNumber} failed (attempt ${attempt + 1})`, err);
-          }
-        }
-        if (lastErr) {
-          failedPages.push(...batch.map(p => p.pageNumber));
-        }
-      }
-
-      if (partials.length === 0) {
-        throw new Error("None of the pages could be processed.");
-      }
-
-      setPdfProgress({ phase: "analyzing", current: pages.length, total: pages.length, failedPages: [...failedPages] });
-      const data = await callScanFunction({
-        partials,
-        country: documentCountry || null,
+        },
       });
-      applyExtractedData(data.data, pages.length, failedPages);
+
+      if (error) throw error;
+
+      if (data?.success && data.data) {
+        setFormData((prev) => ({
+          ...prev,
+          ...data.data,
+          document_type: data.data.document_type,
+        }));
+        toast({
+          title: "Document Analyzed",
+          description: `Information extracted from ${pages.length} page${pages.length > 1 ? "s" : ""}. Please review and save.`,
+        });
+      } else {
+        throw new Error(data?.error || "Unable to extract information from this document.");
+      }
     } catch (err) {
-      console.error("PDF extraction error:", err);
-      setError("Failed to extract document data. Please enter manually.");
+      console.error("Document extraction error:", err);
+      setError("Unable to extract information from this document. Please enter details manually.");
       toast({
-        title: "Extraction Failed",
-        description: (err as Error)?.message || "Please enter document details manually.",
+        title: "Unable to extract information",
+        description: "All pages were processed, but the document details could not be read. Please enter them manually.",
         variant: "destructive",
       });
     } finally {
       setExtracting(false);
-      setPdfProgress(null);
     }
   };
 
-  const applyExtractedData = (extracted: any, totalPages: number, failedPages: number[]) => {
-    setFormData(prev => ({
-      ...prev,
-      ...extracted,
-      document_type: extracted.document_type,
-    }));
+  /**
+   * PHASE 1 then PHASE 2. Page failures are reported as page-processing errors
+   * and never surface as extraction errors.
+   */
+  const handlePdfPipeline = async (file: File) => {
+    setError("");
+    setPdfProgress({ current: 0, total: 0 });
+    setPdfPhase("processing");
 
-    if (failedPages.length > 0) {
+    let result;
+    try {
+      result = await processAllPages(file, (current, total) =>
+        setPdfProgress({ current, total })
+      );
+    } catch (err) {
+      console.error("PDF processing error:", err);
+      setPdfPhase(null);
+      setError("Unable to process this PDF. Please try another file or enter details manually.");
       toast({
-        title: "Partially Processed",
-        description: `Extracted from ${totalPages - failedPages.length} of ${totalPages} pages. Failed page(s): ${failedPages.join(", ")}. Please review the details.`,
+        title: "PDF Processing Failed",
+        description: "The PDF could not be opened. Please try another file.",
         variant: "destructive",
       });
-    } else {
+      return;
+    }
+
+    if (result.failedPages.length > 0) {
       toast({
-        title: "Document Scanned",
-        description: totalPages > 1
-          ? `All ${totalPages} pages processed. Please review and save.`
-          : "Document information extracted successfully. Please review and save.",
+        title: "Some pages could not be processed",
+        description: `Unable to process page${result.failedPages.length > 1 ? "s" : ""} ${result.failedPages.join(", ")}. Continuing with the remaining pages.`,
+        variant: "destructive",
       });
     }
-  };
 
+    if (result.pages.length === 0) {
+      setPdfPhase(null);
+      setError("None of the PDF pages could be processed.");
+      return;
+    }
+
+    // Show first page as the document preview
+    setCapturedImage(result.pages[0].content);
+    setProcessedImage(result.pages[0].content);
+
+    // PHASE 2 begins only after ALL pages are done
+    setPdfPhase("analyzing");
+    await extractDocumentInformation(result.pages);
+    setPdfPhase(null);
+  };
 
   const retakePhoto = () => {
     setCapturedImage(null);
@@ -909,30 +870,31 @@ export default function Scan() {
           onChange={handleFileUpload}
         />
 
-        {/* Multi-page PDF processing progress */}
-        {pdfProgress && (
+        {/* PDF processing progress (Phase 1) / analysis (Phase 2) */}
+        {pdfPhase && (
           <Card>
             <CardContent className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <p className="text-sm font-medium text-foreground">
-                  {pdfProgress.phase === "analyzing"
-                    ? "Analyzing complete document..."
-                    : "Processing document..."}
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    {pdfPhase === "processing" ? "Processing document" : "Analyzing complete document..."}
+                  </p>
+                  {pdfPhase === "processing" && pdfProgress.total > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Page {pdfProgress.current} of {pdfProgress.total}
+                    </p>
+                  )}
+                </div>
               </div>
-              {pdfProgress.phase !== "analyzing" && pdfProgress.total > 1 && (
-                <p className="text-xs text-muted-foreground">
-                  Page {pdfProgress.current} of {pdfProgress.total}
-                </p>
+              {pdfPhase === "processing" && pdfProgress.total > 0 && (
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${(pdfProgress.current / pdfProgress.total) * 100}%` }}
+                  />
+                </div>
               )}
-              <Progress
-                value={
-                  pdfProgress.phase === "analyzing" || pdfProgress.total === 0
-                    ? 100
-                    : Math.round((pdfProgress.current / pdfProgress.total) * 100)
-                }
-              />
             </CardContent>
           </Card>
         )}

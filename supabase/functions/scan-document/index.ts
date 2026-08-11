@@ -22,29 +22,30 @@ serve(async (req) => {
   try {
     const requestBody = await req.text();
     
-    // Validate request size (max 15MB for base64 encoded image ~10MB actual)
-    if (requestBody.length > 28 * 1024 * 1024) {
+    // Validate request size (max 40MB for multi-page base64 payloads)
+    if (requestBody.length > 40 * 1024 * 1024) {
       console.error('Request too large:', requestBody.length);
       return new Response(
-        JSON.stringify({ success: false, error: 'Document too large. Try fewer pages at once.' }),
+        JSON.stringify({ success: false, error: 'Image too large. Maximum size is 10MB.' }),
         { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const { imageBase64, imagesBase64, pageNumbers, partial, partials, country } = JSON.parse(requestBody);
+    const { imageBase64, pages, country } = JSON.parse(requestBody);
 
-    // Normalize inputs: a document can be one image or an ordered list of PDF pages
-    const pageImages: string[] = Array.isArray(imagesBase64) && imagesBase64.length > 0
-      ? imagesBase64
-      : (imageBase64 ? [imageBase64] : []);
-    const pageLabels: number[] = Array.isArray(pageNumbers) && pageNumbers.length === pageImages.length
-      ? pageNumbers
-      : pageImages.map((_: string, i: number) => i + 1);
-    const combineMode = Array.isArray(partials) && partials.length > 0;
+    // Build the ordered list of page images: multi-page PDF payload or single image
+    const pageImages: { pageNumber: number; content: string }[] = Array.isArray(pages) && pages.length > 0
+      ? [...pages]
+          .filter((p: any) => typeof p?.content === "string")
+          .sort((a: any, b: any) => (a.pageNumber ?? 0) - (b.pageNumber ?? 0))
+          .map((p: any, i: number) => ({ pageNumber: p.pageNumber ?? i + 1, content: p.content }))
+      : imageBase64
+        ? [{ pageNumber: 1, content: imageBase64 }]
+        : [];
 
-    if (!combineMode && pageImages.length === 0) {
+    if (pageImages.length === 0) {
       return new Response(
-        JSON.stringify({ success: false, error: 'No document image provided.' }),
+        JSON.stringify({ success: false, error: 'No document content provided.' }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -64,44 +65,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log(`Processing document with AI: ${combineMode ? "combine step" : `${pageImages.length} page(s)`}${partial ? " (partial batch)" : ""}`);
-
-    // Build the user message: all pages of ONE document, in order (or a combine step)
-    let userMessage: Record<string, unknown>;
-
-    if (combineMode) {
-      const notes = (partials as string[])
-        .map((t, i) => `--- Extraction batch ${i + 1} ---\n${String(t).substring(0, 8000)}`)
-        .join("\n\n");
-      userMessage = {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: `The following notes were extracted from ALL pages of a SINGLE document, in page order. They belong to ONE document, not several. Combine them and return the final document information${safeCountry ? ` considering ${safeCountry}'s regulations` : ''}.\n\n${notes}`,
-          },
-        ],
-      };
-    } else {
-      const multi = pageImages.length > 1;
-      const intro = multi
-        ? `The following ${pageImages.length} images are pages ${pageLabels.join(", ")} of ONE SINGLE document, in order. Treat them as one document: information may be split across pages (e.g. name on one page, expiry date on another). Do NOT treat pages as separate documents.`
-        : `Extract the document information from this image.`;
-      const task = partial
-        ? `\n\nFor THIS batch of pages, list every field/value you can read (document title, holder name, document/reference numbers, issuing authority, issue date, expiry/validity dates, and any other relevant text), noting the page each value came from. Plain text, no JSON.`
-        : `\n\nDetermine an intelligent renewal reminder period based on the document type${safeCountry ? ` and ${safeCountry}'s regulations` : ''}. Respond with the JSON object only.`;
-
-      userMessage = {
-        role: "user",
-        content: [
-          { type: "text", text: intro + task },
-          ...pageImages.flatMap((url: string, i: number) => ([
-            ...(multi ? [{ type: "text", text: `Page ${pageLabels[i]}:` }] : []),
-            { type: "image_url", image_url: { url } },
-          ])),
-        ],
-      };
-    }
+    console.log(`Analyzing complete document with AI (${pageImages.length} page(s))...`);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -114,9 +78,7 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: (partial && !combineMode)
-              ? `You are a precise OCR and document reading assistant. You are given some pages of a SINGLE document. Read every page carefully and list all readable fields and values as plain text, noting the page number for each. Do not guess, do not summarise away details, and do not output JSON.`
-              : `You are a document data extraction and renewal analysis assistant. Extract document information and intelligently determine renewal reminder periods based on document type and country-specific regulations.
+            content: `You are a document data extraction and renewal analysis assistant. Extract document information and intelligently determine renewal reminder periods based on document type and country-specific regulations.
 
 Extract the following information:
 - document_type: Choose the MOST SPECIFIC type from the detailed list below
@@ -170,7 +132,19 @@ CRITICAL VALIDATION RULES:
 2. Choose the MOST SPECIFIC type that matches the document
 3. Be as specific as possible in the name and issuing_authority fields`,
           },
-          userMessage,
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `This document has ${pageImages.length} page(s), provided below in page order. Consider ALL pages together as ONE single document - information may be spread across different pages (e.g. name on one page, dates on another). Combine everything into one final result. Determine an intelligent renewal reminder period based on the document type${safeCountry ? ` and ${safeCountry}'s regulations` : ''}.`,
+              },
+              ...pageImages.flatMap((p) => ([
+                { type: "text", text: `--- Page ${p.pageNumber} of ${pageImages.length} ---` },
+                { type: "image_url", image_url: { url: p.content } },
+              ])),
+            ],
+          },
         ],
       }),
     });
@@ -201,14 +175,6 @@ CRITICAL VALIDATION RULES:
     const content = data.choices?.[0]?.message?.content;
     if (!content) {
       throw new Error("No content in AI response");
-    }
-
-    // Partial batch: return the raw extracted notes, final analysis happens in the combine step
-    if (partial && !combineMode) {
-      return new Response(
-        JSON.stringify({ success: true, partial: true, text: content }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
     // Check if AI refused to extract (not a valid document)
