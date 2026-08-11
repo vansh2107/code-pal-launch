@@ -141,6 +141,11 @@ export default function Auth() {
     }
   };
 
+  const startResendCooldown = () => {
+    setResendCooldown(60);
+  };
+
+  // Step 1: create the account, then send a 6-digit code to the user's email
   const handleSendSignupOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -148,151 +153,155 @@ export default function Auth() {
     setSuccess("");
 
     try {
-      // Validate initial fields
       if (!name.trim() || name.trim().length < 2) {
         setError("Name must be at least 2 characters");
-        setLoading(false);
         return;
       }
 
       if (!country) {
         setError("Please select your country");
-        setLoading(false);
         return;
       }
 
-      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
-      
-      // Validate phone number format
+      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, "");
+
       if (!/^\+?[0-9]{10,15}$/.test(cleanedPhoneNumber)) {
         setError("Please enter a valid phone number with country code (e.g., +1234567890)");
-        setLoading(false);
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke("send-otp-sms", {
-        body: {
-          phone_number: cleanedPhoneNumber,
+      const validation = signUpSchema.parse({
+        name,
+        email,
+        password,
+        phone_number: cleanedPhoneNumber,
+      });
+
+      // Create the account (profile data is stored via user metadata + profiles trigger)
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: validation.email,
+        password: validation.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            display_name: validation.name,
+            country: country,
+            phone_number: validation.phone_number,
+          },
         },
       });
 
-      if (error || !data?.success) {
-        console.error("Failed to send OTP:", error);
-        setError(data?.error || "Failed to send OTP. Please try again.");
+      if (signUpError) {
+        if (signUpError.message.toLowerCase().includes("already registered")) {
+          setError("An account with this email already exists. Please sign in instead.");
+        } else {
+          setError(signUpError.message);
+        }
         return;
       }
 
-      console.log("OTP sent:", data);
+      // Send the 6-digit email verification code (server-side, via Supabase Auth)
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: validation.email,
+        options: { shouldCreateUser: false },
+      });
+
+      if (otpError) {
+        setError(otpError.message || "Failed to send verification code. Please try again.");
+        return;
+      }
+
       setSignupOtpSent(true);
-      setSuccess("OTP sent to your phone!");
+      setSuccess(`We've sent a 6-digit verification code to ${validation.email}`);
+      startResendCooldown();
     } catch (err: any) {
-      console.error("Error:", err);
-      setError("An unexpected error occurred");
+      if (err instanceof z.ZodError) {
+        setError(err.errors[0].message);
+      } else {
+        console.error("Signup error:", err);
+        setError("An unexpected error occurred");
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleResendSignupOTP = async () => {
+    if (resendCooldown > 0 || loading) return;
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false },
+      });
+
+      if (otpError) {
+        setError(otpError.message || "Failed to resend the code. Please try again.");
+        return;
+      }
+
+      setSuccess("A new verification code has been sent to your email.");
+      startResendCooldown();
+    } catch {
+      setError("Failed to resend the code. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: verify the email OTP -> confirms email and creates the session
   const handleVerifySignupOTP = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (signupOtpCode.length !== 6) {
+      setError("Please enter the 6-digit code");
+      return;
+    }
     setLoading(true);
     setError("");
 
     try {
-      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
-      
-      const { data, error } = await supabase.functions.invoke("verify-otp", {
-        body: {
-          phone_number: cleanedPhoneNumber,
-          otp_code: signupOtpCode,
-        },
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        email,
+        token: signupOtpCode,
+        type: "email",
       });
 
-      if (error || !data?.success) {
-        console.error("OTP verification failed:", error);
-        setError(data?.error || "Invalid OTP. Please try again.");
+      if (verifyError || !data?.session) {
+        setError(
+          verifyError?.message?.toLowerCase().includes("expired")
+            ? "This code has expired. Please request a new one."
+            : "Invalid code. Please check and try again."
+        );
+        setSignupOtpCode("");
         return;
       }
 
-      console.log("OTP verified successfully");
+      // Make sure profile details are stored
+      if (data.user) {
+        await supabase
+          .from("profiles")
+          .update({
+            phone_number: phoneNumber.replace(/\s+/g, ""),
+            display_name: name.trim(),
+            country: country,
+          })
+          .eq("user_id", data.user.id);
+      }
+
       setSignupOtpVerified(true);
-      setSuccess("Phone verified! Creating your account...");
-      
-      // Automatically proceed to sign up
-      await completeSignUp();
+      setSuccess("Email verified! Taking you into the app...");
+      // The useEffect on `user` will redirect once the session propagates
     } catch (err: any) {
-      console.error("Error:", err);
-      setError("An unexpected error occurred");
+      console.error("Verification error:", err);
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const completeSignUp = async () => {
-    try {
-      const cleanedPhoneNumber = phoneNumber.replace(/\s+/g, '');
-      const validation = signUpSchema.parse({ 
-        name, 
-        email, 
-        password, 
-        phone_number: cleanedPhoneNumber 
-      });
-
-      const redirectUrl = `${window.location.origin}/`;
-
-      const { error, data } = await supabase.auth.signUp({
-        email: validation.email,
-        password: validation.password,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            display_name: validation.name,
-            country: country,
-            phone_number: validation.phone_number
-          }
-        }
-      });
-
-      // Store phone number in profiles table
-      if (data.user && !error) {
-        await supabase
-          .from("profiles")
-          .update({ 
-            phone_number: validation.phone_number,
-            display_name: validation.name,
-            country: country
-          })
-          .eq("user_id", data.user.id);
-      }
-
-      if (error) {
-        if (error.message.includes("already registered")) {
-          setError("An account with this email already exists. Please sign in instead.");
-        } else {
-          setError(error.message);
-        }
-      } else {
-        setSuccess("Account created! Check your email for the confirmation link.");
-        // Reset form
-        setTimeout(() => {
-          setName("");
-          setEmail("");
-          setPassword("");
-          setPhoneNumber("");
-          setCountry("");
-          setSignupOtpSent(false);
-          setSignupOtpCode("");
-          setSignupOtpVerified(false);
-        }, 2000);
-      }
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        setError(err.errors[0].message);
-      } else {
-        setError("An unexpected error occurred");
-      }
-    }
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center page-bg px-4">
