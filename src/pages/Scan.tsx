@@ -255,7 +255,6 @@ export default function Scan() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   // Open a native file picker cleanly. Resetting value first guarantees a
   // change event even if the user re-picks the same file after cancelling.
   const openPicker = (ref: React.RefObject<HTMLInputElement>) => {
