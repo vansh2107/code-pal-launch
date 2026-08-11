@@ -329,11 +329,98 @@ export default function Scan() {
     }
   };
 
-  const handlePDFPageSelect = (pageImageBase64: string) => {
-    setShowPdfSelector(false);
-    // Show scan preview for PDF page as well
-    setRawCapturedImage(pageImageBase64);
-    setShowScanPreview(true);
+  /**
+   * PHASE 2 — document-level extraction, run ONCE on the combined content
+   * of every processed page. Never called from inside the page loop.
+   */
+  const extractDocumentInformation = async (pages: ProcessedPdfPage[]) => {
+    setExtracting(true);
+    setError("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke("scan-document", {
+        body: {
+          pages: pages.map((p) => ({ pageNumber: p.pageNumber, content: p.content })),
+          country: documentCountry || null,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data.data) {
+        setFormData((prev) => ({
+          ...prev,
+          ...data.data,
+          document_type: data.data.document_type,
+        }));
+        toast({
+          title: "Document Analyzed",
+          description: `Information extracted from ${pages.length} page${pages.length > 1 ? "s" : ""}. Please review and save.`,
+        });
+      } else {
+        throw new Error(data?.error || "Unable to extract information from this document.");
+      }
+    } catch (err) {
+      console.error("Document extraction error:", err);
+      setError("Unable to extract information from this document. Please enter details manually.");
+      toast({
+        title: "Unable to extract information",
+        description: "All pages were processed, but the document details could not be read. Please enter them manually.",
+        variant: "destructive",
+      });
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  /**
+   * PHASE 1 then PHASE 2. Page failures are reported as page-processing errors
+   * and never surface as extraction errors.
+   */
+  const handlePdfPipeline = async (file: File) => {
+    setError("");
+    setPdfProgress({ current: 0, total: 0 });
+    setPdfPhase("processing");
+
+    let result;
+    try {
+      result = await processAllPages(file, (current, total) =>
+        setPdfProgress({ current, total })
+      );
+    } catch (err) {
+      console.error("PDF processing error:", err);
+      setPdfPhase(null);
+      setError("Unable to process this PDF. Please try another file or enter details manually.");
+      toast({
+        title: "PDF Processing Failed",
+        description: "The PDF could not be opened. Please try another file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (result.failedPages.length > 0) {
+      toast({
+        title: "Some pages could not be processed",
+        description: `Unable to process page${result.failedPages.length > 1 ? "s" : ""} ${result.failedPages.join(", ")}. Continuing with the remaining pages.`,
+        variant: "destructive",
+      });
+    }
+
+    if (result.pages.length === 0) {
+      setPdfPhase(null);
+      setError("None of the PDF pages could be processed.");
+      return;
+    }
+
+    // Show first page as the document preview
+    setCapturedImage(result.pages[0].content);
+    setProcessedImage(result.pages[0].content);
+
+    // PHASE 2 begins only after ALL pages are done
+    setPdfPhase("analyzing");
+    await extractDocumentInformation(result.pages);
+    setPdfPhase(null);
   };
 
   const retakePhoto = () => {
