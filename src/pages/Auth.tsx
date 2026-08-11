@@ -278,6 +278,7 @@ export default function Auth() {
   // Step 2: verify the email OTP -> confirms email and creates the session
   const handleVerifySignupOTP = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // prevent duplicate submissions
     if (signupOtpCode.length !== 6) {
       setError("Please enter the 6-digit code");
       return;
@@ -286,13 +287,30 @@ export default function Auth() {
     setError("");
 
     try {
-      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      // Signup confirmation token
+      let { data, error: verifyError } = await supabase.auth.verifyOtp({
         email,
         token: signupOtpCode,
-        type: "email",
+        type: "signup",
       });
 
+      // Fallback for accounts where the code was issued as a generic email OTP
       if (verifyError || !data?.session) {
+        const retry = await supabase.auth.verifyOtp({
+          email,
+          token: signupOtpCode,
+          type: "email",
+        });
+        if (retry.data?.session) {
+          data = retry.data;
+          verifyError = null;
+        } else {
+          verifyError = verifyError ?? retry.error;
+        }
+      }
+
+      if (verifyError || !data?.session) {
+
         setError(
           verifyError?.message?.toLowerCase().includes("expired")
             ? "This code has expired. Please request a new one."
