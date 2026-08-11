@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, Camera, FileText, Image as ImageIcon, FolderOpen, Loader2 } from "lucide-react";
+import { Upload, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { usePdfPicker, formatFileSize, MAX_PDF_SIZE } from "@/hooks/usePdfPicker";
 import { UploadCategorySelect } from "./UploadCategorySelect";
@@ -21,7 +21,7 @@ interface UploadDocumentDialogProps {
   categories: DocVaultCategory[];
   onUpload: (file: File, categoryId: string | null, documentName: string) => Promise<void>;
   onCreateCategory: (name: string) => Promise<string | null>;
-  onScanDocument: (categoryId: string | null) => void;
+  onScanDocument?: (categoryId: string | null) => void;
 }
 
 export function UploadDocumentDialog({
@@ -30,14 +30,13 @@ export function UploadDocumentDialog({
   categories,
   onUpload,
   onCreateCategory,
-  onScanDocument,
 }: UploadDocumentDialogProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [documentName, setDocumentName] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pickerLaunchedRef = useRef(false);
   const { pickPdf, isPicking } = usePdfPicker();
 
   const applyFile = (file: File) => {
@@ -56,27 +55,23 @@ export function UploadDocumentDialog({
     const result = await pickPdf();
     if ("file" in result) {
       applyFile(result.file);
-      return;
+      return true;
     }
     switch (result.kind) {
       case "cancelled":
-        return; // graceful, no error
+        return false; // graceful, no error
       case "invalid-type":
         toast.error("Please select a PDF file");
-        return;
+        return false;
       case "too-large":
         toast.error(
           `File is ${formatFileSize(result.size)} — limit is ${formatFileSize(MAX_PDF_SIZE)}`
         );
-        return;
+        return false;
       default:
         toast.error(result.message || "Could not open the file picker");
+        return false;
     }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) applyFile(file);
   };
 
   const handleUpload = async () => {
@@ -91,11 +86,6 @@ export function UploadDocumentDialog({
     }
   };
 
-  const handleScanClick = () => {
-    onScanDocument(selectedCategoryId);
-    handleClose();
-  };
-
   const handleClose = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
@@ -104,7 +94,27 @@ export function UploadDocumentDialog({
     onOpenChange(false);
   };
 
+  // Open the native system file picker directly when the flow starts.
+  useEffect(() => {
+    if (!open) {
+      pickerLaunchedRef.current = false;
+      return;
+    }
+    if (pickerLaunchedRef.current || selectedFile) return;
+    pickerLaunchedRef.current = true;
+    (async () => {
+      const ok = await handleChooseFromFiles();
+      if (!ok) handleClose();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   const isPdf = selectedFile?.type === "application/pdf";
+
+  if (open && !selectedFile) {
+    // Native picker is in front of the user — keep the UI out of the way.
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -117,68 +127,6 @@ export function UploadDocumentDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Upload Options */}
-          {!selectedFile && (
-            <div className="flex flex-col gap-2">
-              <Button
-                variant="outline"
-                className="h-16 w-full justify-start gap-3 rounded-2xl px-4"
-                onClick={handleChooseFromFiles}
-                disabled={isPicking}
-              >
-                {isPicking ? (
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                ) : (
-                  <FolderOpen className="h-6 w-6 text-primary" />
-                )}
-                <span className="flex flex-col items-start text-left">
-                  <span className="text-sm font-medium">
-                    {isPicking ? "Opening Files…" : "Choose from Files"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    Browse device storage or Drive for a PDF
-                  </span>
-                </span>
-              </Button>
-
-              <Button
-                variant="outline"
-                className="h-16 w-full justify-start gap-3 rounded-2xl px-4"
-                onClick={handleScanClick}
-              >
-                <Camera className="h-6 w-6 text-primary" />
-                <span className="flex flex-col items-start text-left">
-                  <span className="text-sm font-medium">Scan Document</span>
-                  <span className="text-xs text-muted-foreground">
-                    Use the camera to capture a document
-                  </span>
-                </span>
-              </Button>
-
-              <Button
-                variant="ghost"
-                className="h-16 w-full justify-start gap-3 rounded-2xl px-4"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <ImageIcon className="h-6 w-6 text-primary" />
-                <span className="flex flex-col items-start text-left">
-                  <span className="text-sm font-medium">Choose an Image</span>
-                  <span className="text-xs text-muted-foreground">
-                    Pick a photo or screenshot from your device
-                  </span>
-                </span>
-              </Button>
-            </div>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-
           {/* File Preview */}
           {selectedFile && (
             <div className="space-y-4">
@@ -225,30 +173,20 @@ export function UploadDocumentDialog({
               <Button
                 variant="outline"
                 size="sm"
+                disabled={isPicking}
                 onClick={() => {
-                  setSelectedFile(null);
-                  setPreviewUrl(null);
-                  setDocumentName("");
+                  handleChooseFromFiles();
                 }}
               >
-                Choose Different File
+                {isPicking ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Opening Files…
+                  </>
+                ) : (
+                  "Choose Different File"
+                )}
               </Button>
-            </div>
-          )}
-
-          {/* Category Selection (when no file selected yet) */}
-          {!selectedFile && (
-            <div className="space-y-2">
-              <Label>Category (Optional)</Label>
-              <UploadCategorySelect
-                categories={categories}
-                selectedCategoryId={selectedCategoryId}
-                onSelectCategory={setSelectedCategoryId}
-                onCreateCategory={onCreateCategory}
-              />
-              <p className="text-xs text-muted-foreground">
-                Select a category before uploading or scanning
-              </p>
             </div>
           )}
         </div>
