@@ -743,7 +743,8 @@ export default function Scan() {
         <div className="flex gap-1.5 w-full">
           <Button
             variant="outline"
-            onClick={() => fileInputRef.current?.click()}
+            type="button"
+            onClick={() => openPicker(pdfInputRef)}
             className="flex-1 h-9 text-xs px-1.5 flex-col gap-0.5"
             size="sm"
           >
@@ -752,7 +753,8 @@ export default function Scan() {
           </Button>
           <Button
             variant="outline"
-            onClick={() => fileInputRef.current?.click()}
+            type="button"
+            onClick={() => openPicker(imageInputRef)}
             className="flex-1 h-9 text-xs px-1.5 flex-col gap-0.5"
             size="sm"
           >
@@ -774,11 +776,18 @@ export default function Scan() {
           </Button>
         </div>
         
-        {/* Hidden file input for PDF/Image upload */}
+        {/* Hidden file inputs — separate pickers, no camera/gallery/video intents */}
         <input
-          ref={fileInputRef}
+          ref={pdfInputRef}
           type="file"
-          accept="image/*,application/pdf"
+          accept="application/pdf,.pdf"
+          className="hidden"
+          onChange={handleFileUpload}
+        />
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
           className="hidden"
           onChange={handleFileUpload}
         />
