@@ -782,17 +782,33 @@ export default function Scan() {
           onChange={handleFileUpload}
         />
 
-        {/* PDF Page Selector */}
-        {pdfFile && showPdfSelector && (
-          <PDFPageSelector
-            file={pdfFile}
-            onPageSelect={handlePDFPageSelect}
-            onCancel={() => {
-              setShowPdfSelector(false);
-              setPdfFile(null);
-              setExtracting(false);
-            }}
-          />
+        {/* PDF processing progress (Phase 1) / analysis (Phase 2) */}
+        {pdfPhase && (
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    {pdfPhase === "processing" ? "Processing document" : "Analyzing complete document..."}
+                  </p>
+                  {pdfPhase === "processing" && pdfProgress.total > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Page {pdfProgress.current} of {pdfProgress.total}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {pdfPhase === "processing" && pdfProgress.total > 0 && (
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${(pdfProgress.current / pdfProgress.total) * 100}%` }}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Document Scan Preview - CamScanner-style processing */}
