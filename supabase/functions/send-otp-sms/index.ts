@@ -8,6 +8,7 @@ const corsHeaders = {
 
 interface SendOTPRequest {
   phone_number: string;
+  email: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -16,8 +17,8 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { phone_number }: SendOTPRequest = await req.json();
-    console.log("Sending OTP via MSGRush to:", phone_number);
+    const { phone_number, email }: SendOTPRequest = await req.json();
+    console.log("Sending OTP via SendGrid to:", email);
 
     const normalizedPhone = phone_number.replace(/[\s\-()]/g, "");
 
@@ -125,42 +126,51 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to store OTP");
     }
 
-    const msgrushApiKey = Deno.env.get("MSGRUSH_API_KEY");
-    const msgrushSenderId = Deno.env.get("MSGRUSH_SENDER_ID");
-    
-    if (!msgrushApiKey || !msgrushSenderId) {
-      console.error("MSGRush credentials not configured");
-      throw new Error("SMS service not configured");
+    const sendGridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendGridApiKey) {
+      console.error("SENDGRID_API_KEY is not configured");
+      throw new Error("Email service not configured");
     }
 
-    // MSGRush SMS API endpoint
-    const msgrushUrl = "https://msgrush-backend-258291301565.us-central1.run.app/api/sms-api/send";
-    
-    // Prepare request body
-    const requestBody = {
-      sender_id: msgrushSenderId,
-      recipients: [normalizedPhone],
-      message: `Your OTP for Remonk Reminder is: ${otp}. Valid for 10 minutes.`
-    };
+    const sendGridUrl = "https://api.sendgrid.com/v3/mail/send";
+    const emailHtml = `
+      <div style="font-family: sans-serif; padding: 20px; color: #333;">
+        <h2>Remonk Reminder Verification</h2>
+        <p>Hello,</p>
+        <p>Your one-time password (OTP) verification code is:</p>
+        <p style="font-size: 24px; font-weight: bold; color: #1E40AF; letter-spacing: 2px;">${otp}</p>
+        <p>This code is valid for 10 minutes. Please do not share this code with anyone.</p>
+        <br>
+        <p>Best regards,<br>Team Remonk</p>
+      </div>
+    `;
 
-    const smsResponse = await fetch(msgrushUrl, {
+    const emailResponse = await fetch(sendGridUrl, {
       method: "POST",
       headers: {
-        "X-API-Key": msgrushApiKey,
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${sendGridApiKey}`,
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        personalizations: [{
+          to: [{ email: email }]
+        }],
+        from: { email: "remind659@gmail.com" },
+        subject: `Your Remonk Reminder OTP Code: ${otp}`,
+        content: [{
+          type: "text/html",
+          value: emailHtml
+        }]
+      })
     });
 
-    const responseData = await smsResponse.json();
-    console.log("MSGRush response:", responseData);
-
-    if (!smsResponse.ok) {
-      console.error("MSGRush error:", responseData);
-      throw new Error("Failed to send SMS");
+    if (!emailResponse.ok) {
+      const errorText = await emailResponse.text();
+      console.error("SendGrid error:", errorText);
+      throw new Error("Failed to send OTP email");
     }
 
-    console.log("OTP sent successfully via MSGRush");
+    console.log("OTP sent successfully via SendGrid");
 
     return new Response(
       JSON.stringify({ success: true, message: "OTP sent successfully" }),
