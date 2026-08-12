@@ -505,7 +505,7 @@ Be specific, practical, and include quantity requirements (e.g., "2 passport-siz
       throw new Error("No analysis result from AI");
     }
 
-    const analysis = JSON.parse(toolCall.function.arguments);
+    analysis = JSON.parse(toolCall.function.arguments);
     
     console.log(`Analysis complete for ${analysisType}:`, analysis);
 
