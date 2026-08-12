@@ -47,7 +47,7 @@ export const useOfflineSync = () => {
     const unsub = onSyncStatus((status, message) => {
       setSyncStatus(status);
       if (status === "success" && message) {
-        toast({ title: "Sync Complete", description: message });
+        // Sync completes silently in the background — no toast shown to user
       }
       if (status === "error" && message) {
         toast({ title: "Sync Error", description: message, variant: "destructive" });
