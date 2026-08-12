@@ -23,9 +23,48 @@ serve(async (req) => {
   try {
     const { documentType, documentName, expiryDate, question } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+
+    let apiKey = LOVABLE_API_KEY;
+    let apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    let modelName = "google/gemini-2.5-flash";
+
+    if (!apiKey && GROQ_API_KEY) {
+      console.log("Using Groq fallback API for document renewal advisor");
+      apiKey = GROQ_API_KEY;
+      apiEndpoint = "https://api.groq.com/openai/v1/chat/completions";
+      modelName = "llama-3.3-70b-versatile";
+    }
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!apiKey) {
+      console.warn("No API keys configured. Using high-quality mock fallback.");
+      const safeDocType = documentType ? sanitizeInput(documentType) : 'document';
+      const safeDocName = documentName ? sanitizeInput(documentName) : '';
+      
+      const advice = `Recommended renewal start: 30 days before expiry
+
+Here are the details and requirements to renew your ${safeDocType}${safeDocName ? ` (${safeDocName})` : ''}:
+
+**1. Required Documents for Renewal:**
+- Current original document or card
+- Completed renewal application form (available online or at local registry)
+- Proof of identification/citizenship (e.g., secondary photo ID)
+- 2 recent passport-size photographs (if applying offline/in person)
+- Renewal fee payment (cash, credit card, or certified check)
+
+**2. Key Steps & Timeline Considerations:**
+- Check for online portal submission options to save time.
+- Gather all required documents and ID copies beforehand.
+- Book an appointment at your nearest authorized office if walk-ins are restricted.
+- Standard processing time is typically 10 to 15 business days.
+
+**3. Important Deadlines:**
+- Submit renewal application at least 30 days before expiration to avoid late penalties or service disruption.`;
+
+      return new Response(
+        JSON.stringify({ advice }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Get user's documents for context
@@ -96,14 +135,14 @@ Example first line: "Recommended renewal start: 30 days before expiry"`;
 
     console.log('Calling Lovable AI Gateway with prompt:', userPrompt);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: modelName,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }

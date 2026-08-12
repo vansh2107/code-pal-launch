@@ -166,7 +166,7 @@ export function ManualCropOverlay({
   return (
     <div 
       ref={containerRef}
-      className="fixed inset-0 z-50 bg-black flex flex-col touch-none"
+      className="fixed inset-0 z-[100] bg-black flex flex-col touch-none"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
@@ -298,7 +298,7 @@ export function ManualCropOverlay({
       </div>
 
       {/* Action buttons */}
-      <div className="flex gap-3 p-4 bg-black/90 border-t border-white/10">
+      <div className="flex gap-3 p-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] bg-black/90 border-t border-white/10">
         <Button
           variant="outline"
           onClick={onCancel}
