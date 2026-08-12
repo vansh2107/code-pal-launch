@@ -62,19 +62,25 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
-    let apiKey = LOVABLE_API_KEY;
-    let apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    let modelName = "google/gemini-2.5-flash";
+    let apiKey = "";
+    let apiEndpoint = "";
+    let modelName = "";
 
-    if (!apiKey && GROQ_API_KEY) {
-      console.log("Using Groq fallback API for document scanning");
+    // Prioritize GROQ_API_KEY if it is configured
+    if (GROQ_API_KEY) {
+      console.log("Using Groq API for document scanning");
       apiKey = GROQ_API_KEY;
       apiEndpoint = "https://api.groq.com/openai/v1/chat/completions";
-      modelName = "llama-3.3-70b-versatile";
+      modelName = "llama-3.2-90b-vision-preview"; // Vision model for reading images
+    } else if (LOVABLE_API_KEY) {
+      console.log("Using Lovable API for document scanning");
+      apiKey = LOVABLE_API_KEY;
+      apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
+      modelName = "google/gemini-2.5-flash";
     }
 
     if (!apiKey) {
-      console.error("No AI API key configured (LOVABLE_API_KEY or GROQ_API_KEY)");
+      console.error("No AI API key configured (GROQ_API_KEY or LOVABLE_API_KEY)");
       throw new Error("AI service is not configured. Please set GROQ_API_KEY in your Supabase Edge Function secrets.");
     }
 

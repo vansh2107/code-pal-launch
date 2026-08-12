@@ -174,15 +174,21 @@ Format your response as a JSON array of objects with this structure:
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
-    let apiKey = LOVABLE_API_KEY;
-    let apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    let modelName = "google/gemini-2.5-flash";
+    let apiKey = "";
+    let apiEndpoint = "";
+    let modelName = "";
 
-    if (!apiKey && GROQ_API_KEY) {
-      console.log("Using Groq fallback API for document analysis");
+    // Prioritize GROQ_API_KEY if it is configured
+    if (GROQ_API_KEY) {
+      console.log("Using Groq API for document analysis");
       apiKey = GROQ_API_KEY;
       apiEndpoint = "https://api.groq.com/openai/v1/chat/completions";
       modelName = "llama-3.3-70b-versatile";
+    } else if (LOVABLE_API_KEY) {
+      console.log("Using Lovable API for document analysis");
+      apiKey = LOVABLE_API_KEY;
+      apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
+      modelName = "google/gemini-2.5-flash";
     }
 
     let analysis;
