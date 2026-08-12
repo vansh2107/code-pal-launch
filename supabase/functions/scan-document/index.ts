@@ -60,21 +60,34 @@ serve(async (req) => {
     }
     const safeCountry = country ? sanitizeInput(country) : '';
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+
+    let apiKey = LOVABLE_API_KEY;
+    let apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    let modelName = "google/gemini-2.5-flash";
+
+    if (!apiKey && GROQ_API_KEY) {
+      console.log("Using Groq fallback API for document scanning");
+      apiKey = GROQ_API_KEY;
+      apiEndpoint = "https://api.groq.com/openai/v1/chat/completions";
+      modelName = "llama-3.3-70b-versatile";
     }
 
-    console.log(`Analyzing complete document with AI (${pageImages.length} page(s))...`);
+    if (!apiKey) {
+      console.error("No AI API key configured (LOVABLE_API_KEY or GROQ_API_KEY)");
+      throw new Error("AI service is not configured. Please set GROQ_API_KEY in your Supabase Edge Function secrets.");
+    }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    console.log(`Analyzing complete document with AI (${pageImages.length} page(s)) using ${modelName}...`);
+
+    const response = await fetch(apiEndpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: modelName,
         messages: [
           {
             role: "system",
