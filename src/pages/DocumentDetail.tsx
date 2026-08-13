@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Edit2, Trash2, Calendar, Building, FileText, Clock, Loader2, Sparkles, RefreshCw } from "lucide-react";
+import { Edit2, Trash2, Calendar, Building, FileText, Clock, Loader2, Sparkles, RefreshCw } from "lucide-react";
 import { PDFPreview } from "@/components/document/PDFPreview";
 import { useAuth } from "@/hooks/useAuth";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { AppShell, PageHeader } from "@/components/layout/";
 import { toast } from "@/hooks/use-toast";
 import { DocumentHistory } from "@/components/document/DocumentHistory";
 import { AIInsights } from "@/components/document/AIInsights";
@@ -264,21 +264,25 @@ export default function DocumentDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+      <AppShell>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </AppShell>
     );
   }
 
   if (!document) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Document not found</h2>
-          <p className="text-muted-foreground mb-4">The document you're looking for doesn't exist.</p>
-          <Button onClick={() => navigate('/documents')}>Back to Documents</Button>
+      <AppShell>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Document not found</h2>
+            <p className="text-muted-foreground mb-4">The document you're looking for doesn't exist.</p>
+            <Button onClick={() => navigate('/documents')}>Back to Documents</Button>
+          </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
@@ -294,37 +298,61 @@ export default function DocumentDetail() {
   // Use AI recommended days if available, otherwise fall back to document's renewal period
   const daysToStartProcess = recommendedDays || document.renewal_period_days || null;
 
+  const backDest = isDocVault ? '/docvault' : '/documents';
+  const deleteDialogId = 'delete-doc-action';
+
   return (
-    <div 
-      className="min-h-screen page-bg flex flex-col w-full overflow-x-hidden"
-      style={{ 
-        paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
-      }}
-    >
-      <header className={`border-b px-4 py-6 border-2 ${statusInfo?.bgClass || 'bg-card'} ${statusInfo?.borderClass || 'border-border'}`}>
-        <div className="w-full flex items-center justify-between mb-4 gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(isDocVault ? '/docvault' : '/documents')}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className={`flex-1 text-center text-2xl font-semibold ${statusInfo?.textClass || 'text-foreground'}`}>
-            {document.name}
-          </h1>
-          <div style={{ width: 32 }} />
-        </div>
-        <p className="text-center text-muted-foreground">
-          {getSubCategoryName(document.category_detail || document.document_type)}
-        </p>
-        {!isDocVault && statusInfo && (
-          <div className="flex justify-center mt-3">
-            <Badge variant={statusInfo.badgeVariant} className={statusInfo.colorClass}>
-              {statusInfo.label}
-            </Badge>
+    <AppShell>
+      <PageHeader
+        back={backDest}
+        title={document.name}
+        description={getSubCategoryName(document.category_detail || document.document_type)}
+        action={
+          <div className="flex items-center gap-2">
+            <Button onClick={() => navigate(`/documents/${id}/edit`)}>
+              <Edit2 className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Document</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete "{document.name}"? This action cannot be undone{!isDocVault && ' and will also remove all associated reminders'}.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {deleting ? "Deleting..." : "Delete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-        )}
-        
+        }
+      />
+
+      <div className="space-y-6">
+        {/* Status Banner with colored background */}
         {!isDocVault && statusInfo && (
-          <>
+          <div className={`rounded-2xl p-5 md:p-6 border-2 ${statusInfo.bgClass || 'bg-card'} ${statusInfo.borderClass || 'border-border'} space-y-4`}>
+            <div className="flex justify-center">
+              <Badge variant={statusInfo.badgeVariant} className={statusInfo.colorClass}>
+                {statusInfo.label}
+              </Badge>
+            </div>
+
             <Alert className={`${statusInfo.bgClass} ${statusInfo.borderClass} border-2`}>
               <Calendar className="h-4 w-4" />
               <AlertDescription className={statusInfo.textClass}>
@@ -337,14 +365,14 @@ export default function DocumentDetail() {
             
             {/* AI Renewal Recommendation */}
             {loadingAdvice ? (
-              <Alert className="border-primary/50 bg-primary/5 mt-3">
+              <Alert className="border-primary/50 bg-primary/5">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <AlertDescription>
                   <span className="text-sm">Analyzing optimal renewal timeline...</span>
                 </AlertDescription>
               </Alert>
             ) : daysToStartProcess && daysUntilExpiry && daysUntilExpiry > daysToStartProcess ? (
-              <Alert className="border-primary/50 bg-primary/5 mt-3">
+              <Alert className="border-primary/50 bg-primary/5">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <AlertDescription>
                   <strong>Start the process in {daysUntilExpiry - daysToStartProcess} days</strong>
@@ -355,7 +383,7 @@ export default function DocumentDetail() {
                 </AlertDescription>
               </Alert>
             ) : daysToStartProcess && daysUntilExpiry && daysUntilExpiry <= daysToStartProcess ? (
-              <Alert className="border-primary/50 bg-primary/5 mt-3">
+              <Alert className="border-primary/50 bg-primary/5">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <AlertDescription>
                   <strong>Start the renewal process now</strong>
@@ -366,25 +394,24 @@ export default function DocumentDetail() {
                 </AlertDescription>
               </Alert>
             ) : null}
-          </>
-        )}
-        
-        {/* Renewal Completed Button - Only for expiring/expired documents */}
-        {!isDocVault && (statusInfo?.status === 'expired' || statusInfo?.status === 'expiring') && (
-          <div className="mt-4 flex justify-center">
-            <Button
-              size="lg"
-              className="btn-glow text-white font-semibold rounded-xl w-full max-w-sm"
-              onClick={() => setRenewalSheetOpen(true)}
-            >
-              <RefreshCw className="h-5 w-5 mr-2" />
-              Renewal Completed
-            </Button>
+
+            {/* Renewal Completed Button - Only for expiring/expired documents */}
+            {(statusInfo.status === 'expired' || statusInfo.status === 'expiring') && (
+              <div className="flex justify-center">
+                <Button
+                  size="lg"
+                  className="btn-glow text-white font-semibold rounded-xl w-full max-w-sm"
+                  onClick={() => setRenewalSheetOpen(true)}
+                >
+                  <RefreshCw className="h-5 w-5 mr-2" />
+                  Renewal Completed
+                </Button>
+              </div>
+            )}
           </div>
         )}
-      </header>
 
-      <main className="px-4 py-6 space-y-6">
+        <div className="space-y-6">
         {/* Document Image/PDF */}
         {document.image_path && imageUrl && (
           <>
@@ -512,63 +539,6 @@ export default function DocumentDetail() {
           </Card>
         )}
 
-        {/* Actions */}
-        <Card className={`border-2 ${statusInfo?.bgClass || ''} ${statusInfo?.borderClass || 'border-border'}`}>
-          <CardHeader>
-            <CardTitle className={statusInfo?.textClass || 'text-foreground'}>Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button 
-              className={`w-full justify-start gap-2 ${
-                statusInfo?.status === 'expired' 
-                  ? 'bg-red-600 hover:bg-red-700 text-white' 
-                  : statusInfo?.status === 'expiring'
-                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                  : 'bg-green-600 hover:bg-green-700 text-white'
-              }`}
-              onClick={() => navigate(`/documents/${id}/edit`)}
-            >
-              <Edit2 className="h-4 w-4" />
-              Edit Document
-            </Button>
-            
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button 
-                  className={`w-full justify-start gap-2 ${
-                    statusInfo?.status === 'expired' 
-                      ? 'bg-red-700 hover:bg-red-800 text-white' 
-                      : statusInfo?.status === 'expiring'
-                      ? 'bg-yellow-700 hover:bg-yellow-800 text-white'
-                      : 'bg-green-700 hover:bg-green-800 text-white'
-                  }`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Document
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Document</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete "{document.name}"? This action cannot be undone{!isDocVault && ' and will also remove all associated reminders'}.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    {deleting ? "Deleting..." : "Delete"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </CardContent>
-        </Card>
-
         {/* AI Insights and Document History - Only for non-DocVault */}
         {!isDocVault && <DocumentHistory documentId={id!} />}
         {!isDocVault && <AIInsights document={document} statusInfo={statusInfo} />}
@@ -581,7 +551,8 @@ export default function DocumentDetail() {
             statusInfo={statusInfo}
           />
         )}
-      </main>
+        </div>
+      </div>
 
       <RenewalOptionsSheet
         open={renewalSheetOpen}
@@ -590,9 +561,7 @@ export default function DocumentDetail() {
         documentName={document.name}
         onSuccess={fetchDocument}
       />
-
-      <BottomNavigation />
-    </div>
+    </AppShell>
   );
 }
 

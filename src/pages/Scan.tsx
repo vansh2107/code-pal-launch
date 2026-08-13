@@ -10,10 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Loader2, Camera as CameraIcon, Upload } from "lucide-react";
+import { Save, Loader2, Camera as CameraIcon, Upload } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
-import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
+import { AppShell, PageHeader } from "@/components/layout/";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
@@ -742,31 +741,18 @@ export default function Scan() {
   const aiReminders = calculateReminderDates();
 
   return (
-    <SafeAreaContainer>
-      <div className="min-h-screen page-bg pb-20">
-        <header className="bg-card border-b border-border px-4 py-2 sticky top-0 z-10">
-          <div className="flex items-center gap-2 max-w-2xl mx-auto">
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => {
-              stopCameraLocal();
-              navigate(-1);
-            }}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold text-foreground truncate">
-                {replaceMode ? "Update Document" : "Add Document"}
-              </h1>
-              <p className="text-xs text-muted-foreground truncate">
-                {replaceMode 
-                  ? "Scanning new version to replace existing" 
-                  : scanMode === "camera" ? "Scan or upload" : "Manual entry"
-                }
-              </p>
-            </div>
-          </div>
-        </header>
+    <AppShell contentWidth="full">
+      <PageHeader
+        back={true}
+        title={replaceMode ? "Update Document" : "Add Document"}
+        description={replaceMode 
+          ? "Scanning new version to replace existing" 
+          : scanMode === "camera" ? "Scan or upload" : "Manual entry"
+        }
+        className="max-w-2xl mx-auto"
+      />
 
-      <main className="px-4 py-3 space-y-3 max-w-2xl mx-auto">
+      <div className="px-4 py-3 space-y-3 max-w-2xl mx-auto">
         {/* Organization Selector */}
         {organizations.length > 0 && (
           <Card>
@@ -795,11 +781,83 @@ export default function Scan() {
           </Card>
         )}
 
+        {/* Scan Landing State & Upload Options */}
+        {!capturedImage && !showScanPreview && !pdfPhase && (
+          <div className="space-y-4">
+            {/* Stage indicator */}
+            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground px-1">
+              <span className="text-primary font-semibold">1. Capture / Upload</span>
+              <span>→</span>
+              <span>2. Process</span>
+              <span>→</span>
+              <span>3. Extract</span>
+              <span>→</span>
+              <span>4. Review & Save</span>
+            </div>
+
+            {/* Mode selection cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div 
+                onClick={() => {
+                  setScanMode("camera");
+                  startCamera();
+                }}
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-4 ${
+                  scanMode === "camera" 
+                    ? "border-primary bg-primary/5 shadow-sm" 
+                    : "border-border/60 hover:border-border bg-card"
+                }`}
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <CameraIcon className="w-6 h-6" />
+                </div>
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold text-foreground">Scan document</h3>
+                  <p className="text-xs text-muted-foreground">Use your camera with auto-edge detection</p>
+                </div>
+              </div>
+
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="p-4 rounded-2xl border-2 border-border/60 hover:border-border bg-card transition-all cursor-pointer flex items-center gap-4"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-semibold text-foreground">Upload file</h3>
+                  <p className="text-xs text-muted-foreground">Choose PDF or image document file</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Manual entry fallback option */}
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setScanMode("manual");
+                  stopCameraLocal();
+                  setCapturedImage("manual-placeholder");
+                }}
+                className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1.5"
+              >
+                Prefer manual entry without scanning? Click here
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Camera Section */}
-        {scanMode === "camera" && !capturedImage && (
-          <Card>
-            <CardContent className="p-3 md:p-4">
-              <div className="relative aspect-[4/3] bg-muted rounded-lg overflow-hidden">
+        {scanMode === "camera" && !capturedImage && !showScanPreview && !pdfPhase && (
+          <Card className="border-border/60 shadow-md overflow-hidden rounded-2xl">
+            <CardContent className="p-0">
+              <div className="p-3 bg-muted/40 border-b border-border/50 text-center">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Place the document inside the frame. Keep the document flat and well lit.
+                </p>
+              </div>
+              <div className="relative aspect-[4/3] bg-black overflow-hidden">
                 <video
                   ref={videoRef}
                   autoPlay
@@ -808,58 +866,34 @@ export default function Scan() {
                   className="w-full h-full object-cover"
                 />
                 {!stream && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                  <div className="absolute inset-0 flex items-center justify-center bg-card">
                     <div className="text-center space-y-2">
-                      <CameraIcon className="h-12 w-12 mx-auto text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Starting camera...</p>
+                      <Loader2 className="h-8 w-8 mx-auto text-primary animate-spin" />
+                      <p className="text-sm text-muted-foreground font-medium">Starting camera...</p>
                     </div>
                   </div>
                 )}
+                {/* Corner guide brackets */}
+                <div className="absolute top-6 left-6 w-10 h-10 border-t-2 border-l-2 border-primary/80 rounded-tl-lg pointer-events-none" />
+                <div className="absolute top-6 right-6 w-10 h-10 border-t-2 border-r-2 border-primary/80 rounded-tr-lg pointer-events-none" />
+                <div className="absolute bottom-6 left-6 w-10 h-10 border-b-2 border-l-2 border-primary/80 rounded-bl-lg pointer-events-none" />
+                <div className="absolute bottom-6 right-6 w-10 h-10 border-b-2 border-r-2 border-primary/80 rounded-br-lg pointer-events-none" />
               </div>
               {stream && (
-                <Button onClick={captureImage} className="w-full mt-3">
-                  <CameraIcon className="h-4 w-4 mr-2" />
-                  Capture Document
-                </Button>
+                <div className="p-4 bg-card flex justify-center items-center">
+                  <Button 
+                    onClick={captureImage} 
+                    className="h-14 px-8 rounded-full text-base font-semibold shadow-lg hover:shadow-xl transition-all"
+                    size="lg"
+                  >
+                    <CameraIcon className="h-5 w-5 mr-2" />
+                    Capture Document
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>
         )}
-
-        {/* Mode Toggle - Three Buttons */}
-        <div className="flex gap-1.5 w-full">
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-1 h-9 text-xs px-1.5 flex-col gap-0.5"
-            size="sm"
-          >
-            <Upload className="h-4 w-4" />
-            <span className="text-[10px]">PDF</span>
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-1 h-9 text-xs px-1.5 flex-col gap-0.5"
-            size="sm"
-          >
-            <Upload className="h-4 w-4" />
-            <span className="text-[10px]">Image</span>
-          </Button>
-          <Button
-            variant={scanMode === "manual" ? "default" : "outline"}
-            onClick={() => {
-              setScanMode("manual");
-              stopCameraLocal();
-              setCapturedImage(null);
-            }}
-            className="flex-1 h-9 text-xs px-1.5 flex-col gap-0.5"
-            size="sm"
-          >
-            <Save className="h-4 w-4" />
-            <span className="text-[10px]">Manual</span>
-          </Button>
-        </div>
         
         {/* Hidden file input for PDF/Image upload */}
         <input
@@ -1171,10 +1205,7 @@ export default function Scan() {
           </CardContent>
         </Card>
         )}
-      </main>
-
-      <BottomNavigation />
-    </div>
-    </SafeAreaContainer>
+      </div>
+    </AppShell>
   );
 }

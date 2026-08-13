@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSwipeable } from "react-swipeable";
 import { Link } from "react-router-dom";
-import { Trash2 } from "lucide-react";
+import { Trash2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
@@ -16,6 +16,7 @@ interface SwipeableDocumentCardProps {
     expiry_date: string;
   };
   statusInfo: {
+    status: 'expired' | 'expiring' | 'valid';
     label: string;
     badgeVariant: "default" | "destructive" | "outline" | "secondary";
     colorClass: string;
@@ -65,9 +66,22 @@ export function SwipeableDocumentCard({
     setShowRenewalSheet(true);
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'valid':
+        return <CheckCircle2 className="h-3.5 w-3.5 mr-1" />;
+      case 'expiring':
+        return <Clock className="h-3.5 w-3.5 mr-1" />;
+      case 'expired':
+        return <XCircle className="h-3.5 w-3.5 mr-1" />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <>
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-hidden rounded-[16px]">
         {/* Delete background */}
         <div
           className="absolute right-0 top-0 bottom-0 bg-destructive flex items-center justify-center px-6 transition-all duration-200"
@@ -82,35 +96,32 @@ export function SwipeableDocumentCard({
           className="relative transition-transform duration-200 ease-out"
           style={{ transform: `translateX(-${swipeOffset}px)` }}
         >
-          <Link to={`/documents/${doc.id}`}>
+          <Link to={`/documents/${doc.id}`} aria-label={`View document ${doc.name}`}>
             <Card
-              className={`hover:shadow-lg transition-shadow cursor-pointer border-2 ${statusInfo.bgClass} ${statusInfo.borderClass}`}
+              className="hover:shadow-md transition-shadow cursor-pointer border border-border rounded-[16px] bg-card text-card-foreground shadow-sm"
             >
               <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <h3 className={`font-semibold mb-1 ${statusInfo.textClass}`}>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-[15px] font-semibold leading-[22px] text-foreground truncate mb-1" title={doc.name}>
                       {doc.name}
                     </h3>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-[13px] leading-[20px] text-muted-foreground truncate">
                       {getSubCategoryName(doc.category_detail || doc.document_type)}
+                      {doc.issuing_authority && ` · ${doc.issuing_authority}`}
                     </p>
                   </div>
-                  <Badge variant={statusInfo.badgeVariant} className={statusInfo.colorClass}>
+                  <Badge variant={statusInfo.badgeVariant} className={`shrink-0 flex items-center font-medium ${statusInfo.colorClass}`}>
+                    {getStatusIcon(statusInfo.status)}
                     {statusInfo.label}
                   </Badge>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Expires:</span>
+                <div className="flex items-center justify-between text-[13px] leading-[20px] pt-1 border-t border-border/50 mt-3">
+                  <span className="text-muted-foreground">Expiration Date</span>
                   <span className={`font-medium ${statusInfo.textClass}`}>
-                    {new Date(doc.expiry_date).toLocaleDateString()}
+                    {new Date(doc.expiry_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
                   </span>
                 </div>
-                {doc.issuing_authority && (
-                  <div className="mt-2 text-sm text-muted-foreground">
-                    Issued by: {doc.issuing_authority}
-                  </div>
-                )}
               </CardContent>
             </Card>
           </Link>
@@ -122,6 +133,7 @@ export function SwipeableDocumentCard({
             onClick={handleDeleteClick}
             className="absolute right-0 top-0 bottom-0 bg-destructive flex items-center justify-center px-6 z-10"
             style={{ width: `${swipeOffset}px` }}
+            aria-label="Delete document"
           >
             <Trash2 className="h-5 w-5 text-destructive-foreground" />
           </button>

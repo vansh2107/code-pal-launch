@@ -4,18 +4,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Camera, Bell, User } from "lucide-react";
+import { FileText, Camera, Bell, ShieldCheck, User, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { getSignedUrl } from "@/utils/signedUrl";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
-import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
+import { AppShell } from "@/components/layout/AppShell";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { DocumentStats } from "@/components/dashboard/DocumentStats";
 import { ExpiryTimeline } from "@/components/dashboard/ExpiryTimeline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { getDocumentStatus } from "@/utils/documentStatus";
 import { sendTestNotification } from "@/utils/notifications";
+import { cn } from "@/lib/utils";
 
 interface Document {
   id: string;
@@ -30,25 +31,23 @@ interface Document {
 // ── Skeleton for instant visual feedback ──
 function DashboardSkeleton() {
   return (
-    <SafeAreaContainer>
-      <div className="min-h-screen page-bg flex flex-col w-full" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
-        <header className="bg-background/80 backdrop-blur-xl border-b border-border/50 px-4 py-4">
-          <Skeleton className="h-8 w-40 mb-2" />
-          <Skeleton className="h-4 w-64" />
-        </header>
-        <main className="flex-1 px-4 py-6 space-y-6 w-full max-w-4xl mx-auto">
-          <div className="grid grid-cols-2 gap-3">
-            {[1, 2, 3, 4].map(i => (
-              <Skeleton key={i} className="h-20 rounded-xl" />
-            ))}
-          </div>
-          <Skeleton className="h-48 rounded-xl" />
-          <Skeleton className="h-12 rounded-xl" />
-          <Skeleton className="h-40 rounded-xl" />
-        </main>
-        <BottomNavigation />
+    <AppShell>
+      <PageHeader
+        title={<Skeleton className="h-8 w-40" />}
+        description={<Skeleton className="h-4 w-64" />}
+        variant="sticky"
+      />
+      <div className="space-y-6 pb-6 pt-4">
+        <div className="grid grid-cols-2 gap-3">
+          {[1, 2, 3, 4].map(i => (
+            <Skeleton key={i} className="h-20 rounded-[14px]" />
+          ))}
+        </div>
+        <Skeleton className="h-48 rounded-[14px]" />
+        <Skeleton className="h-12 rounded-[12px]" />
+        <Skeleton className="h-40 rounded-[14px]" />
       </div>
-    </SafeAreaContainer>
+    </AppShell>
   );
 }
 
@@ -115,8 +114,8 @@ export default function Dashboard() {
     }
   };
 
-  // Compute stats from documents (memoized)
-  const { stats, recentDocuments, nonDocVaultDocs } = useMemo(() => {
+  // Compute stats and filtered views from documents (memoized)
+  const { stats, recentDocuments, nonDocVaultDocs, attentionDocuments } = useMemo(() => {
     const today = new Date();
     const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
     const nonDocVault = documents.filter(doc => doc.issuing_authority !== 'DocVault');
@@ -128,10 +127,15 @@ export default function Dashboard() {
       return expiryDate >= today && expiryDate <= thirtyDaysFromNow;
     }).length;
 
+    const attention = nonDocVault
+      .filter(doc => new Date(doc.expiry_date) <= thirtyDaysFromNow)
+      .sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
+
     return {
       stats: { total, expiringSoon, expired, valid: total - expired - expiringSoon },
       recentDocuments: documents.slice(0, 3),
       nonDocVaultDocs: nonDocVault,
+      attentionDocuments: attention,
     };
   }, [documents]);
 
@@ -154,118 +158,112 @@ export default function Dashboard() {
     }
   };
 
+  const profileAvatar = (
+    <Link to="/profile" aria-label="Open profile" className="shrink-0 block">
+      <Avatar className="h-10 w-10 ring-1 ring-border hover:ring-primary/40 smooth md:h-11 md:w-11">
+        {avatarUrl && <AvatarImage src={avatarUrl} alt="Profile" />}
+        <AvatarFallback className="bg-primary/10">
+          <User className="h-5 w-5 text-primary" />
+        </AvatarFallback>
+      </Avatar>
+    </Link>
+  );
+
   // Show skeleton immediately — no blank screen
   if (loading) {
     return <DashboardSkeleton />;
   }
 
   return (
-    <SafeAreaContainer>
-      <div 
-        className="min-h-screen page-bg flex flex-col w-full overflow-x-hidden" 
-        style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
-      >
-        <header className="bg-background/80 backdrop-blur-xl border-b border-border/50 px-4 py-4">
-          <div className="w-full max-w-4xl mx-auto flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-2xl font-semibold text-gradient mb-1">Dashboard</h1>
-              <p className="text-base text-muted-foreground">Welcome back! Here's your document overview.</p>
-            </div>
-            <Link to="/profile" aria-label="Open profile" className="shrink-0">
-              <Avatar className="h-11 w-11 ring-2 ring-primary/20 hover:ring-primary/50 smooth">
-                {avatarUrl && <AvatarImage src={avatarUrl} alt="Profile" />}
-                <AvatarFallback className="bg-primary/10">
-                  <User className="h-5 w-5 text-primary" />
-                </AvatarFallback>
-              </Avatar>
-            </Link>
-          </div>
-        </header>
+    <AppShell>
+      <PageHeader
+        title="Dashboard"
+        description="Welcome back! Here's your document overview."
+        trailing={profileAvatar}
+        variant="sticky"
+      />
 
-        <main className="flex-1 px-4 py-6 space-y-6 w-full max-w-4xl mx-auto overflow-x-hidden">
-          <div className="animate-slide-up">
-            <DocumentStats
-              total={stats.total}
-              expiringSoon={stats.expiringSoon}
-              expired={stats.expired}
-              valid={stats.valid}
-            />
-          </div>
+      <div className="space-y-6 pb-6">
+        <div className="animate-slide-up">
+          <DocumentStats
+            total={stats.total}
+            expiringSoon={stats.expiringSoon}
+            expired={stats.expired}
+            valid={stats.valid}
+          />
+        </div>
 
-          <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
-            <ExpiryTimeline documents={nonDocVaultDocs} />
-          </div>
+        <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
+          <ExpiryTimeline documents={nonDocVaultDocs} />
+        </div>
 
-          <div className="animate-fade-in space-y-3" style={{ animationDelay: '0.2s' }}>
-            <Link to="/scan">
-              <Button className="w-full btn-glow" size="lg">
-                <Camera className="h-5 w-5 mr-2" />
-                Scan New Document
-              </Button>
-            </Link>
-            
-            <Button 
-              onClick={handleTestNotification} 
-              disabled={sendingTest}
-              variant="outline"
-              className="w-full border-2 hover:bg-primary/5 hover:border-primary"
-              size="lg"
-            >
-              <Bell className="h-5 w-5 mr-2" />
-              {sendingTest ? "Sending Test..." : "Test Push Notification"}
+        <div className="animate-fade-in space-y-3" style={{ animationDelay: '0.2s' }}>
+          <Link to="/scan">
+            <Button className="w-full btn-glow" size="lg">
+              <Camera className="h-5 w-5 mr-2" />
+              Scan New Document
             </Button>
-          </div>
+          </Link>
+          
+          <Button 
+            onClick={handleTestNotification} 
+            disabled={sendingTest}
+            variant="outline"
+            className="w-full border-2 hover:bg-primary/5 hover:border-primary"
+            size="lg"
+          >
+            <Bell className="h-5 w-5 mr-2" />
+            {sendingTest ? "Sending Test..." : "Test Push Notification"}
+          </Button>
+        </div>
 
-          <div className="animate-fade-in" style={{ animationDelay: '0.3s' }}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Documents</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {recentDocuments.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-float" />
-                    <p className="text-muted-foreground font-medium">No documents yet</p>
-                    <p className="text-sm text-muted-foreground mt-2">Add your first document to get started</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {recentDocuments.map((doc, index) => {
-                      const isDocVault = doc.issuing_authority === 'DocVault';
-                      const statusInfo = getDocumentStatus(doc.expiry_date);
-                      return (
-                        <Link
-                          key={doc.id}
-                          to={`/documents/${doc.id}`}
-                          className={`block p-4 rounded-xl smooth hover:shadow-lg border-2 ${statusInfo.bgClass} ${statusInfo.borderClass}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <h3 className="font-semibold mb-1 text-black">{doc.name}</h3>
-                              <p className="text-sm text-black/70 capitalize">
-                                {isDocVault
-                                  ? `Added ${new Date(doc.created_at).toLocaleDateString()}`
-                                  : `${doc.document_type.replace('_', ' ')} • Expires ${new Date(doc.expiry_date).toLocaleDateString()}`}
-                              </p>
-                            </div>
-                            {!isDocVault && (
-                              <Badge variant={statusInfo.badgeVariant} className={statusInfo.colorClass}>
-                                {statusInfo.label}
-                              </Badge>
-                            )}
+        <div className="animate-fade-in" style={{ animationDelay: '0.3s' }}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Documents</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recentDocuments.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-float" />
+                  <p className="text-muted-foreground font-medium">No documents yet</p>
+                  <p className="text-sm text-muted-foreground mt-2">Add your first document to get started</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentDocuments.map((doc, index) => {
+                    const isDocVault = doc.issuing_authority === 'DocVault';
+                    const statusInfo = getDocumentStatus(doc.expiry_date);
+                    return (
+                      <Link
+                        key={doc.id}
+                        to={`/documents/${doc.id}`}
+                        className={`block p-4 rounded-[14px] smooth hover:shadow-lg border-2 ${statusInfo.bgClass} ${statusInfo.borderClass}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold mb-1 text-foreground">{doc.name}</h3>
+                            <p className="text-sm text-secondary-foreground capitalize">
+                              {isDocVault
+                                ? `Added ${new Date(doc.created_at).toLocaleDateString()}`
+                                : `${doc.document_type.replace('_', ' ')} • Expires ${new Date(doc.expiry_date).toLocaleDateString()}`}
+                            </p>
                           </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </main>
-
-        <BottomNavigation />
+                          {!isDocVault && (
+                            <Badge variant={statusInfo.badgeVariant} className={statusInfo.colorClass}>
+                              {statusInfo.label}
+                            </Badge>
+                          )}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </SafeAreaContainer>
+    </AppShell>
   );
 }

@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Bell, FileText, Calendar, Check } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { AppShell } from "@/components/layout/AppShell";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 
 interface NotificationData {
@@ -111,31 +113,47 @@ export default function Notifications() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+      <AppShell>
+        <PageHeader
+          title={<Skeleton className="h-8 w-44" />}
+          description={<Skeleton className="h-4 w-64" />}
+          variant="sticky"
+        />
+        <div className="space-y-6 pb-6">
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-[14px]" />)}
+          </div>
+        </div>
+      </AppShell>
     );
   }
 
   const { active, upcoming } = groupNotificationsByStatus(notifications);
 
-  return (
-    <div 
-      className="min-h-screen page-bg flex flex-col w-full overflow-x-hidden" 
-      style={{ 
-        paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
-      }}
-    >
-      <header className="bg-card border-b border-border px-4 py-4">
-        <h1 className="text-2xl font-semibold text-foreground">Notifications</h1>
-        <p className="text-base text-muted-foreground">Stay on top of your document renewals</p>
-      </header>
+  const addAction =
+    notifications.length === 0 ? (
+      <Link to="/scan">
+        <Button size="sm">
+          <FileText className="h-4 w-4 mr-2" />
+          Add Document
+        </Button>
+      </Link>
+    ) : null;
 
-      <main className="flex-1 px-4 py-6 space-y-6 w-full max-w-full overflow-x-hidden">
+  return (
+    <AppShell>
+      <PageHeader
+        title="Notifications"
+        description="Stay on top of your document renewals"
+        action={addAction}
+        variant="sticky"
+      />
+
+      <div className="space-y-6 pb-6">
         {/* Active/Urgent Notifications */}
         {active.length > 0 && (
           <div>
-            <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
+            <h2 className="text-[18px] leading-[26px] font-semibold mb-3 flex items-center gap-2 tracking-tight">
               <Bell className="h-5 w-5 text-warning" />
               Action Required ({active.length})
             </h2>
@@ -144,7 +162,7 @@ export default function Notifications() {
                 const status = getNotificationStatus(notification.reminder_date, notification.document.expiry_date);
                 return (
                   <Link key={notification.id} to={`/documents/${notification.document_id}`}>
-                    <Card className="w-full rounded-2xl hover:bg-muted/50 transition-colors shadow-sm">
+                    <Card className="w-full rounded-[16px] hover:bg-muted/50 transition-colors shadow-sm">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -179,14 +197,14 @@ export default function Notifications() {
         {/* Upcoming Notifications */}
         {upcoming.length > 0 && (
           <div>
-            <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
+            <h2 className="text-[18px] leading-[26px] font-semibold mb-3 flex items-center gap-2 tracking-tight">
               <Calendar className="h-5 w-5 text-muted-foreground" />
               Upcoming Reminders ({upcoming.length})
             </h2>
             <div className="space-y-3">
               {upcoming.map((notification) => (
                 <Link key={notification.id} to={`/documents/${notification.document_id}`}>
-                  <Card className="w-full rounded-2xl hover:bg-muted/50 transition-colors shadow-sm">
+                  <Card className="w-full rounded-[16px] hover:bg-muted/50 transition-colors shadow-sm">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -230,9 +248,7 @@ export default function Notifications() {
             </Link>
           </div>
         )}
-      </main>
-
-      <BottomNavigation />
-    </div>
+      </div>
+    </AppShell>
   );
 }

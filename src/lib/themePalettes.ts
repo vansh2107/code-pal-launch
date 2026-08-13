@@ -23,8 +23,8 @@ export const PALETTES: PalettePreset[] = [
     name: "Vermilion",
     description: "Warm signature accent. The Remonk default.",
     swatch: {
-      light: ["hsl(40 25% 97%)", "hsl(40 30% 99%)", "hsl(10 78% 53%)", "hsl(10 80% 62%)"],
-      dark: ["hsl(220 20% 10%)", "hsl(220 18% 14%)", "hsl(10 78% 55%)", "hsl(10 80% 64%)"],
+      light: ["hsl(45 22% 97%)", "hsl(0 0% 100%)", "hsl(10 70% 47%)", "hsl(12 75% 64%)"],
+      dark: ["hsl(216 28% 8%)", "hsl(215 22% 12%)", "hsl(10 72% 54%)", "hsl(12 78% 66%)"],
     },
   },
   {
@@ -32,8 +32,8 @@ export const PALETTES: PalettePreset[] = [
     name: "Indigo",
     description: "Calm, focused. Great for deep work.",
     swatch: {
-      light: ["hsl(40 25% 97%)", "hsl(40 30% 99%)", "hsl(238 70% 58%)", "hsl(238 75% 68%)"],
-      dark: ["hsl(220 20% 10%)", "hsl(220 18% 14%)", "hsl(238 75% 65%)", "hsl(238 80% 72%)"],
+      light: ["hsl(45 22% 97%)", "hsl(0 0% 100%)", "hsl(238 70% 58%)", "hsl(238 75% 68%)"],
+      dark: ["hsl(216 28% 8%)", "hsl(215 22% 12%)", "hsl(238 75% 65%)", "hsl(238 80% 72%)"],
     },
   },
   {
@@ -41,8 +41,8 @@ export const PALETTES: PalettePreset[] = [
     name: "Emerald",
     description: "Fresh and productive.",
     swatch: {
-      light: ["hsl(40 25% 97%)", "hsl(40 30% 99%)", "hsl(158 64% 38%)", "hsl(158 60% 48%)"],
-      dark: ["hsl(220 20% 10%)", "hsl(220 18% 14%)", "hsl(158 60% 48%)", "hsl(158 65% 56%)"],
+      light: ["hsl(45 22% 97%)", "hsl(0 0% 100%)", "hsl(158 64% 38%)", "hsl(158 60% 48%)"],
+      dark: ["hsl(216 28% 8%)", "hsl(215 22% 12%)", "hsl(158 60% 48%)", "hsl(158 65% 56%)"],
     },
   },
   {
@@ -50,8 +50,8 @@ export const PALETTES: PalettePreset[] = [
     name: "Teal",
     description: "Quiet, clinical clarity.",
     swatch: {
-      light: ["hsl(40 25% 97%)", "hsl(40 30% 99%)", "hsl(178 65% 36%)", "hsl(178 60% 46%)"],
-      dark: ["hsl(220 20% 10%)", "hsl(220 18% 14%)", "hsl(178 60% 46%)", "hsl(178 65% 56%)"],
+      light: ["hsl(45 22% 97%)", "hsl(0 0% 100%)", "hsl(178 65% 36%)", "hsl(178 60% 46%)"],
+      dark: ["hsl(216 28% 8%)", "hsl(215 22% 12%)", "hsl(178 60% 46%)", "hsl(178 65% 56%)"],
     },
   },
   {
@@ -59,8 +59,8 @@ export const PALETTES: PalettePreset[] = [
     name: "Rose",
     description: "Warm, gentle, personal.",
     swatch: {
-      light: ["hsl(40 25% 97%)", "hsl(40 30% 99%)", "hsl(346 70% 52%)", "hsl(346 75% 64%)"],
-      dark: ["hsl(220 20% 10%)", "hsl(220 18% 14%)", "hsl(346 75% 60%)", "hsl(346 80% 68%)"],
+      light: ["hsl(45 22% 97%)", "hsl(0 0% 100%)", "hsl(346 70% 52%)", "hsl(346 75% 64%)"],
+      dark: ["hsl(216 28% 8%)", "hsl(215 22% 12%)", "hsl(346 75% 60%)", "hsl(346 80% 68%)"],
     },
   },
   {
@@ -68,8 +68,8 @@ export const PALETTES: PalettePreset[] = [
     name: "Amber",
     description: "Golden, optimistic energy.",
     swatch: {
-      light: ["hsl(40 25% 97%)", "hsl(40 30% 99%)", "hsl(32 85% 48%)", "hsl(32 90% 58%)"],
-      dark: ["hsl(220 20% 10%)", "hsl(220 18% 14%)", "hsl(32 85% 56%)", "hsl(32 90% 64%)"],
+      light: ["hsl(45 22% 97%)", "hsl(0 0% 100%)", "hsl(32 85% 48%)", "hsl(32 90% 58%)"],
+      dark: ["hsl(216 28% 8%)", "hsl(215 22% 12%)", "hsl(32 85% 56%)", "hsl(32 90% 64%)"],
     },
   },
   {
@@ -77,8 +77,8 @@ export const PALETTES: PalettePreset[] = [
     name: "Slate",
     description: "Editorial neutral. Maximum restraint.",
     swatch: {
-      light: ["hsl(40 25% 97%)", "hsl(40 30% 99%)", "hsl(220 25% 28%)", "hsl(220 20% 42%)"],
-      dark: ["hsl(220 20% 10%)", "hsl(220 18% 14%)", "hsl(220 20% 75%)", "hsl(220 20% 82%)"],
+      light: ["hsl(45 22% 97%)", "hsl(0 0% 100%)", "hsl(220 25% 28%)", "hsl(220 20% 42%)"],
+      dark: ["hsl(216 28% 8%)", "hsl(215 22% 12%)", "hsl(220 20% 75%)", "hsl(220 20% 82%)"],
     },
   },
 ];

@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, Plus, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
-import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
+import { AppShell } from "@/components/layout/AppShell";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { useToast } from "@/hooks/use-toast";
 import { exportToCSV } from "@/utils/exportData";
 import { getDocumentStatus } from "@/utils/documentStatus";
@@ -210,146 +210,189 @@ export default function Documents() {
   const showCategories = !searchQuery && filterStatus === "all" && sortBy === "expiry" && filterType === "all";
   const showFilteredList = filterType !== "all" || searchQuery || filterStatus !== "all" || sortBy !== "expiry";
 
+  const addAction = (
+    <Link to="/scan">
+      <Button size="sm"><Plus className="h-4 w-4 mr-2" />Add Document</Button>
+    </Link>
+  );
+
   if (loading) {
     return (
-      <SafeAreaContainer>
-        <div className="min-h-screen page-bg flex flex-col w-full" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
-          <header className="bg-card border-b border-border px-4 py-4">
-            <Skeleton className="h-8 w-40" />
-          </header>
-          <main className="flex-1 px-4 py-6 space-y-4">
-            <Skeleton className="h-10 rounded-lg" />
-            <div className="grid grid-cols-2 gap-3">
-              <Skeleton className="h-10 rounded-lg" />
-              <Skeleton className="h-10 rounded-lg" />
-            </div>
-            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
-          </main>
-          <BottomNavigation />
+      <AppShell>
+        <PageHeader
+          title={<Skeleton className="h-8 w-40" />}
+          variant="sticky"
+        />
+        <div className="space-y-4 pb-6">
+          <Skeleton className="h-10 rounded-[12px]" />
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-10 rounded-[12px]" />
+            <Skeleton className="h-10 rounded-[12px]" />
+          </div>
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-20 rounded-[14px]" />)}
         </div>
-      </SafeAreaContainer>
+      </AppShell>
     );
   }
 
   return (
-    <SafeAreaContainer>
-      <div className="min-h-screen page-bg flex flex-col w-full overflow-x-hidden" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
-        <header className="bg-card border-b border-border px-4 py-4">
-          <div className="w-full flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold text-foreground">Documents</h1>
-            <Link to="/scan">
-              <Button size="sm"><Plus className="h-5 w-5 mr-2" />Add</Button>
-            </Link>
-          </div>
-        </header>
+    <AppShell contentWidth="full">
+      <PageHeader
+        title="Documents"
+        description={`${documents.length} total document${documents.length !== 1 ? 's' : ''}`}
+        action={addAction}
+        variant="sticky"
+      />
 
-        <main className="flex-1 px-4 py-6 w-full max-w-full overflow-x-hidden">
-          <div className="mb-6 space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search documents..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-                <SelectTrigger><SelectValue placeholder="Sort by" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="expiry">Expiry Date</SelectItem>
-                  <SelectItem value="name">Name</SelectItem>
-                  <SelectItem value="recent">Recently Added</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterStatus} onValueChange={(v: any) => setFilterStatus(v)}>
-                <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="expired">Expired</SelectItem>
-                  <SelectItem value="expiring">Expiring Soon</SelectItem>
-                  <SelectItem value="valid">Valid</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      <div className="space-y-6 pb-6 w-full">
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search documents by name, type, or authority..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-11 rounded-[12px] bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+            />
+          </div>
+
+          {/* Status Filter Pills / Tabs (All, Valid, Expiring, Expired) */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {[
+              { id: "all", label: "All" },
+              { id: "valid", label: "Valid" },
+              { id: "expiring", label: "Expiring Soon" },
+              { id: "expired", label: "Expired" },
+            ].map((tab) => {
+              const isActive = filterStatus === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setFilterStatus(tab.id as any)}
+                  className={`h-10 px-4 rounded-[12px] text-sm font-medium transition-colors shrink-0 flex items-center justify-center ${
+                    isActive
+                      ? "bg-primary-soft text-primary font-semibold border border-primary/20"
+                      : "bg-secondary text-secondary-foreground hover:bg-muted border border-border/40"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Secondary Filter & Sort Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+              <SelectTrigger className="h-11 rounded-[12px] border-border bg-background">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="expiry">Sort by Expiry Date</SelectItem>
+                <SelectItem value="name">Sort by Name</SelectItem>
+                <SelectItem value="recent">Sort by Recently Added</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select value={filterType} onValueChange={(v: string) => setFilterType(v)}>
-              <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectTrigger className="h-11 rounded-[12px] border-border bg-background">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
                 {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            {(searchQuery || filterStatus !== "all" || sortBy !== "expiry" || filterType !== "all") && (
-              <Button variant="outline" size="sm" onClick={() => { setSearchQuery(""); setFilterStatus("all"); setSortBy("expiry"); setFilterType("all"); }} className="w-full">Clear Filters</Button>
-            )}
           </div>
 
-          {/* Categories */}
-          {documents.length > 0 && showCategories && (
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-foreground mb-4">Browse by Category</h2>
-              <div className="grid grid-cols-1 gap-3">
-                {categories.map((category) => {
-                  const count = getCategoryCount(category.id);
-                  const isActive = filterType === category.id;
-                  return (
-                    <Card key={category.id} className={`w-full rounded-2xl cursor-pointer transition-all duration-200 hover:scale-[1.02] ${isActive ? 'ring-2 ring-primary shadow-lg' : 'hover:shadow-lg'}`} onClick={() => handleCategoryClick(category.id)}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <img src={category.iconSrc} alt={category.name} className="w-10 h-10 object-contain" loading="lazy" />
-                            <h3 className="text-sm font-medium text-foreground">{category.name}</h3>
-                          </div>
-                          <Badge variant="secondary" className="font-semibold text-foreground dark:text-white">{count}</Badge>
+          {(searchQuery || filterStatus !== "all" || sortBy !== "expiry" || filterType !== "all") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setSearchQuery(""); setFilterStatus("all"); setSortBy("expiry"); setFilterType("all"); }}
+              className="w-full h-11 rounded-[12px]"
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
+
+        {/* Categories */}
+        {documents.length > 0 && showCategories && (
+          <div>
+            <h2 className="text-lg font-semibold text-foreground mb-4">Browse by Category</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {categories.map((category) => {
+                const count = getCategoryCount(category.id);
+                const isActive = filterType === category.id;
+                return (
+                  <Card key={category.id} className={`w-full rounded-[16px] cursor-pointer transition-all duration-200 hover:scale-[1.01] ${isActive ? 'ring-2 ring-primary shadow-lg' : 'hover:shadow-md'}`} onClick={() => handleCategoryClick(category.id)}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img src={category.iconSrc} alt={category.name} className="w-10 h-10 object-contain shrink-0" loading="lazy" />
+                          <h3 className="text-sm font-medium text-foreground truncate">{category.name}</h3>
                         </div>
-                      </CardContent>
-                    </Card>
+                        <Badge variant="secondary" className="font-semibold shrink-0 ml-2">{count}</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Filtered Documents */}
+        {showFilteredList && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">{filteredDocuments.length} Document{filteredDocuments.length !== 1 ? 's' : ''}</h2>
+              {documents.length > 0 && <Button variant="outline" size="sm" onClick={handleExport}>Export CSV</Button>}
+            </div>
+            {filteredDocuments.length === 0 ? (
+              <div className="text-center py-16">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground">No matching documents</h3>
+                <p className="text-sm text-muted-foreground mt-1">Try a different search or filter</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setSearchQuery(""); setFilterStatus("all"); setSortBy("expiry"); setFilterType("all"); }}
+                  className="mt-4 rounded-[12px]"
+                >
+                  Clear filters
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredDocuments.map(doc => {
+                  const statusInfo = getDocumentStatus(doc.expiry_date);
+                  return (
+                    <SwipeableDocumentCard
+                      key={doc.id}
+                      doc={doc}
+                      statusInfo={statusInfo}
+                      onDelete={handleDeleteDocument}
+                      getSubCategoryName={getSubCategoryName}
+                    />
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
-          {/* Filtered Documents */}
-          {showFilteredList && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">{filteredDocuments.length} Document{filteredDocuments.length !== 1 ? 's' : ''}</h2>
-                {documents.length > 0 && <Button variant="outline" size="sm" onClick={handleExport}>Export CSV</Button>}
-              </div>
-              {filteredDocuments.length === 0 ? (
-                <div className="text-center py-16">
-                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground">No matching documents</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Try adjusting your filters</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredDocuments.map(doc => {
-                    const statusInfo = getDocumentStatus(doc.expiry_date);
-                    return (
-                      <SwipeableDocumentCard
-                        key={doc.id}
-                        doc={doc}
-                        statusInfo={statusInfo}
-                        onDelete={handleDeleteDocument}
-                        getSubCategoryName={getSubCategoryName}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Empty State */}
-          {documents.length === 0 && (
-            <div className="text-center py-16">
-              <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">No documents yet</h3>
-              <p className="text-muted-foreground mb-6">Start by adding your first document</p>
-              <Link to="/scan"><Button><Plus className="h-5 w-5 mr-2" />Add Document</Button></Link>
-            </div>
-          )}
-        </main>
-        <BottomNavigation />
+        {/* Empty State */}
+        {documents.length === 0 && (
+          <div className="text-center py-16">
+            <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-foreground mb-2">No documents yet</h3>
+            <p className="text-muted-foreground mb-6">Start by adding your first document</p>
+            <Link to="/scan"><Button><Plus className="h-5 w-5 mr-2" />Add Document</Button></Link>
+          </div>
+        )}
       </div>
-    </SafeAreaContainer>
+    </AppShell>
   );
 }

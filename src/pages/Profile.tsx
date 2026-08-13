@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronRight, Download, User, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
-import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
+import { AppShell } from "@/components/layout/AppShell";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate, Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -189,15 +188,10 @@ export default function Profile() {
   }
 
   return (
-    <SafeAreaContainer>
-      <div 
-        className="min-h-screen page-bg flex flex-col w-full overflow-x-hidden" 
-        style={{ 
-          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' 
-        }}
-      >
+    <AppShell contentWidth="full">
+      <div className="w-full flex flex-col">
         {/* Header with Profile Info */}
-        <header className="bg-card border-b border-border/50 px-4 py-4 sticky top-0 z-10">
+        <header className="bg-card border-b border-border/50 -mx-4 md:-mx-6 px-4 md:px-6 py-4 sticky top-0 z-10">
           <div className="w-full flex items-center gap-3">
             {/* Static Avatar */}
             <div className="relative shrink-0 w-14 h-14 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
@@ -220,7 +214,7 @@ export default function Profile() {
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 w-full max-w-full overflow-x-hidden">
+        <main className="flex-1 py-6 w-full max-w-full overflow-x-hidden">
           {/* Account Section - Edit Profile as main action */}
           <SettingsSection title="Account">
             <SettingsItem 
@@ -467,8 +461,6 @@ export default function Profile() {
             </div>
           </div>
         </main>
-
-        <BottomNavigation />
       </div>
 
       {/* Edit Profile Sheet */}
@@ -482,6 +474,6 @@ export default function Profile() {
           }
         }} 
       />
-    </SafeAreaContainer>
+    </AppShell>
   );
 }

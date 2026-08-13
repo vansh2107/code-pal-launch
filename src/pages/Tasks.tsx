@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { OptimizedTaskCard } from "@/components/tasks/OptimizedTaskCard";
 import { TaskFutureList } from "@/components/tasks/TaskFutureList";
 import { TaskListSkeleton } from "@/components/ui/loading-skeleton";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
-import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
+import { AppShell, PageHeader } from "@/components/layout";
 import { useTasksData } from "@/hooks/useTasksData";
 import { RoutinesSection } from "@/components/routines/RoutinesSection";
 
@@ -122,23 +121,22 @@ export default function Tasks() {
   // Loading state with skeleton
   if (loading) {
     return (
-      <div className="min-h-screen page-bg pb-20">
-        <div className="bg-background/80 backdrop-blur-xl p-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+      <AppShell contentWidth="full">
+        <div className="bg-background/80 backdrop-blur-xl p-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50 -mx-4 md:-mx-6">
           <h1 className="text-2xl font-bold text-foreground mb-2">Daily Tasks</h1>
           <p className="text-sm text-muted-foreground">Track your daily activities</p>
         </div>
-        <div className="p-4">
+        <div className="pt-4">
           <TaskListSkeleton />
         </div>
-        <BottomNavigation />
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <SafeAreaContainer>
-      <div {...swipeHandlers} className="min-h-screen page-bg pb-24 animate-fade-in px-4" style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' }}>
-        <div className="bg-background/80 backdrop-blur-xl p-4 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+    <AppShell contentWidth="full" className="animate-fade-in">
+      <div {...swipeHandlers} className="w-full">
+        <div className="bg-background/80 backdrop-blur-xl p-4 -mx-4 md:-mx-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Daily Tasks</h1>
@@ -161,7 +159,7 @@ export default function Tasks() {
                 <p className="text-xl font-bold text-foreground">{pendingTasks.length}</p>
               </div>
               <div className="flex-1 bg-valid-bg/50 backdrop-blur-sm rounded-[16px] p-3 border border-valid/30">
-                <p className="text-xs text-black mb-1">Completed</p>
+                <p className="text-xs text-foreground mb-1">Completed</p>
                 <p className="text-xl font-bold text-valid">{completedTasks.length}</p>
               </div>
             </div>
@@ -194,7 +192,7 @@ export default function Tasks() {
 
         <div
           ref={contentRef}
-          className={`p-4 space-y-6 transition-all duration-150 ease-out ${
+          className={`py-4 space-y-6 transition-all duration-150 ease-out ${
             slideDir === "left"
               ? "-translate-x-8 opacity-0"
               : slideDir === "right"
@@ -261,9 +259,7 @@ export default function Tasks() {
             <Plus className="h-6 w-6" />
           </Button>
         )}
-
-        <BottomNavigation />
       </div>
-    </SafeAreaContainer>
+    </AppShell>
   );
 }

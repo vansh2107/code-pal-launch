@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
-import { SafeAreaContainer } from "@/components/layout/SafeAreaContainer";
+import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -349,26 +348,23 @@ export default function DocVault() {
   );
 
   return (
-    <SafeAreaContainer>
-      <div 
-        className="min-h-screen page-bg flex w-full overflow-x-hidden" 
-        style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom))" }}
-      >
-        {/* Desktop Sidebar */}
-        <div className="hidden md:block w-64 shrink-0 h-screen sticky top-0">
+    <AppShell contentWidth="full">
+      <div className="w-full flex overflow-x-hidden">
+        {/* Desktop Sidebar - lg+ only since md shows AppShell SidebarNav */}
+        <div className="hidden lg:block w-64 shrink-0 h-screen sticky top-0 -ml-6">
           {sidebarContent}
         </div>
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <div className="sticky top-0 z-40 bg-gradient-to-b from-primary/10 to-background backdrop-blur-xl border-b border-border/50">
-            <div className="w-full py-4 px-4">
+          <div className="sticky top-0 z-40 bg-gradient-to-b from-primary/10 to-background backdrop-blur-xl border-b border-border/50 -mx-4 md:-mx-6">
+            <div className="w-full py-4 px-4 md:px-6">
               <div className="flex items-center gap-3 mb-2">
                 {/* Mobile menu toggle */}
                 <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
                   <SheetTrigger asChild>
-                    <Button variant="ghost" size="icon" className="md:hidden">
+                    <Button variant="ghost" size="icon" className="lg:hidden">
                       <Menu className="h-5 w-5" />
                     </Button>
                   </SheetTrigger>
@@ -395,7 +391,7 @@ export default function DocVault() {
           </div>
 
           {/* Content */}
-          <div className="flex-1 py-6 px-4 space-y-6">
+          <div className="flex-1 py-6 space-y-6">
             {/* Search and Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
@@ -587,9 +583,7 @@ export default function DocVault() {
           onMove={handleMoveConfirm}
           isLoading={isMoving}
         />
-
-        <BottomNavigation />
       </div>
-    </SafeAreaContainer>
+    </AppShell>
   );
 }

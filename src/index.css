@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Calm Professional Light Design System — all colors HSL */
-
 @layer base {
   :root {
     /* Safe area insets for mobile devices */
@@ -13,145 +11,221 @@
     --safe-area-left: env(safe-area-inset-left, 0px);
     --safe-area-right: env(safe-area-inset-right, 0px);
 
-    /* Background: soft warm off-white */
-    --background: 40 25% 97%;
-    --foreground: 220 15% 12%;
+    /* ===== NEUTRAL / SURFACE HIERARCHY — LIGHT ===== */
+    --background: 45 22% 97%;         /* #FAF9F6 */
+    --foreground: 240 5% 10%;         /* #18181B */
+    --secondary-foreground: 240 4% 34%; /* #52525B */
+    --muted-foreground: 240 4% 46%;   /* #71717A */
+    --placeholder: 240 4% 65%;        /* #A1A1AA */
 
-    --card: 40 30% 99%;
-    --card-foreground: 220 15% 12%;
+    --card: 0 0% 100%;                /* #FFFFFF */
+    --card-foreground: 240 5% 10%;    /* #18181B */
+
+    --surface-elevated: 20 100% 99%;  /* #FFFDFC */
+    --muted: 40 15% 94%;              /* #F3F1ED — muted surface */
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 12%;
+    --popover-foreground: 240 5% 10%;
 
-    /* Primary: medium vermilion */
-    --primary: 10 78% 53%;
-    --primary-foreground: 0 0% 100%;
+    --border: 40 14% 88%;             /* #E5E1DA */
+    --input: 40 14% 88%;
 
-    --primary-light: 10 80% 62%;
-    --primary-soft: 10 80% 96%;
-    --primary-dark: 10 78% 44%;
+    /* ===== PRIMARY ACCENT — REMONK VERMILION ===== */
+    --primary: 10 70% 47%;            /* #C83E24 */
+    --primary-dark: 10 71% 39%;       /* #A9321D — hover/pressed */
+    --primary-soft: 12 100% 96%;      /* #FFF0EB */
+    --primary-light: 12 75% 64%;      /* #E9785F */
+    --primary-foreground: 0 0% 100%;  /* #FFFFFF */
 
-    /* Status Colors — soft, premium, low-saturation */
-    --expired: 4 55% 50%;
-    --expired-foreground: 0 0% 100%;
-    --expired-bg: 6 60% 96%;
-
-    --expiring: 38 70% 48%;
-    --expiring-foreground: 0 0% 100%;
-    --expiring-bg: 42 75% 95%;
-
-    --valid: 145 40% 38%;
-    --valid-foreground: 0 0% 100%;
-    --valid-bg: 145 35% 95%;
-
-    /* Secondary: soft neutral */
-    --secondary: 40 20% 94%;
-    --secondary-foreground: 220 15% 25%;
-
-    /* Muted */
-    --muted: 40 15% 93%;
-    --muted-foreground: 220 10% 42%;
-
-    /* Accent: muted teal — sparing use */
-    --accent: 10 78% 53%;
+    --accent: 10 70% 47%;
     --accent-foreground: 0 0% 100%;
 
-    /* Warning */
-    --warning: 35 75% 50%;
+    --ring: 10 70% 47%;               /* focus ring uses primary */
+
+    /* ===== SECONDARY (muted surface) ===== */
+    --secondary: 40 15% 94%;          /* #F3F1ED */
+    --secondary-foreground-contrast: 240 5% 10%;
+
+    /* ===== SEMANTIC STATUS COLORS — THEME-INDEPENDENT ===== */
+    /* VALID */
+    --valid: 153 55% 33%;             /* #27845A */
+    --valid-foreground: 0 0% 100%;
+    --valid-bg: 145 50% 94%;          /* #EAF7F0 — light */
+
+    /* EXPIRING */
+    --expiring: 37 71% 42%;           /* #B7791F */
+    --expiring-foreground: 0 0% 100%;
+    --expiring-bg: 44 100% 93%;       /* #FFF5DD — light */
+
+    /* EXPIRED */
+    --expired: 0 54% 50%;             /* #C43D3D */
+    --expired-foreground: 0 0% 100%;
+    --expired-bg: 0 80% 96%;          /* #FCECEC — light */
+
+    /* WARNING */
+    --warning: 32 82% 40%;            /* #B86B12 */
     --warning-foreground: 0 0% 100%;
 
-    /* Destructive */
-    --destructive: 0 65% 55%;
+    /* DESTRUCTIVE */
+    --destructive: 0 61% 48%;         /* #C53030 */
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders */
-    --border: 35 15% 88%;
-    --input: 35 15% 90%;
-    --ring: 10 78% 53%;
+    /* ===== SHAPE / RADIUS TOKENS ===== */
+    --radius: 0.875rem;               /* shadcn legacy default (card-lg-ish) */
+    --radius-card-lg: 1rem;           /* 16px — large card */
+    --radius-card: 0.875rem;          /* 14px — standard card */
+    --radius-button: 0.75rem;         /* 12px — button */
+    --radius-input: 0.75rem;          /* 12px — input / select */
+    --radius-dialog: 1.125rem;        /* 18px — dialog / sheet */
+    --radius-sm-control: 0.625rem;    /* 10px — small control */
+    --radius-badge: 9999px;           /* full pill */
 
-    --radius: 0.875rem;
+    /* ===== DEPTH / SHADOW TOKENS ===== */
+    --shadow-0: 0 0 #0000;            /* none */
+    --shadow-1:
+      0 1px 2px -0.5px rgb(16 20 27 / 0.04),
+      0 1px 1px -1px rgb(16 20 27 / 0.03);
+    --shadow-2:
+      0 10px 15px -3px rgb(16 20 27 / 0.08),
+      0 4px 6px -4px rgb(16 20 27 / 0.05),
+      0 0 0 1px rgb(16 20 27 / 0.02);
 
-    /* Card shadow — subtle, premium */
-    --card-shadow: 0 1px 3px rgba(20, 20, 30, 0.04), 0 1px 2px rgba(20, 20, 30, 0.03);
-    --card-shadow-hover: 0 4px 16px rgba(20, 20, 30, 0.06), 0 2px 4px rgba(20, 20, 30, 0.04);
+    /* Legacy card shadows — backward compatibility */
+    --card-shadow: var(--shadow-1);
+    --card-shadow-hover:
+      0 4px 14px rgb(16 20 27 / 0.07),
+      0 2px 4px rgb(16 20 27 / 0.04);
 
-    /* Sidebar */
-    --sidebar-background: 40 30% 99%;
-    --sidebar-foreground: 220 15% 12%;
-    --sidebar-primary: 10 78% 53%;
+    /* ===== FOCUS RING TOKENS ===== */
+    --focus-ring-width: 2px;
+    --focus-offset: 2px;
+    --focus-offset-color: hsl(var(--background));
+
+    /* ===== TYPOGRAPHY TOKENS ===== */
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+    /* Weights */
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    /* Type scale — sizes, line-heights, tracking */
+    --fs-page-title-desktop: 30px;
+    --lh-page-title-desktop: 36px;
+    --ls-page-title-desktop: -0.025em;
+
+    --fs-page-title-mobile: 24px;
+    --lh-page-title-mobile: 30px;
+    --ls-page-title-mobile: -0.025em;
+
+    --fs-section-heading: 18px;
+    --lh-section-heading: 26px;
+    --ls-section-heading: -0.015em;
+
+    --fs-card-heading: 16px;
+    --lh-card-heading: 24px;
+
+    --fs-body: 15px;
+    --lh-body: 24px;
+
+    --fs-button: 14px;
+    --lh-button: 20px;
+
+    --fs-label: 13px;
+    --lh-label: 18px;
+
+    --fs-metadata: 13px;
+    --lh-metadata: 20px;
+
+    --fs-caption: 12px;
+    --lh-caption: 16px;
+
+    /* ===== SIDEBAR (shadcn / app) ===== */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 5% 10%;
+    --sidebar-primary: 10 70% 47%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 40 20% 94%;
-    --sidebar-accent-foreground: 220 15% 25%;
-    --sidebar-border: 35 15% 88%;
-    --sidebar-ring: 10 78% 53%;
+    --sidebar-accent: 40 15% 94%;
+    --sidebar-accent-foreground: 240 5% 10%;
+    --sidebar-border: 40 14% 88%;
+    --sidebar-ring: 10 70% 47%;
   }
 
   .dark {
-    /* Dark mode kept aligned with light palette tones */
-    --background: 220 20% 10%;
-    --foreground: 210 20% 92%;
+    /* ===== NEUTRAL / SURFACE HIERARCHY — DARK ===== */
+    --background: 216 28% 8%;         /* #10141B */
+    --foreground: 220 10% 96%;        /* #F4F5F7 */
+    --secondary-foreground: 220 10% 80%; /* #C5CAD2 */
+    --muted-foreground: 220 9% 62%;   /* #929AA7 */
+    --placeholder: 220 9% 48%;        /* #6F7885 */
 
-    --card: 220 18% 14%;
-    --card-foreground: 210 20% 92%;
+    --card: 215 22% 12%;              /* #171C24 */
+    --card-foreground: 220 10% 96%;
 
-    --popover: 220 18% 14%;
-    --popover-foreground: 210 20% 92%;
+    --surface-elevated: 215 20% 15%;  /* #1D232D */
+    --muted: 215 17% 18%;             /* #242B36 — muted surface */
 
-    --primary: 10 78% 55%;
-    --primary-foreground: 0 0% 100%;
+    --popover: 215 22% 12%;
+    --popover-foreground: 220 10% 96%;
 
-    --primary-light: 10 80% 64%;
-    --primary-soft: 10 40% 20%;
-    --primary-dark: 10 78% 44%;
+    --border: 215 15% 21%;            /* #2B3441 */
+    --input: 215 15% 21%;
 
-    --expired: 0 60% 55%;
-    --expired-foreground: 0 0% 100%;
-    --expired-bg: 0 35% 18%;
+    /* ===== PRIMARY ACCENT — VERMILION (darker mode adjusted) ===== */
+    --primary: 10 72% 54%;            /* brighter dark-mode primary */
+    --primary-dark: 10 72% 44%;       /* hover/pressed */
+    --primary-soft: 10 40% 18%;
+    --primary-light: 12 78% 66%;
 
-    --expiring: 35 70% 52%;
-    --expiring-foreground: 0 0% 100%;
-    --expiring-bg: 35 35% 18%;
+    --accent: 10 72% 54%;
+    --ring: 10 72% 54%;
 
-    --valid: 145 50% 45%;
-    --valid-foreground: 0 0% 100%;
-    --valid-bg: 145 30% 16%;
+    /* ===== SECONDARY (muted surface) — DARK ===== */
+    --secondary: 215 17% 18%;
+    --secondary-foreground-contrast: 220 10% 96%;
 
-    --secondary: 220 18% 18%;
-    --secondary-foreground: 210 20% 88%;
+    /* ===== SEMANTIC STATUS COLORS — DARK BACKGROUND VARIANTS =====
+       Foregrounds stay identical; only *-bg swaps for dark mode.   */
+    --valid-bg: 153 43% 14%;          /* #153528 — dark */
+    --expiring-bg: 38 52% 15%;        /* #3A2B12 — dark */
+    --expired-bg: 354 35% 17%;        /* #3A1D20 — dark */
 
-    --muted: 220 15% 18%;
-    --muted-foreground: 220 10% 60%;
+    /* ===== DEPTH / SHADOW — DARK (restrained, surfaces + borders first) ===== */
+    --shadow-1:
+      0 1px 2px -0.5px rgb(0 0 0 / 0.25),
+      0 1px 1px -1px rgb(0 0 0 / 0.15);
+    --shadow-2:
+      0 10px 15px -3px rgb(0 0 0 / 0.35),
+      0 4px 6px -4px rgb(0 0 0 / 0.25),
+      0 0 0 1px rgb(255 255 255 / 0.03);
 
-    --accent: 170 45% 45%;
-    --accent-foreground: 0 0% 100%;
+    --card-shadow: var(--shadow-1);
+    --card-shadow-hover:
+      0 4px 14px rgb(0 0 0 / 0.3),
+      0 2px 4px rgb(0 0 0 / 0.2);
 
-    --warning: 35 70% 52%;
-    --warning-foreground: 0 0% 100%;
+    --focus-offset-color: hsl(var(--background));
 
-    --destructive: 0 60% 55%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 220 15% 22%;
-    --input: 220 15% 20%;
-    --ring: 10 78% 55%;
-
-    --card-shadow: 0 2px 16px rgba(249, 115, 22, 0.08);
-    --card-shadow-hover: 0 8px 30px rgba(249, 115, 22, 0.14);
-
-    --sidebar-background: 220 22% 12%;
-    --sidebar-foreground: 210 20% 90%;
-    --sidebar-primary: 10 78% 55%;
+    /* ===== SIDEBAR — DARK ===== */
+    --sidebar-background: 216 28% 10%;
+    --sidebar-foreground: 220 10% 96%;
+    --sidebar-primary: 10 72% 54%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 30% 20%;
-    --sidebar-accent-foreground: 210 40% 75%;
-    --sidebar-border: 220 15% 20%;
-    --sidebar-ring: 10 78% 55%;
+    --sidebar-accent: 215 17% 18%;
+    --sidebar-accent-foreground: 220 10% 96%;
+    --sidebar-border: 215 15% 21%;
+    --sidebar-ring: 10 72% 54%;
   }
 
+  /* ============================================================
+     BASE HTML / BODY / TYPOGRAPHY
+     ============================================================ */
   html {
     height: 100%;
     scroll-behavior: smooth;
     overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
@@ -162,9 +236,11 @@
     overflow-x: hidden;
     overflow-y: auto;
     @apply bg-background text-foreground antialiased;
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 15px;
-    line-height: 1.6;
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: var(--font-weight-regular);
+    font-feature-settings: "cv11", "ss01";
   }
 
   #root {
@@ -177,12 +253,55 @@
     scroll-behavior: smooth;
   }
 
+  /* Typography defaults — heading hierarchy */
   h1, h2, h3, h4, h5, h6 {
-    font-weight: 700;
+    font-family: var(--font-sans);
     letter-spacing: -0.02em;
     line-height: 1.2;
   }
+  h1, h2 { font-weight: var(--font-weight-bold); }
+  h3, h4 { font-weight: var(--font-weight-semibold); }
 
+  /* Focus ring global baseline — remove default outline only when we replace */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Selection */
+  ::selection {
+    background: hsl(var(--primary) / 0.18);
+    color: hsl(var(--foreground));
+  }
+  .dark ::selection {
+    background: hsl(var(--primary) / 0.28);
+  }
+
+  /* Placeholder color */
+  ::placeholder {
+    color: hsl(var(--placeholder));
+    opacity: 1;
+  }
+
+  /* Scrollbar — subtle, token-driven */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 9999px;
+    border: 2px solid hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Safe-area helpers */
   .safe-area {
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -205,187 +324,188 @@
 }
 
 /* ============================================================
-   THEME PALETTES — applied via [data-theme="<name>"] on <html>
-   Each palette overrides accent surface tokens for light + dark.
-   Status colors (valid/expiring/expired) stay semantically stable.
+   UTILITY LAYER — TYPography, shape, depth, focus utilities
    ============================================================ */
 
-/* Vermilion (default) — already defined in :root / .dark above */
-
-/* Indigo — calm, focused */
-[data-theme="indigo"] {
-  --primary: 238 70% 58%;
-  --primary-light: 238 75% 68%;
-  --primary-soft: 238 80% 96%;
-  --primary-dark: 238 70% 48%;
-  --accent: 238 70% 58%;
-  --ring: 238 70% 58%;
-  --sidebar-primary: 238 70% 58%;
-  --sidebar-ring: 238 70% 58%;
-}
-[data-theme="indigo"].dark {
-  --primary: 238 75% 65%;
-  --primary-light: 238 80% 72%;
-  --primary-soft: 238 40% 22%;
-  --primary-dark: 238 70% 52%;
-  --accent: 238 70% 60%;
-  --ring: 238 75% 65%;
-}
-
-/* Emerald — fresh, productive */
-[data-theme="emerald"] {
-  --primary: 158 64% 38%;
-  --primary-light: 158 60% 48%;
-  --primary-soft: 158 60% 95%;
-  --primary-dark: 158 70% 30%;
-  --accent: 158 64% 38%;
-  --ring: 158 64% 38%;
-  --sidebar-primary: 158 64% 38%;
-  --sidebar-ring: 158 64% 38%;
-}
-[data-theme="emerald"].dark {
-  --primary: 158 60% 48%;
-  --primary-light: 158 65% 56%;
-  --primary-soft: 158 40% 18%;
-  --primary-dark: 158 70% 36%;
-  --accent: 158 55% 50%;
-  --ring: 158 60% 48%;
-}
-
-/* Slate — neutral, editorial */
-[data-theme="slate"] {
-  --primary: 220 25% 28%;
-  --primary-light: 220 20% 42%;
-  --primary-soft: 220 25% 95%;
-  --primary-dark: 220 30% 20%;
-  --accent: 220 25% 28%;
-  --ring: 220 25% 28%;
-  --sidebar-primary: 220 25% 28%;
-  --sidebar-ring: 220 25% 28%;
-}
-[data-theme="slate"].dark {
-  --primary: 220 20% 75%;
-  --primary-light: 220 20% 82%;
-  --primary-soft: 220 20% 22%;
-  --primary-dark: 220 20% 60%;
-  --primary-foreground: 220 25% 12%;
-  --accent: 220 20% 75%;
-  --ring: 220 20% 75%;
-}
-
-/* Rose — warm, gentle */
-[data-theme="rose"] {
-  --primary: 346 70% 52%;
-  --primary-light: 346 75% 64%;
-  --primary-soft: 346 75% 96%;
-  --primary-dark: 346 70% 44%;
-  --accent: 346 70% 52%;
-  --ring: 346 70% 52%;
-  --sidebar-primary: 346 70% 52%;
-  --sidebar-ring: 346 70% 52%;
-}
-[data-theme="rose"].dark {
-  --primary: 346 75% 60%;
-  --primary-light: 346 80% 68%;
-  --primary-soft: 346 40% 22%;
-  --primary-dark: 346 70% 48%;
-  --accent: 346 70% 58%;
-  --ring: 346 75% 60%;
-}
-
-/* Amber — golden, optimistic */
-[data-theme="amber"] {
-  --primary: 32 85% 48%;
-  --primary-light: 32 90% 58%;
-  --primary-soft: 32 90% 95%;
-  --primary-dark: 32 85% 40%;
-  --accent: 32 85% 48%;
-  --ring: 32 85% 48%;
-  --sidebar-primary: 32 85% 48%;
-  --sidebar-ring: 32 85% 48%;
-}
-[data-theme="amber"].dark {
-  --primary: 32 85% 56%;
-  --primary-light: 32 90% 64%;
-  --primary-soft: 32 50% 20%;
-  --primary-dark: 32 80% 46%;
-  --accent: 32 80% 54%;
-  --ring: 32 85% 56%;
-}
-
-/* Teal — calm, clinical */
-[data-theme="teal"] {
-  --primary: 178 65% 36%;
-  --primary-light: 178 60% 46%;
-  --primary-soft: 178 60% 95%;
-  --primary-dark: 178 70% 28%;
-  --accent: 178 65% 36%;
-  --ring: 178 65% 36%;
-  --sidebar-primary: 178 65% 36%;
-  --sidebar-ring: 178 65% 36%;
-}
-[data-theme="teal"].dark {
-  --primary: 178 60% 46%;
-  --primary-light: 178 65% 56%;
-  --primary-soft: 178 40% 18%;
-  --primary-dark: 178 70% 36%;
-  --accent: 178 55% 48%;
-  --ring: 178 60% 46%;
-}
-
-/* Smooth theme switching — color interpolation, no layout shift */
-html.theme-transition,
-html.theme-transition *,
-html.theme-transition *::before,
-html.theme-transition *::after {
-  transition: background-color 280ms ease, color 280ms ease,
-              border-color 280ms ease, fill 280ms ease, stroke 280ms ease,
-              box-shadow 280ms ease !important;
-  transition-delay: 0 !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html.theme-transition,
-  html.theme-transition * {
-    transition: none !important;
-  }
-}
-
 @layer utilities {
-  /* Glassmorphism */
+  /* ---------- Typography utility classes ---------- */
+
+  /* Page Title — Desktop */
+  .text-page-title-desktop {
+    font-size: var(--fs-page-title-desktop);
+    line-height: var(--lh-page-title-desktop);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--ls-page-title-desktop);
+  }
+  /* Page Title — Mobile */
+  .text-page-title-mobile {
+    font-size: var(--fs-page-title-mobile);
+    line-height: var(--lh-page-title-mobile);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--ls-page-title-mobile);
+  }
+  /* Page Title — responsive (mobile-first) */
+  .text-page-title {
+    font-size: var(--fs-page-title-mobile);
+    line-height: var(--lh-page-title-mobile);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--ls-page-title-mobile);
+  }
+  @media (min-width: 768px) {
+    .text-page-title {
+      font-size: var(--fs-page-title-desktop);
+      line-height: var(--lh-page-title-desktop);
+      letter-spacing: var(--ls-page-title-desktop);
+    }
+  }
+
+  /* Section Heading */
+  .text-section-heading {
+    font-size: var(--fs-section-heading);
+    line-height: var(--lh-section-heading);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: var(--ls-section-heading);
+  }
+
+  /* Card Heading */
+  .text-card-heading {
+    font-size: var(--fs-card-heading);
+    line-height: var(--lh-card-heading);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  /* Body */
+  .text-body {
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: var(--font-weight-regular);
+  }
+  /* Body Emphasized */
+  .text-body-emphasized {
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-weight: var(--font-weight-medium);
+  }
+
+  /* Button text */
+  .text-button {
+    font-size: var(--fs-button);
+    line-height: var(--lh-button);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  /* Label */
+  .text-label {
+    font-size: var(--fs-label);
+    line-height: var(--lh-label);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  /* Metadata */
+  .text-metadata {
+    font-size: var(--fs-metadata);
+    line-height: var(--lh-metadata);
+    font-weight: var(--font-weight-medium);
+  }
+  .text-metadata-light {
+    font-size: var(--fs-metadata);
+    line-height: var(--lh-metadata);
+    font-weight: var(--font-weight-regular);
+  }
+
+  /* Caption */
+  .text-caption {
+    font-size: var(--fs-caption);
+    line-height: var(--lh-caption);
+    font-weight: var(--font-weight-medium);
+  }
+  .text-caption-light {
+    font-size: var(--fs-caption);
+    line-height: var(--lh-caption);
+    font-weight: var(--font-weight-regular);
+  }
+
+  /* ---------- Shape / Radius utility classes ---------- */
+  .rounded-card-lg   { border-radius: var(--radius-card-lg); }
+  .rounded-card      { border-radius: var(--radius-card); }
+  .rounded-button    { border-radius: var(--radius-button); }
+  .rounded-input     { border-radius: var(--radius-input); }
+  .rounded-dialog    { border-radius: var(--radius-dialog); }
+  .rounded-sm-control{ border-radius: var(--radius-sm-control); }
+  .rounded-badge     { border-radius: var(--radius-badge); }
+
+  /* ---------- Depth / Shadow utility classes ---------- */
+  .shadow-none-token { box-shadow: var(--shadow-0); }
+  .shadow-1          { box-shadow: var(--shadow-1); }
+  .shadow-2          { box-shadow: var(--shadow-2); }
+
+  /* ---------- Surface / Elevation utility classes ---------- */
+  .bg-surface-elevated {
+    background: hsl(var(--surface-elevated));
+  }
+  .text-secondary-foreground {
+    color: hsl(var(--secondary-foreground));
+  }
+
+  /* ---------- Focus ring — accessible, primary-colored, subtle ---------- */
+  .focus-ring {
+    outline: none;
+    box-shadow:
+      0 0 0 var(--focus-offset) var(--focus-offset-color),
+      0 0 0 calc(var(--focus-ring-width) + var(--focus-offset)) hsl(var(--ring));
+  }
+
+  /* ---------- Glassmorphism — preserved (selective use only) ---------- */
   .glass {
-    @apply bg-white/70 backdrop-blur-xl border border-border/50;
-    box-shadow: 0 1px 8px rgba(30, 50, 80, 0.04);
+    background: hsl(var(--card) / 0.72);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    border: 1px solid hsl(var(--border) / 0.6);
+    box-shadow: 0 1px 2px rgb(16 20 27 / 0.04);
   }
-
   .dark .glass {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+    background: hsl(var(--card) / 0.55);
+    border: 1px solid hsl(var(--border) / 0.7);
   }
 
-  /* Smooth transitions */
+  /* ---------- Smooth transitions baseline ---------- */
   .smooth {
     @apply transition-all duration-200 ease-out;
   }
 
-  /* Card hover */
+  /* ---------- Card surface baseline ---------- */
+  .card-metallic {
+    border: 1px solid hsl(var(--border));
+    box-shadow: var(--card-shadow);
+  }
+  .dark .card-metallic {
+    border-color: hsl(var(--border));
+    box-shadow: var(--card-shadow);
+  }
+
+  /* ---------- Card hover — subtle lift ---------- */
   .card-hover {
     @apply smooth;
     box-shadow: var(--card-shadow);
-    border: 1px solid rgba(0, 0, 0, 0.06);
+    border: 1px solid hsl(var(--border));
   }
   .card-hover:hover {
     box-shadow: var(--card-shadow-hover);
     transform: translateY(-1px);
+    border-color: hsl(var(--border));
   }
 
-  /* Primary gradient button */
+  /* ---------- Primary glow button ---------- */
   .btn-glow {
     background: hsl(var(--primary));
-    box-shadow: 0 1px 2px rgba(227, 74, 43, 0.18), 0 1px 3px rgba(0, 0, 0, 0.04);
+    color: hsl(var(--primary-foreground));
+    box-shadow:
+      0 1px 2px hsl(var(--primary) / 0.2),
+      0 1px 3px rgb(16 20 27 / 0.04);
     border: none;
     position: relative;
     overflow: hidden;
-    @apply smooth text-white font-semibold;
+    @apply smooth font-semibold;
   }
   .btn-glow::after {
     content: '';
@@ -394,64 +514,229 @@ html.theme-transition *::after {
     left: 0;
     width: 100%;
     height: 50%;
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.15), transparent);
+    background: linear-gradient(to bottom, hsl(0 0% 100% / 0.14), transparent);
     border-radius: inherit;
     pointer-events: none;
   }
   .btn-glow:hover {
     background: hsl(var(--primary-dark));
-    box-shadow: 0 4px 14px rgba(227, 74, 43, 0.25), 0 1px 3px rgba(0, 0, 0, 0.06);
+    box-shadow:
+      0 4px 14px hsl(var(--primary) / 0.28),
+      0 1px 3px rgb(16 20 27 / 0.06);
     transform: translateY(-1px);
   }
   .btn-glow:active {
     transform: translateY(0px);
-    box-shadow: 0 1px 4px rgba(227, 74, 43, 0.18);
+    box-shadow: 0 1px 4px hsl(var(--primary) / 0.2);
+  }
+  .btn-glow:disabled {
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    box-shadow: none;
+    cursor: not-allowed;
   }
 
-  /* Page background */
+  /* ---------- Page background helper ---------- */
   .page-bg {
     background: hsl(var(--background));
   }
 
-  .dark .page-bg {
-    background: hsl(var(--background));
-  }
-
-  /* Card surfaces */
-  .card-metallic {
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    box-shadow: var(--card-shadow);
-  }
-
-  .dark .card-metallic {
-    border-color: hsl(var(--border));
-    box-shadow: var(--card-shadow);
-  }
-
-  /* Text gradients */
+  /* ---------- Accent text gradient ---------- */
   .text-gradient {
     @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
   }
 
-  /* Icon shadow */
-  .icon-on-orange {
-    filter: drop-shadow(0 1px 2px rgba(249, 115, 22, 0.2));
+  /* ---------- Icon shadow on primary tones ---------- */
+  .icon-on-primary {
+    filter: drop-shadow(0 1px 2px hsl(var(--primary) / 0.2));
   }
 }
 
-/* International Phone Input Styles */
+/* ============================================================
+   THEME PALETTES — accent override only, neutrals stay global
+   Each palette overrides ONLY accent-related tokens:
+   --primary, --primary-dark, --primary-soft, --primary-light,
+   --accent, --ring, --sidebar-primary, --sidebar-ring
+   Status colors (valid/expiring/expired/warning/destructive)
+   are NEVER overridden — they stay semantically stable.
+   ============================================================ */
+
+/* Vermilion (default brand) — already defined in :root / .dark above */
+
+/* Indigo — calm, focused */
+[data-theme="indigo"] {
+  --primary: 238 70% 58%;
+  --primary-dark: 238 70% 48%;
+  --primary-soft: 238 80% 96%;
+  --primary-light: 238 75% 68%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 238 70% 58%;
+  --ring: 238 70% 58%;
+  --sidebar-primary: 238 70% 58%;
+  --sidebar-ring: 238 70% 58%;
+}
+[data-theme="indigo"].dark {
+  --primary: 238 75% 65%;
+  --primary-dark: 238 70% 52%;
+  --primary-soft: 238 40% 22%;
+  --primary-light: 238 80% 72%;
+  --accent: 238 70% 60%;
+  --ring: 238 75% 65%;
+}
+
+/* Emerald — fresh, productive */
+[data-theme="emerald"] {
+  --primary: 158 64% 38%;
+  --primary-dark: 158 70% 30%;
+  --primary-soft: 158 60% 95%;
+  --primary-light: 158 60% 48%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 158 64% 38%;
+  --ring: 158 64% 38%;
+  --sidebar-primary: 158 64% 38%;
+  --sidebar-ring: 158 64% 38%;
+}
+[data-theme="emerald"].dark {
+  --primary: 158 60% 48%;
+  --primary-dark: 158 70% 36%;
+  --primary-soft: 158 40% 18%;
+  --primary-light: 158 65% 56%;
+  --accent: 158 55% 50%;
+  --ring: 158 60% 48%;
+}
+
+/* Slate — neutral, editorial */
+[data-theme="slate"] {
+  --primary: 220 25% 28%;
+  --primary-dark: 220 30% 20%;
+  --primary-soft: 220 25% 95%;
+  --primary-light: 220 20% 42%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 220 25% 28%;
+  --ring: 220 25% 28%;
+  --sidebar-primary: 220 25% 28%;
+  --sidebar-ring: 220 25% 28%;
+}
+[data-theme="slate"].dark {
+  --primary: 220 20% 75%;
+  --primary-dark: 220 20% 60%;
+  --primary-soft: 220 20% 22%;
+  --primary-light: 220 20% 82%;
+  --primary-foreground: 220 25% 12%;
+  --accent: 220 20% 75%;
+  --ring: 220 20% 75%;
+}
+
+/* Rose — warm, gentle */
+[data-theme="rose"] {
+  --primary: 346 70% 52%;
+  --primary-dark: 346 70% 44%;
+  --primary-soft: 346 75% 96%;
+  --primary-light: 346 75% 64%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 346 70% 52%;
+  --ring: 346 70% 52%;
+  --sidebar-primary: 346 70% 52%;
+  --sidebar-ring: 346 70% 52%;
+}
+[data-theme="rose"].dark {
+  --primary: 346 75% 60%;
+  --primary-dark: 346 70% 48%;
+  --primary-soft: 346 40% 22%;
+  --primary-light: 346 80% 68%;
+  --accent: 346 70% 58%;
+  --ring: 346 75% 60%;
+}
+
+/* Amber — golden, optimistic */
+[data-theme="amber"] {
+  --primary: 32 85% 48%;
+  --primary-dark: 32 85% 40%;
+  --primary-soft: 32 90% 95%;
+  --primary-light: 32 90% 58%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 32 85% 48%;
+  --ring: 32 85% 48%;
+  --sidebar-primary: 32 85% 48%;
+  --sidebar-ring: 32 85% 48%;
+}
+[data-theme="amber"].dark {
+  --primary: 32 85% 56%;
+  --primary-dark: 32 80% 46%;
+  --primary-soft: 32 50% 20%;
+  --primary-light: 32 90% 64%;
+  --accent: 32 80% 54%;
+  --ring: 32 85% 56%;
+}
+
+/* Teal — calm, clinical */
+[data-theme="teal"] {
+  --primary: 178 65% 36%;
+  --primary-dark: 178 70% 28%;
+  --primary-soft: 178 60% 95%;
+  --primary-light: 178 60% 46%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 178 65% 36%;
+  --ring: 178 65% 36%;
+  --sidebar-primary: 178 65% 36%;
+  --sidebar-ring: 178 65% 36%;
+}
+[data-theme="teal"].dark {
+  --primary: 178 60% 46%;
+  --primary-dark: 178 70% 36%;
+  --primary-soft: 178 40% 18%;
+  --primary-light: 178 65% 56%;
+  --accent: 178 55% 48%;
+  --ring: 178 60% 46%;
+}
+
+/* ============================================================
+   SMOOTH THEME SWITCHING — color interpolation only
+   ============================================================ */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition:
+    background-color 280ms ease,
+    color 280ms ease,
+    border-color 280ms ease,
+    fill 280ms ease,
+    stroke 280ms ease,
+    box-shadow 280ms ease !important;
+  transition-delay: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.theme-transition,
+  html.theme-transition * {
+    transition: none !important;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   International Phone Input — token integration
+   ============================================================ */
+
 .international-phone-input .PhoneInput {
   @apply w-full flex items-center gap-2;
 }
 
 .international-phone-input .PhoneInputInput {
-  @apply flex-1 rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground transition-colors;
-  @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+  @apply flex-1 rounded-input border border-input bg-background px-4 py-3 text-body text-foreground transition-colors;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   @apply placeholder:text-muted-foreground;
 }
 
 .international-phone-input .PhoneInputCountry {
-  @apply flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-input;
+  @apply flex items-center gap-2 px-3 py-2 rounded-sm-control bg-muted border border-input;
 }
 
 .international-phone-input .PhoneInputCountrySelect {
@@ -463,5 +748,5 @@ html.theme-transition *::after {
 }
 
 .international-phone-input .PhoneInputCountryIconImg {
-  @apply w-full h-full object-cover rounded-sm;
+  @apply w-full h-full object-cover rounded-sm-control;
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { AppShell, PageHeader } from "@/components/layout/";
 import { clearTasksCache } from "@/hooks/useTasksData";
 
 export default function AddTask() {
@@ -135,27 +135,20 @@ export default function AddTask() {
   };
 
   return (
-    <div className="min-h-screen page-bg pb-24 px-4" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
-      {/* Header */}
-      <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/tasks")}
-          >
-            <ArrowLeft className="h-5 w-5" />
+    <AppShell contentWidth="narrow">
+      <PageHeader
+        back="/tasks"
+        title="New Task"
+        description="Create a daily task"
+        action={
+          <Button type="submit" form="add-task-form" disabled={loading} size="lg">
+            {loading ? "Creating..." : "Create Task"}
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">New Task</h1>
-            <p className="text-sm text-muted-foreground">Create a daily task</p>
-          </div>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="p-4 space-y-4 w-full max-w-full">
-        <Card className="p-4 space-y-4 rounded-xl shadow-sm w-full">
+      <form id="add-task-form" onSubmit={handleSubmit} className="space-y-4">
+        <Card className="p-4 space-y-4 rounded-xl shadow-sm">
           <div>
             <Label htmlFor="title">Task Title *</Label>
             <Input
@@ -207,12 +200,7 @@ export default function AddTask() {
             </div>
           </div>
         </Card>
-
-        <Button type="submit" disabled={loading} className="w-full" size="lg">
-          {loading ? "Creating..." : "Create Task"}
-        </Button>
       </form>
-      <BottomNavigation />
-    </div>
+    </AppShell>
   );
 }

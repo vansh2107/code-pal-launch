@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { Save, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+import { AppShell, PageHeader } from "@/components/layout/";
 import { z } from "zod";
 
 const documentSchema = z.object({
@@ -322,33 +323,44 @@ export default function EditDocument() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+      <AppShell contentWidth="narrow">
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="min-h-screen page-bg pb-20">
-      <header className="bg-card border-b border-border px-4 py-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/documents/${id}`)}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Edit Document</h1>
-            <p className="text-muted-foreground">Update document information</p>
+    <AppShell contentWidth="narrow">
+      <PageHeader
+        back={`/documents/${id}`}
+        title="Edit Document"
+        description="Update document information"
+        action={
+          <div className="flex items-center gap-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => navigate(`/documents/${id}`)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" form="edit-doc-form" disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Save className="mr-2 h-4 w-4" />
+              Save Changes
+            </Button>
           </div>
-        </div>
-      </header>
+        }
+      />
 
-      <main className="px-4 py-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Document Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Document Information</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form id="edit-doc-form" onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="name">Document Name *</Label>
                 <Input
@@ -528,25 +540,9 @@ export default function EditDocument() {
                 </Alert>
               )}
 
-              <div className="flex gap-3">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => navigate(`/documents/${id}`)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="flex-1" disabled={saving}>
-                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Changes
-                </Button>
-              </div>
             </form>
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AppShell>
   );
 }

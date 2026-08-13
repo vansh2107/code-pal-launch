@@ -6,9 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save } from "lucide-react";
+import { Save, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { BottomNavigation } from "@/components/layout/BottomNavigation";
+import { AppShell } from "@/components/layout/AppShell";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
 import { getCountryCode } from "@/utils/countryMapping";
@@ -113,29 +115,50 @@ export default function Settings() {
     }
   };
 
+  const saveAction = (
+    <Button onClick={updateProfile} disabled={saving} size="sm">
+      {saving ? (
+        <>
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          Saving...
+        </>
+      ) : (
+        <>
+          <Save className="h-4 w-4 mr-2" />
+          Save Changes
+        </>
+      )}
+    </Button>
+  );
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+      <AppShell contentWidth="narrow">
+        <PageHeader
+          title={<Skeleton className="h-8 w-52" />}
+          description={<Skeleton className="h-4 w-64" />}
+          back
+          variant="sticky"
+        />
+        <div className="space-y-6 pb-6">
+          <Skeleton className="h-64 rounded-[16px]" />
+          <Skeleton className="h-52 rounded-[16px]" />
+        </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="min-h-screen page-bg overflow-y-auto">
-      <header className="bg-card border-b border-border px-4 py-4 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-xl font-bold">Account Settings</h1>
-            <p className="text-sm text-muted-foreground">Manage your personal information</p>
-          </div>
-        </div>
-      </header>
+    <AppShell contentWidth="narrow">
+      <PageHeader
+        title="Account Settings"
+        description="Manage your personal information"
+        back
+        action={saveAction}
+        variant="sticky"
+      />
 
-      <main className="px-4 py-6 space-y-6 max-w-2xl mx-auto pb-32">
+      <div className="space-y-6 pb-6">
         {/* Personal Information */}
         <Card>
           <CardHeader>
@@ -224,24 +247,7 @@ export default function Settings() {
             </Button>
           </CardContent>
         </Card>
-
-        {/* Save Button */}
-        <Button onClick={updateProfile} disabled={saving} className="w-full" size="lg">
-          {saving ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground mr-2"></div>
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
-            </>
-          )}
-        </Button>
-      </main>
-
-      <BottomNavigation />
-    </div>
+      </div>
+    </AppShell>
   );
 }

@@ -19,6 +19,9 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        "secondary-foreground": "hsl(var(--secondary-foreground))",
+        placeholder: "hsl(var(--placeholder))",
+        "surface-elevated": "hsl(var(--surface-elevated))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -28,7 +31,7 @@ export default {
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+          foreground: "hsl(var(--secondary-foreground-contrast))",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
@@ -84,14 +87,56 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        /* Shape tokens */
+        "card-lg": "var(--radius-card-lg)",
+        "card": "var(--radius-card)",
+        "button": "var(--radius-button)",
+        "input": "var(--radius-input)",
+        "dialog": "var(--radius-dialog)",
+        "sm-control": "var(--radius-sm-control)",
+        "badge": "var(--radius-badge)",
       },
       fontFamily: {
         sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
       },
+      fontWeight: {
+        regular: '400',
+        medium: '500',
+        semibold: '600',
+        bold: '700',
+      },
+      fontSize: {
+        /* Page title desktop: 30px / 36px */
+        "page-title-desktop": ["30px", { lineHeight: "36px", letterSpacing: "-0.025em", fontWeight: "700" }],
+        /* Page title mobile: 24px / 30px */
+        "page-title-mobile": ["24px", { lineHeight: "30px", letterSpacing: "-0.025em", fontWeight: "700" }],
+        /* Section heading: 18px / 26px */
+        "section-heading": ["18px", { lineHeight: "26px", letterSpacing: "-0.015em", fontWeight: "600" }],
+        /* Card heading: 16px / 24px */
+        "card-heading": ["16px", { lineHeight: "24px", fontWeight: "600" }],
+        /* Body: 15px / 24px */
+        "body": ["15px", { lineHeight: "24px", fontWeight: "400" }],
+        "body-emphasized": ["15px", { lineHeight: "24px", fontWeight: "500" }],
+        /* Button: 14px / 20px */
+        "button": ["14px", { lineHeight: "20px", fontWeight: "600" }],
+        /* Label: 13px / 18px */
+        "label": ["13px", { lineHeight: "18px", fontWeight: "600" }],
+        /* Metadata: 13px / 20px */
+        "metadata": ["13px", { lineHeight: "20px", fontWeight: "500" }],
+        "metadata-light": ["13px", { lineHeight: "20px", fontWeight: "400" }],
+        /* Caption: 12px / 16px */
+        "caption": ["12px", { lineHeight: "16px", fontWeight: "500" }],
+        "caption-light": ["12px", { lineHeight: "16px", fontWeight: "400" }],
+      },
       boxShadow: {
+        /* Legacy card shadows — backward compatibility */
         'card': 'var(--card-shadow)',
         'card-hover': 'var(--card-shadow-hover)',
-        'primary-glow': '0 4px 14px rgba(79, 70, 229, 0.3)',
+        /* Depth token shadows */
+        '1': 'var(--shadow-1)',
+        '2': 'var(--shadow-2)',
+        /* Old primary-glow kept for backward compat, themed via primary */
+        'primary-glow': '0 4px 14px hsl(var(--primary) / 0.3)',
       },
       keyframes: {
         "accordion-down": {
@@ -126,6 +171,11 @@ export default {
           "0%": { backgroundPosition: "-1000px 0" },
           "100%": { backgroundPosition: "1000px 0" },
         },
+        "skeleton": {
+          "0%": { opacity: "1" },
+          "50%": { opacity: "0.55" },
+          "100%": { opacity: "1" },
+        },
         "float": {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-10px)" },
@@ -144,6 +194,7 @@ export default {
         "slide-in": "slide-in 0.4s ease-out",
         "slide-up": "slide-up 0.4s ease-out",
         "shimmer": "shimmer 2s linear infinite",
+        "skeleton": "skeleton 1.8s ease-in-out infinite",
         "float": "float 3s ease-in-out infinite",
         "spin-slow": "spin 3s linear infinite",
         "border-glow": "border-glow 2s ease-in-out infinite",
