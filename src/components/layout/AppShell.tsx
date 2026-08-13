@@ -58,7 +58,7 @@ export function AppShell({
         <SidebarNav />
 
         {/* Main Column */}
-        <div className="flex-1 flex flex-col min-w-0 w-full">
+        <div className="flex-1 flex flex-col min-w-0 w-full md:pl-64">
           <main
             className={`flex-1 w-full ${paddingClass} ${bottomSpacing} ${maxWidthClass} ${
               contentWidth !== "full" ? "mx-auto" : ""

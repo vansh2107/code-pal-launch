@@ -44,7 +44,7 @@ export function SidebarNav() {
 
   return (
     <aside
-      className="hidden md:flex md:flex-col md:w-64 md:shrink-0 md:h-screen md:sticky md:top-0 border-r border-border/60 bg-card/60 backdrop-blur-sm"
+      className="hidden md:flex md:flex-col md:w-64 md:shrink-0 md:h-screen md:fixed md:top-0 md:left-0 md:z-30 border-r border-border/60 bg-card/60 backdrop-blur-sm"
       aria-label="Primary navigation"
     >
       {/* Brand */}

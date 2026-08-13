@@ -248,11 +248,9 @@ export default function Tasks() {
         {activeTab === "tasks" && (
           <Button
             onClick={() => navigate("/add-task")}
-            className="fixed h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-transform z-40"
+            className="fixed h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-transform z-40 md:left-[calc(50%+8rem)] left-[50%] -translate-x-1/2"
             style={{
               bottom: '80px',
-              left: '50%',
-              transform: 'translateX(-50%)'
             }}
             size="icon"
           >

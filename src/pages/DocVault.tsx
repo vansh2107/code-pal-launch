@@ -348,18 +348,18 @@ export default function DocVault() {
   );
 
   return (
-    <AppShell contentWidth="full">
-      <div className="w-full flex overflow-x-hidden">
+    <AppShell contentWidth="full" contentPadding={false}>
+      <div className="w-full flex min-h-screen">
         {/* Desktop Sidebar - lg+ only since md shows AppShell SidebarNav */}
-        <div className="hidden lg:block w-64 shrink-0 h-screen sticky top-0 -ml-6">
+        <div className="hidden lg:block w-64 shrink-0 h-screen sticky top-0 border-r border-border bg-card">
           {sidebarContent}
         </div>
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <div className="sticky top-0 z-40 bg-gradient-to-b from-primary/10 to-background backdrop-blur-xl border-b border-border/50 -mx-4 md:-mx-6">
-            <div className="w-full py-4 px-4 md:px-6">
+          <div className="sticky top-0 z-40 bg-gradient-to-b from-primary/10 to-background backdrop-blur-xl border-b border-border/50 px-4 md:px-6 py-4">
+            <div className="w-full">
               <div className="flex items-center gap-3 mb-2">
                 {/* Mobile menu toggle */}
                 <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
@@ -391,7 +391,7 @@ export default function DocVault() {
           </div>
 
           {/* Content */}
-          <div className="flex-1 py-6 space-y-6">
+          <div className="flex-1 p-4 md:p-6 space-y-6">
             {/* Search and Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
@@ -418,7 +418,7 @@ export default function DocVault() {
                 <Button
                   onClick={() => setUploadDialogOpen(true)}
                   variant="default"
-                  className="gap-2"
+                  className="gap-2 bg-black text-white hover:bg-black/90"
                   disabled={isUploading}
                 >
                   <Upload className="h-4 w-4" />
@@ -471,7 +471,7 @@ export default function DocVault() {
                     <Button 
                       onClick={() => setUploadDialogOpen(true)} 
                       variant="default" 
-                      className="w-full sm:w-auto"
+                      className="w-full sm:w-auto bg-black text-white hover:bg-black/90"
                     >
                       <Upload className="h-4 w-4 mr-2" />
                       Upload
