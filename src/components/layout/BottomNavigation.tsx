@@ -86,7 +86,7 @@ export function BottomNavigation() {
                             )
                       )}
                       aria-hidden="true"
-                      strokeWidth={isActive ? 2.25 : 2}
+                      {...({ strokeWidth: isActive ? 2.25 : 2 } as any)}
                     />
                     <span
                       className={cn(

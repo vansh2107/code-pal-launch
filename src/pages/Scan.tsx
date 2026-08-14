@@ -644,7 +644,7 @@ export default function Scan() {
           user_id: user.id,
           organization_id: selectedOrgId,
           image_path: imagePath,
-        })
+        } as any)
         .select()
         .single();
 

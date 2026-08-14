@@ -143,7 +143,7 @@ export const savePlayerIdToSupabase = async (userId: string) => {
       user_id: userId,
       player_id: playerId,
       device_info: navigator.userAgent,
-    });
+    } as any);
     if (error) {
       console.error("Error saving Player ID:", error);
       return false;

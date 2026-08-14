@@ -77,6 +77,15 @@ export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"expiry" | "name" | "recent">("expiry");
   const [filterStatus, setFilterStatus] = useState<"all" | "expired" | "expiring" | "valid">("all");
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const status = searchParams.get('status');
@@ -246,14 +255,17 @@ export default function Documents() {
 
       <div className="space-y-6 pb-6 w-full">
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="relative min-w-0 w-full">
+            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground shrink-0 pointer-events-none" />
             <Input
-              placeholder="Search documents by name, type, or authority..."
+              placeholder={isMobile ? "Search documents..." : "Search documents by name, type, or authority"}
+              aria-label="Search documents by name, type, or authority"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-11 rounded-[12px] bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
+              className="pl-10 pr-4 h-11 rounded-[12px] bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary w-full min-w-0"
             />
+            {/* Visually hidden or responsive desktop override via CSS / media query helper */}
+            <span className="sr-only">Search documents by name, type, or authority</span>
           </div>
 
           {/* Status Filter Pills / Tabs (All, Valid, Expiring, Expired) */}

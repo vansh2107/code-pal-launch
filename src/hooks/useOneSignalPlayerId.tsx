@@ -52,7 +52,7 @@ export const useOneSignalPlayerId = () => {
             user_id: user.id,
             player_id: playerIdFromDespia,
             device_info: navigator.userAgent,
-          });
+          } as any);
 
         if (error) {
           console.error('Error registering OneSignal Player ID:', error);
@@ -99,7 +99,7 @@ export const useOneSignalPlayerId = () => {
           user_id: user.id,
           player_id: playerIdInput,
           device_info: deviceInfo || navigator.userAgent,
-        });
+        } as any);
 
       if (error) {
         console.error('Error registering OneSignal Player ID:', error);
