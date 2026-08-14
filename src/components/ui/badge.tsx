@@ -15,19 +15,19 @@ const badgeVariants = cva(
         outline:
           "border border-border text-foreground bg-transparent",
         destructive:
-          "bg-expired-bg text-expired border border-expired/25",
+          "bg-expired-bg text-expired-foreground border border-expired/25",
         valid:
-          "bg-valid-bg text-valid border border-valid/20",
+          "bg-valid-bg text-valid-foreground border border-valid/20",
         expiring:
-          "bg-expiring-bg text-expiring border border-expiring/25",
+          "bg-expiring-bg text-expiring-foreground border border-expiring/25",
         expired:
-          "bg-expired-bg text-expired border border-expired/25",
+          "bg-expired-bg text-expired-foreground border border-expired/25",
         warning:
-          "bg-expiring-bg text-warning border border-warning/25",
+          "bg-expiring-bg text-warning-foreground border border-warning/25",
         error:
-          "bg-expired-bg text-expired border border-expired/30",
+          "bg-expired-bg text-expired-foreground border border-expired/30",
         success:
-          "bg-valid-bg text-valid border border-valid/20",
+          "bg-valid-bg text-valid-foreground border border-valid/20",
       },
     },
     defaultVariants: {

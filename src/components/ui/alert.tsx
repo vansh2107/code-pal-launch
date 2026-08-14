@@ -14,13 +14,13 @@ const alertVariants = cva(
         info:
           "bg-primary-soft/40 text-foreground border-primary/15 [&_svg]:text-primary",
         success:
-          "bg-valid-bg text-foreground border-valid/20 [&_svg]:text-valid",
+          "bg-valid-bg text-valid-foreground border-valid/20 [&_svg]:text-valid-foreground",
         warning:
-          "bg-expiring-bg text-foreground border-expiring/20 [&_svg]:text-expiring",
+          "bg-expiring-bg text-expiring-foreground border-expiring/20 [&_svg]:text-expiring-foreground",
         error:
-          "bg-expired-bg text-foreground border-expired/22 [&_svg]:text-expired",
+          "bg-expired-bg text-expired-foreground border-expired/22 [&_svg]:text-expired-foreground",
         destructive:
-          "bg-expired-bg text-foreground border-expired/28 [&_svg]:text-expired",
+          "bg-expired-bg text-expired-foreground border-expired/28 [&_svg]:text-expired-foreground",
       },
     },
     defaultVariants: {

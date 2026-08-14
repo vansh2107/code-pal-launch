@@ -29,14 +29,14 @@ const toastVariants = cva(
       variant: {
         default: "border-border text-foreground",
         success:
-          "border-valid/25 bg-surface-elevated text-foreground [&_[data-toast-icon]\\=true]:text-valid",
+          "border-valid/25 bg-surface-elevated text-valid-foreground",
         warning:
-          "border-expiring/25 bg-surface-elevated text-foreground [&_[data-toast-icon]\\=true]:text-expiring",
+          "border-expiring/25 bg-surface-elevated text-expiring-foreground",
         error:
-          "border-expired/30 bg-surface-elevated text-foreground [&_[data-toast-icon]\\=true]:text-expired",
-        info: "border-primary/20 bg-surface-elevated text-foreground [&_[data-toast-icon]\\=true]:text-primary",
+          "border-expired/30 bg-surface-elevated text-expired-foreground",
+        info: "border-primary/20 bg-surface-elevated text-foreground",
         destructive:
-          "destructive group border-expired/30 bg-surface-elevated text-foreground [&_[data-toast-icon]\\=true]:text-expired",
+          "destructive group border-expired/30 bg-surface-elevated text-expired-foreground",
       },
     },
     defaultVariants: {

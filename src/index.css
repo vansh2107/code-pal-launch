@@ -49,26 +49,26 @@
     /* ===== SEMANTIC STATUS COLORS — THEME-INDEPENDENT ===== */
     /* VALID */
     --valid: 153 55% 33%;             /* #27845A */
-    --valid-foreground: 0 0% 100%;
+    --valid-foreground: 0 0% 0%;      /* black text for readable light-theme contrast */
     --valid-bg: 145 50% 94%;          /* #EAF7F0 — light */
 
     /* EXPIRING */
     --expiring: 37 71% 42%;           /* #B7791F */
-    --expiring-foreground: 0 0% 100%;
+    --expiring-foreground: 0 0% 0%;   /* black text for readable light-theme contrast */
     --expiring-bg: 44 100% 93%;       /* #FFF5DD — light */
 
     /* EXPIRED */
     --expired: 0 54% 50%;             /* #C43D3D */
-    --expired-foreground: 0 0% 100%;
+    --expired-foreground: 0 0% 0%;    /* black text for readable light-theme contrast */
     --expired-bg: 0 80% 96%;          /* #FCECEC — light */
 
     /* WARNING */
     --warning: 32 82% 40%;            /* #B86B12 */
-    --warning-foreground: 0 0% 100%;
+    --warning-foreground: 0 0% 0%;    /* black text for readable light-theme contrast */
 
     /* DESTRUCTIVE */
     --destructive: 0 61% 48%;         /* #C53030 */
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 0 0% 0%; /* black text for readable light-theme contrast */
 
     /* ===== SHAPE / RADIUS TOKENS ===== */
     --radius: 0.875rem;               /* shadcn legacy default (card-lg-ish) */
@@ -186,7 +186,12 @@
     --secondary-foreground-contrast: 220 10% 96%;
 
     /* ===== SEMANTIC STATUS COLORS — DARK BACKGROUND VARIANTS =====
-       Foregrounds stay identical; only *-bg swaps for dark mode.   */
+       Use light foregrounds in dark mode for contrast.               */
+    --valid-foreground: 0 0% 100%;
+    --expiring-foreground: 0 0% 100%;
+    --expired-foreground: 0 0% 100%;
+    --warning-foreground: 0 0% 100%;
+    --destructive-foreground: 0 0% 100%;
     --valid-bg: 153 43% 14%;          /* #153528 — dark */
     --expiring-bg: 38 52% 15%;        /* #3A2B12 — dark */
     --expired-bg: 354 35% 17%;        /* #3A1D20 — dark */
