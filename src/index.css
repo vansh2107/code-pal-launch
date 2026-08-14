@@ -13,19 +13,19 @@
 
     /* ===== NEUTRAL / SURFACE HIERARCHY — LIGHT ===== */
     --background: 45 22% 97%;         /* #FAF9F6 */
-    --foreground: 240 5% 10%;         /* #18181B */
-    --secondary-foreground: 240 4% 34%; /* #52525B */
-    --muted-foreground: 240 4% 46%;   /* #71717A */
-    --placeholder: 240 4% 65%;        /* #A1A1AA */
+    --foreground: 0 0% 0%;            /* #000000 (Pure Black) */
+    --secondary-foreground: 0 0% 13%;   /* #222222 */
+    --muted-foreground: 240 4% 35%;   /* #59595F — dark muted text for readability */
+    --placeholder: 240 4% 55%;        /* #88888E */
 
     --card: 0 0% 100%;                /* #FFFFFF */
-    --card-foreground: 240 5% 10%;    /* #18181B */
+    --card-foreground: 0 0% 0%;       /* #000000 (Pure Black) */
 
     --surface-elevated: 20 100% 99%;  /* #FFFDFC */
     --muted: 40 15% 94%;              /* #F3F1ED — muted surface */
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 5% 10%;
+    --popover-foreground: 0 0% 0%;    /* #000000 (Pure Black) */
 
     --border: 40 14% 88%;             /* #E5E1DA */
     --input: 40 14% 88%;
