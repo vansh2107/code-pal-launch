@@ -92,7 +92,19 @@ export function ChatBot() {
   const FAB_SIZE = 56;
   const EDGE_PADDING = 10;
   const DRAG_THRESHOLD = 6;
-  const BOTTOM_NAV_HEIGHT = 90; // Bottom navigation bar height + safe area
+
+  // Helper to calculate bottom nav height from CSS variables
+  const getBottomNavHeight = useCallback(() => {
+    const root = document.documentElement;
+    const navHeightStr = getComputedStyle(root).getPropertyValue('--nav-height').trim() || '70px';
+    const safeAreaStr = getComputedStyle(root).getPropertyValue('--safe-area-bottom').trim() || '0px';
+    
+    const navHeight = parseFloat(navHeightStr);
+    const safeArea = parseFloat(safeAreaStr);
+    const gap = 16; // var(--fab-gap)
+    
+    return navHeight + safeArea + gap;
+  }, []);
 
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
     try {
@@ -112,20 +124,22 @@ export function ChatBot() {
   // Set default position on mount
   useLayoutEffect(() => {
     if (fabPos.x === -1 && fabPos.y === -1) {
+      const bottomNavHeight = getBottomNavHeight();
       const defaultX = window.innerWidth - FAB_SIZE - EDGE_PADDING;
-      const defaultY = window.innerHeight - FAB_SIZE - BOTTOM_NAV_HEIGHT - EDGE_PADDING;
+      const defaultY = window.innerHeight - FAB_SIZE - bottomNavHeight - EDGE_PADDING;
       setFabPos({ x: defaultX, y: defaultY });
     }
-  }, []);
+  }, [getBottomNavHeight]);
 
   const clampPosition = useCallback((x: number, y: number) => {
+    const bottomNavHeight = getBottomNavHeight();
     const maxX = window.innerWidth - FAB_SIZE - EDGE_PADDING;
-    const maxY = window.innerHeight - FAB_SIZE - BOTTOM_NAV_HEIGHT - EDGE_PADDING;
+    const maxY = window.innerHeight - FAB_SIZE - bottomNavHeight - EDGE_PADDING;
     return {
       x: Math.max(EDGE_PADDING, Math.min(x, maxX)),
       y: Math.max(EDGE_PADDING, Math.min(y, maxY)),
     };
-  }, []);
+  }, [getBottomNavHeight]);
 
   const snapToEdge = useCallback((x: number, y: number) => {
     const midX = window.innerWidth / 2;
@@ -845,7 +859,7 @@ export function ChatBot() {
         <Button
           onClick={() => setIsOpen(false)}
           className="fixed right-4 md:right-6 h-12 w-12 md:h-14 md:w-14 rounded-full shadow-lg z-50"
-          style={{ bottom: 'calc(6rem + env(safe-area-inset-bottom))' }}
+          style={{ bottom: 'calc(var(--nav-height) + var(--safe-area-bottom) + var(--fab-gap))' }}
           size="icon"
         >
           <X className="h-5 w-5 md:h-6 md:w-6" />
@@ -855,7 +869,7 @@ export function ChatBot() {
       {isOpen && (
         <Card 
           className="fixed inset-x-2 md:right-6 md:left-auto md:w-96 h-[calc(100vh-200px)] md:h-[500px] max-h-[500px] shadow-2xl z-50 flex flex-col w-full rounded-2xl"
-          style={{ bottom: 'calc(7.5rem + env(safe-area-inset-bottom))' }}
+          style={{ bottom: 'calc(var(--nav-height) + var(--safe-area-bottom) + var(--fab-gap) + 56px)' }}
         >
           <div className="flex items-center justify-between p-3 md:p-4 border-b bg-primary/5">
             <div className="flex items-center gap-2">

@@ -197,7 +197,7 @@ export default function NotificationSoundSettings() {
   }
 
   return (
-    <div className="min-h-screen page-bg flex flex-col w-full" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
+    <div className="min-h-screen page-bg flex flex-col w-full" style={{ paddingBottom: 'calc(var(--nav-height) + var(--safe-area-bottom) + var(--fab-gap) + 32px)' }}>
       {/* Header */}
       <header className="bg-card border-b border-border/50 px-4 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">

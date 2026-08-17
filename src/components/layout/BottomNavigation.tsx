@@ -31,6 +31,7 @@ export function BottomNavigation() {
       aria-label="Primary navigation"
       style={{
         paddingBottom: "var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))",
+        height: "calc(var(--nav-height) + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)))"
       }}
     >
       {/* Backdrop layer */}

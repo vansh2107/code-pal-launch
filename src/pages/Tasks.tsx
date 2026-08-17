@@ -250,7 +250,7 @@ export default function Tasks() {
             onClick={() => navigate("/add-task")}
             className="fixed h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-transform z-40 md:left-[calc(50%+8rem)] left-[50%] -translate-x-1/2"
             style={{
-              bottom: '80px',
+              bottom: 'calc(var(--nav-height) + var(--safe-area-bottom) + var(--fab-gap))',
             }}
             size="icon"
           >

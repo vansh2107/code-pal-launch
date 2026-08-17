@@ -12,6 +12,14 @@
     --safe-area-right: env(safe-area-inset-right, 0px);
 
     /* ===== NEUTRAL / SURFACE HIERARCHY — LIGHT ===== */
+    --nav-height: 70px;
+
+    /* ===== FLOATING ACTION BUTTON (FAB) TOKENS ===== */
+    --fab-size: 3.5rem;              /* 56px — standard FAB size */
+    --fab-size-sm: 3rem;             /* 48px — small FAB */
+    --fab-gap: 1rem;                 /* 16px — gap between FAB and navigation */
+    /* FAB should be positioned at: bottom = calc(var(--nav-height) + var(--safe-area-bottom) + var(--fab-gap)) */
+
     --background: 45 22% 97%;         /* #FAF9F6 */
     --foreground: 0 0% 0%;            /* #000000 (Pure Black) */
     --secondary-foreground: 0 0% 13%;   /* #222222 */

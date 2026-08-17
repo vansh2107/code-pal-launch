@@ -1,7 +1,12 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import { initPdfWorker } from './services/document-processor/pdf-init';
+initPdfWorker();
+
 import "./index.css";
+import "./responsive.css";
+
 
 // ── Service Worker registration (production only, not in iframes/preview) ──
 const isInIframe = (() => {

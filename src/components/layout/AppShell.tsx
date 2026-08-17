@@ -46,14 +46,15 @@ export function AppShell({
     : "";
 
   const bottomSpacing = showMobileNavSpacing && isMobile
-    ? "pb-[calc(70px+var(--safe-area-bottom,0px)+16px)]"
+    ? "pb-[calc(var(--nav-height)+var(--safe-area-bottom,0px)+16px)]"
     : showMobileNavSpacing
     ? "md:pb-6"
     : "";
 
   return (
     <SafeAreaContainer>
-      <div className={`min-h-screen page-bg flex w-full overflow-x-hidden ${className}`}>
+      <div className={`min-h-[100dvh] page-bg flex w-full overflow-x-hidden ${className}`}>
+
         {/* Desktop Sidebar — hidden on mobile */}
         <SidebarNav />
 

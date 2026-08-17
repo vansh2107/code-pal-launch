@@ -1,0 +1,27 @@
+/* ============================================================
+   GLOBAL IMAGE IMPROVEMENTS
+   ============================================================ */
+.img-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.img-contain {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+/* ============================================================
+   ROOT LAYOUT FIXES
+   ============================================================ */
+#root {
+  min-height: 100dvh; /* Dynamic Viewport Height */
+  display: flex;
+  flex-direction: column;
+}
