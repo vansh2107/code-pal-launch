@@ -13,6 +13,7 @@ import { Save, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { AppShell, PageHeader } from "@/components/layout/";
+import { sanitizeDocumentNote } from "@/utils/documentNotes";
 import { z } from "zod";
 
 const documentSchema = z.object({
@@ -83,7 +84,7 @@ export default function EditDocument() {
         issuing_authority: data.issuing_authority || "",
         expiry_date: data.expiry_date || "",
         renewal_period_days: data.renewal_period_days || 30,
-        notes: data.notes || "",
+        notes: sanitizeDocumentNote(data.notes || ""),
         custom_reminder_date: reminderData?.reminder_date || "",
       });
     } catch (error) {
@@ -176,11 +177,12 @@ export default function EditDocument() {
         ...formData,
         document_type: mappedType as any,
       });
+      const safeNotes = sanitizeDocumentNote(validatedData.notes || "");
 
       // Prepare update object - exclude expiry fields for DocVault
       const updateData: any = {
         name: validatedData.name,
-        notes: validatedData.notes,
+        notes: safeNotes,
       };
 
       if (!isDocVault) {

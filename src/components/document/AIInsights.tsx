@@ -95,7 +95,7 @@ export function AIInsights({ document, statusInfo }: { document: Document; statu
         <Button
           onClick={() => analyzeDocument('renewal_requirements')}
           disabled={loadingType !== null}
-          className={`w-full ${
+          className={`w-full max-w-full whitespace-normal h-auto py-3 px-4 text-center justify-center min-w-0 ${
             statusInfo?.status === 'expired' 
               ? 'bg-red-600 hover:bg-red-700 text-white' 
               : statusInfo?.status === 'expiring'
@@ -104,8 +104,8 @@ export function AIInsights({ document, statusInfo }: { document: Document; statu
           }`}
           size="lg"
         >
-          {loadingType === 'renewal_requirements' ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <FileCheck className="h-5 w-5 mr-2" />}
-          Get Renewal Requirements Checklist
+          {loadingType === 'renewal_requirements' ? <Loader2 className="h-5 w-5 animate-spin mr-2 shrink-0" /> : <FileCheck className="h-5 w-5 mr-2 shrink-0" />}
+          <span className="text-wrap break-words min-w-0">Get Renewal Requirements Checklist</span>
         </Button>
 
         <Separator />
@@ -114,68 +114,73 @@ export function AIInsights({ document, statusInfo }: { document: Document; statu
           variant="outline"
           onClick={() => analyzeDocument('full_analysis')}
           disabled={loadingType !== null}
-          className="w-full"
+          className="w-full max-w-full whitespace-normal h-auto py-3 px-4 text-center justify-center min-w-0"
           size="lg"
         >
-          {loadingType === 'full_analysis' ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Sparkles className="h-5 w-5 mr-2" />}
-          Complete AI Analysis
+          {loadingType === 'full_analysis' ? <Loader2 className="h-5 w-5 animate-spin mr-2 shrink-0" /> : <Sparkles className="h-5 w-5 mr-2 shrink-0" />}
+          <span className="text-wrap break-words min-w-0">Complete AI Analysis</span>
         </Button>
 
         <Separator />
 
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 w-full min-w-0">
           <Button
             variant="outline"
             onClick={() => analyzeDocument('classify')}
             disabled={loadingType !== null}
             size="sm"
+            className="w-full max-w-full whitespace-normal h-auto py-2.5 px-2 text-xs sm:text-sm justify-center min-w-0"
           >
-            {loadingType === 'classify' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Lightbulb className="h-4 w-4 mr-2" />}
-            Classification
+            {loadingType === 'classify' ? <Loader2 className="h-4 w-4 animate-spin mr-1.5 shrink-0" /> : <Lightbulb className="h-4 w-4 mr-1.5 shrink-0" />}
+            <span className="text-wrap break-words min-w-0">Classification</span>
           </Button>
           <Button
             variant="outline"
             onClick={() => analyzeDocument('renewal_prediction')}
             disabled={loadingType !== null}
             size="sm"
+            className="w-full max-w-full whitespace-normal h-auto py-2.5 px-2 text-xs sm:text-sm justify-center min-w-0"
           >
-            {loadingType === 'renewal_prediction' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <TrendingUp className="h-4 w-4 mr-2" />}
-            Renewal Tips
+            {loadingType === 'renewal_prediction' ? <Loader2 className="h-4 w-4 animate-spin mr-1.5 shrink-0" /> : <TrendingUp className="h-4 w-4 mr-1.5 shrink-0" />}
+            <span className="text-wrap break-words min-w-0">Renewal Tips</span>
           </Button>
           <Button
             variant="outline"
             onClick={() => analyzeDocument('priority_scoring')}
             disabled={loadingType !== null}
             size="sm"
+            className="w-full max-w-full whitespace-normal h-auto py-2.5 px-2 text-xs sm:text-sm justify-center min-w-0"
           >
-            {loadingType === 'priority_scoring' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <AlertTriangle className="h-4 w-4 mr-2" />}
-            Priority
+            {loadingType === 'priority_scoring' ? <Loader2 className="h-4 w-4 animate-spin mr-1.5 shrink-0" /> : <AlertTriangle className="h-4 w-4 mr-1.5 shrink-0" />}
+            <span className="text-wrap break-words min-w-0">Priority</span>
           </Button>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 w-full min-w-0">
           <Button
             variant="outline"
             onClick={() => analyzeDocument('cost_estimate')}
             disabled={loadingType !== null}
             size="sm"
+            className="w-full max-w-full whitespace-normal h-auto py-2.5 px-2 text-xs sm:text-sm justify-center min-w-0"
           >
-            {loadingType === 'cost_estimate' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <DollarSign className="h-4 w-4 mr-2" />}
-            Cost Estimate
+            {loadingType === 'cost_estimate' ? <Loader2 className="h-4 w-4 animate-spin mr-1.5 shrink-0" /> : <DollarSign className="h-4 w-4 mr-1.5 shrink-0" />}
+            <span className="text-wrap break-words min-w-0">Cost Estimate</span>
           </Button>
           <Button
             variant="outline"
             onClick={() => analyzeDocument('compliance_check')}
             disabled={loadingType !== null}
             size="sm"
+            className="w-full max-w-full whitespace-normal h-auto py-2.5 px-2 text-xs sm:text-sm justify-center min-w-0"
           >
-            {loadingType === 'compliance_check' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileCheck className="h-4 w-4 mr-2" />}
-            Compliance Check
+            {loadingType === 'compliance_check' ? <Loader2 className="h-4 w-4 animate-spin mr-1.5 shrink-0" /> : <FileCheck className="h-4 w-4 mr-1.5 shrink-0" />}
+            <span className="text-wrap break-words min-w-0">Compliance Check</span>
           </Button>
         </div>
 
         {insights && (
-          <div className="mt-4 p-4 bg-muted rounded-lg space-y-4">
+          <div className="mt-4 p-4 bg-muted rounded-lg space-y-4 max-w-full overflow-hidden break-words min-w-0">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold text-base">
                 {insights.type === 'classify' && '📋 Classification Analysis'}
@@ -221,28 +226,28 @@ export function AIInsights({ document, statusInfo }: { document: Document; statu
             )}
 
             {insights.type === 'renewal_prediction' && (
-              <div className="space-y-3">
-                <div className="grid gap-3">
-                  <div className="flex items-center justify-between p-3 bg-background rounded border">
-                    <span className="text-sm font-medium">Optimal Reminder Period:</span>
-                    <Badge className="ml-2">{insights.data.suggestedReminderDays} days</Badge>
+              <div className="space-y-3 min-w-0">
+                <div className="grid gap-3 min-w-0">
+                  <div className="flex items-center justify-between gap-2 p-3 bg-background rounded border min-w-0">
+                    <span className="text-sm font-medium min-w-0 truncate">Optimal Reminder Period:</span>
+                    <Badge className="ml-2 shrink-0">{insights.data.suggestedReminderDays} days</Badge>
                   </div>
                   {insights.data.estimatedProcessingTime && (
-                    <div className="flex items-center justify-between p-3 bg-background rounded border">
-                      <span className="text-sm font-medium">Processing Time:</span>
-                      <span className="text-sm">{insights.data.estimatedProcessingTime}</span>
+                    <div className="flex items-center justify-between gap-2 p-3 bg-background rounded border min-w-0">
+                      <span className="text-sm font-medium min-w-0 truncate">Processing Time:</span>
+                      <span className="text-sm min-w-0 break-words text-right">{insights.data.estimatedProcessingTime}</span>
                     </div>
                   )}
                 </div>
-                <p className="text-sm leading-relaxed">{insights.data.reasoning}</p>
+                <p className="text-sm leading-relaxed break-words">{insights.data.reasoning}</p>
                 {insights.data.renewalTips && insights.data.renewalTips.length > 0 && (
-                  <div className="pt-2 border-t">
+                  <div className="pt-2 border-t min-w-0">
                     <p className="text-xs font-medium mb-2">Renewal Tips:</p>
-                    <ul className="space-y-1">
+                    <ul className="space-y-1 min-w-0">
                       {insights.data.renewalTips.map((tip: string, i: number) => (
-                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
-                          <span className="text-primary">•</span>
-                          <span>{tip}</span>
+                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-2 min-w-0 break-words">
+                          <span className="text-primary shrink-0">•</span>
+                          <span className="break-words min-w-0">{tip}</span>
                         </li>
                       ))}
                     </ul>
@@ -252,14 +257,14 @@ export function AIInsights({ document, statusInfo }: { document: Document; statu
             )}
 
             {insights.type === 'priority_scoring' && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Priority Score</span>
-                      <span className="text-2xl font-bold text-primary">{insights.data.priorityScore}/100</span>
+              <div className="space-y-3 min-w-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
+                      <span className="text-sm font-medium min-w-0 truncate">Priority Score</span>
+                      <span className="text-2xl font-bold text-primary shrink-0">{insights.data.priorityScore}/100</span>
                     </div>
-                    <div className="h-2 bg-background rounded-full overflow-hidden">
+                    <div className="h-2 bg-background rounded-full overflow-hidden w-full min-w-0">
                       <div 
                         className={`h-full transition-all ${
                           insights.data.priorityScore > 75 ? 'bg-destructive' :
@@ -271,16 +276,16 @@ export function AIInsights({ document, statusInfo }: { document: Document; statu
                     </div>
                   </div>
                 </div>
-                <div className="p-3 bg-background rounded border">
+                <div className="p-3 bg-background rounded border min-w-0">
                   <p className="text-sm font-medium mb-1">Recommended Action:</p>
-                  <p className="text-sm text-muted-foreground">{insights.data.actionRecommendation}</p>
+                  <p className="text-sm text-muted-foreground break-words">{insights.data.actionRecommendation}</p>
                 </div>
                 {insights.data.factors && (
-                  <div className="pt-2 border-t">
+                  <div className="pt-2 border-t min-w-0">
                     <p className="text-xs font-medium mb-2">Priority Factors:</p>
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0">
                       {insights.data.factors.map((factor: string, i: number) => (
-                        <p key={i} className="text-xs text-muted-foreground">• {factor}</p>
+                        <p key={i} className="text-xs text-muted-foreground break-words min-w-0">• {factor}</p>
                       ))}
                     </div>
                   </div>
@@ -289,31 +294,31 @@ export function AIInsights({ document, statusInfo }: { document: Document; statu
             )}
 
             {insights.type === 'cost_estimate' && (
-              <div className="space-y-3">
-                <div className="grid gap-3">
+              <div className="space-y-3 min-w-0">
+                <div className="grid gap-3 min-w-0">
                   {insights.data.estimatedCost && (
-                    <div className="flex items-center justify-between p-3 bg-background rounded border">
-                      <span className="text-sm font-medium">Estimated Renewal Cost:</span>
-                      <Badge variant="outline" className="ml-2">{insights.data.estimatedCost}</Badge>
+                    <div className="flex items-center justify-between gap-2 p-3 bg-background rounded border min-w-0">
+                      <span className="text-sm font-medium min-w-0 truncate">Estimated Renewal Cost:</span>
+                      <Badge variant="outline" className="ml-2 shrink-0">{insights.data.estimatedCost}</Badge>
                     </div>
                   )}
                   {insights.data.additionalFees && (
-                    <div className="p-3 bg-background rounded border">
+                    <div className="p-3 bg-background rounded border min-w-0">
                       <p className="text-xs font-medium mb-2">Additional Fees:</p>
-                      <ul className="space-y-1">
+                      <ul className="space-y-1 min-w-0">
                         {insights.data.additionalFees.map((fee: string, i: number) => (
-                          <li key={i} className="text-xs text-muted-foreground">• {fee}</li>
+                          <li key={i} className="text-xs text-muted-foreground break-words min-w-0">• {fee}</li>
                         ))}
                       </ul>
                     </div>
                   )}
                 </div>
                 {insights.data.costSavingTips && (
-                  <div className="pt-2 border-t">
+                  <div className="pt-2 border-t min-w-0">
                     <p className="text-xs font-medium mb-2">💡 Money Saving Tips:</p>
-                    <ul className="space-y-1">
+                    <ul className="space-y-1 min-w-0">
                       {insights.data.costSavingTips.map((tip: string, i: number) => (
-                        <li key={i} className="text-xs text-muted-foreground">• {tip}</li>
+                        <li key={i} className="text-xs text-muted-foreground break-words min-w-0">• {tip}</li>
                       ))}
                     </ul>
                   </div>

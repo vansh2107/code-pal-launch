@@ -21,10 +21,33 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    let apiKey = "";
+    let apiEndpoint = "";
+    let modelName = "";
+
+    if (GEMINI_API_KEY) {
+      console.log("Using Gemini API for chatbot");
+      apiKey = GEMINI_API_KEY;
+      apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+      modelName = "gemini-3.1-flash-lite";
+    } else if (GROQ_API_KEY) {
+      console.log("Using Groq API for chatbot");
+      apiKey = GROQ_API_KEY;
+      apiEndpoint = "https://api.groq.com/openai/v1/chat/completions";
+      modelName = "llama-3.3-70b-versatile";
+    } else if (LOVABLE_API_KEY) {
+      console.log("Using Lovable API for chatbot");
+      apiKey = LOVABLE_API_KEY;
+      apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
+      modelName = "google/gemini-2.5-flash";
+    }
+
+    if (!apiKey) {
+      throw new Error("No AI API keys configured");
     }
 
     const authHeader = req.headers.get('Authorization');
@@ -487,14 +510,14 @@ RESPONSE GUIDELINES
       }
     ];
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: modelName,
         messages: [
           { role: 'system', content: systemPrompt },
           ...sanitizedMessages

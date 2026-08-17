@@ -16,6 +16,7 @@ import { RenewalAdvisor } from "@/components/ai/RenewalAdvisor";
 import { DocumentViewer } from "@/components/document/DocumentViewer";
 import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
 import { getDocumentStatus } from "@/utils/documentStatus";
+import { sanitizeDocumentNote } from "@/utils/documentNotes";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -174,7 +175,12 @@ export default function DocumentDetail() {
         return;
       }
       
-      setDocument(data);
+      const normalizedDocument = {
+        ...data,
+        notes: sanitizeDocumentNote(data.notes || "")
+      };
+
+      setDocument(normalizedDocument);
       
       // Fetch signed URL for document image if it exists
       if (data.image_path) {

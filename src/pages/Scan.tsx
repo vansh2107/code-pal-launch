@@ -26,6 +26,7 @@ import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstrai
 // @ts-ignore - path is provided by pdfjs-dist package
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+import { sanitizeDocumentNote } from "@/utils/documentNotes";
 
 const documentSchema = z.object({
   name: z.string()
@@ -303,9 +304,11 @@ export default function Scan() {
 
       if (data.success && data.data) {
         // Use detailed document type from AI as-is; we'll map it to enum on save
+        const sanitizedNote = sanitizeDocumentNote(data.data.notes || "");
         setFormData(prev => ({
           ...prev,
           ...data.data,
+          notes: sanitizedNote,
           document_type: data.data.document_type,
         }));
         toast({
@@ -347,9 +350,11 @@ export default function Scan() {
       if (error) throw error;
 
       if (data?.success && data.data) {
+        const sanitizedNote = sanitizeDocumentNote(data.data.notes || "");
         setFormData((prev) => ({
           ...prev,
           ...data.data,
+          notes: sanitizedNote,
           document_type: data.data.document_type,
         }));
         toast({
@@ -530,6 +535,7 @@ export default function Scan() {
       }
 
       const validatedData = validationResult.data;
+      const safeNotes = sanitizeDocumentNote(validatedData.notes || "");
       
       // Upload ORIGINAL file with NO compression
       let imagePath = null;
@@ -599,7 +605,7 @@ export default function Scan() {
             issuing_authority: validatedData.issuing_authority,
             expiry_date: validatedData.expiry_date,
             renewal_period_days: validatedData.renewal_period_days,
-            notes: validatedData.notes,
+            notes: safeNotes,
             image_path: imagePath || existingDoc?.image_path,
             updated_at: new Date().toISOString(),
           })
@@ -640,7 +646,7 @@ export default function Scan() {
           issuing_authority: validatedData.issuing_authority,
           expiry_date: validatedData.expiry_date,
           renewal_period_days: validatedData.renewal_period_days,
-          notes: validatedData.notes,
+          notes: safeNotes,
           user_id: user.id,
           organization_id: selectedOrgId,
           image_path: imagePath,

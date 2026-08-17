@@ -1,0 +1,25 @@
+﻿    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+
+    let apiKey = "";
+    let apiEndpoint = "";
+    let modelName = "";
+
+    // Prioritize GEMINI_API_KEY if it is configured
+    if (GEMINI_API_KEY) {
+      console.log("Using Gemini API for document analysis");
+      apiKey = GEMINI_API_KEY;
+      apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+      modelName = "gemini-3.1-flash-lite";
+    } else if (GROQ_API_KEY) {
+      console.log("Using Groq API for document analysis");
+      apiKey = GROQ_API_KEY;
+      apiEndpoint = "https://api.groq.com/openai/v1/chat/completions";
+      modelName = "llama-3.3-70b-versatile";
+    } else if (LOVABLE_API_KEY) {
+      console.log("Using Lovable API for document analysis");
+      apiKey = LOVABLE_API_KEY;
+      apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
+      modelName = "google/gemini-2.5-flash";
+    }

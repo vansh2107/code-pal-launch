@@ -1,3 +1,4 @@
+/// <reference lib="deno.ns" />
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -22,6 +23,7 @@ serve(async (req) => {
 
   try {
     const { documentType, documentName, expiryDate, question } = await req.json();
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
@@ -29,8 +31,13 @@ serve(async (req) => {
     let apiEndpoint = "";
     let modelName = "";
 
-    // Prioritize GROQ_API_KEY if configured
-    if (GROQ_API_KEY) {
+    // Prioritize GEMINI_API_KEY if configured
+    if (GEMINI_API_KEY) {
+      console.log("Using Gemini API for document renewal advisor");
+      apiKey = GEMINI_API_KEY;
+      apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+      modelName = "gemini-3.1-flash-lite";
+    } else if (GROQ_API_KEY) {
       console.log("Using Groq API for document renewal advisor");
       apiKey = GROQ_API_KEY;
       apiEndpoint = "https://api.groq.com/openai/v1/chat/completions";

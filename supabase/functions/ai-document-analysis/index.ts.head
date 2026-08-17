@@ -1,0 +1,50 @@
+﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Sanitize user input to prevent prompt injection
+const sanitizeInput = (input: string): string => {
+  if (!input || typeof input !== 'string') return '';
+  return input
+    .replace(/[<>"'`\n\r]/g, '') // Remove potentially dangerous characters
+    .substring(0, 200) // Enforce max length for general inputs
+    .trim();
+};
+
+const sanitizeCountry = (input: string): string => {
+  if (!input || typeof input !== 'string') return '';
+  return input
+    .replace(/[<>"'`\n\r]/g, '')
+    .substring(0, 100)
+    .trim();
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const requestBody = await req.text();
+    
+    // Validate request size
+    if (requestBody.length > 5 * 1024 * 1024) {
+      console.error('Request too large:', requestBody.length);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Request too large' }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const parsedBody = JSON.parse(requestBody);
+    const { documentData, analysisType, userCountry, documents } = parsedBody;
+    
+    // Validate and sanitize inputs
+    if (userCountry && (typeof userCountry !== 'string' || userCountry.length > 100)) {
+      console.error('Invalid country input');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid country format' }),

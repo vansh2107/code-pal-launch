@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+export {};
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,7 +23,7 @@ const sanitizeCountry = (input: string): string => {
     .trim();
 };
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -42,6 +42,32 @@ serve(async (req) => {
 
     const parsedBody = JSON.parse(requestBody);
     const { documentData, analysisType, userCountry, documents } = parsedBody;
+
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+
+    let apiKey = "";
+    let apiEndpoint = "";
+    let modelName = "";
+
+    // Prioritize GEMINI_API_KEY if it is configured
+    if (GEMINI_API_KEY) {
+      console.log("Using Gemini API for document analysis");
+      apiKey = GEMINI_API_KEY;
+      apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+      modelName = "gemini-3.1-flash-lite";
+    } else if (GROQ_API_KEY) {
+      console.log("Using Groq API for document analysis");
+      apiKey = GROQ_API_KEY;
+      apiEndpoint = "https://api.groq.com/openai/v1/chat/completions";
+      modelName = "llama-3.3-70b-versatile";
+    } else if (LOVABLE_API_KEY) {
+      console.log("Using Lovable API for document analysis");
+      apiKey = LOVABLE_API_KEY;
+      apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
+      modelName = "google/gemini-2.5-flash";
+    }
     
     // Validate and sanitize inputs
     if (userCountry && (typeof userCountry !== 'string' || userCountry.length > 100)) {
@@ -64,9 +90,8 @@ serve(async (req) => {
 
     // Handle batch renewal suggestions
     if (analysisType === 'renewal_suggestions' && documents && Array.isArray(documents)) {
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) {
-        console.warn("LOVABLE_API_KEY is not configured. Using high-quality mock fallback.");
+      if (!apiKey) {
+        console.warn("No API key configured. Using high-quality mock fallback.");
         const fallbackSuggestions = documents.map((doc: any) => ({
           documentId: doc.id || "mock-id",
           documentName: sanitizeInput(doc.name || 'Unnamed'),
@@ -170,26 +195,6 @@ Format your response as a JSON array of objects with this structure:
     }
 
     console.log(`Starting ${analysisType} analysis for document: ${documentData.name}`);
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-
-    let apiKey = "";
-    let apiEndpoint = "";
-    let modelName = "";
-
-    // Prioritize GROQ_API_KEY if it is configured
-    if (GROQ_API_KEY) {
-      console.log("Using Groq API for document analysis");
-      apiKey = GROQ_API_KEY;
-      apiEndpoint = "https://api.groq.com/openai/v1/chat/completions";
-      modelName = "llama-3.3-70b-versatile";
-    } else if (LOVABLE_API_KEY) {
-      console.log("Using Lovable API for document analysis");
-      apiKey = LOVABLE_API_KEY;
-      apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
-      modelName = "google/gemini-2.5-flash";
-    }
 
     let analysis;
     if (!apiKey) {

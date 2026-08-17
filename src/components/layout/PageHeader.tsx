@@ -104,8 +104,7 @@ export function PageHeader({
 
       <div
         className={cn(
-          "flex flex-col gap-4",
-          "md:flex-row md:items-start md:justify-between md:gap-6"
+          "flex items-start justify-between gap-4 md:gap-6"
         )}
       >
         {/* Left column: back (optional) + icon/title/description */}
@@ -145,9 +144,9 @@ export function PageHeader({
         {hasActions && (
           <div
             className={cn(
-              "flex items-center gap-2 flex-wrap shrink-0",
-              "justify-start md:justify-end",
-              "w-full md:w-auto"
+              "flex items-center gap-2 shrink-0",
+              "justify-end",
+              "w-auto"
             )}
           >
             {trailing}

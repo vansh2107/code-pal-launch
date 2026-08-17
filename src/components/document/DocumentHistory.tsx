@@ -89,8 +89,8 @@ export function DocumentHistory({ documentId }: DocumentHistoryProps) {
         ) : (
           <div className="space-y-4">
             {history.map((entry) => (
-              <div key={entry.id} className="flex items-start gap-3 pb-3 border-b last:border-0">
-                <div className="flex-1">
+              <div key={entry.id} className="flex items-start gap-3 pb-3 border-b last:border-0 min-w-0">
+                <div className="flex-1 min-w-0 break-words">
                   <div className="flex items-center gap-2 mb-1">
                     {getActionBadge(entry.action)}
                     <span className="text-xs text-muted-foreground">

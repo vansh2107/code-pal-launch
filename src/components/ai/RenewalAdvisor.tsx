@@ -260,11 +260,11 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
               <Alert className="border-primary/50 bg-primary/5">
                 <Calendar className="h-4 w-4" />
                 <AlertDescription>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <strong>Start renewal process: {calculateStartDate(recommendedDays)}</strong>
+                  <div className="flex items-start justify-between gap-4 min-w-0">
+                    <div className="flex-1 min-w-0 break-words">
+                      <strong className="break-words">Start renewal process: {calculateStartDate(recommendedDays)}</strong>
                       <br />
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-sm text-muted-foreground break-words">
                         ({recommendedDays} days before expiry)
                       </span>
                     </div>
@@ -273,7 +273,7 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
                         size="sm" 
                         onClick={saveAIReminder}
                         disabled={savingReminder}
-                        className={`${
+                        className={`shrink-0 whitespace-normal h-auto py-2 px-3 text-xs sm:text-sm ${
                           statusInfo?.status === 'expired' 
                             ? 'bg-red-600 hover:bg-red-700 text-white' 
                             : statusInfo?.status === 'expiring'
@@ -282,11 +282,11 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
                         }`}
                       >
                         {savingReminder ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                         ) : (
                           <>
-                            <Bell className="h-4 w-4 mr-2" />
-                            Set Reminder
+                            <Bell className="h-4 w-4 mr-2 shrink-0" />
+                            <span className="break-words">Set Reminder</span>
                           </>
                         )}
                       </Button>
@@ -296,8 +296,8 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
               </Alert>
             )}
 
-            <div className="prose prose-sm max-w-none">
-              <div className="bg-muted/50 rounded-lg p-4 whitespace-pre-wrap text-sm">
+            <div className="prose prose-sm max-w-full overflow-hidden">
+              <div className="bg-muted/50 rounded-lg p-4 whitespace-pre-wrap text-sm break-words max-w-full overflow-hidden">
                 {advice}
               </div>
             </div>
@@ -308,9 +308,9 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
                 setQuestion("");
                 setAutoLoaded(false);
               }}
-              className="w-full"
+              className="w-full whitespace-normal h-auto py-3 px-4 text-center justify-center"
             >
-              Ask Another Question
+              <span className="break-words">Ask Another Question</span>
             </Button>
           </>
         )}

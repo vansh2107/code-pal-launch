@@ -202,21 +202,9 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
 
     setChecklistData(updatedChecklist);
     
-    // Save to both localStorage and database
+    // Save checklist state to localStorage
     const checklistState = JSON.stringify(updatedChecklist);
     localStorage.setItem(`checklist-${documentId}`, checklistState);
-    
-    // Save to database for cross-device persistence
-    try {
-      await supabase
-        .from('documents')
-        .update({ 
-          notes: checklistState // Store in notes field temporarily
-        })
-        .eq('id', documentId);
-    } catch (error) {
-      console.error('Error saving checklist state:', error);
-    }
   };
 
   const calculateProgress = () => {
