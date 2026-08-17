@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,9 @@ import { useDocVaultCategories } from "@/hooks/useDocVaultCategories";
 import { useDocVaultDocuments } from "@/hooks/useDocVaultDocuments";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { supabase } from "@/integrations/supabase/client";
+import { uploadDocumentOriginal } from "@/utils/documentStorage";
+
 
 export default function DocVault() {
   const isMobile = useIsMobile();
@@ -52,7 +55,7 @@ export default function DocVault() {
   const frequentlyUsedCount = useMemo(() => frequentlyUsedDocuments.length, [frequentlyUsedDocuments]);
 
   // Camera logic
-  const startCamera = async () => {
+  const startCamera = async (_categoryId?: string | null) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       if (videoRef.current) videoRef.current.srcObject = stream;
@@ -79,6 +82,86 @@ export default function DocVault() {
         setShowScanPreview(true);
       }
     }
+  };
+
+  const handleFileUpload = async (file: File, categoryId: string | null, documentName: string) => {
+    if (!user?.id) {
+      toast.error("You must be signed in to upload documents.");
+      return;
+    }
+
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+      toast.error("Unsupported file type. Please upload an image or PDF.");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const storagePath = await uploadDocumentOriginal(file, user.id);
+
+      if (!storagePath) {
+        throw new Error("The document upload was not completed.");
+      }
+
+      const { error } = await supabase
+        .from("documents")
+        .insert({
+          user_id: user.id,
+          name: (documentName || file.name).trim() || file.name,
+          document_type: "other",
+          image_path: storagePath,
+          issuing_authority: "DocVault",
+          docvault_category_id: categoryId,
+          category_detail: "uploaded",
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Document uploaded");
+      await refetch();
+    } catch (error: any) {
+      console.error("DocVault upload failed:", error);
+      toast.error(error?.message || "Failed to upload document. Please try again.");
+      throw error;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleCategorySubmit = async (name: string) => {
+    if (categoryDialogMode === "create") {
+      const newId = await createCategory(name);
+      if (newId) {
+        setSelectedCategory(newId);
+      }
+    } else if (categoryToEdit) {
+      await renameCategory(categoryToEdit.id, name);
+    }
+
+    setCategoryDialogOpen(false);
+    setCategoryToEdit(null);
+  };
+
+  const handleDeleteDocument = async (docId: string, imagePath: string | null) => {
+    await deleteDocument(docId, imagePath);
+  };
+
+  const handleMoveDocument = (doc: DocVaultDocument) => {
+    setDocumentToMove(doc);
+    setMoveDialogOpen(true);
+  };
+
+  const handleMoveConfirm = async (categoryId: string | null) => {
+    if (!documentToMove) {
+      return;
+    }
+
+    await moveDocument(documentToMove.id, categoryId);
+    setMoveDialogOpen(false);
+    setDocumentToMove(null);
   };
 
   return (

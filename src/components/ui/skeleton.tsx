@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils";
 
-function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
   return (
-    <div
+    <span
       className={cn(
-        "animate-skeleton bg-muted/80 rounded-[inherit]",
+        "block animate-skeleton bg-muted/80 rounded-[inherit]",
         className,
       )}
       aria-hidden="true"

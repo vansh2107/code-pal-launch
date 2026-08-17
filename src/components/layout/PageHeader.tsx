@@ -128,14 +128,14 @@ export function PageHeader({
               </h1>
             </div>
             {description && (
-              <p
+              <div
                 className={cn(
                   descriptionClasses,
                   "mt-1.5 md:mt-2"
                 )}
               >
                 {description}
-              </p>
+              </div>
             )}
           </div>
         </div>
