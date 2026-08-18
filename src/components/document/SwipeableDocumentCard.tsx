@@ -5,6 +5,7 @@ import { Trash2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
+import type { DocumentStatusInfo } from "@/utils/documentStatus";
 
 interface SwipeableDocumentCardProps {
   doc: {
