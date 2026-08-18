@@ -46,7 +46,7 @@ export default function DocVault() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { categories, createCategory, renameCategory, deleteCategory, isCreating, isRenaming } = useDocVaultCategories(user?.id);
-  const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, refetch, isMoving } = useDocVaultDocuments(user?.id);
+  const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, trackDocumentAccess, refetch, isMoving } = useDocVaultDocuments(user?.id);
 
   const displayedDocuments = useMemo(() => {
     const docs = getDocumentsByCategory(selectedCategory);
@@ -148,7 +148,12 @@ export default function DocVault() {
   };
 
   const handleDeleteDocument = async (docId: string, imagePath: string | null) => {
-    await deleteDocument(docId, imagePath);
+    setDeletingId(docId);
+    try {
+      await deleteDocument(docId, imagePath);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleMoveDocument = (doc: DocVaultDocument) => {
@@ -247,8 +252,11 @@ export default function DocVault() {
                   <DocVaultDocumentCard
                     key={doc.id}
                     document={doc}
-                    signedUrl={signedUrls[doc.id] || null}
-                    onView={() => navigate(`/documents/${doc.id}`)}
+                    signedUrl={(doc.image_path ? signedUrls.get(doc.image_path) : null) || null}
+                    onView={(docId) => {
+                      trackDocumentAccess(docId);
+                      navigate(`/documents/${docId}`);
+                    }}
                     onDelete={handleDeleteDocument}
                     onMove={handleMoveDocument}
                     isDeleting={deletingId === doc.id}
