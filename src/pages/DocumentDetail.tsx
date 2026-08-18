@@ -586,19 +586,30 @@ export default function DocumentDetail() {
                 </div>
               )}
               
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
+                {document.expiry_date ? (
+                  <p className={statusInfo?.textClass || 'text-foreground'}>
+                    {new Date(document.expiry_date).toLocaleDateString()}
+                  </p>
+                ) : isDocVault ? (
+                  <p className="text-muted-foreground">No expiry set for this document</p>
+                ) : (
+                  <p className="text-muted-foreground">Not set — expiry could not be determined</p>
+                )}
+              </div>
+
               {!isDocVault && (
-                <>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
-                    <p className={statusInfo?.textClass || 'text-foreground'}>{new Date(document.expiry_date).toLocaleDateString()}</p>
-                  </div>
-                  
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Reminder Period</Label>
-                    <p className={statusInfo?.textClass || 'text-foreground'}>{document.renewal_period_days} days before expiry</p>
-                  </div>
-                </>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Reminder Period</Label>
+                  <p className={statusInfo?.textClass || 'text-foreground'}>
+                    {document.renewal_period_days
+                      ? `${document.renewal_period_days} days before expiry`
+                      : 'Not set'}
+                  </p>
+                </div>
               )}
+
             </div>
 
             {document.notes && (
