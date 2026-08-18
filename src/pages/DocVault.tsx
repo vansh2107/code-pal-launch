@@ -46,7 +46,7 @@ export default function DocVault() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { categories, createCategory, renameCategory, deleteCategory, isCreating, isRenaming } = useDocVaultCategories(user?.id);
-  const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, refetch, isMoving } = useDocVaultDocuments(user?.id);
+  const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, trackDocumentAccess, refetch, isMoving } = useDocVaultDocuments(user?.id);
 
   const displayedDocuments = useMemo(() => {
     const docs = getDocumentsByCategory(selectedCategory);
