@@ -209,53 +209,24 @@ export default function DocumentDetail() {
         .maybeSingle();
 
       if (error) throw error;
-      
+
       if (!data) {
-        toast({
-          title: "Document not found",
-          description: "The requested document could not be found or you don't have permission to view it.",
-          variant: "destructive",
-        });
-        navigate('/documents');
+        setNotFound(true);
         return;
       }
-      
+
       const normalizedDocument = {
         ...data,
         notes: sanitizeDocumentNote(data.notes || "")
       };
 
+      setNotFound(false);
       setDocument(normalizedDocument);
-      
-      // Fetch signed URL for document image if it exists
-      if (data.image_path) {
-        const { data: signedUrlData, error: urlError } = await supabase.storage
-          .from('document-images')
-          .createSignedUrl(data.image_path, 3600); // 1 hour expiry
-        
-        if (urlError) {
-          console.error('Error getting signed URL:', urlError);
-        } else if (signedUrlData) {
-          setImageUrl(signedUrlData.signedUrl);
-        }
 
-        // Try to fetch signed URL for the companion processed image if it exists
-        try {
-          const ext = data.image_path.split('.').pop() || 'jpg';
-          const basePath = data.image_path.substring(0, data.image_path.lastIndexOf('/'));
-          const processedPath = `${basePath}/processed.${ext}`;
-          
-          const { data: processedUrlData, error: processedUrlError } = await supabase.storage
-            .from('document-images')
-            .createSignedUrl(processedPath, 3600);
-            
-          if (!processedUrlError && processedUrlData) {
-            setProcessedImageUrl(processedUrlData.signedUrl);
-          }
-        } catch (err) {
-          console.warn("No processed image found:", err);
-        }
+      if (data.image_path) {
+        loadPreviewUrls(data.image_path);
       }
+
     } catch (error: any) {
       console.error('Error fetching document:', error);
       toast({
