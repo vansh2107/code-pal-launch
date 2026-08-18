@@ -51,6 +51,7 @@ export default function DocVault() {
   const [showScanPreview, setShowScanPreview] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
