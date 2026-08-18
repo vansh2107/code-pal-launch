@@ -57,6 +57,49 @@ export default function DocumentDetail() {
   const [renewalSheetOpen, setRenewalSheetOpen] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
   const [viewOriginal, setViewOriginal] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
+
+  const loadPreviewUrls = async (imagePath: string) => {
+    setPreviewLoading(true);
+    setPreviewFailed(false);
+    setImageUrl(null);
+    setProcessedImageUrl(null);
+    try {
+      const { data: signedUrlData, error: urlError } = await supabase.storage
+        .from('document-images')
+        .createSignedUrl(imagePath, 3600);
+
+      if (urlError || !signedUrlData?.signedUrl) {
+        console.error('Error getting signed URL:', urlError);
+        setPreviewFailed(true);
+      } else {
+        setImageUrl(signedUrlData.signedUrl);
+      }
+
+      // Companion processed image is optional
+      try {
+        const ext = imagePath.split('.').pop() || 'jpg';
+        const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
+        const processedPath = `${basePath}/processed.${ext}`;
+        const { data: processedUrlData, error: processedUrlError } = await supabase.storage
+          .from('document-images')
+          .createSignedUrl(processedPath, 3600);
+        if (!processedUrlError && processedUrlData) {
+          setProcessedImageUrl(processedUrlData.signedUrl);
+        }
+      } catch (err) {
+        console.warn('No processed image found:', err);
+      }
+    } catch (err) {
+      console.error('Error loading preview:', err);
+      setPreviewFailed(true);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
 
   useEffect(() => {
     if (user && id) {
