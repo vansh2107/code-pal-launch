@@ -311,7 +311,7 @@ export default function DocumentDetail() {
     );
   }
 
-  if (!document) {
+  if (notFound || !document) {
     return (
       <AppShell>
         <div className="min-h-[60vh] flex items-center justify-center">
@@ -326,7 +326,7 @@ export default function DocumentDetail() {
   }
 
   const isDocVault = document.issuing_authority === 'DocVault';
-  const statusInfo = !isDocVault ? getDocumentStatus(document.expiry_date) : null;
+  const statusInfo = !isDocVault && document.expiry_date ? getDocumentStatus(document.expiry_date) : null;
   const recommendedDays = renewalAdvice ? extractRecommendedDays(renewalAdvice) : null;
   
   // Calculate days until expiry to show countdown
