@@ -215,7 +215,7 @@ function detectDocumentContourImproved(
   const edges = cannyEdgeDetection(smoothed, width, height);
   const dilatedEdges = dilateEdges(edges, width, height);
 
-  const contour = findDocumentContour(dilatedEdges, width, height);
+  const contour = findDocumentContour(dilatedEdges, width, height, data);
   if (contour) return contour;
 
   // Fallback: color contrast
@@ -355,7 +355,8 @@ function dilateEdges(edges: Uint8Array, width: number, height: number): Uint8Arr
 function findDocumentContour(
   edges: Uint8Array,
   width: number,
-  height: number
+  height: number,
+  pixels?: Uint8ClampedArray
 ): { bounds: CropBounds; confidence: number } | null {
   const imgArea = width * height;
 
