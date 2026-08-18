@@ -19,7 +19,25 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadDocumentOriginal } from "@/utils/documentStorage";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+interface PendingUpload {
+  file: File;
+  categoryId: string | null;
+  documentName: string;
+  expiryDate: string | null;
+}
 
 export default function DocVault() {
   const isMobile = useIsMobile();
