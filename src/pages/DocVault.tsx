@@ -217,7 +217,7 @@ export default function DocVault() {
                 <Upload className="h-4 w-4" />
                 <span className="hidden sm:inline">Upload</span>
               </Button>
-              <Button onClick={startCamera} variant="secondary" className="gap-2">
+              <Button onClick={() => startCamera(selectedCategory)} variant="secondary" className="gap-2">
                 <CameraIcon className="h-4 w-4" />
                 <span className="hidden sm:inline">Scan</span>
               </Button>
