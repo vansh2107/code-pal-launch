@@ -523,6 +523,8 @@ function findDocumentContour(
 
           // Combined score
           // Compute color distance between inner and outer boundary pixels to ensure document/background separation
+          // Neutral default: when raw pixel data is unavailable we must not
+          // penalise (or reward) the candidate, so the crop stays conservative.
           let separationScore = 0.5;
           if (pixels) {
             let colorDistSum = 0;

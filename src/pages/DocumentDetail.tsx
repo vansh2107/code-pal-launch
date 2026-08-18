@@ -59,6 +59,7 @@ export default function DocumentDetail() {
   const [viewOriginal, setViewOriginal] = useState(true);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (user && id) {
@@ -158,27 +159,31 @@ export default function DocumentDetail() {
     return startDate.toLocaleDateString();
   };
 
-  /**
-   * Resolves signed URLs for the ORIGINAL stored file (authoritative) and the
-   * optional processed/cropped derivative. Private bucket + signed URL only.
-   */
-  const loadPreviewUrls = async (imagePath: string) => {
-    setPreviewLoading(true);
+  const loadPreviewUrls = async (imagePath: string | null) => {
+    setProcessedImageUrl(null);
+    setImageUrl(null);
     setPreviewFailed(false);
+
+    if (!imagePath) {
+      return;
+    }
+
+    setPreviewLoading(true);
     try {
+      // The original upload is authoritative — if it fails, the preview fails.
       const { data: signedUrlData, error: urlError } = await supabase.storage
         .from('document-images')
-        .createSignedUrl(imagePath, 3600); // 1 hour
+        .createSignedUrl(imagePath, 3600); // 1 hour expiry
 
       if (urlError || !signedUrlData?.signedUrl) {
-        console.error('Signed URL error for document-images/%s:', imagePath, urlError);
-        setImageUrl(null);
+        console.error('Error getting signed URL:', urlError);
         setPreviewFailed(true);
-      } else {
-        setImageUrl(signedUrlData.signedUrl);
+        return;
       }
 
-      // Optional processed derivative — the original always stays authoritative.
+      setImageUrl(signedUrlData.signedUrl);
+
+      // The processed/cropped companion is optional — never fail the preview on it.
       try {
         const ext = imagePath.split('.').pop() || 'jpg';
         const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
@@ -188,10 +193,15 @@ export default function DocumentDetail() {
           .from('document-images')
           .createSignedUrl(processedPath, 3600);
 
-        setProcessedImageUrl(!processedUrlError && processedUrlData ? processedUrlData.signedUrl : null);
-      } catch {
-        setProcessedImageUrl(null);
+        if (!processedUrlError && processedUrlData?.signedUrl) {
+          setProcessedImageUrl(processedUrlData.signedUrl);
+        }
+      } catch (err) {
+        console.warn('No processed image found:', err);
       }
+    } catch (err) {
+      console.error('Error loading document preview:', err);
+      setPreviewFailed(true);
     } finally {
       setPreviewLoading(false);
     }
@@ -207,22 +217,22 @@ export default function DocumentDetail() {
         .maybeSingle();
 
       if (error) throw error;
-      
+
       if (!data) {
+        setNotFound(true);
         setDocument(null);
         return;
       }
-      
+
       const normalizedDocument = {
         ...data,
         notes: sanitizeDocumentNote(data.notes || "")
       };
 
+      setNotFound(false);
       setDocument(normalizedDocument);
-      
-      if (data.image_path) {
-        await loadPreviewUrls(data.image_path);
-      }
+
+      await loadPreviewUrls(data.image_path);
     } catch (error: any) {
       console.error('Error fetching document:', error);
       toast({
@@ -230,6 +240,7 @@ export default function DocumentDetail() {
         description: error.message || "Failed to load document. Please try again.",
         variant: "destructive",
       });
+      setNotFound(true);
     } finally {
       setLoading(false);
     }
@@ -312,7 +323,9 @@ export default function DocumentDetail() {
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="text-center">
             <h2 className="text-xl font-semibold mb-2">Document not found</h2>
-            <p className="text-muted-foreground mb-4">The document you're looking for doesn't exist.</p>
+            <p className="text-muted-foreground mb-4">
+              This document doesn't exist, or you don't have permission to view it.
+            </p>
             <Button onClick={() => navigate('/documents')}>Back to Documents</Button>
           </div>
         </div>
@@ -321,7 +334,7 @@ export default function DocumentDetail() {
   }
 
   const isDocVault = document.issuing_authority === 'DocVault';
-  const statusInfo = !isDocVault ? getDocumentStatus(document.expiry_date) : null;
+  const statusInfo = !isDocVault && document.expiry_date ? getDocumentStatus(document.expiry_date) : null;
   const recommendedDays = renewalAdvice ? extractRecommendedDays(renewalAdvice) : null;
   
   // Calculate days until expiry to show countdown
@@ -551,12 +564,20 @@ export default function DocumentDetail() {
                 <>
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
-                    <p className={statusInfo?.textClass || 'text-foreground'}>{new Date(document.expiry_date).toLocaleDateString()}</p>
+                    <p className={statusInfo?.textClass || 'text-foreground'}>
+                      {document.expiry_date
+                        ? new Date(document.expiry_date).toLocaleDateString()
+                        : "No expiry date set"}
+                    </p>
                   </div>
                   
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Reminder Period</Label>
-                    <p className={statusInfo?.textClass || 'text-foreground'}>{document.renewal_period_days} days before expiry</p>
+                    <p className={statusInfo?.textClass || 'text-foreground'}>
+                      {document.renewal_period_days
+                        ? `${document.renewal_period_days} days before expiry`
+                        : "Not set"}
+                    </p>
                   </div>
                 </>
               )}
@@ -601,7 +622,7 @@ export default function DocumentDetail() {
             documentId={document.id}
             documentType={document.document_type}
             documentName={document.name}
-            expiryDate={document.expiry_date}
+            expiryDate={document.expiry_date!}
             statusInfo={statusInfo}
           />
         )}

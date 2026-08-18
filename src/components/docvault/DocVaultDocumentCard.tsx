@@ -58,7 +58,7 @@ export const DocVaultDocumentCard = memo(function DocVaultDocumentCard({
         onClick={() => onView(document.id)}
       >
         <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
-          {document.image_path && signedUrl ? (
+          {signedUrl ? (
             isPdf ? (
               <PDFPreview
                 pdfUrl={signedUrl}
@@ -69,14 +69,16 @@ export const DocVaultDocumentCard = memo(function DocVaultDocumentCard({
               <img
                 src={signedUrl}
                 alt={document.name}
-                className="w-full h-full object-contain"
                 loading="lazy"
+                className="w-full h-full object-contain"
               />
             )
           ) : (
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
               <FileText className="h-10 w-10" />
-              <span className="text-xs">{isPdf ? "PDF document" : "Preview unavailable"}</span>
+              <span className="text-xs">
+                {document.image_path ? "Preview unavailable" : "No file attached"}
+              </span>
             </div>
           )}
           {showFrequentBadge && (
