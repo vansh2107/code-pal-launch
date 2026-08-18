@@ -8,7 +8,7 @@ interface DocumentItem {
   id: string;
   name: string;
   document_type: string;
-  expiry_date: string;
+  expiry_date: string | null;
   created_at: string;
 }
 
@@ -24,9 +24,11 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
   const today = useMemo(() => new Date(), []);
 
   const items = useMemo(() => {
-    const sorted = [...documents].sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
+    const sorted = documents
+      .filter((doc) => !!doc.expiry_date)
+      .sort((a, b) => new Date(a.expiry_date!).getTime() - new Date(b.expiry_date!).getTime());
     return sorted.map((doc, index) => {
-      const expiry = new Date(doc.expiry_date);
+      const expiry = new Date(doc.expiry_date!);
       const isPast = expiry < today;
       const isFuture = expiry > today;
       const isToday = expiry.toDateString() === today.toDateString();
