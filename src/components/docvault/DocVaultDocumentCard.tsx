@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Trash2, FolderInput, Eye, Star } from "lucide-react";
+import { MoreVertical, Trash2, FolderInput, Eye, Star, FileText } from "lucide-react";
 import { PDFPreview } from "@/components/document/PDFPreview";
 import {
   DropdownMenu,
@@ -53,27 +53,31 @@ export const DocVaultDocumentCard = memo(function DocVaultDocumentCard({
 
   return (
     <Card className="w-full rounded-2xl group relative overflow-hidden hover:shadow-lg transition-all">
-      <Link
-        to={`/documents/${document.id}`}
-        aria-label={`Open ${document.name}`}
-        className="block cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-2xl"
+      <div 
+        className="cursor-pointer"
         onClick={() => onView(document.id)}
       >
         <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
-          {signedUrl ? (
+          {document.image_path && signedUrl ? (
             isPdf ? (
-              <div className="pointer-events-none w-full h-full">
-                <PDFPreview pdfUrl={signedUrl} className="w-full h-full" width={400} />
-              </div>
+              <PDFPreview
+                pdfUrl={signedUrl}
+                className="w-full h-full"
+                width={400}
+              />
             ) : (
               <img
                 src={signedUrl}
                 alt={document.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
+                loading="lazy"
               />
             )
           ) : (
-            <FileText className="h-10 w-10 text-muted-foreground" />
+            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+              <FileText className="h-10 w-10" />
+              <span className="text-xs">{isPdf ? "PDF document" : "Preview unavailable"}</span>
+            </div>
           )}
           {showFrequentBadge && (
             <div className="absolute top-2 left-2 bg-amber-500/90 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">

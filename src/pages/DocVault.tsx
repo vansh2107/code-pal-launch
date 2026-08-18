@@ -148,7 +148,12 @@ export default function DocVault() {
   };
 
   const handleDeleteDocument = async (docId: string, imagePath: string | null) => {
-    await deleteDocument(docId, imagePath);
+    setDeletingId(docId);
+    try {
+      await deleteDocument(docId, imagePath);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleMoveDocument = (doc: DocVaultDocument) => {
@@ -249,7 +254,8 @@ export default function DocVault() {
                     document={doc}
                     signedUrl={(doc.image_path ? signedUrls.get(doc.image_path) : null) || null}
                     onView={(docId) => {
-                      trackDocumentAccess(docId).catch(() => {});
+                      trackDocumentAccess(docId);
+                      navigate(`/documents/${docId}`);
                     }}
                     onDelete={handleDeleteDocument}
                     onMove={handleMoveDocument}
