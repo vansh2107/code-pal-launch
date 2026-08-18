@@ -35,7 +35,7 @@ interface Document {
   document_type: string;
   category_detail?: string;
   issuing_authority: string;
-  expiry_date: string;
+  expiry_date: string | null;
   renewal_period_days: number;
   notes: string;
   created_at: string;
@@ -542,7 +542,9 @@ export default function DocumentDetail() {
                 <>
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
-                    <p className={statusInfo?.textClass || 'text-foreground'}>{new Date(document.expiry_date).toLocaleDateString()}</p>
+                    <p className={statusInfo?.textClass || 'text-foreground'}>
+                      {document.expiry_date ? new Date(document.expiry_date).toLocaleDateString() : 'No expiry date'}
+                    </p>
                   </div>
                   
                   <div>
