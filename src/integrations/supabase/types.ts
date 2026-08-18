@@ -98,7 +98,7 @@ export type Database = {
           created_at: string
           document_type: Database["public"]["Enums"]["document_type"]
           docvault_category_id: string | null
-          expiry_date: string
+          expiry_date: string | null
           id: string
           image_path: string | null
           issuing_authority: string | null
@@ -116,7 +116,7 @@ export type Database = {
           created_at?: string
           document_type: Database["public"]["Enums"]["document_type"]
           docvault_category_id?: string | null
-          expiry_date: string
+          expiry_date?: string | null
           id?: string
           image_path?: string | null
           issuing_authority?: string | null
@@ -134,7 +134,7 @@ export type Database = {
           created_at?: string
           document_type?: Database["public"]["Enums"]["document_type"]
           docvault_category_id?: string | null
-          expiry_date?: string
+          expiry_date?: string | null
           id?: string
           image_path?: string | null
           issuing_authority?: string | null
