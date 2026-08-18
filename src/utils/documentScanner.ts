@@ -524,29 +524,32 @@ function findDocumentContour(
           // Combined score
           // Compute color distance between inner and outer boundary pixels to ensure document/background separation
           let separationScore = 0.5;
-          let colorDistSum = 0;
-          let colorSampleCount = 0;
-          const sampleOffset = 8; // pixels offset
-          const checkSteps = 8;
-          for (let s = 1; s < checkSteps; s++) {
-            const t = s / checkSteps;
-            const sx = Math.round(left + t * (right - left));
-            // Sample top edge inside/outside
-            const syInside = Math.min(height - 1, Math.max(0, top + sampleOffset));
-            const syOutside = Math.min(height - 1, Math.max(0, top - sampleOffset));
-            const idxInside = (syInside * width + sx) * 4;
-            const idxOutside = (syOutside * width + sx) * 4;
-            
-            const rDiff = imageData.data[idxInside] - imageData.data[idxOutside];
-            const gDiff = imageData.data[idxInside + 1] - imageData.data[idxOutside + 1];
-            const bDiff = imageData.data[idxInside + 2] - imageData.data[idxOutside + 2];
-            colorDistSum += Math.sqrt(rDiff * rDiff + gDiff * gDiff + bDiff * bDiff);
-            colorSampleCount++;
+          if (pixels) {
+            let colorDistSum = 0;
+            let colorSampleCount = 0;
+            const sampleOffset = 8; // pixels offset
+            const checkSteps = 8;
+            for (let s = 1; s < checkSteps; s++) {
+              const t = s / checkSteps;
+              const sx = Math.round(left + t * (right - left));
+              // Sample top edge inside/outside
+              const syInside = Math.min(height - 1, Math.max(0, top + sampleOffset));
+              const syOutside = Math.min(height - 1, Math.max(0, top - sampleOffset));
+              const idxInside = (syInside * width + sx) * 4;
+              const idxOutside = (syOutside * width + sx) * 4;
+
+              const rDiff = pixels[idxInside] - pixels[idxOutside];
+              const gDiff = pixels[idxInside + 1] - pixels[idxOutside + 1];
+              const bDiff = pixels[idxInside + 2] - pixels[idxOutside + 2];
+              colorDistSum += Math.sqrt(rDiff * rDiff + gDiff * gDiff + bDiff * bDiff);
+              colorSampleCount++;
+            }
+            if (colorSampleCount > 0) {
+              const avgDist = colorDistSum / colorSampleCount;
+              separationScore = clamp01(avgDist / 120);
+            }
           }
-          if (colorSampleCount > 0) {
-            const avgDist = colorDistSum / colorSampleCount;
-            separationScore = clamp01(avgDist / 120);
-          }
+
 
           const score = clamp01(
             avgEdge * 0.35 +
