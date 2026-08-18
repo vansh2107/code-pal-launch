@@ -112,7 +112,9 @@ export function SwipeableDocumentCard({
                 <div className="flex items-center justify-between text-[13px] leading-[20px] pt-1 border-t border-border/50 mt-3">
                   <span className="text-muted-foreground">Expiration Date</span>
                   <span className={`font-medium ${statusInfo.textClass}`}>
-                    {new Date(doc.expiry_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                    {doc.expiry_date
+                      ? new Date(doc.expiry_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                      : 'No expiry'}
                   </span>
                 </div>
               </CardContent>
