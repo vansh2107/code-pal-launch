@@ -20,86 +20,32 @@ export type Database = {
           changes: Json | null
           created_at: string
           document_id: string | null
-          entity_id: string | null
-          entity_type: string | null
+          entity_type: string
           id: string
           ip_address: string | null
           user_agent: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           action: string
           changes?: Json | null
           created_at?: string
           document_id?: string | null
-          entity_id?: string | null
-          entity_type?: string | null
+          entity_type: string
           id?: string
           ip_address?: string | null
           user_agent?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           action?: string
           changes?: Json | null
           created_at?: string
           document_id?: string | null
-          entity_id?: string | null
-          entity_type?: string | null
+          entity_type?: string
           id?: string
           ip_address?: string | null
           user_agent?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      device_capabilities: {
-        Row: {
-          app_version: string | null
-          autostart_enabled: boolean | null
-          background_restricted: boolean | null
-          battery_optimization_disabled: boolean | null
-          created_at: string
-          device_id: string
-          doze_whitelisted: boolean | null
-          id: string
-          last_seen_at: string
-          notifications_permission_granted: boolean | null
-          oem: string | null
-          os_version: string | null
-          platform: string | null
-          user_id: string
-        }
-        Insert: {
-          app_version?: string | null
-          autostart_enabled?: boolean | null
-          background_restricted?: boolean | null
-          battery_optimization_disabled?: boolean | null
-          created_at?: string
-          device_id: string
-          doze_whitelisted?: boolean | null
-          id?: string
-          last_seen_at?: string
-          notifications_permission_granted?: boolean | null
-          oem?: string | null
-          os_version?: string | null
-          platform?: string | null
-          user_id: string
-        }
-        Update: {
-          app_version?: string | null
-          autostart_enabled?: boolean | null
-          background_restricted?: boolean | null
-          battery_optimization_disabled?: boolean | null
-          created_at?: string
-          device_id?: string
-          doze_whitelisted?: boolean | null
-          id?: string
-          last_seen_at?: string
-          notifications_permission_granted?: boolean | null
-          oem?: string | null
-          os_version?: string | null
-          platform?: string | null
           user_id?: string
         }
         Relationships: []
@@ -147,10 +93,10 @@ export type Database = {
       }
       documents: {
         Row: {
-          access_count: number
+          access_count: number | null
           category_detail: string | null
           created_at: string
-          document_type: string
+          document_type: Database["public"]["Enums"]["document_type"]
           docvault_category_id: string | null
           expiry_date: string | null
           id: string
@@ -159,15 +105,16 @@ export type Database = {
           last_accessed_at: string | null
           name: string
           notes: string | null
+          organization_id: string | null
           renewal_period_days: number | null
           updated_at: string
           user_id: string
         }
         Insert: {
-          access_count?: number
+          access_count?: number | null
           category_detail?: string | null
           created_at?: string
-          document_type?: string
+          document_type: Database["public"]["Enums"]["document_type"]
           docvault_category_id?: string | null
           expiry_date?: string | null
           id?: string
@@ -176,15 +123,16 @@ export type Database = {
           last_accessed_at?: string | null
           name: string
           notes?: string | null
+          organization_id?: string | null
           renewal_period_days?: number | null
           updated_at?: string
           user_id: string
         }
         Update: {
-          access_count?: number
+          access_count?: number | null
           category_detail?: string | null
           created_at?: string
-          document_type?: string
+          document_type?: Database["public"]["Enums"]["document_type"]
           docvault_category_id?: string | null
           expiry_date?: string | null
           id?: string
@@ -193,6 +141,7 @@ export type Database = {
           last_accessed_at?: string | null
           name?: string
           notes?: string | null
+          organization_id?: string | null
           renewal_period_days?: number | null
           updated_at?: string
           user_id?: string
@@ -203,6 +152,13 @@ export type Database = {
             columns: ["docvault_category_id"]
             isOneToOne: false
             referencedRelation: "docvault_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -231,191 +187,46 @@ export type Database = {
         }
         Relationships: []
       }
-      notification_channels: {
-        Row: {
-          channel_key: string
-          created_at: string
-          description: string | null
-          display_name: string
-          group_key: string | null
-          id: string
-          importance: string
-          led_color: string | null
-          ongoing: boolean
-          sound: string | null
-          vibration_pattern: number[] | null
-        }
-        Insert: {
-          channel_key: string
-          created_at?: string
-          description?: string | null
-          display_name: string
-          group_key?: string | null
-          id?: string
-          importance?: string
-          led_color?: string | null
-          ongoing?: boolean
-          sound?: string | null
-          vibration_pattern?: number[] | null
-        }
-        Update: {
-          channel_key?: string
-          created_at?: string
-          description?: string | null
-          display_name?: string
-          group_key?: string | null
-          id?: string
-          importance?: string
-          led_color?: string | null
-          ongoing?: boolean
-          sound?: string | null
-          vibration_pattern?: number[] | null
-        }
-        Relationships: []
-      }
-      notification_delivery_log: {
+      fcm_tokens: {
         Row: {
           created_at: string
           device_info: string | null
-          entity_id: string | null
-          entity_type: string | null
-          error: string | null
-          event: string
           id: string
-          latency_ms: number | null
-          notification_state_id: string | null
-          provider:
-            | Database["public"]["Enums"]["notification_provider_enum"]
-            | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          device_info?: string | null
-          entity_id?: string | null
-          entity_type?: string | null
-          error?: string | null
-          event: string
-          id?: string
-          latency_ms?: number | null
-          notification_state_id?: string | null
-          provider?:
-            | Database["public"]["Enums"]["notification_provider_enum"]
-            | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          device_info?: string | null
-          entity_id?: string | null
-          entity_type?: string | null
-          error?: string | null
-          event?: string
-          id?: string
-          latency_ms?: number | null
-          notification_state_id?: string | null
-          provider?:
-            | Database["public"]["Enums"]["notification_provider_enum"]
-            | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "notification_delivery_log_notification_state_id_fkey"
-            columns: ["notification_state_id"]
-            isOneToOne: false
-            referencedRelation: "notification_state"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      notification_retry_queue: {
-        Row: {
-          attempt_count: number
-          created_at: string
-          id: string
-          last_error: string | null
-          next_attempt_at: string
-          notification_state_id: string | null
-          payload: Json
-          user_id: string
-        }
-        Insert: {
-          attempt_count?: number
-          created_at?: string
-          id?: string
-          last_error?: string | null
-          next_attempt_at?: string
-          notification_state_id?: string | null
-          payload: Json
-          user_id: string
-        }
-        Update: {
-          attempt_count?: number
-          created_at?: string
-          id?: string
-          last_error?: string | null
-          next_attempt_at?: string
-          notification_state_id?: string | null
-          payload?: Json
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "notification_retry_queue_notification_state_id_fkey"
-            columns: ["notification_state_id"]
-            isOneToOne: false
-            referencedRelation: "notification_state"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      notification_state: {
-        Row: {
-          channel_key: string
-          created_at: string
-          dispatch_count: number
-          entity_id: string
-          entity_type: string
-          id: string
-          last_dispatched_at: string | null
-          payload: Json
-          restore_after_reboot: boolean
-          scheduled_for: string
-          snoozed_until: string | null
-          state: Database["public"]["Enums"]["notification_state_enum"]
+          token: string
           updated_at: string
           user_id: string
         }
         Insert: {
-          channel_key?: string
           created_at?: string
-          dispatch_count?: number
-          entity_id: string
-          entity_type: string
+          device_info?: string | null
           id?: string
-          last_dispatched_at?: string | null
-          payload?: Json
-          restore_after_reboot?: boolean
-          scheduled_for: string
-          snoozed_until?: string | null
-          state?: Database["public"]["Enums"]["notification_state_enum"]
+          token: string
           updated_at?: string
           user_id: string
         }
         Update: {
-          channel_key?: string
           created_at?: string
-          dispatch_count?: number
-          entity_id?: string
-          entity_type?: string
+          device_info?: string | null
           id?: string
-          last_dispatched_at?: string | null
-          payload?: Json
-          restore_after_reboot?: boolean
-          scheduled_for?: string
-          snoozed_until?: string | null
-          state?: Database["public"]["Enums"]["notification_state_enum"]
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      learned_preferences: {
+        Row: {
+          data: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          data?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          data?: Json
           updated_at?: string
           user_id?: string
         }
@@ -426,7 +237,7 @@ export type Database = {
           created_at: string
           device_info: string | null
           id: string
-          provider: Database["public"]["Enums"]["notification_provider_enum"]
+          provider: string
           token: string
           updated_at: string
           user_id: string
@@ -435,7 +246,7 @@ export type Database = {
           created_at?: string
           device_info?: string | null
           id?: string
-          provider: Database["public"]["Enums"]["notification_provider_enum"]
+          provider: string
           token: string
           updated_at?: string
           user_id: string
@@ -444,7 +255,7 @@ export type Database = {
           created_at?: string
           device_info?: string | null
           id?: string
-          provider?: Database["public"]["Enums"]["notification_provider_enum"]
+          provider?: string
           token?: string
           updated_at?: string
           user_id?: string
@@ -454,20 +265,26 @@ export type Database = {
       onesignal_player_ids: {
         Row: {
           created_at: string
+          device_info: string | null
           id: string
           player_id: string
+          updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          device_info?: string | null
           id?: string
           player_id: string
+          updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          device_info?: string | null
           id?: string
           player_id?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -477,21 +294,21 @@ export type Database = {
           created_at: string
           id: string
           organization_id: string
-          role: string
+          role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           organization_id: string
-          role?: string
+          role?: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
           organization_id?: string
-          role?: string
+          role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
         Relationships: [
@@ -530,40 +347,61 @@ export type Database = {
       }
       otp_codes: {
         Row: {
-          created_at: string
+          consumed_at: string | null
+          created_at: string | null
+          delivery_error: string | null
+          delivery_status: string
           expires_at: string
-          failed_attempts: number
+          failed_attempts: number | null
           id: string
           ip_address: string | null
-          is_verified: boolean
+          is_verified: boolean | null
           last_otp_sent_at: string | null
           locked_until: string | null
-          otp_code: string
+          otp_code: string | null
+          otp_hash: string | null
           phone_number: string
+          purpose: string
+          request_id: string | null
+          user_id: string | null
         }
         Insert: {
-          created_at?: string
+          consumed_at?: string | null
+          created_at?: string | null
+          delivery_error?: string | null
+          delivery_status?: string
           expires_at: string
-          failed_attempts?: number
+          failed_attempts?: number | null
           id?: string
           ip_address?: string | null
-          is_verified?: boolean
+          is_verified?: boolean | null
           last_otp_sent_at?: string | null
           locked_until?: string | null
-          otp_code: string
+          otp_code?: string | null
+          otp_hash?: string | null
           phone_number: string
+          purpose?: string
+          request_id?: string | null
+          user_id?: string | null
         }
         Update: {
-          created_at?: string
+          consumed_at?: string | null
+          created_at?: string | null
+          delivery_error?: string | null
+          delivery_status?: string
           expires_at?: string
-          failed_attempts?: number
+          failed_attempts?: number | null
           id?: string
           ip_address?: string | null
-          is_verified?: boolean
+          is_verified?: boolean | null
           last_otp_sent_at?: string | null
           locked_until?: string | null
-          otp_code?: string
+          otp_code?: string | null
+          otp_hash?: string | null
           phone_number?: string
+          purpose?: string
+          request_id?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -574,21 +412,21 @@ export type Database = {
           created_at: string
           display_name: string | null
           email: string | null
-          email_notifications_enabled: boolean
-          expiry_reminders_enabled: boolean
+          email_notifications_enabled: boolean | null
+          expiry_reminders_enabled: boolean | null
           id: string
-          notification_sounds: Json
+          notification_sounds: Json | null
+          onboarding_completed: boolean
+          onboarding_preferences: Json
           phone_number: string | null
-          preferred_notification_time: string
-          push_notifications_enabled: boolean
-          renewal_reminders_enabled: boolean
-          sms_notifications_enabled: boolean
-          theme: string | null
-          timezone: string
+          preferred_notification_time: string | null
+          push_notifications_enabled: boolean | null
+          renewal_reminders_enabled: boolean | null
+          theme_preference: Json
+          timezone: string | null
           updated_at: string
           user_id: string
-          voice_greeting_enabled: boolean
-          weekly_digest_enabled: boolean
+          weekly_digest_enabled: boolean | null
         }
         Insert: {
           avatar_url?: string | null
@@ -596,21 +434,21 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           email?: string | null
-          email_notifications_enabled?: boolean
-          expiry_reminders_enabled?: boolean
+          email_notifications_enabled?: boolean | null
+          expiry_reminders_enabled?: boolean | null
           id?: string
-          notification_sounds?: Json
+          notification_sounds?: Json | null
+          onboarding_completed?: boolean
+          onboarding_preferences?: Json
           phone_number?: string | null
-          preferred_notification_time?: string
-          push_notifications_enabled?: boolean
-          renewal_reminders_enabled?: boolean
-          sms_notifications_enabled?: boolean
-          theme?: string | null
-          timezone?: string
+          preferred_notification_time?: string | null
+          push_notifications_enabled?: boolean | null
+          renewal_reminders_enabled?: boolean | null
+          theme_preference?: Json
+          timezone?: string | null
           updated_at?: string
           user_id: string
-          voice_greeting_enabled?: boolean
-          weekly_digest_enabled?: boolean
+          weekly_digest_enabled?: boolean | null
         }
         Update: {
           avatar_url?: string | null
@@ -618,21 +456,78 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           email?: string | null
-          email_notifications_enabled?: boolean
-          expiry_reminders_enabled?: boolean
+          email_notifications_enabled?: boolean | null
+          expiry_reminders_enabled?: boolean | null
           id?: string
-          notification_sounds?: Json
+          notification_sounds?: Json | null
+          onboarding_completed?: boolean
+          onboarding_preferences?: Json
           phone_number?: string | null
-          preferred_notification_time?: string
-          push_notifications_enabled?: boolean
-          renewal_reminders_enabled?: boolean
-          sms_notifications_enabled?: boolean
-          theme?: string | null
+          preferred_notification_time?: string | null
+          push_notifications_enabled?: boolean | null
+          renewal_reminders_enabled?: boolean | null
+          theme_preference?: Json
+          timezone?: string | null
+          updated_at?: string
+          user_id?: string
+          weekly_digest_enabled?: boolean | null
+        }
+        Relationships: []
+      }
+      reminder_instances: {
+        Row: {
+          client_event_at: string | null
+          completed_at: string | null
+          created_at: string
+          device_origin: string | null
+          fired_at: string | null
+          id: string
+          metadata: Json
+          reminder_id: string
+          reminder_type: string
+          scheduled_for: string
+          snooze_count: number
+          snoozed_until: string | null
+          state: string
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_event_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          device_origin?: string | null
+          fired_at?: string | null
+          id?: string
+          metadata?: Json
+          reminder_id: string
+          reminder_type: string
+          scheduled_for: string
+          snooze_count?: number
+          snoozed_until?: string | null
+          state?: string
+          timezone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_event_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          device_origin?: string | null
+          fired_at?: string | null
+          id?: string
+          metadata?: Json
+          reminder_id?: string
+          reminder_type?: string
+          scheduled_for?: string
+          snooze_count?: number
+          snoozed_until?: string | null
+          state?: string
           timezone?: string
           updated_at?: string
           user_id?: string
-          voice_greeting_enabled?: boolean
-          weekly_digest_enabled?: boolean
         }
         Relationships: []
       }
@@ -641,33 +536,27 @@ export type Database = {
           created_at: string
           document_id: string
           id: string
-          is_custom: boolean
-          is_sent: boolean
+          is_custom: boolean | null
+          is_sent: boolean | null
           reminder_date: string
-          stage: string | null
-          updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           document_id: string
           id?: string
-          is_custom?: boolean
-          is_sent?: boolean
+          is_custom?: boolean | null
+          is_sent?: boolean | null
           reminder_date: string
-          stage?: string | null
-          updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           document_id?: string
           id?: string
-          is_custom?: boolean
-          is_sent?: boolean
+          is_custom?: boolean | null
+          is_sent?: boolean | null
           reminder_date?: string
-          stage?: string | null
-          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -684,25 +573,28 @@ export type Database = {
         Row: {
           id: string
           notification_key: string
-          notified_at: string
-          routine_id: string | null
-          slot_id: string | null
+          notification_type: string
+          routine_id: string
+          sent_at: string
+          step_id: string | null
           user_id: string
         }
         Insert: {
           id?: string
           notification_key: string
-          notified_at?: string
-          routine_id?: string | null
-          slot_id?: string | null
+          notification_type: string
+          routine_id: string
+          sent_at?: string
+          step_id?: string | null
           user_id: string
         }
         Update: {
           id?: string
           notification_key?: string
-          notified_at?: string
-          routine_id?: string | null
-          slot_id?: string | null
+          notification_type?: string
+          routine_id?: string
+          sent_at?: string
+          step_id?: string | null
           user_id?: string
         }
         Relationships: []
@@ -720,7 +612,7 @@ export type Database = {
           days_of_week?: number[]
           id?: string
           task_id: string
-          time: string
+          time?: string
         }
         Update: {
           created_at?: string
@@ -773,7 +665,7 @@ export type Database = {
           created_at: string
           icon: string | null
           id: string
-          is_active: boolean
+          is_active: boolean | null
           name: string
           updated_at: string
           user_id: string
@@ -782,7 +674,7 @@ export type Database = {
           created_at?: string
           icon?: string | null
           id?: string
-          is_active?: boolean
+          is_active?: boolean | null
           name: string
           updated_at?: string
           user_id: string
@@ -791,158 +683,144 @@ export type Database = {
           created_at?: string
           icon?: string | null
           id?: string
-          is_active?: boolean
+          is_active?: boolean | null
           name?: string
           updated_at?: string
           user_id?: string
         }
         Relationships: []
       }
-      scheduled_notifications: {
+      snooze_sync_queue: {
         Row: {
-          active: boolean
-          body: string | null
-          channel_key: string
+          action: string
+          client_event_at: string
           created_at: string
-          device_id: string | null
-          fire_at: string
           id: string
-          local_alarm_id: number | null
-          notification_state_id: string | null
+          instance_id: string | null
           payload: Json
-          title: string | null
-          updated_at: string
+          processed: boolean
+          processed_at: string | null
           user_id: string
         }
         Insert: {
-          active?: boolean
-          body?: string | null
-          channel_key?: string
+          action: string
+          client_event_at: string
           created_at?: string
-          device_id?: string | null
-          fire_at: string
           id?: string
-          local_alarm_id?: number | null
-          notification_state_id?: string | null
+          instance_id?: string | null
           payload?: Json
-          title?: string | null
-          updated_at?: string
+          processed?: boolean
+          processed_at?: string | null
           user_id: string
         }
         Update: {
-          active?: boolean
-          body?: string | null
-          channel_key?: string
+          action?: string
+          client_event_at?: string
           created_at?: string
-          device_id?: string | null
-          fire_at?: string
           id?: string
-          local_alarm_id?: number | null
-          notification_state_id?: string | null
+          instance_id?: string | null
           payload?: Json
-          title?: string | null
-          updated_at?: string
+          processed?: boolean
+          processed_at?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "scheduled_notifications_notification_state_id_fkey"
-            columns: ["notification_state_id"]
-            isOneToOne: false
-            referencedRelation: "notification_state"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
+      }
+      snooze_usage: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          id: string
+          last_used_at: string
+          updated_at: string
+          used_count: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes: number
+          id?: string
+          last_used_at?: string
+          updated_at?: string
+          used_count?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          last_used_at?: string
+          updated_at?: string
+          used_count?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       tasks: {
         Row: {
-          consecutive_missed_days: number
-          created_at: string
+          consecutive_missed_days: number | null
+          created_at: string | null
           description: string | null
           end_time: string | null
           id: string
           image_path: string | null
           last_overdue_alert_sent: string | null
           last_reminder_sent_at: string | null
-          local_date: string
+          local_date: string | null
           original_date: string
-          reminder_active: boolean
-          routine_id: string | null
-          start_notified: boolean
+          reminder_active: boolean | null
+          start_notified: boolean | null
           start_time: string
           status: string
           task_date: string
           timezone: string
           title: string
           total_time_minutes: number | null
-          updated_at: string
+          updated_at: string | null
           user_id: string
         }
         Insert: {
-          consecutive_missed_days?: number
-          created_at?: string
+          consecutive_missed_days?: number | null
+          created_at?: string | null
           description?: string | null
           end_time?: string | null
           id?: string
           image_path?: string | null
           last_overdue_alert_sent?: string | null
           last_reminder_sent_at?: string | null
-          local_date: string
+          local_date?: string | null
           original_date: string
-          reminder_active?: boolean
-          routine_id?: string | null
-          start_notified?: boolean
+          reminder_active?: boolean | null
+          start_notified?: boolean | null
           start_time: string
           status?: string
           task_date: string
           timezone?: string
           title: string
           total_time_minutes?: number | null
-          updated_at?: string
+          updated_at?: string | null
           user_id: string
         }
         Update: {
-          consecutive_missed_days?: number
-          created_at?: string
+          consecutive_missed_days?: number | null
+          created_at?: string | null
           description?: string | null
           end_time?: string | null
           id?: string
           image_path?: string | null
           last_overdue_alert_sent?: string | null
           last_reminder_sent_at?: string | null
-          local_date?: string
+          local_date?: string | null
           original_date?: string
-          reminder_active?: boolean
-          routine_id?: string | null
-          start_notified?: boolean
+          reminder_active?: boolean | null
+          start_notified?: boolean | null
           start_time?: string
           status?: string
           task_date?: string
           timezone?: string
           title?: string
           total_time_minutes?: number | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      user_roles: {
-        Row: {
-          created_at: string
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -952,8 +830,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      has_role: {
+      delete_expired_otps: { Args: never; Returns: undefined }
+      get_user_org_role: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_org_role: {
         Args: {
+          _org_id: string
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
@@ -965,21 +849,15 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
-      notification_provider_enum:
-        | "fcm"
-        | "onesignal"
-        | "capacitor"
-        | "local"
-        | "web"
-      notification_state_enum:
-        | "pending"
-        | "active"
-        | "snoozed"
-        | "completed"
-        | "expired"
-        | "dismissed"
-        | "failed"
+      app_role: "admin" | "editor" | "viewer"
+      document_type:
+        | "license"
+        | "passport"
+        | "permit"
+        | "insurance"
+        | "certification"
+        | "other"
+        | "tickets_and_fines"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1107,22 +985,15 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
-      notification_provider_enum: [
-        "fcm",
-        "onesignal",
-        "capacitor",
-        "local",
-        "web",
-      ],
-      notification_state_enum: [
-        "pending",
-        "active",
-        "snoozed",
-        "completed",
-        "expired",
-        "dismissed",
-        "failed",
+      app_role: ["admin", "editor", "viewer"],
+      document_type: [
+        "license",
+        "passport",
+        "permit",
+        "insurance",
+        "certification",
+        "other",
+        "tickets_and_fines",
       ],
     },
   },
