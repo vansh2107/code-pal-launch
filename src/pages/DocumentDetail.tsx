@@ -438,9 +438,9 @@ export default function DocumentDetail() {
 
         <div className="space-y-6">
         {/* Document Image/PDF */}
-        {document.image_path && imageUrl && (
+        {document.image_path && (
           <>
-            {processedImageUrl && (
+            {processedImageUrl && imageUrl && (
               <div className="flex justify-end gap-2 mb-2">
                 <Button 
                   variant={viewOriginal ? "default" : "outline"} 
@@ -461,31 +461,64 @@ export default function DocumentDetail() {
               </div>
             )}
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => setViewerOpen(true)}
+              className={imageUrl ? "cursor-pointer hover:shadow-lg transition-shadow" : ""}
+              onClick={() => imageUrl && setViewerOpen(true)}
             >
               <CardContent className="p-4">
-                {document.image_path.toLowerCase().endsWith('.pdf') ? (
-                  <div className="flex items-center justify-between p-6 bg-muted rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-primary/10 rounded-lg">
-                        <FileText className="h-10 w-10 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-lg">{document.name}</p>
-                        <p className="text-sm text-muted-foreground">PDF Document</p>
-                      </div>
+                {previewLoading ? (
+                  <div className="space-y-3">
+                    <div className="h-48 w-full rounded-lg bg-muted animate-pulse" />
+                    <div className="h-4 w-1/3 rounded bg-muted animate-pulse" />
+                  </div>
+                ) : !imageUrl || previewFailed ? (
+                  <div className="flex flex-col items-center justify-center gap-3 p-8 bg-muted rounded-lg text-center">
+                    <FileText className="h-10 w-10 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">Preview unavailable</p>
+                      <p className="text-sm text-muted-foreground">
+                        Your document is still stored safely. Only the preview could not be loaded.
+                      </p>
                     </div>
-                    <Button 
-                      variant="default" 
-                      size="lg"
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setViewerOpen(true);
+                        loadPreviewUrls(document.image_path!);
                       }}
                     >
-                      View PDF
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Retry
                     </Button>
+                  </div>
+                ) : document.image_path.toLowerCase().endsWith('.pdf') ? (
+                  <div className="space-y-4">
+                    <PDFPreview
+                      pdfUrl={imageUrl}
+                      className="w-full rounded-lg"
+                      width={800}
+                      onClick={() => setViewerOpen(true)}
+                    />
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                          <FileText className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate">{document.name}</p>
+                          <p className="text-sm text-muted-foreground">PDF Document</p>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="default"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewerOpen(true);
+                        }}
+                      >
+                        View PDF
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="relative">
@@ -493,9 +526,7 @@ export default function DocumentDetail() {
                       src={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
                       alt={document.name}
                       className="w-full rounded-lg"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
+                      onError={() => setPreviewFailed(true)}
                     />
                     <div className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full text-sm">
                       Click to view full size
@@ -505,14 +536,17 @@ export default function DocumentDetail() {
               </CardContent>
             </Card>
 
-            <DocumentViewer
-              fileUrl={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
-              fileName={document.name}
-              open={viewerOpen}
-              onClose={() => setViewerOpen(false)}
-            />
+            {imageUrl && (
+              <DocumentViewer
+                fileUrl={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
+                fileName={document.name}
+                open={viewerOpen}
+                onClose={() => setViewerOpen(false)}
+              />
+            )}
           </>
         )}
+
 
         {/* Document Information */}
         <Card className={`border-2 ${statusInfo?.bgClass || ''} ${statusInfo?.borderClass || 'border-border'}`}>
