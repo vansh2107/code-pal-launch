@@ -86,14 +86,10 @@ export default function DocVault() {
     }
   };
 
-  const handleFileUpload = async (file: File, categoryId: string | null, documentName: string) => {
+  const performUpload = async (payload: PendingUpload) => {
+    const { file, categoryId, documentName, expiryDate } = payload;
     if (!user?.id) {
       toast.error("You must be signed in to upload documents.");
-      return;
-    }
-
-    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
-      toast.error("Unsupported file type. Please upload an image or PDF.");
       return;
     }
 
@@ -115,6 +111,7 @@ export default function DocVault() {
           issuing_authority: "DocVault",
           docvault_category_id: categoryId,
           category_detail: "uploaded",
+          expiry_date: expiryDate || null,
           updated_at: new Date().toISOString(),
         });
 
@@ -122,7 +119,13 @@ export default function DocVault() {
         throw error;
       }
 
-      toast.success("Document uploaded");
+      if (expiryDate) {
+        toast.success("Document uploaded");
+      } else {
+        toast.success("Document uploaded", {
+          description: "No expiry date was set, so this document won't trigger renewal reminders.",
+        });
+      }
       await refetch();
     } catch (error: any) {
       console.error("DocVault upload failed:", error);
@@ -131,6 +134,37 @@ export default function DocVault() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleFileUpload = async (
+    file: File,
+    categoryId: string | null,
+    documentName: string,
+    expiryDate?: string | null,
+  ) => {
+    if (!user?.id) {
+      toast.error("You must be signed in to upload documents.");
+      return;
+    }
+
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+      toast.error("Unsupported file type. Please upload an image or PDF.");
+      return;
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("File is too large. The maximum upload size is 25 MB.");
+      return;
+    }
+
+    const payload: PendingUpload = { file, categoryId, documentName, expiryDate: expiryDate || null };
+
+    if (expiryDate && new Date(`${expiryDate}T23:59:59`) < new Date()) {
+      setPendingUpload(payload);
+      return;
+    }
+
+    await performUpload(payload);
   };
 
   const handleCategorySubmit = async (name: string) => {
