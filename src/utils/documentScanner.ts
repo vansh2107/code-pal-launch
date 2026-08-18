@@ -355,7 +355,8 @@ function dilateEdges(edges: Uint8Array, width: number, height: number): Uint8Arr
 function findDocumentContour(
   edges: Uint8Array,
   width: number,
-  height: number
+  height: number,
+  pixels?: Uint8ClampedArray
 ): { bounds: CropBounds; confidence: number } | null {
   const imgArea = width * height;
 
