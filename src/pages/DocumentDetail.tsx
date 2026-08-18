@@ -35,8 +35,8 @@ interface Document {
   document_type: string;
   category_detail?: string;
   issuing_authority: string;
-  expiry_date: string;
-  renewal_period_days: number;
+  expiry_date: string | null;
+  renewal_period_days: number | null;
   notes: string;
   created_at: string;
   updated_at: string;
