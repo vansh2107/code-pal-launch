@@ -13,17 +13,9 @@ interface SwipeableDocumentCardProps {
     document_type: string;
     category_detail?: string;
     issuing_authority: string;
-    expiry_date: string;
+    expiry_date: string | null;
   };
-  statusInfo: {
-    status: 'expired' | 'expiring' | 'valid';
-    label: string;
-    badgeVariant: "default" | "destructive" | "outline" | "secondary";
-    colorClass: string;
-    bgClass: string;
-    borderClass: string;
-    textClass: string;
-  };
+  statusInfo: DocumentStatusInfo;
   onDelete: (id: string) => void;
   getSubCategoryName: (type: string) => string;
 }
