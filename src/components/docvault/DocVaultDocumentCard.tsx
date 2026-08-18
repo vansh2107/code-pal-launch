@@ -53,33 +53,35 @@ export const DocVaultDocumentCard = memo(function DocVaultDocumentCard({
 
   return (
     <Card className="w-full rounded-2xl group relative overflow-hidden hover:shadow-lg transition-all">
-      <div 
-        className="cursor-pointer"
+      <Link
+        to={`/documents/${document.id}`}
+        aria-label={`Open ${document.name}`}
+        className="block cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-2xl"
         onClick={() => onView(document.id)}
       >
-        {document.image_path && signedUrl && (
-          <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
-            {isPdf ? (
-              <PDFPreview
-                pdfUrl={signedUrl}
-                className="w-full h-full"
-                width={400}
-              />
+        <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
+          {signedUrl ? (
+            isPdf ? (
+              <div className="pointer-events-none w-full h-full">
+                <PDFPreview pdfUrl={signedUrl} className="w-full h-full" width={400} />
+              </div>
             ) : (
               <img
                 src={signedUrl}
                 alt={document.name}
                 className="w-full h-full object-cover"
               />
-            )}
-            {showFrequentBadge && (
-              <div className="absolute top-2 left-2 bg-amber-500/90 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">
-                <Star className="h-3 w-3" />
-                Frequent
-              </div>
-            )}
-          </div>
-        )}
+            )
+          ) : (
+            <FileText className="h-10 w-10 text-muted-foreground" />
+          )}
+          {showFrequentBadge && (
+            <div className="absolute top-2 left-2 bg-amber-500/90 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">
+              <Star className="h-3 w-3" />
+              Frequent
+            </div>
+          )}
+        </div>
         <div className="p-4 space-y-2">
           <h3 className="font-medium truncate">{document.name}</h3>
           <p className="text-xs text-muted-foreground">
