@@ -247,8 +247,10 @@ export default function DocVault() {
                   <DocVaultDocumentCard
                     key={doc.id}
                     document={doc}
-                    signedUrl={signedUrls[doc.id] || null}
-                    onView={() => navigate(`/documents/${doc.id}`)}
+                    signedUrl={(doc.image_path ? signedUrls.get(doc.image_path) : null) || null}
+                    onView={(docId) => {
+                      trackDocumentAccess(docId).catch(() => {});
+                    }}
                     onDelete={handleDeleteDocument}
                     onMove={handleMoveDocument}
                     isDeleting={deletingId === doc.id}
