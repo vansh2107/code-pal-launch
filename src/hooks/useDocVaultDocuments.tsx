@@ -127,7 +127,25 @@ export function useDocVaultDocuments(userId: string | undefined) {
   const deleteDocument = useCallback(async (docId: string, imagePath: string | null) => {
     try {
       if (imagePath) {
-        await supabase.storage.from("document-images").remove([imagePath]);
+        const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+        const { error: removeError } = await supabase.storage
+          .from("document-images")
+          .remove([cleanPath]);
+        
+        if (removeError) {
+          // If the object is not found, we consider it a success (idempotent),
+          // as the goal (storage object is gone) is already satisfied.
+          const isNotFoundError = 
+            removeError.message.toLowerCase().includes("not found") ||
+            (removeError as any).statusCode === 404;
+
+          if (!isNotFoundError) {
+            console.error("Genuine storage removal error:", removeError);
+            throw removeError;
+          } else {
+            console.warn("Storage object already missing (orphaned record), proceeding with DB deletion.");
+          }
+        }
       }
 
       const { error } = await supabase
@@ -142,6 +160,7 @@ export function useDocVaultDocuments(userId: string | undefined) {
     } catch (error: any) {
       console.error("Error deleting document:", error);
       toast.error(error?.message || "Failed to delete document");
+      throw error;
     }
   }, [refetch]);
 

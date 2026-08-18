@@ -67,9 +67,45 @@ export default function DocumentDetail() {
     setImageUrl(null);
     setProcessedImageUrl(null);
     try {
+      const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
       const { data: signedUrlData, error: urlError } = await supabase.storage
         .from('document-images')
-        .createSignedUrl(imagePath, 3600);
+        .createSignedUrl(cleanPath, 3600);
+
+      console.log('DEBUG: Attempting to create signed URL for path:', imagePath);
+      if (urlError) {
+        console.error('DEBUG: Error creating signed URL:', urlError);
+        console.log('DEBUG: Failed path (cleaned):', cleanPath);
+        console.log('DEBUG: Original path:', imagePath);
+        toast({
+          title: "Preview URL Error",
+          description: `Path: ${imagePath}. Error: ${urlError.message}`,
+          variant: "destructive",
+        });
+        setPreviewFailed(true);
+      } else {
+        console.log('DEBUG: Successfully created signed URL:', signedUrlData?.signedUrl);
+        // Test the URL
+        try {
+          const response = await fetch(signedUrlData?.signedUrl || '');
+          console.log('DEBUG: Test fetch response status:', response.status);
+          if (response.status !== 200) {
+            toast({
+              title: "Preview Fetch Error",
+              description: `Status: ${response.status}`,
+              variant: "destructive",
+            });
+          }
+          console.log('DEBUG: Test fetch response content-type:', response.headers.get('content-type'));
+        } catch (fetchError) {
+          console.error('DEBUG: Error testing signed URL:', fetchError);
+          toast({
+            title: "Preview Fetch Exception",
+            description: String(fetchError),
+            variant: "destructive",
+          });
+        }
+      }
 
       if (urlError || !signedUrlData?.signedUrl) {
         console.error('Error getting signed URL:', urlError);
@@ -245,9 +281,15 @@ export default function DocumentDetail() {
     try {
       // Delete document image from storage if exists
       if (document?.image_path) {
-        await supabase.storage
+        const cleanPath = document.image_path.startsWith('/') ? document.image_path.substring(1) : document.image_path;
+        const { error: storageError } = await supabase.storage
           .from('document-images')
-          .remove([document.image_path]);
+          .remove([cleanPath]);
+        
+        if (storageError && !storageError.message.toLowerCase().includes("not found")) {
+          console.error('Error deleting storage object:', storageError);
+          throw storageError;
+        }
       }
 
       const { error } = await supabase
