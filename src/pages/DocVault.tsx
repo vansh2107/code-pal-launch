@@ -111,6 +111,7 @@ export default function DocVault() {
           user_id: user.id,
           name: (documentName || file.name).trim() || file.name,
           document_type: "other",
+          expiry_date: null,
           image_path: storagePath,
           issuing_authority: "DocVault",
           docvault_category_id: categoryId,
@@ -122,7 +123,9 @@ export default function DocVault() {
         throw error;
       }
 
-      toast.success("Document uploaded");
+      toast.success("Document uploaded", {
+        description: "This document has no expiry date and has been saved to DocVault.",
+      });
       await refetch();
     } catch (error: any) {
       console.error("DocVault upload failed:", error);
@@ -217,7 +220,7 @@ export default function DocVault() {
                 <Upload className="h-4 w-4" />
                 <span className="hidden sm:inline">Upload</span>
               </Button>
-              <Button onClick={startCamera} variant="secondary" className="gap-2">
+              <Button onClick={() => startCamera()} variant="secondary" className="gap-2">
                 <CameraIcon className="h-4 w-4" />
                 <span className="hidden sm:inline">Scan</span>
               </Button>

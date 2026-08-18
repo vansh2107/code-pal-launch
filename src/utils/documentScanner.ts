@@ -521,7 +521,8 @@ function findDocumentContour(
           const sidesBonus = clamp01((strongSides - 2) / 2);
 
           // Combined score
-          // Compute color distance between inner and outer boundary pixels to ensure document/background separation
+          // Compute edge-magnitude difference between inner and outer boundary pixels
+          // to ensure document/background separation
           let separationScore = 0.5;
           let colorDistSum = 0;
           let colorSampleCount = 0;
@@ -533,13 +534,10 @@ function findDocumentContour(
             // Sample top edge inside/outside
             const syInside = Math.min(height - 1, Math.max(0, top + sampleOffset));
             const syOutside = Math.min(height - 1, Math.max(0, top - sampleOffset));
-            const idxInside = (syInside * width + sx) * 4;
-            const idxOutside = (syOutside * width + sx) * 4;
-            
-            const rDiff = imageData.data[idxInside] - imageData.data[idxOutside];
-            const gDiff = imageData.data[idxInside + 1] - imageData.data[idxOutside + 1];
-            const bDiff = imageData.data[idxInside + 2] - imageData.data[idxOutside + 2];
-            colorDistSum += Math.sqrt(rDiff * rDiff + gDiff * gDiff + bDiff * bDiff);
+            const idxInside = syInside * width + sx;
+            const idxOutside = syOutside * width + sx;
+
+            colorDistSum += Math.abs(edges[idxInside] - edges[idxOutside]);
             colorSampleCount++;
           }
           if (colorSampleCount > 0) {

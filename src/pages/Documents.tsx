@@ -30,7 +30,7 @@ interface Document {
   document_type: string;
   category_detail?: string;
   issuing_authority: string;
-  expiry_date: string;
+  expiry_date: string | null;
   created_at: string;
 }
 
@@ -165,6 +165,7 @@ export default function Documents() {
     if (filterStatus !== "all") {
       const today = new Date();
       filtered = filtered.filter(doc => {
+        if (!doc.expiry_date) return false;
         const daysUntilExpiry = Math.ceil((new Date(doc.expiry_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         if (filterStatus === "expired") return daysUntilExpiry < 0;
         if (filterStatus === "expiring") return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
@@ -173,7 +174,13 @@ export default function Documents() {
       });
     }
 
-    if (sortBy === "expiry") filtered.sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
+    if (sortBy === "expiry") {
+      filtered.sort((a, b) => {
+        if (!a.expiry_date) return 1;
+        if (!b.expiry_date) return -1;
+        return new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime();
+      });
+    }
     else if (sortBy === "name") filtered.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === "recent") filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
