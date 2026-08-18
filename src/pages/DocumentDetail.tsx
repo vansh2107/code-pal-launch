@@ -234,7 +234,7 @@ export default function DocumentDetail() {
         description: error.message || "Failed to load document. Please try again.",
         variant: "destructive",
       });
-      navigate('/documents');
+      setNotFound(true);
     } finally {
       setLoading(false);
     }
