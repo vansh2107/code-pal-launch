@@ -351,6 +351,41 @@ export default function DocVault() {
         onMove={handleMoveConfirm}
         isLoading={isMoving}
       />
+
+      <AlertDialog open={!!pendingUpload} onOpenChange={(open) => !open && setPendingUpload(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>This document is already expired</AlertDialogTitle>
+            <AlertDialogDescription>
+              The expiry date you entered
+              {pendingUpload?.expiryDate
+                ? ` (${new Date(`${pendingUpload.expiryDate}T00:00:00`).toLocaleDateString()})`
+                : ""}{" "}
+              is in the past. You can still store it in DocVault, but it will be marked as expired.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUploading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isUploading}
+              onClick={async (e) => {
+                e.preventDefault();
+                const payload = pendingUpload;
+                if (!payload) return;
+                try {
+                  await performUpload(payload);
+                } catch {
+                  /* toast already shown */
+                } finally {
+                  setPendingUpload(null);
+                }
+              }}
+            >
+              {isUploading ? "Uploading..." : "Upload anyway"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }
