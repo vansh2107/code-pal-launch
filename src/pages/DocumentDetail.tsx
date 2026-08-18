@@ -35,8 +35,8 @@ interface Document {
   document_type: string;
   category_detail?: string;
   issuing_authority: string;
-  expiry_date: string;
-  renewal_period_days: number;
+  expiry_date: string | null;
+  renewal_period_days: number | null;
   notes: string;
   created_at: string;
   updated_at: string;
@@ -57,6 +57,8 @@ export default function DocumentDetail() {
   const [renewalSheetOpen, setRenewalSheetOpen] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
   const [viewOriginal, setViewOriginal] = useState(true);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
 
   useEffect(() => {
     if (user && id) {
@@ -156,6 +158,45 @@ export default function DocumentDetail() {
     return startDate.toLocaleDateString();
   };
 
+  /**
+   * Resolves signed URLs for the ORIGINAL stored file (authoritative) and the
+   * optional processed/cropped derivative. Private bucket + signed URL only.
+   */
+  const loadPreviewUrls = async (imagePath: string) => {
+    setPreviewLoading(true);
+    setPreviewFailed(false);
+    try {
+      const { data: signedUrlData, error: urlError } = await supabase.storage
+        .from('document-images')
+        .createSignedUrl(imagePath, 3600); // 1 hour
+
+      if (urlError || !signedUrlData?.signedUrl) {
+        console.error('Signed URL error for document-images/%s:', imagePath, urlError);
+        setImageUrl(null);
+        setPreviewFailed(true);
+      } else {
+        setImageUrl(signedUrlData.signedUrl);
+      }
+
+      // Optional processed derivative — the original always stays authoritative.
+      try {
+        const ext = imagePath.split('.').pop() || 'jpg';
+        const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
+        const processedPath = `${basePath}/processed.${ext}`;
+
+        const { data: processedUrlData, error: processedUrlError } = await supabase.storage
+          .from('document-images')
+          .createSignedUrl(processedPath, 3600);
+
+        setProcessedImageUrl(!processedUrlError && processedUrlData ? processedUrlData.signedUrl : null);
+      } catch {
+        setProcessedImageUrl(null);
+      }
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const fetchDocument = async () => {
     try {
       const { data, error } = await supabase
@@ -168,12 +209,7 @@ export default function DocumentDetail() {
       if (error) throw error;
       
       if (!data) {
-        toast({
-          title: "Document not found",
-          description: "The requested document could not be found or you don't have permission to view it.",
-          variant: "destructive",
-        });
-        navigate('/documents');
+        setDocument(null);
         return;
       }
       
@@ -184,34 +220,8 @@ export default function DocumentDetail() {
 
       setDocument(normalizedDocument);
       
-      // Fetch signed URL for document image if it exists
       if (data.image_path) {
-        const { data: signedUrlData, error: urlError } = await supabase.storage
-          .from('document-images')
-          .createSignedUrl(data.image_path, 3600); // 1 hour expiry
-        
-        if (urlError) {
-          console.error('Error getting signed URL:', urlError);
-        } else if (signedUrlData) {
-          setImageUrl(signedUrlData.signedUrl);
-        }
-
-        // Try to fetch signed URL for the companion processed image if it exists
-        try {
-          const ext = data.image_path.split('.').pop() || 'jpg';
-          const basePath = data.image_path.substring(0, data.image_path.lastIndexOf('/'));
-          const processedPath = `${basePath}/processed.${ext}`;
-          
-          const { data: processedUrlData, error: processedUrlError } = await supabase.storage
-            .from('document-images')
-            .createSignedUrl(processedPath, 3600);
-            
-          if (!processedUrlError && processedUrlData) {
-            setProcessedImageUrl(processedUrlData.signedUrl);
-          }
-        } catch (err) {
-          console.warn("No processed image found:", err);
-        }
+        await loadPreviewUrls(data.image_path);
       }
     } catch (error: any) {
       console.error('Error fetching document:', error);
@@ -220,7 +230,6 @@ export default function DocumentDetail() {
         description: error.message || "Failed to load document. Please try again.",
         variant: "destructive",
       });
-      navigate('/documents');
     } finally {
       setLoading(false);
     }
