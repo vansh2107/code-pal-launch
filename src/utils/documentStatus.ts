@@ -1,4 +1,4 @@
-export type DocumentStatus = 'expired' | 'expiring' | 'valid' | 'none';
+export type DocumentStatus = 'expired' | 'expiring' | 'valid';
 
 export interface DocumentStatusInfo {
   status: DocumentStatus;
@@ -7,21 +7,10 @@ export interface DocumentStatusInfo {
   bgClass: string;
   borderClass: string;
   textClass: string;
-  badgeVariant: 'default' | 'destructive' | 'secondary' | 'outline';
+  badgeVariant: 'default' | 'destructive' | 'secondary';
 }
 
-export const getDocumentStatus = (expiryDate: string | null | undefined): DocumentStatusInfo => {
-  if (!expiryDate) {
-    return {
-      status: 'none',
-      label: 'No expiry',
-      colorClass: 'text-muted-foreground',
-      bgClass: 'bg-muted border-border',
-      borderClass: 'border-border',
-      textClass: 'text-muted-foreground',
-      badgeVariant: 'outline',
-    };
-  }
+export const getDocumentStatus = (expiryDate: string): DocumentStatusInfo => {
   const today = new Date();
   const expiry = new Date(expiryDate);
   const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));

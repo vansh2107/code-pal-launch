@@ -499,7 +499,7 @@ export function ChatBot() {
           const { error: vaultError } = await supabase
             .from('documents')
             .update({ 
-              expiry_date: null,
+              expiry_date: '9999-12-31',
               notes: `Moved to DocVault on ${new Date().toISOString().split('T')[0]}`
             })
             .eq('id', args.document_id);

@@ -46,7 +46,7 @@ export default function DocVault() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { categories, createCategory, renameCategory, deleteCategory, isCreating, isRenaming } = useDocVaultCategories(user?.id);
-  const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, refetch, isMoving } = useDocVaultDocuments(user?.id);
+  const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, trackDocumentAccess, refetch, isMoving } = useDocVaultDocuments(user?.id);
 
   const displayedDocuments = useMemo(() => {
     const docs = getDocumentsByCategory(selectedCategory);
@@ -111,7 +111,6 @@ export default function DocVault() {
           user_id: user.id,
           name: (documentName || file.name).trim() || file.name,
           document_type: "other",
-          expiry_date: null,
           image_path: storagePath,
           issuing_authority: "DocVault",
           docvault_category_id: categoryId,
@@ -123,9 +122,7 @@ export default function DocVault() {
         throw error;
       }
 
-      toast.success("Document uploaded", {
-        description: "This document has no expiry date and has been saved to DocVault.",
-      });
+      toast.success("Document uploaded");
       await refetch();
     } catch (error: any) {
       console.error("DocVault upload failed:", error);
@@ -250,8 +247,10 @@ export default function DocVault() {
                   <DocVaultDocumentCard
                     key={doc.id}
                     document={doc}
-                    signedUrl={signedUrls[doc.id] || null}
-                    onView={() => navigate(`/documents/${doc.id}`)}
+                    signedUrl={(doc.image_path ? signedUrls.get(doc.image_path) : null) || null}
+                    onView={(docId) => {
+                      trackDocumentAccess(docId).catch(() => {});
+                    }}
                     onDelete={handleDeleteDocument}
                     onMove={handleMoveDocument}
                     isDeleting={deletingId === doc.id}

@@ -22,7 +22,7 @@ interface Document {
   id: string;
   name: string;
   document_type: string;
-  expiry_date: string | null;
+  expiry_date: string;
   created_at: string;
   issuing_authority?: string;
   user_id: string;
@@ -121,16 +121,15 @@ export default function Dashboard() {
     const nonDocVault = documents.filter(doc => doc.issuing_authority !== 'DocVault');
     
     const total = nonDocVault.length;
-    const expired = nonDocVault.filter(doc => !!doc.expiry_date && new Date(doc.expiry_date) < today).length;
+    const expired = nonDocVault.filter(doc => new Date(doc.expiry_date) < today).length;
     const expiringSoon = nonDocVault.filter(doc => {
-      if (!doc.expiry_date) return false;
       const expiryDate = new Date(doc.expiry_date);
       return expiryDate >= today && expiryDate <= thirtyDaysFromNow;
     }).length;
 
     const attention = nonDocVault
-      .filter(doc => !!doc.expiry_date && new Date(doc.expiry_date) <= thirtyDaysFromNow)
-      .sort((a, b) => new Date(a.expiry_date!).getTime() - new Date(b.expiry_date!).getTime());
+      .filter(doc => new Date(doc.expiry_date) <= thirtyDaysFromNow)
+      .sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
 
     return {
       stats: { total, expiringSoon, expired, valid: total - expired - expiringSoon },
@@ -247,9 +246,7 @@ export default function Dashboard() {
                             <p className="text-sm text-secondary-foreground capitalize">
                               {isDocVault
                                 ? `Added ${new Date(doc.created_at).toLocaleDateString()}`
-                                : doc.expiry_date
-                                  ? `${doc.document_type.replace('_', ' ')} • Expires ${new Date(doc.expiry_date).toLocaleDateString()}`
-                                  : `${doc.document_type.replace('_', ' ')} • No expiry date`}
+                                : `${doc.document_type.replace('_', ' ')} • Expires ${new Date(doc.expiry_date).toLocaleDateString()}`}
                             </p>
                           </div>
                           {!isDocVault && (

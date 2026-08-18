@@ -1,1 +1,0 @@
-ALTER TABLE public.documents ALTER COLUMN expiry_date DROP NOT NULL;

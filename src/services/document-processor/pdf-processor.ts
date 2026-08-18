@@ -17,7 +17,7 @@ export class PdfProcessor {
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     
-    await page.render({ canvas, canvasContext: context, viewport }).promise;
+    await page.render({ canvas, canvasContext: context, viewport } as any).promise;
     return canvas.toDataURL('image/jpeg');
   }
 
