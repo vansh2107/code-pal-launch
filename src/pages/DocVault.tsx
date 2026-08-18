@@ -148,7 +148,17 @@ export default function DocVault() {
   };
 
   const handleDeleteDocument = async (docId: string, imagePath: string | null) => {
-    await deleteDocument(docId, imagePath);
+    setDeletingId(docId);
+    try {
+      await deleteDocument(docId, imagePath);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleViewDocument = (docId: string) => {
+    void trackDocumentAccess(docId);
+    navigate(`/documents/${docId}`);
   };
 
   const handleMoveDocument = (doc: DocVaultDocument) => {
@@ -217,7 +227,7 @@ export default function DocVault() {
                 <Upload className="h-4 w-4" />
                 <span className="hidden sm:inline">Upload</span>
               </Button>
-              <Button onClick={startCamera} variant="secondary" className="gap-2">
+              <Button onClick={() => startCamera(selectedCategory)} variant="secondary" className="gap-2">
                 <CameraIcon className="h-4 w-4" />
                 <span className="hidden sm:inline">Scan</span>
               </Button>
@@ -247,11 +257,12 @@ export default function DocVault() {
                   <DocVaultDocumentCard
                     key={doc.id}
                     document={doc}
-                    signedUrl={signedUrls[doc.id] || null}
-                    onView={() => navigate(`/documents/${doc.id}`)}
+                    signedUrl={(doc.image_path && signedUrls.get(doc.image_path)) || null}
+                    onView={handleViewDocument}
                     onDelete={handleDeleteDocument}
                     onMove={handleMoveDocument}
                     isDeleting={deletingId === doc.id}
+                    showFrequentBadge={selectedCategory === "frequently-used"}
                   />
                 ))}
               </div>
