@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ import { uploadDocumentOriginal } from "@/utils/documentStorage";
 
 export default function DocVault() {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -246,7 +248,7 @@ export default function DocVault() {
                     key={doc.id}
                     document={doc}
                     signedUrl={signedUrls[doc.id] || null}
-                    onView={() => {}}
+                    onView={() => navigate(`/documents/${doc.id}`)}
                     onDelete={handleDeleteDocument}
                     onMove={handleMoveDocument}
                     isDeleting={deletingId === doc.id}

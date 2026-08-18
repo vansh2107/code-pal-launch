@@ -21,7 +21,7 @@ const FILTER_OPTIONS: { value: ScanFilter; label: string; icon: string }[] = [
 ];
 
 // Minimum confidence required for auto-crop to be accepted
-const MIN_AUTO_CROP_CONFIDENCE = 0.35;
+const MIN_AUTO_CROP_CONFIDENCE = 0.75;
 
 /**
  * Use AI vision (Gemini) to detect document boundaries.
@@ -178,18 +178,19 @@ export function DocumentScanPreview({
           
           if (mounted) {
             setScanResult(result);
-            setDisplayImage(result.processedImage);
             originalImageRef.current = result.originalImage;
             setCurrentFilter('color');
             setProcessingTime(Math.round(endTime - startTime));
-            setCropConfidence(result.confidence);
+            setCropConfidence(result.confidence || 0);
             setCropBounds(result.cropBounds ?? null);
             
-            if (result.autoCropApplied && result.confidence >= MIN_AUTO_CROP_CONFIDENCE) {
+            if (result.autoCropApplied && (result.confidence || 0) >= MIN_AUTO_CROP_CONFIDENCE) {
               setCropApplied(true);
+              setDisplayImage(result.processedImage);
               setRequiresManualCrop(false);
             } else {
               setCropApplied(false);
+              setDisplayImage(result.originalImage);
               setRequiresManualCrop(true);
             }
           }
@@ -272,16 +273,19 @@ export function DocumentScanPreview({
     }
   }, [currentFilter]);
 
-  // Handle confirm - ONLY allows if crop is applied
+  // Handle confirm - allows if crop is applied or falls back to original
   const handleConfirm = useCallback(() => {
-    if (displayImage && scanResult && cropApplied) {
-      // Always save the processed (cropped) image, never the raw one
-      onConfirm(scanResult.processedImage);
+    if (displayImage && scanResult) {
+      if (cropApplied) {
+        onConfirm(scanResult.processedImage);
+      } else {
+        onConfirm(originalImageRef.current);
+      }
     }
   }, [displayImage, scanResult, cropApplied, onConfirm]);
 
-  // Can save only if crop is applied
-  const canSave = cropApplied && !applyingFilter && displayImage;
+  // Can save if a valid image is displayed and not applying filter
+  const canSave = !applyingFilter && !!displayImage;
 
   if (error) {
     return (
@@ -348,16 +352,16 @@ export function DocumentScanPreview({
             ) : null}
           </div>
 
-          {/* Crop requirement warning - MANDATORY */}
-          {!processing && requiresManualCrop && (
-            <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          {/* Crop suggestion when not auto-cropped */}
+          {!processing && !cropApplied && (
+            <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-slate-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                  Manual crop required
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                  Using original image
                 </p>
-                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                  Auto-crop couldn't detect document edges. Please tap "Select Document Area" to manually crop the document.
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                  The document boundary could not be detected confidently, so the original image is being used. You can adjust the crop manually or proceed.
                 </p>
               </div>
             </div>
@@ -446,7 +450,7 @@ export function DocumentScanPreview({
           {/* Cannot save warning */}
           {!processing && !cropApplied && (
             <p className="text-xs text-muted-foreground text-center">
-              ⚠️ You must crop the document before saving
+              ℹ️ Original image will be used without cropping
             </p>
           )}
 

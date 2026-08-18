@@ -27,6 +27,17 @@ import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstrai
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import { sanitizeDocumentNote } from "@/utils/documentNotes";
+import { evaluateDocumentDecision, parseAndNormalizeDate } from "@/utils/documentDecisionEngine";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const documentSchema = z.object({
   name: z.string()
@@ -42,8 +53,9 @@ const documentSchema = z.object({
     .optional()
     .or(z.literal("")),
   expiry_date: z.string()
-    .min(1, "Expiry date is required")
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format")
+    .optional()
+    .or(z.literal("")),
   renewal_period_days: z.number()
     .min(1, "Renewal period must be at least 1 day")
     .max(365, "Renewal period cannot exceed 365 days"),
@@ -80,6 +92,9 @@ export default function Scan() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfPhase, setPdfPhase] = useState<null | "processing" | "analyzing">(null);
   const [pdfProgress, setPdfProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [decision, setDecision] = useState<any>(null);
+  const [showExpiredConfirm, setShowExpiredConfirm] = useState(false);
+  const [expiredConfirmAction, setExpiredConfirmAction] = useState<(() => void) | null>(null);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -288,6 +303,86 @@ export default function Scan() {
     }
   };
 
+  const autoSaveNoExpiry = async (extractedFields: any, rawImg: string | null, croppedImg: string | null) => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      let imagePath = null;
+      if (pdfFile) {
+        imagePath = await uploadDocumentOriginal(pdfFile, user.id);
+      } else if (rawImg || croppedImg) {
+        const originalSrc = rawImg || croppedImg;
+        const originalBlob = await fetch(originalSrc).then(r => r.blob());
+        const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
+        const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
+        imagePath = await uploadDocumentOriginal(imageFile, user.id);
+        
+        if (rawImg && croppedImg && rawImg !== croppedImg) {
+          try {
+            const processedBlob = await fetch(croppedImg).then(r => r.blob());
+            const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
+            if (imagePath) {
+              const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
+              const processedPath = `${basePath}/processed.${processedFileExt}`;
+              await supabase.storage.from("document-images").upload(processedPath, processedBlob, {
+                cacheControl: "3600",
+                upsert: true,
+                contentType: processedBlob.type
+              });
+            }
+          } catch (e) {
+            console.warn("Failed to upload companion processed image:", e);
+          }
+        }
+      }
+
+      // Map document type
+      const documentTypeMap: Record<string, string> = {
+        'drivers_license': 'license',
+        'passport': 'passport',
+        'work_permit_visa': 'permit',
+        'insurance_policy': 'insurance',
+        'other': 'other'
+      };
+      const mappedType = documentTypeMap[extractedFields.document_type] || 'other';
+      const selectedOrgId = selectedOrg === "personal" ? null : selectedOrg;
+
+      const { data, error } = await supabase
+        .from('documents')
+        .insert({
+          name: extractedFields.name || "Unnamed Document",
+          document_type: mappedType as any,
+          category_detail: extractedFields.document_type,
+          issuing_authority: extractedFields.issuing_authority || "DocVault",
+          expiry_date: null,
+          renewal_period_days: extractedFields.renewal_period_days || 30,
+          notes: extractedFields.notes || "Saved automatically (no expiry date).",
+          user_id: user.id,
+          image_path: imagePath,
+          organization_id: selectedOrgId
+        } as any)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Saved to DocVault",
+        description: "This document does not have an expiry date, so it has been saved to DocVault.",
+      });
+      navigate(`/documents/${data.id}`);
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Save failed",
+        description: "Failed to automatically save document.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const extractDocumentData = async (imageBase64: string) => {
     setExtracting(true);
     setError("");
@@ -303,6 +398,20 @@ export default function Scan() {
       if (error) throw error;
 
       if (data.success && data.data) {
+        // Run decision engine
+        const dec = evaluateDocumentDecision(
+          data.data.document_type || "other",
+          data.data,
+          data.data.confidence || 0.9,
+          data.data.fieldStatuses
+        );
+        setDecision(dec);
+
+        if (dec.decision === 'NO_EXPIRY_AUTO_SAVE') {
+          await autoSaveNoExpiry(data.data, rawCapturedImage, capturedImage);
+          return;
+        }
+
         // Use detailed document type from AI as-is; we'll map it to enum on save
         const sanitizedNote = sanitizeDocumentNote(data.data.notes || "");
         setFormData(prev => ({
@@ -311,10 +420,27 @@ export default function Scan() {
           notes: sanitizedNote,
           document_type: data.data.document_type,
         }));
-        toast({
-          title: "Document Scanned",
-          description: "Document information extracted successfully. Please review and save.",
-        });
+
+        if (dec.decision === 'MISSING_REQUIRED_INFORMATION') {
+          setError(dec.explanation);
+          toast({
+            title: "Missing Required Information",
+            description: dec.explanation,
+            variant: "destructive",
+          });
+        } else if (dec.decision === 'CONFLICT_REQUIRES_REVIEW') {
+          setError(dec.explanation);
+          toast({
+            title: "Conflicts Detected",
+            description: dec.explanation,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Document Scanned",
+            description: "Document information extracted successfully. Please review and save.",
+          });
+        }
       } else {
         throw new Error(data.error || "Failed to extract document data");
       }
@@ -350,6 +476,20 @@ export default function Scan() {
       if (error) throw error;
 
       if (data?.success && data.data) {
+        // Run decision engine
+        const dec = evaluateDocumentDecision(
+          data.data.document_type || "other",
+          data.data,
+          data.data.confidence || 0.9,
+          data.data.fieldStatuses
+        );
+        setDecision(dec);
+
+        if (dec.decision === 'NO_EXPIRY_AUTO_SAVE') {
+          await autoSaveNoExpiry(data.data, null, null);
+          return;
+        }
+
         const sanitizedNote = sanitizeDocumentNote(data.data.notes || "");
         setFormData((prev) => ({
           ...prev,
@@ -357,10 +497,27 @@ export default function Scan() {
           notes: sanitizedNote,
           document_type: data.data.document_type,
         }));
-        toast({
-          title: "Document Analyzed",
-          description: `Information extracted from ${pages.length} page${pages.length > 1 ? "s" : ""}. Please review and save.`,
-        });
+
+        if (dec.decision === 'MISSING_REQUIRED_INFORMATION') {
+          setError(dec.explanation);
+          toast({
+            title: "Missing Required Information",
+            description: dec.explanation,
+            variant: "destructive",
+          });
+        } else if (dec.decision === 'CONFLICT_REQUIRES_REVIEW') {
+          setError(dec.explanation);
+          toast({
+            title: "Conflicts Detected",
+            description: dec.explanation,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Document Analyzed",
+            description: `Information extracted from ${pages.length} page${pages.length > 1 ? "s" : ""}. Please review and save.`,
+          });
+        }
       } else {
         throw new Error(data?.error || "Unable to extract information from this document.");
       }
@@ -447,50 +604,35 @@ export default function Scan() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
+  const proceedWithSave = async () => {
     setLoading(true);
     setError("");
 
     try {
-      // Ensure session is valid before inserting
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !session) {
         throw new Error("Authentication session expired. Please sign in again.");
       }
-      // Map specific document types to database enum types
+
       const documentTypeMap: { [key: string]: string } = {
-        // License types
         'drivers_license': 'license',
         'professional_license': 'license',
         'software_license': 'license',
         'business_license': 'license',
-        
-        // Passport types
         'passport': 'passport',
         'passport_renewal': 'passport',
-        
-        // Permit types
         'permit': 'permit',
         'work_permit_visa': 'permit',
         'student_visa': 'permit',
         'permanent_residency': 'permit',
         'vehicle_registration': 'permit',
-        
-        // Insurance types
         'insurance': 'insurance',
         'insurance_policy': 'insurance',
         'health_card': 'insurance',
         'family_insurance': 'insurance',
-        
-        // Certification types
         'certification': 'certification',
         'training_certificate': 'certification',
         'course_registration': 'certification',
-        
-        // Other catch-all
         'other': 'other',
         'credit_card': 'other',
         'utility_bills': 'other',
@@ -519,11 +661,8 @@ export default function Scan() {
         'password_security': 'other',
       };
 
-      // Map the document type to valid enum
       const mappedType = documentTypeMap[formData.document_type] || 'other';
-      console.log(`Mapping document type: ${formData.document_type} -> ${mappedType}`);
-      
-      // Validate all input data with zod schema
+
       const validationResult = documentSchema.safeParse({
         ...formData,
         document_type: mappedType,
@@ -537,34 +676,43 @@ export default function Scan() {
       const validatedData = validationResult.data;
       const safeNotes = sanitizeDocumentNote(validatedData.notes || "");
       
-      // Upload ORIGINAL file with NO compression
       let imagePath = null;
       
       try {
         if (pdfFile) {
-          // Validate PDF file size (max 20MB)
           const maxSize = 20 * 1024 * 1024;
           if (pdfFile.size > maxSize) {
             throw new Error("PDF file size exceeds 20MB limit");
           }
-          
-          // Upload ORIGINAL PDF - no conversion, no compression
-          // uploadDocumentOriginal now returns the file path directly
           imagePath = await uploadDocumentOriginal(pdfFile, user.id);
-        } else if (capturedImage) {
-          // Upload ORIGINAL image - no compression
-          const blob = await fetch(capturedImage).then(r => r.blob());
-          
+        } else if (rawCapturedImage || capturedImage) {
+          const originalSrc = rawCapturedImage || capturedImage;
+          const originalBlob = await fetch(originalSrc).then(r => r.blob());
           const maxSize = 20 * 1024 * 1024;
-          if (blob.size > maxSize) {
+          if (originalBlob.size > maxSize) {
             throw new Error("Image file size exceeds 20MB limit");
           }
-          
-          const fileExt = (blob.type.split('/')[1]) || 'jpg';
-          const imageFile = new File([blob], `document.${fileExt}`, { type: blob.type });
-          
-          // uploadDocumentOriginal now returns the file path directly
+          const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
+          const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
           imagePath = await uploadDocumentOriginal(imageFile, user.id);
+          
+          if (rawCapturedImage && capturedImage && rawCapturedImage !== capturedImage) {
+            try {
+              const processedBlob = await fetch(capturedImage).then(r => r.blob());
+              const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
+              if (imagePath) {
+                const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
+                const processedPath = `${basePath}/processed.${processedFileExt}`;
+                await supabase.storage.from("document-images").upload(processedPath, processedBlob, {
+                  cacheControl: "3600",
+                  upsert: true,
+                  contentType: processedBlob.type
+                });
+              }
+            } catch (e) {
+              console.warn("Failed to upload companion processed image:", e);
+            }
+          }
         }
       } catch (uploadErr) {
         console.error('Error uploading document file:', uploadErr);
@@ -577,9 +725,7 @@ export default function Scan() {
 
       const selectedOrgId = selectedOrg === "personal" ? null : selectedOrg;
 
-      // Check if we're in replace mode
       if (replaceMode && replaceDocId) {
-        // Get existing document to delete old image if needed
         const { data: existingDoc, error: fetchError } = await supabase
           .from('documents')
           .select('image_path')
@@ -588,14 +734,12 @@ export default function Scan() {
 
         if (fetchError) throw fetchError;
 
-        // Delete old image if exists and we have a new one
         if (existingDoc?.image_path && imagePath) {
           await supabase.storage
             .from('document-images')
             .remove([existingDoc.image_path]);
         }
 
-        // Update existing document
         const { data, error } = await supabase
           .from('documents')
           .update({
@@ -603,7 +747,7 @@ export default function Scan() {
             document_type: validatedData.document_type as any,
             category_detail: formData.document_type,
             issuing_authority: validatedData.issuing_authority,
-            expiry_date: validatedData.expiry_date,
+            expiry_date: validatedData.expiry_date || null,
             renewal_period_days: validatedData.renewal_period_days,
             notes: safeNotes,
             image_path: imagePath || existingDoc?.image_path,
@@ -615,28 +759,14 @@ export default function Scan() {
 
         if (error) throw error;
 
-        // Show GenZ toast
-        const genZMessages = [
-          "W bro 😎🔥 renewal god!",
-          "No cap, you're actually adulting 💼😂",
-          "Sigma move right there 🗿🔥",
-          "Your future self just said thanks 🤝",
-          "Good job bro… your documents cleaner than your room 💀",
-          "You're cooking fr 🧑‍🍳🔥",
-          "Huge W, keep grinding ⚡",
-          "Okay productivity KING 🤌🔥"
-        ];
-        
         toast({
-          title: genZMessages[Math.floor(Math.random() * genZMessages.length)],
-          duration: 3000,
+          title: "Document updated successfully",
         });
 
         navigate(`/documents/${data.id}`);
         return;
       }
 
-      // Create new document (original flow)
       const { data, error } = await supabase
         .from('documents')
         .insert({
@@ -644,7 +774,7 @@ export default function Scan() {
           document_type: validatedData.document_type as any,
           category_detail: formData.document_type,
           issuing_authority: validatedData.issuing_authority,
-          expiry_date: validatedData.expiry_date,
+          expiry_date: validatedData.expiry_date || null,
           renewal_period_days: validatedData.renewal_period_days,
           notes: safeNotes,
           user_id: user.id,
@@ -656,10 +786,8 @@ export default function Scan() {
 
       if (error) throw error;
 
-      // Database trigger automatically creates reminders based on renewal_period_days
-      // Only add custom reminder if user provided one
       if (formData.custom_reminder_date) {
-        const { error: customReminderError } = await supabase
+        await supabase
           .from('reminders')
           .insert({
             document_id: data.id,
@@ -667,20 +795,13 @@ export default function Scan() {
             reminder_date: formData.custom_reminder_date,
             is_custom: true,
           });
-
-        if (customReminderError) {
-          console.error('Error creating custom reminder:', customReminderError);
-          // Don't fail the whole operation if custom reminder fails
-        }
       }
 
-      // Fetch all reminders for this document (auto-created by trigger + custom)
       const { data: allReminders } = await supabase
         .from('reminders')
         .select('*')
         .eq('document_id', data.id);
 
-      // Send immediate confirmation emails for all reminders
       if (allReminders && allReminders.length > 0) {
         for (const reminder of allReminders) {
           try {
@@ -689,14 +810,12 @@ export default function Scan() {
             });
           } catch (emailError) {
             console.error('Error sending confirmation email:', emailError);
-            // Don't fail the whole operation if email fails
           }
         }
       }
 
       toast({
         title: "Document added successfully",
-        description: "Your document has been saved and reminder confirmation emails sent.",
       });
 
       navigate(`/documents/${data.id}`);
@@ -704,12 +823,33 @@ export default function Scan() {
       if (err instanceof z.ZodError) {
         setError(err.errors[0].message);
       } else {
-        setError("Failed to save document. Please try again.");
-        console.error('Error saving document:', err);
+        setError(err instanceof Error ? err.message : "Failed to save document. Please try again.");
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    // Check if expired and needs confirmation
+    const parsedExpiry = parseAndNormalizeDate(formData.expiry_date);
+    if (parsedExpiry) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const cleanExpiry = new Date(parsedExpiry);
+      cleanExpiry.setHours(0, 0, 0, 0);
+      
+      if (cleanExpiry < today && !showExpiredConfirm) {
+        setExpiredConfirmAction(() => () => proceedWithSave());
+        setShowExpiredConfirm(true);
+        return;
+      }
+    }
+
+    await proceedWithSave();
   };
 
   const handleInputChange = (field: string, value: string | number) => {
@@ -1212,6 +1352,31 @@ export default function Scan() {
         </Card>
         )}
       </div>
+
+      {showExpiredConfirm && (
+        <AlertDialog open={showExpiredConfirm} onOpenChange={setShowExpiredConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Document already expired</AlertDialogTitle>
+              <AlertDialogDescription>
+                The expiry date on this document is {formData.expiry_date}. This document has already expired.
+                Do you still want to continue and save this document to DocVault?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setShowExpiredConfirm(false)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setShowExpiredConfirm(false);
+                  if (expiredConfirmAction) expiredConfirmAction();
+                }}
+              >
+                Continue
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </AppShell>
   );
 }

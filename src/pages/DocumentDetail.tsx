@@ -55,6 +55,8 @@ export default function DocumentDetail() {
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [renewalSheetOpen, setRenewalSheetOpen] = useState(false);
+  const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
+  const [viewOriginal, setViewOriginal] = useState(true);
 
   useEffect(() => {
     if (user && id) {
@@ -192,6 +194,23 @@ export default function DocumentDetail() {
           console.error('Error getting signed URL:', urlError);
         } else if (signedUrlData) {
           setImageUrl(signedUrlData.signedUrl);
+        }
+
+        // Try to fetch signed URL for the companion processed image if it exists
+        try {
+          const ext = data.image_path.split('.').pop() || 'jpg';
+          const basePath = data.image_path.substring(0, data.image_path.lastIndexOf('/'));
+          const processedPath = `${basePath}/processed.${ext}`;
+          
+          const { data: processedUrlData, error: processedUrlError } = await supabase.storage
+            .from('document-images')
+            .createSignedUrl(processedPath, 3600);
+            
+          if (!processedUrlError && processedUrlData) {
+            setProcessedImageUrl(processedUrlData.signedUrl);
+          }
+        } catch (err) {
+          console.warn("No processed image found:", err);
         }
       }
     } catch (error: any) {
@@ -421,6 +440,26 @@ export default function DocumentDetail() {
         {/* Document Image/PDF */}
         {document.image_path && imageUrl && (
           <>
+            {processedImageUrl && (
+              <div className="flex justify-end gap-2 mb-2">
+                <Button 
+                  variant={viewOriginal ? "default" : "outline"} 
+                  size="sm"
+                  onClick={() => setViewOriginal(true)}
+                  className="h-8 text-xs rounded-lg"
+                >
+                  Original Document
+                </Button>
+                <Button 
+                  variant={!viewOriginal ? "default" : "outline"} 
+                  size="sm"
+                  onClick={() => setViewOriginal(false)}
+                  className="h-8 text-xs rounded-lg"
+                >
+                  Cropped & Enhanced
+                </Button>
+              </div>
+            )}
             <Card 
               className="cursor-pointer hover:shadow-lg transition-shadow"
               onClick={() => setViewerOpen(true)}
@@ -451,7 +490,7 @@ export default function DocumentDetail() {
                 ) : (
                   <div className="relative">
                     <img 
-                      src={imageUrl}
+                      src={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
                       alt={document.name}
                       className="w-full rounded-lg"
                       onError={(e) => {
@@ -467,7 +506,7 @@ export default function DocumentDetail() {
             </Card>
 
             <DocumentViewer
-              fileUrl={imageUrl}
+              fileUrl={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
               fileName={document.name}
               open={viewerOpen}
               onClose={() => setViewerOpen(false)}

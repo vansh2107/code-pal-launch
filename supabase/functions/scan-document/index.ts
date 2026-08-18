@@ -103,14 +103,14 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a document data extraction and renewal analysis assistant. Extract document information and intelligently determine renewal reminder periods based on document type and country-specific regulations.
+            content: `You are a document data extraction and renewal analysis assistant. Extract document information, identify missing/uncertain details, resolve cross-page discrepancies, and suggest renewal reminder periods based on document type and regulations.
 
-Extract the following information:
-- document_type: Choose the MOST SPECIFIC type from the detailed list below
-- name: the document name/title (be specific, e.g., "Indian Union Driving Licence")
-- issuing_authority: the organization that issued the document (be specific with full name)
-- expiry_date: expiration date in YYYY-MM-DD format
-- renewal_period_days: INTELLIGENT suggestion for reminder days before expiry
+Extract and analyze the following fields:
+- name: the document name/title (be specific, e.g. "Indian Union Driving Licence")
+- document_type: Choose the MOST SPECIFIC type from the list below
+- issuing_authority: the organization that issued the document
+- expiry_date: expiration date in YYYY-MM-DD format (or null/empty if none)
+- renewal_period_days: suggestion for reminder days before expiry (default: 30)
 
 Document Type Options (choose the MOST SPECIFIC match):
 - passport_renewal, drivers_license, vehicle_registration, health_card
@@ -127,35 +127,59 @@ Document Type Options (choose the MOST SPECIFIC match):
 - domain_name, web_hosting, cloud_storage, password_security
 - other (only if none of the above match)
 
-For renewal_period_days, consider:
-1. Document type urgency and processing time
-2. Country-specific renewal regulations and processing times
-3. Common practices in that country
-4. Complexity of renewal process
+CRITICAL RULES FOR NO HALLUCINATION:
+1. NEVER invent/guess dates, names, or identifiers. If a field is not visible, set its status to "missing" and its value to null.
+2. If a field is present but too blurry, obscured, or partially readable, set its status to "uncertain" and value to null/what is readable.
+3. If the document type genuinely does not have an expiry date (e.g., Aadhaar, PAN card, permanent certificates), set expiry_date status to "not_applicable" and value to null.
+4. Process EVERY page. If a field has different values on different pages (e.g. conflicting dates/names), set its status to "conflicting" and state the conflict in the reason.
 
-Examples:
-- Passports/immigration: 90-180 days (international travel documents need early renewal)
-- Professional licenses: 60-90 days (may require exams/courses)
-- Driver's Licenses: 30-60 days (varies by country)
-- Insurance: 30-45 days (need time for quotes comparison)
+For renewal_period_days, consider:
+- Passports/immigration: 90-180 days
+- Professional licenses: 60-90 days
+- Driver's Licenses: 30-60 days
+- Insurance: 30-45 days
 - Memberships: 30 days
 - Simple permits: 14-30 days
 
-${safeCountry ? `User is in: ${safeCountry}. Consider this country's specific renewal timelines and regulations.` : 'Country unknown - use general best practices.'}
+${safeCountry ? `User is in: ${safeCountry}. Consider this country's specific renewal timelines.` : 'Country unknown - use general best practices.'}
 
-Respond ONLY with valid JSON:
+Respond ONLY with valid JSON structure:
 {
   "document_type": "drivers_license",
-  "name": "Indian Union Driving Licence",
-  "issuing_authority": "Regional Transport Office, Bangalore",
-  "expiry_date": "2046-07-20",
-  "renewal_period_days": 60
+  "name": "Indian Driving Licence",
+  "issuing_authority": "RTO Delhi",
+  "expiry_date": "2032-12-31",
+  "renewal_period_days": 60,
+  "notes": "Any additional descriptive context about extraction, conflicts or missing details.",
+  "fieldStatuses": {
+    "name": {
+      "value": "Indian Driving Licence",
+      "status": "extracted",
+      "confidence": 0.95,
+      "sourcePage": 1,
+      "evidence": "FORM 6 DRIVING LICENCE DELHI",
+      "reason": "Successfully extracted from licence header on page 1."
+    },
+    "expiry_date": {
+      "value": "2032-12-31",
+      "status": "extracted",
+      "confidence": 0.95,
+      "sourcePage": 1,
+      "evidence": "Valid Upto: 31-12-2032",
+      "reason": "Successfully parsed expiry date."
+    },
+    "issuing_authority": {
+      "value": "RTO Delhi",
+      "status": "extracted",
+      "confidence": 0.90,
+      "sourcePage": 1,
+      "evidence": "Licensing Authority Delhi",
+      "reason": "Extracted from signature section."
+    }
+  }
 }
 
-CRITICAL VALIDATION RULES:
-1. document_type MUST be one of the specific types listed above (e.g., "drivers_license" not "license")
-2. Choose the MOST SPECIFIC type that matches the document
-3. Be as specific as possible in the name and issuing_authority fields`,
+The status values must be: "extracted" | "missing" | "uncertain" | "not_applicable" | "conflicting".`
           },
           {
             role: "user",
@@ -227,12 +251,9 @@ CRITICAL VALIDATION RULES:
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
     let extractedData;
     try {
       extractedData = JSON.parse(jsonMatch[0]);
-      const { notes: _ignoredNotes, ...cleanedData } = extractedData || {};
-      extractedData = cleanedData;
       console.log("Extracted data:", extractedData);
     } catch (parseError) {
       console.error("JSON parse error:", parseError);
