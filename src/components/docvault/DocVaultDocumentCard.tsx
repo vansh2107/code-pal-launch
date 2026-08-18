@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Trash2, FolderInput, Eye, Star, FileText } from "lucide-react";
+import { MoreVertical, Trash2, FolderInput, Eye, Star } from "lucide-react";
 import { PDFPreview } from "@/components/document/PDFPreview";
 import {
   DropdownMenu,
@@ -57,9 +57,9 @@ export const DocVaultDocumentCard = memo(function DocVaultDocumentCard({
         className="cursor-pointer"
         onClick={() => onView(document.id)}
       >
-        <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
-          {signedUrl ? (
-            isPdf ? (
+        {document.image_path && signedUrl && (
+          <div className="aspect-video bg-muted relative overflow-hidden flex items-center justify-center">
+            {isPdf ? (
               <PDFPreview
                 pdfUrl={signedUrl}
                 className="w-full h-full"
@@ -69,25 +69,17 @@ export const DocVaultDocumentCard = memo(function DocVaultDocumentCard({
               <img
                 src={signedUrl}
                 alt={document.name}
-                loading="lazy"
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
               />
-            )
-          ) : (
-            <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-              <FileText className="h-10 w-10" />
-              <span className="text-xs">
-                {document.image_path ? "Preview unavailable" : "No file attached"}
-              </span>
-            </div>
-          )}
-          {showFrequentBadge && (
-            <div className="absolute top-2 left-2 bg-amber-500/90 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">
-              <Star className="h-3 w-3" />
-              Frequent
-            </div>
-          )}
-        </div>
+            )}
+            {showFrequentBadge && (
+              <div className="absolute top-2 left-2 bg-amber-500/90 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">
+                <Star className="h-3 w-3" />
+                Frequent
+              </div>
+            )}
+          </div>
+        )}
         <div className="p-4 space-y-2">
           <h3 className="font-medium truncate">{document.name}</h3>
           <p className="text-xs text-muted-foreground">

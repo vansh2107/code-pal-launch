@@ -215,7 +215,7 @@ function detectDocumentContourImproved(
   const edges = cannyEdgeDetection(smoothed, width, height);
   const dilatedEdges = dilateEdges(edges, width, height);
 
-  const contour = findDocumentContour(dilatedEdges, width, height, data);
+  const contour = findDocumentContour(dilatedEdges, width, height);
   if (contour) return contour;
 
   // Fallback: color contrast
@@ -523,8 +523,6 @@ function findDocumentContour(
 
           // Combined score
           // Compute color distance between inner and outer boundary pixels to ensure document/background separation
-          // Neutral default: when raw pixel data is unavailable we must not
-          // penalise (or reward) the candidate, so the crop stays conservative.
           let separationScore = 0.5;
           if (pixels) {
             let colorDistSum = 0;
@@ -551,6 +549,7 @@ function findDocumentContour(
               separationScore = clamp01(avgDist / 120);
             }
           }
+
 
           const score = clamp01(
             avgEdge * 0.35 +

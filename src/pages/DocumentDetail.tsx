@@ -57,9 +57,49 @@ export default function DocumentDetail() {
   const [renewalSheetOpen, setRenewalSheetOpen] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
   const [viewOriginal, setViewOriginal] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
-  const [notFound, setNotFound] = useState(false);
+
+  const loadPreviewUrls = async (imagePath: string) => {
+    setPreviewLoading(true);
+    setPreviewFailed(false);
+    setImageUrl(null);
+    setProcessedImageUrl(null);
+    try {
+      const { data: signedUrlData, error: urlError } = await supabase.storage
+        .from('document-images')
+        .createSignedUrl(imagePath, 3600);
+
+      if (urlError || !signedUrlData?.signedUrl) {
+        console.error('Error getting signed URL:', urlError);
+        setPreviewFailed(true);
+      } else {
+        setImageUrl(signedUrlData.signedUrl);
+      }
+
+      // Companion processed image is optional
+      try {
+        const ext = imagePath.split('.').pop() || 'jpg';
+        const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
+        const processedPath = `${basePath}/processed.${ext}`;
+        const { data: processedUrlData, error: processedUrlError } = await supabase.storage
+          .from('document-images')
+          .createSignedUrl(processedPath, 3600);
+        if (!processedUrlError && processedUrlData) {
+          setProcessedImageUrl(processedUrlData.signedUrl);
+        }
+      } catch (err) {
+        console.warn('No processed image found:', err);
+      }
+    } catch (err) {
+      console.error('Error loading preview:', err);
+      setPreviewFailed(true);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
 
   useEffect(() => {
     if (user && id) {
@@ -159,54 +199,6 @@ export default function DocumentDetail() {
     return startDate.toLocaleDateString();
   };
 
-  const loadPreviewUrls = async (imagePath: string | null) => {
-    setProcessedImageUrl(null);
-    setImageUrl(null);
-    setPreviewFailed(false);
-
-    if (!imagePath) {
-      return;
-    }
-
-    setPreviewLoading(true);
-    try {
-      // The original upload is authoritative — if it fails, the preview fails.
-      const { data: signedUrlData, error: urlError } = await supabase.storage
-        .from('document-images')
-        .createSignedUrl(imagePath, 3600); // 1 hour expiry
-
-      if (urlError || !signedUrlData?.signedUrl) {
-        console.error('Error getting signed URL:', urlError);
-        setPreviewFailed(true);
-        return;
-      }
-
-      setImageUrl(signedUrlData.signedUrl);
-
-      // The processed/cropped companion is optional — never fail the preview on it.
-      try {
-        const ext = imagePath.split('.').pop() || 'jpg';
-        const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-        const processedPath = `${basePath}/processed.${ext}`;
-
-        const { data: processedUrlData, error: processedUrlError } = await supabase.storage
-          .from('document-images')
-          .createSignedUrl(processedPath, 3600);
-
-        if (!processedUrlError && processedUrlData?.signedUrl) {
-          setProcessedImageUrl(processedUrlData.signedUrl);
-        }
-      } catch (err) {
-        console.warn('No processed image found:', err);
-      }
-    } catch (err) {
-      console.error('Error loading document preview:', err);
-      setPreviewFailed(true);
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
   const fetchDocument = async () => {
     try {
       const { data, error } = await supabase
@@ -220,7 +212,6 @@ export default function DocumentDetail() {
 
       if (!data) {
         setNotFound(true);
-        setDocument(null);
         return;
       }
 
@@ -232,7 +223,10 @@ export default function DocumentDetail() {
       setNotFound(false);
       setDocument(normalizedDocument);
 
-      await loadPreviewUrls(data.image_path);
+      if (data.image_path) {
+        loadPreviewUrls(data.image_path);
+      }
+
     } catch (error: any) {
       console.error('Error fetching document:', error);
       toast({
@@ -317,15 +311,13 @@ export default function DocumentDetail() {
     );
   }
 
-  if (!document) {
+  if (notFound || !document) {
     return (
       <AppShell>
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="text-center">
             <h2 className="text-xl font-semibold mb-2">Document not found</h2>
-            <p className="text-muted-foreground mb-4">
-              This document doesn't exist, or you don't have permission to view it.
-            </p>
+            <p className="text-muted-foreground mb-4">The document you're looking for doesn't exist.</p>
             <Button onClick={() => navigate('/documents')}>Back to Documents</Button>
           </div>
         </div>
@@ -460,9 +452,9 @@ export default function DocumentDetail() {
 
         <div className="space-y-6">
         {/* Document Image/PDF */}
-        {document.image_path && imageUrl && (
+        {document.image_path && (
           <>
-            {processedImageUrl && (
+            {processedImageUrl && imageUrl && (
               <div className="flex justify-end gap-2 mb-2">
                 <Button 
                   variant={viewOriginal ? "default" : "outline"} 
@@ -483,31 +475,64 @@ export default function DocumentDetail() {
               </div>
             )}
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => setViewerOpen(true)}
+              className={imageUrl ? "cursor-pointer hover:shadow-lg transition-shadow" : ""}
+              onClick={() => imageUrl && setViewerOpen(true)}
             >
               <CardContent className="p-4">
-                {document.image_path.toLowerCase().endsWith('.pdf') ? (
-                  <div className="flex items-center justify-between p-6 bg-muted rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-primary/10 rounded-lg">
-                        <FileText className="h-10 w-10 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-lg">{document.name}</p>
-                        <p className="text-sm text-muted-foreground">PDF Document</p>
-                      </div>
+                {previewLoading ? (
+                  <div className="space-y-3">
+                    <div className="h-48 w-full rounded-lg bg-muted animate-pulse" />
+                    <div className="h-4 w-1/3 rounded bg-muted animate-pulse" />
+                  </div>
+                ) : !imageUrl || previewFailed ? (
+                  <div className="flex flex-col items-center justify-center gap-3 p-8 bg-muted rounded-lg text-center">
+                    <FileText className="h-10 w-10 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">Preview unavailable</p>
+                      <p className="text-sm text-muted-foreground">
+                        Your document is still stored safely. Only the preview could not be loaded.
+                      </p>
                     </div>
-                    <Button 
-                      variant="default" 
-                      size="lg"
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setViewerOpen(true);
+                        loadPreviewUrls(document.image_path!);
                       }}
                     >
-                      View PDF
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Retry
                     </Button>
+                  </div>
+                ) : document.image_path.toLowerCase().endsWith('.pdf') ? (
+                  <div className="space-y-4">
+                    <PDFPreview
+                      pdfUrl={imageUrl}
+                      className="w-full rounded-lg"
+                      width={800}
+                      onClick={() => setViewerOpen(true)}
+                    />
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                          <FileText className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate">{document.name}</p>
+                          <p className="text-sm text-muted-foreground">PDF Document</p>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="default"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewerOpen(true);
+                        }}
+                      >
+                        View PDF
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="relative">
@@ -515,9 +540,7 @@ export default function DocumentDetail() {
                       src={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
                       alt={document.name}
                       className="w-full rounded-lg"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
+                      onError={() => setPreviewFailed(true)}
                     />
                     <div className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full text-sm">
                       Click to view full size
@@ -527,14 +550,17 @@ export default function DocumentDetail() {
               </CardContent>
             </Card>
 
-            <DocumentViewer
-              fileUrl={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
-              fileName={document.name}
-              open={viewerOpen}
-              onClose={() => setViewerOpen(false)}
-            />
+            {imageUrl && (
+              <DocumentViewer
+                fileUrl={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
+                fileName={document.name}
+                open={viewerOpen}
+                onClose={() => setViewerOpen(false)}
+              />
+            )}
           </>
         )}
+
 
         {/* Document Information */}
         <Card className={`border-2 ${statusInfo?.bgClass || ''} ${statusInfo?.borderClass || 'border-border'}`}>
@@ -560,27 +586,30 @@ export default function DocumentDetail() {
                 </div>
               )}
               
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
+                {document.expiry_date ? (
+                  <p className={statusInfo?.textClass || 'text-foreground'}>
+                    {new Date(document.expiry_date).toLocaleDateString()}
+                  </p>
+                ) : isDocVault ? (
+                  <p className="text-muted-foreground">No expiry set for this document</p>
+                ) : (
+                  <p className="text-muted-foreground">Not set — expiry could not be determined</p>
+                )}
+              </div>
+
               {!isDocVault && (
-                <>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
-                    <p className={statusInfo?.textClass || 'text-foreground'}>
-                      {document.expiry_date
-                        ? new Date(document.expiry_date).toLocaleDateString()
-                        : "No expiry date set"}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Reminder Period</Label>
-                    <p className={statusInfo?.textClass || 'text-foreground'}>
-                      {document.renewal_period_days
-                        ? `${document.renewal_period_days} days before expiry`
-                        : "Not set"}
-                    </p>
-                  </div>
-                </>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Reminder Period</Label>
+                  <p className={statusInfo?.textClass || 'text-foreground'}>
+                    {document.renewal_period_days
+                      ? `${document.renewal_period_days} days before expiry`
+                      : 'Not set'}
+                  </p>
+                </div>
               )}
+
             </div>
 
             {document.notes && (
@@ -617,15 +646,16 @@ export default function DocumentDetail() {
         {/* AI Insights and Document History - Only for non-DocVault */}
         {!isDocVault && <DocumentHistory documentId={id!} />}
         {!isDocVault && <AIInsights document={document} statusInfo={statusInfo} />}
-        {!isDocVault && (
+        {!isDocVault && document.expiry_date && (
           <RenewalAdvisor 
             documentId={document.id}
             documentType={document.document_type}
             documentName={document.name}
-            expiryDate={document.expiry_date!}
+            expiryDate={document.expiry_date}
             statusInfo={statusInfo}
           />
         )}
+
         </div>
       </div>
 

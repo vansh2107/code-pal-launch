@@ -17,7 +17,7 @@ interface UploadDocumentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   categories: DocVaultCategory[];
-  onUpload: (file: File, categoryId: string | null, documentName: string, expiryDate?: string | null) => Promise<void>;
+  onUpload: (file: File, categoryId: string | null, documentName: string) => Promise<void>;
   onCreateCategory: (name: string) => Promise<string | null>;
   onScanDocument: (categoryId: string | null) => void;
 }
@@ -34,7 +34,6 @@ export function UploadDocumentDialog({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [documentName, setDocumentName] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -62,7 +61,7 @@ export function UploadDocumentDialog({
     
     setIsUploading(true);
     try {
-      await onUpload(selectedFile, selectedCategoryId, documentName || selectedFile.name, expiryDate || null);
+      await onUpload(selectedFile, selectedCategoryId, documentName || selectedFile.name);
       handleClose();
     } finally {
       setIsUploading(false);
@@ -79,7 +78,6 @@ export function UploadDocumentDialog({
     setPreviewUrl(null);
     setSelectedCategoryId(null);
     setDocumentName("");
-    setExpiryDate("");
     onOpenChange(false);
   };
 
@@ -155,19 +153,6 @@ export function UploadDocumentDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="doc-expiry">Expiry Date (Optional)</Label>
-                <Input
-                  id="doc-expiry"
-                  type="date"
-                  value={expiryDate}
-                  onChange={(e) => setExpiryDate(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Leave empty if this document never expires.
-                </p>
-              </div>
-
-              <div className="space-y-2">
                 <Label>Category (Optional)</Label>
                 <UploadCategorySelect
                   categories={categories}
@@ -184,7 +169,6 @@ export function UploadDocumentDialog({
                   setSelectedFile(null);
                   setPreviewUrl(null);
                   setDocumentName("");
-                  setExpiryDate("");
                 }}
               >
                 Choose Different File

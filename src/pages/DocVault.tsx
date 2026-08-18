@@ -19,25 +19,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadDocumentOriginal } from "@/utils/documentStorage";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-
-interface PendingUpload {
-  file: File;
-  categoryId: string | null;
-  documentName: string;
-  expiryDate: string | null;
-}
 
 export default function DocVault() {
   const isMobile = useIsMobile();
@@ -51,7 +33,6 @@ export default function DocVault() {
   const [showScanPreview, setShowScanPreview] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
@@ -65,7 +46,7 @@ export default function DocVault() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { categories, createCategory, renameCategory, deleteCategory, isCreating, isRenaming } = useDocVaultCategories(user?.id);
-  const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, trackDocumentAccess, refetch, isMoving } = useDocVaultDocuments(user?.id);
+  const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, refetch, isMoving } = useDocVaultDocuments(user?.id);
 
   const displayedDocuments = useMemo(() => {
     const docs = getDocumentsByCategory(selectedCategory);
@@ -105,10 +86,14 @@ export default function DocVault() {
     }
   };
 
-  const performUpload = async (payload: PendingUpload) => {
-    const { file, categoryId, documentName, expiryDate } = payload;
+  const handleFileUpload = async (file: File, categoryId: string | null, documentName: string) => {
     if (!user?.id) {
       toast.error("You must be signed in to upload documents.");
+      return;
+    }
+
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+      toast.error("Unsupported file type. Please upload an image or PDF.");
       return;
     }
 
@@ -130,7 +115,6 @@ export default function DocVault() {
           issuing_authority: "DocVault",
           docvault_category_id: categoryId,
           category_detail: "uploaded",
-          expiry_date: expiryDate || null,
           updated_at: new Date().toISOString(),
         });
 
@@ -138,13 +122,7 @@ export default function DocVault() {
         throw error;
       }
 
-      if (expiryDate) {
-        toast.success("Document uploaded");
-      } else {
-        toast.success("Document uploaded", {
-          description: "No expiry date was set, so this document won't trigger renewal reminders.",
-        });
-      }
+      toast.success("Document uploaded");
       await refetch();
     } catch (error: any) {
       console.error("DocVault upload failed:", error);
@@ -153,37 +131,6 @@ export default function DocVault() {
     } finally {
       setIsUploading(false);
     }
-  };
-
-  const handleFileUpload = async (
-    file: File,
-    categoryId: string | null,
-    documentName: string,
-    expiryDate?: string | null,
-  ) => {
-    if (!user?.id) {
-      toast.error("You must be signed in to upload documents.");
-      return;
-    }
-
-    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
-      toast.error("Unsupported file type. Please upload an image or PDF.");
-      return;
-    }
-
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("File is too large. The maximum upload size is 25 MB.");
-      return;
-    }
-
-    const payload: PendingUpload = { file, categoryId, documentName, expiryDate: expiryDate || null };
-
-    if (expiryDate && new Date(`${expiryDate}T23:59:59`) < new Date()) {
-      setPendingUpload(payload);
-      return;
-    }
-
-    await performUpload(payload);
   };
 
   const handleCategorySubmit = async (name: string) => {
@@ -201,17 +148,7 @@ export default function DocVault() {
   };
 
   const handleDeleteDocument = async (docId: string, imagePath: string | null) => {
-    setDeletingId(docId);
-    try {
-      await deleteDocument(docId, imagePath);
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const handleViewDocument = (docId: string) => {
-    void trackDocumentAccess(docId);
-    navigate(`/documents/${docId}`);
+    await deleteDocument(docId, imagePath);
   };
 
   const handleMoveDocument = (doc: DocVaultDocument) => {
@@ -310,12 +247,11 @@ export default function DocVault() {
                   <DocVaultDocumentCard
                     key={doc.id}
                     document={doc}
-                    signedUrl={(doc.image_path && signedUrls.get(doc.image_path)) || null}
-                    onView={handleViewDocument}
+                    signedUrl={signedUrls[doc.id] || null}
+                    onView={() => navigate(`/documents/${doc.id}`)}
                     onDelete={handleDeleteDocument}
                     onMove={handleMoveDocument}
                     isDeleting={deletingId === doc.id}
-                    showFrequentBadge={selectedCategory === "frequently-used"}
                   />
                 ))}
               </div>
@@ -351,41 +287,6 @@ export default function DocVault() {
         onMove={handleMoveConfirm}
         isLoading={isMoving}
       />
-
-      <AlertDialog open={!!pendingUpload} onOpenChange={(open) => !open && setPendingUpload(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>This document is already expired</AlertDialogTitle>
-            <AlertDialogDescription>
-              The expiry date you entered
-              {pendingUpload?.expiryDate
-                ? ` (${new Date(`${pendingUpload.expiryDate}T00:00:00`).toLocaleDateString()})`
-                : ""}{" "}
-              is in the past. You can still store it in DocVault, but it will be marked as expired.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isUploading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isUploading}
-              onClick={async (e) => {
-                e.preventDefault();
-                const payload = pendingUpload;
-                if (!payload) return;
-                try {
-                  await performUpload(payload);
-                } catch {
-                  /* toast already shown */
-                } finally {
-                  setPendingUpload(null);
-                }
-              }}
-            >
-              {isUploading ? "Uploading..." : "Upload anyway"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </AppShell>
   );
 }
