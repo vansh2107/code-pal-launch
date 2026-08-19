@@ -107,15 +107,7 @@ serve(async (req) => {
       );
     }
 
-    const response = await fetch(apiEndpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: [
+    const messages: any[] = [
           {
             role: "system",
             content: `You are a document data extraction and renewal analysis assistant. Extract document information, identify missing/uncertain details, resolve cross-page discrepancies, and suggest renewal reminder periods based on document type and regulations.
@@ -209,76 +201,157 @@ The status values must be: "extracted" | "missing" | "uncertain" | "not_applicab
               ])),
             ],
           },
-        ],
-      }),
-    });
+    ];
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        console.error("Rate limit exceeded");
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    // ---- Robust content -> JSON extraction (handles reasoning models emitting <think>) ----
+    const stripReasoning = (text: string): string =>
+      text
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .replace(/<think>[\s\S]*$/i, "")
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+
+    const extractJsonObject = (text: string): any | null => {
+      const cleaned = stripReasoning(text);
+      // Find the largest balanced { ... } block
+      for (let start = cleaned.indexOf("{"); start !== -1; start = cleaned.indexOf("{", start + 1)) {
+        let depth = 0;
+        for (let i = start; i < cleaned.length; i++) {
+          const ch = cleaned[i];
+          if (ch === "{") depth++;
+          else if (ch === "}") {
+            depth--;
+            if (depth === 0) {
+              try {
+                return JSON.parse(cleaned.slice(start, i + 1));
+              } catch (_) {
+                break; // try next opening brace
+              }
+            }
+          }
+        }
       }
-      if (response.status === 402) {
-        console.error("Payment required");
-        return new Response(
-          JSON.stringify({ error: "AI credits depleted. Please add credits to continue." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      return null;
+    };
+
+    const debug: Record<string, unknown> = {
+      function: "scan-document",
+      pages: pageImages.length,
+      imageMimeType: (pageImages[0].content.match(/^data:([^;]+);/) || [])[1] || "unknown",
+      imageSizeBytes: Math.round((pageImages[0].content.length * 3) / 4),
+      requestPayloadType: Array.isArray(pages) && pages.length > 0 ? "pages[]" : "imageBase64",
+    };
+
+    let extractedData: any = null;
+    let lastFailure: { provider: string; status?: number; body?: string; reason: string } | null = null;
+
+    for (const provider of providers) {
+      console.log(`SCAN AI DEBUG | trying provider=${provider.name} model=${provider.model}`, debug);
+      let response: Response;
+      try {
+        response = await fetch(provider.endpoint, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${provider.key}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: provider.model,
+            messages,
+            max_tokens: 2048,
+            temperature: 0,
+            ...(provider.jsonMode ? { response_format: { type: "json_object" } } : {}),
+          }),
+        });
+      } catch (netErr) {
+        lastFailure = { provider: provider.name, reason: `network error: ${String(netErr)}` };
+        console.error("SCAN AI DEBUG | network failure", lastFailure);
+        continue;
       }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error("AI gateway error");
+
+      if (!response.ok) {
+        const body = await response.text();
+        lastFailure = { provider: provider.name, status: response.status, body: body.slice(0, 800), reason: "non-2xx from AI provider" };
+        console.error("SCAN AI DEBUG | provider error", lastFailure);
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ success: false, code: "RATE_LIMIT", error: "AI is rate limited right now. Please try again in a moment or enter details manually." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ success: false, code: "PAYMENT_REQUIRED", error: "AI credits are depleted. Please top up credits, or enter the details manually." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        continue; // try the next provider
+      }
+
+      const data = await response.json();
+      const content: string | undefined = data.choices?.[0]?.message?.content;
+      const finishReason = data.choices?.[0]?.finish_reason;
+      console.log(`SCAN AI DEBUG | provider=${provider.name} finish_reason=${finishReason} content_length=${content?.length ?? 0}`);
+
+      if (!content) {
+        lastFailure = { provider: provider.name, status: response.status, body: JSON.stringify(data).slice(0, 800), reason: "empty content" };
+        console.error("SCAN AI DEBUG | empty content", lastFailure);
+        continue;
+      }
+
+      const parsed = extractJsonObject(content);
+      if (!parsed) {
+        lastFailure = { provider: provider.name, status: 200, body: content.slice(0, 800), reason: `no parsable JSON (finish_reason=${finishReason})` };
+        console.error("SCAN AI DEBUG | unparsable AI content", lastFailure);
+        continue;
+      }
+
+      extractedData = parsed;
+      console.log("SCAN AI DEBUG | extracted data", extractedData);
+      break;
     }
 
-    const data = await response.json();
-    console.log("AI response received:", data);
-
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("No content in AI response");
-    }
-
-    // Check if AI refused to extract (not a valid document)
-    if (content.toLowerCase().includes("cannot extract") || 
-        content.toLowerCase().includes("unable to extract") ||
-        content.toLowerCase().includes("not a document")) {
+    if (!extractedData) {
+      // AI pipeline failure — NOT the same as "the document could not be read"
       return new Response(
         JSON.stringify({
           success: false,
-          error: "The image does not appear to be a valid document. Please upload a clear photo of an official document like a passport, license, permit, or certificate."
+          code: "AI_ERROR",
+          error: "The AI service could not analyse this document right now. Please enter the details manually.",
+          debug: { ...debug, lastFailure },
         }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Parse JSON from the response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error("No JSON found in AI response. Content:", content);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Could not extract document information. Please ensure the image is clear and contains a valid document."
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    let extractedData;
-    try {
-      extractedData = JSON.parse(jsonMatch[0]);
-      console.log("Extracted data:", extractedData);
-    } catch (parseError) {
-      console.error("JSON parse error:", parseError);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Could not parse document information. Please try again with a clearer image."
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // ---- No-expiry document normalisation (Aadhaar, PAN, birth certificate, ...) ----
+    const NO_EXPIRY_HINTS = [
+      "aadhaar", "aadhar", "uidai", "pan card", "pan_card", "permanent account number",
+      "birth certificate", "marksheet", "degree", "diploma", "transcript", "voter id",
+      "voter_id", "incorporation", "social security", "national id",
+    ];
+    const haystack = [extractedData.name, extractedData.document_type, extractedData.issuing_authority, extractedData.notes]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const looksNoExpiry = NO_EXPIRY_HINTS.some((h) => haystack.includes(h));
+
+    if (looksNoExpiry || !extractedData.expiry_date) {
+      extractedData.expiry_date = extractedData.expiry_date || null;
+      if (looksNoExpiry) {
+        extractedData.expiry_date = null;
+        extractedData.has_expiry = false;
+        extractedData.fieldStatuses = {
+          ...(extractedData.fieldStatuses || {}),
+          expiry_date: {
+            value: null,
+            status: "not_applicable",
+            confidence: 1,
+            reason: "This document type does not have an expiry date.",
+          },
+        };
+      }
     }
 
     // Map AI-returned document types to valid database enums
