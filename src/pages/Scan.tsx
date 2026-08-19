@@ -66,6 +66,30 @@ const documentSchema = z.object({
     .or(z.literal("")),
 });
 
+/** Downscale a data URL so AI payloads stay within edge-function limits. */
+async function shrinkDataUrl(dataUrl: string, maxDim = 1600, quality = 0.85): Promise<string> {
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("decode failed"));
+      el.src = dataUrl;
+    });
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    if (scale >= 1 && dataUrl.length < 4_000_000) return dataUrl;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.width * scale));
+    canvas.height = Math.max(1, Math.round(img.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const out = canvas.toDataURL("image/jpeg", quality);
+    return out && out.length > 100 ? out : dataUrl;
+  } catch {
+    return dataUrl;
+  }
+}
+
 export default function Scan() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -242,8 +266,17 @@ export default function Scan() {
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
-        // Capture at full quality for scanning
-        const imageData = canvas.toDataURL("image/jpeg", 1.0);
+        // High quality, but not lossless — lossless data URLs blow the
+        // WebView memory budget on Android devices.
+        const imageData = canvas.toDataURL("image/jpeg", 0.92);
+        if (!imageData || imageData.length < 100) {
+          toast({
+            title: "Capture failed",
+            description: "The camera frame could not be saved. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
         setRawCapturedImage(imageData);
         setShowScanPreview(true);
         stopCameraLocal();
@@ -388,13 +421,23 @@ export default function Scan() {
     setError("");
     
     try {
+      // Keep the AI payload small — full-resolution camera data URLs routinely
+      // exceed the edge function limit and fail on Android.
+      const payloadImage = await shrinkDataUrl(imageBase64, 1600, 0.85);
+      console.log("[SCAN DEBUG] extract request", {
+        originalChars: imageBase64.length,
+        payloadChars: payloadImage.length,
+        country: documentCountry || null,
+      });
+
       const { data, error } = await supabase.functions.invoke("scan-document", {
         body: { 
-          imageBase64,
+          imageBase64: payloadImage,
           country: documentCountry || null
         },
       });
 
+      console.log("[SCAN DEBUG] extract response", { error, data });
       if (error) throw error;
 
       if (data.success && data.data) {
@@ -445,11 +488,12 @@ export default function Scan() {
         throw new Error(data.error || "Failed to extract document data");
       }
     } catch (err) {
-      console.error("Extraction error:", err);
-      setError("Failed to extract document data. Please enter manually.");
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error("[SCAN DEBUG] Extraction error:", detail, err);
+      setError(`Could not read this document automatically (${detail}). Please enter the details manually.`);
       toast({
         title: "Extraction Failed",
-        description: "Please enter document details manually.",
+        description: detail.slice(0, 160),
         variant: "destructive",
       });
     } finally {
