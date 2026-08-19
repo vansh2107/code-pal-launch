@@ -1,4 +1,4 @@
-export type DocumentStatus = 'expired' | 'expiring' | 'valid';
+export type DocumentStatus = 'expired' | 'expiring' | 'valid' | 'permanent';
 
 export interface DocumentStatusInfo {
   status: DocumentStatus;
@@ -10,9 +10,34 @@ export interface DocumentStatusInfo {
   badgeVariant: 'default' | 'destructive' | 'secondary';
 }
 
-export const getDocumentStatus = (expiryDate: string): DocumentStatusInfo => {
+const PERMANENT_STATUS: DocumentStatusInfo = {
+  status: 'permanent',
+  label: 'No expiry',
+  colorClass: 'text-muted-foreground',
+  bgClass: '',
+  borderClass: 'border-border',
+  textClass: 'text-foreground',
+  badgeVariant: 'secondary',
+};
+
+/**
+ * Returns true when the stored value is a usable expiry date.
+ * Guards against null/empty/invalid values being coerced into the Unix epoch
+ * (1/1/1970), which previously made permanent documents look "expired".
+ */
+export const hasValidExpiryDate = (expiryDate?: string | null): boolean => {
+  if (!expiryDate) return false;
+  const t = new Date(expiryDate).getTime();
+  if (Number.isNaN(t)) return false;
+  // Anything at/near the epoch is a bad fallback value, not a real expiry.
+  return new Date(expiryDate).getUTCFullYear() > 1971;
+};
+
+export const getDocumentStatus = (expiryDate?: string | null): DocumentStatusInfo => {
+  if (!hasValidExpiryDate(expiryDate)) return PERMANENT_STATUS;
+
   const today = new Date();
-  const expiry = new Date(expiryDate);
+  const expiry = new Date(expiryDate as string);
   const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   if (daysUntilExpiry < 0) {
