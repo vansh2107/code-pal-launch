@@ -905,10 +905,19 @@ function applyFilter(imageData: ImageData, filter: ScanFilter): ImageData {
 async function loadImage(source: string | File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Failed to load image'));
+    img.onerror = () =>
+      reject(
+        new Error(
+          `Failed to decode image (source: ${
+            typeof source === 'string' ? source.slice(0, 24) : `File ${source.type || 'unknown'}`
+          })`
+        )
+      );
     if (typeof source === 'string') {
+      // Only remote http(s) sources need CORS; data:/blob:/capacitor file URLs
+      // fail to load in Android WebViews when crossOrigin is set.
+      if (/^https?:/i.test(source)) img.crossOrigin = 'anonymous';
       img.src = source;
     } else {
       const reader = new FileReader();
