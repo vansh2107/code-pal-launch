@@ -429,7 +429,7 @@ export default function Scan() {
       if (data.success && data.data) {
         // Run decision engine
         const dec = evaluateDocumentDecision(
-          data.data.document_type || "other",
+          `${data.data.document_type || "other"} ${data.data.name || ""}`.trim(),
           data.data,
           data.data.confidence || 0.9,
           data.data.fieldStatuses
@@ -510,7 +510,7 @@ export default function Scan() {
       if (data?.success && data.data) {
         // Run decision engine
         const dec = evaluateDocumentDecision(
-          data.data.document_type || "other",
+          `${data.data.document_type || "other"} ${data.data.name || ""}`.trim(),
           data.data,
           data.data.confidence || 0.9,
           data.data.fieldStatuses
