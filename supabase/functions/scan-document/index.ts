@@ -431,14 +431,15 @@ The status values must be: "extracted" | "missing" | "uncertain" | "not_applicab
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error in scan-document function:", error);
-    // Sanitized error message for client
+    console.error("SCAN AI DEBUG | unhandled error in scan-document:", error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: 'Failed to process document. Please try again.' 
+      JSON.stringify({
+        success: false,
+        code: "SERVER_ERROR",
+        error: 'The document analysis service hit an unexpected error. Please enter the details manually.',
+        debug: { message: String((error as Error)?.message || error) },
       }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
