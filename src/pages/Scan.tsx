@@ -242,8 +242,17 @@ export default function Scan() {
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
-        // Capture at full quality for scanning
-        const imageData = canvas.toDataURL("image/jpeg", 1.0);
+        // High quality, but not lossless — lossless data URLs blow the
+        // WebView memory budget on Android devices.
+        const imageData = canvas.toDataURL("image/jpeg", 0.92);
+        if (!imageData || imageData.length < 100) {
+          toast({
+            title: "Capture failed",
+            description: "The camera frame could not be saved. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
         setRawCapturedImage(imageData);
         setShowScanPreview(true);
         stopCameraLocal();
