@@ -105,6 +105,11 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        if (!document.expiry_date) {
+          console.log(`Skipping reminder ${reminder.id} - document has no expiry date`);
+          continue;
+        }
+
         // Check if notifications are enabled
         if (!profile.push_notifications_enabled && !profile.email_notifications_enabled) {
           console.log(`Notifications disabled for user ${reminder.user_id}`);

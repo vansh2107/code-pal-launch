@@ -174,6 +174,10 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       const document = reminder.documents;
+      if (!document?.expiry_date) {
+        console.log(`Skipping reminder ${reminder.id} - document has no expiry date`);
+        continue;
+      }
       const daysUntilExpiry = Math.ceil(
         (new Date(document.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
       );
