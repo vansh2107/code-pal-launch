@@ -88,26 +88,14 @@ export async function scanDocument(
     sharpen = true,
     removeShadows = true,
     autoCrop = true,
-    maxWidth,
     cropBounds,
   } = options;
 
   const img = await loadImage(imageSource);
   const originalImage = typeof imageSource === 'string' ? imageSource : await fileToDataURL(imageSource);
 
-  if (!img.width || !img.height) {
-    throw new Error('Image has zero dimensions (decode failed)');
-  }
-
-  // Cap the working resolution. Android/Capacitor WebViews run out of canvas
-  // memory on full-resolution camera frames (12MP+), which made getImageData /
-  // toDataURL fail and surfaced as "Failed to process document".
-  const OUTPUT_MAX_DIM = Math.max(600, Math.min(maxWidth ?? 2000, 2600));
-  const workScale = Math.min(1, OUTPUT_MAX_DIM / Math.max(img.width, img.height));
-  const origW = Math.max(1, Math.round(img.width * workScale));
-  const origH = Math.max(1, Math.round(img.height * workScale));
-  // Incoming cropBounds are expressed in the source image's pixel space.
-  const scaledCropBounds = cropBounds ? scaleCropBounds(cropBounds, workScale) : undefined;
+  const origW = img.width;
+  const origH = img.height;
 
   // --- Detection phase (small canvas) ---
   const detectScale = origW > DETECT_MAX_WIDTH ? DETECT_MAX_WIDTH / origW : 1;
@@ -118,10 +106,9 @@ export async function scanDocument(
   let autoCropApplied = false;
   let confidence = 0;
 
-  if (autoCrop && !scaledCropBounds) {
+  if (autoCrop && !cropBounds) {
     const detectCanvas = document.createElement('canvas');
-    const dctx = detectCanvas.getContext('2d', { willReadFrequently: true });
-    if (!dctx) throw new Error('Canvas 2D context unavailable for detection');
+    const dctx = detectCanvas.getContext('2d', { willReadFrequently: true })!;
     detectCanvas.width = dw;
     detectCanvas.height = dh;
     dctx.drawImage(img, 0, 0, dw, dh);
@@ -144,18 +131,17 @@ export async function scanDocument(
   }
 
   // Decide which bounds to use for the final crop
-  const finalBounds = scaledCropBounds || (autoCropApplied ? detectedBoundsOriginal : undefined);
+  const finalBounds = cropBounds || (autoCropApplied ? detectedBoundsOriginal : undefined);
 
-  if (scaledCropBounds) {
-    detectedBoundsOriginal = scaledCropBounds;
+  if (cropBounds) {
+    detectedBoundsOriginal = cropBounds;
     autoCropApplied = true;
     confidence = 1.0;
   }
 
   // --- Output phase (full resolution) ---
   let outCanvas = document.createElement('canvas');
-  let outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
-  if (!outCtx) throw new Error('Canvas 2D context unavailable for output');
+  let outCtx = outCanvas.getContext('2d', { willReadFrequently: true })!;
 
   if (finalBounds && autoCropApplied) {
     // Perspective-correct crop at full resolution
@@ -199,19 +185,12 @@ export async function scanDocument(
   }
 
   const processedImage = outCanvas.toDataURL('image/jpeg', OUTPUT_JPEG_QUALITY);
-  if (!processedImage || processedImage.length < 100) {
-    throw new Error('Canvas export failed (out of memory or tainted canvas)');
-  }
 
   return {
     processedImage,
     originalImage,
     filter,
-    // Report bounds back in the SOURCE image coordinate space so the manual
-    // crop overlay stays aligned with the original image.
-    cropBounds: detectedBoundsOriginal
-      ? scaleCropBounds(detectedBoundsOriginal, workScale === 0 ? 1 : 1 / workScale)
-      : undefined,
+    cropBounds: detectedBoundsOriginal,
     autoCropApplied,
     confidence,
   };
@@ -905,19 +884,10 @@ function applyFilter(imageData: ImageData, filter: ScanFilter): ImageData {
 async function loadImage(source: string | File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = () =>
-      reject(
-        new Error(
-          `Failed to decode image (source: ${
-            typeof source === 'string' ? source.slice(0, 24) : `File ${source.type || 'unknown'}`
-          })`
-        )
-      );
+    img.onerror = () => reject(new Error('Failed to load image'));
     if (typeof source === 'string') {
-      // Only remote http(s) sources need CORS; data:/blob:/capacitor file URLs
-      // fail to load in Android WebViews when crossOrigin is set.
-      if (/^https?:/i.test(source)) img.crossOrigin = 'anonymous';
       img.src = source;
     } else {
       const reader = new FileReader();

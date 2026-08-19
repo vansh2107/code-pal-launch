@@ -196,44 +196,9 @@ export function DocumentScanPreview({
           }
         }
       } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        console.error('[SCAN DEBUG] processing failed', {
-          inputType: typeof imageSource === 'string' ? 'dataUrl/url' : 'File',
-          inputMime: typeof imageSource === 'string' ? imageSource.slice(0, 30) : imageSource.type,
-          inputName: typeof imageSource === 'string' ? undefined : imageSource.name,
-          inputSize: typeof imageSource === 'string' ? imageSource.length : imageSource.size,
-          platform: navigator.userAgent,
-          error: err,
-        });
-
-        // Graceful degradation: never dead-end the user. Fall back to the raw
-        // image with mandatory manual crop so the scan flow can still continue.
+        console.error('Document scan error:', err);
         if (mounted) {
-          try {
-            const fallback =
-              typeof imageSource === 'string'
-                ? imageSource
-                : await new Promise<string>((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result as string);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(imageSource);
-                  });
-            originalImageRef.current = fallback;
-            setScanResult({
-              processedImage: fallback,
-              originalImage: fallback,
-              filter: 'color',
-              autoCropApplied: false,
-              confidence: 0,
-            });
-            setDisplayImage(fallback);
-            setCropApplied(false);
-            setRequiresManualCrop(true);
-            setProcessingTime(Math.round(performance.now() - startTime));
-          } catch {
-            setError(`Could not process this image. ${detail}`);
-          }
+          setError('Failed to process document. Please try again.');
         }
       } finally {
         if (mounted) {
