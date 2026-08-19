@@ -5,6 +5,7 @@ import { Trash2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
+import { hasValidExpiryDate } from "@/utils/documentStatus";
 
 interface SwipeableDocumentCardProps {
   doc: {
@@ -13,7 +14,7 @@ interface SwipeableDocumentCardProps {
     document_type: string;
     category_detail?: string;
     issuing_authority: string;
-    expiry_date: string;
+    expiry_date: string | null;
   };
   statusInfo: {
     status: 'expired' | 'expiring' | 'valid';
@@ -119,7 +120,9 @@ export function SwipeableDocumentCard({
                 <div className="flex items-center justify-between text-[13px] leading-[20px] pt-1 border-t border-border/50 mt-3">
                   <span className="text-muted-foreground">Expiration Date</span>
                   <span className={`font-medium ${statusInfo.textClass}`}>
-                    {new Date(doc.expiry_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                    {hasValidExpiryDate(doc.expiry_date)
+                      ? new Date(doc.expiry_date as string).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                      : 'No expiry'}
                   </span>
                 </div>
               </CardContent>
