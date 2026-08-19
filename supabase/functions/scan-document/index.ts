@@ -63,34 +63,49 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
-    let apiKey = "";
-    let apiEndpoint = "";
-    let modelName = "";
+    type Provider = { name: string; key: string; endpoint: string; model: string; jsonMode: boolean };
+    const providers: Provider[] = [];
 
-    // Prioritize GEMINI_API_KEY if it is configured
+    if (LOVABLE_API_KEY) {
+      providers.push({
+        name: "lovable",
+        key: LOVABLE_API_KEY,
+        endpoint: "https://ai.gateway.lovable.dev/v1/chat/completions",
+        model: "google/gemini-2.5-flash",
+        jsonMode: true,
+      });
+    }
     if (GEMINI_API_KEY) {
-      console.log("Using Gemini API for document scanning");
-      apiKey = GEMINI_API_KEY;
-      apiEndpoint = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-      modelName = "gemini-3.1-flash-lite";
-    } else if (GROQ_API_KEY) {
-      console.log("Using Groq API for document scanning");
-      apiKey = GROQ_API_KEY;
-      apiEndpoint = "https://api.groq.com/openai/v1/chat/completions";
-      modelName = "llama-3.2-90b-vision-preview"; // Vision model for reading images
-    } else if (LOVABLE_API_KEY) {
-      console.log("Using Lovable API for document scanning");
-      apiKey = LOVABLE_API_KEY;
-      apiEndpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
-      modelName = "google/gemini-2.5-flash";
+      providers.push({
+        name: "gemini",
+        key: GEMINI_API_KEY,
+        endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        model: "gemini-2.0-flash",
+        jsonMode: true,
+      });
+    }
+    if (GROQ_API_KEY) {
+      // Groq vision model that actually exists and does NOT emit reasoning traces
+      providers.push({
+        name: "groq",
+        key: GROQ_API_KEY,
+        endpoint: "https://api.groq.com/openai/v1/chat/completions",
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        jsonMode: true,
+      });
     }
 
-    if (!apiKey) {
-      console.error("No AI API key configured (GEMINI_API_KEY, GROQ_API_KEY, or LOVABLE_API_KEY)");
-      throw new Error("AI service is not configured. Please set GEMINI_API_KEY in your Supabase Edge Function secrets.");
+    if (providers.length === 0) {
+      console.error("SCAN AI DEBUG | no AI provider key configured (LOVABLE_API_KEY, GEMINI_API_KEY, GROQ_API_KEY)");
+      return new Response(
+        JSON.stringify({
+          success: false,
+          code: "AI_UNAVAILABLE",
+          error: "AI service is not configured. Please enter the document details manually.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
-
-    console.log(`Analyzing complete document with AI (${pageImages.length} page(s)) using ${modelName}...`);
 
     const response = await fetch(apiEndpoint, {
       method: "POST",
