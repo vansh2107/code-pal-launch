@@ -105,7 +105,6 @@ export async function scanDocument(
   let detectedBoundsOriginal: CropBounds | undefined;
   let autoCropApplied = false;
   let confidence = 0;
-  let candidates: DocumentCandidate[] = [];
 
   if (autoCrop && !cropBounds) {
     const detectCanvas = document.createElement('canvas');
@@ -115,63 +114,54 @@ export async function scanDocument(
     dctx.drawImage(img, 0, 0, dw, dh);
     const detectData = dctx.getImageData(0, 0, dw, dh);
 
-    try {
-      candidates = detectDocumentCandidates(detectData, dw, dh, 5);
-    } catch (e) {
-      console.warn('Document detection failed:', e);
-      candidates = [];
+    const detection = detectDocumentContourImproved(detectData, dw, dh);
+    if (detection) {
+      // Convert to original image coordinates
+      detectedBoundsOriginal = scaleCropBounds(detection.bounds, 1 / detectScale);
+      confidence = detection.confidence;
+
+      const canApply =
+        detection.confidence >= MIN_AUTOCROP_APPLY_CONFIDENCE &&
+        isMeaningfulCrop(detection.bounds, dw, dh);
+
+      if (canApply) {
+        autoCropApplied = true;
+      }
     }
+  }
+
+  // Decide which bounds to use for the final crop
+  const finalBounds = cropBounds || (autoCropApplied ? detectedBoundsOriginal : undefined);
+
+  if (cropBounds) {
+    detectedBoundsOriginal = cropBounds;
+    autoCropApplied = true;
+    confidence = 1.0;
   }
 
   // --- Output phase (full resolution) ---
   let outCanvas = document.createElement('canvas');
   let outCtx = outCanvas.getContext('2d', { willReadFrequently: true })!;
-  outCanvas.width = origW;
-  outCanvas.height = origH;
-  outCtx.drawImage(img, 0, 0, origW, origH);
-  const fullData = outCtx.getImageData(0, 0, origW, origH);
 
-  let warped: { data: ImageData; width: number; height: number } | null = null;
+  if (finalBounds && autoCropApplied) {
+    // Perspective-correct crop at full resolution
+    outCanvas.width = origW;
+    outCanvas.height = origH;
+    outCtx.drawImage(img, 0, 0, origW, origH);
+    const fullData = outCtx.getImageData(0, 0, origW, origH);
 
-  if (cropBounds) {
-    // Manual / caller-supplied bounds are authoritative
-    warped = perspectiveWarp(fullData, origW, origH, cropBounds);
-    detectedBoundsOriginal = cropBounds;
-    autoCropApplied = !!warped;
-    confidence = 1.0;
-  } else if (candidates.length) {
-    for (const cand of candidates) {
-      if (cand.confidence < MIN_AUTOCROP_APPLY_CONFIDENCE) continue;
-      if (!isMeaningfulCrop(cand.corners, dw, dh)) continue;
-
-      const scaled = scaleCropBounds(cand.corners, 1 / detectScale);
-      const w = perspectiveWarp(fullData, origW, origH, scaled);
-      if (!w) continue;
-
-      const validation = validateCrop(w.data, w.width, w.height, origW, origH);
-      if (!validation.valid) continue;
-
-      warped = w;
-      detectedBoundsOriginal = scaled;
-      confidence = cand.confidence;
-      autoCropApplied = true;
-      break;
+    const corrected = applyPerspectiveCorrection(fullData, origW, origH, finalBounds);
+    if (corrected) {
+      outCanvas.width = corrected.width;
+      outCanvas.height = corrected.height;
+      outCtx = outCanvas.getContext('2d', { willReadFrequently: true })!;
+      outCtx.putImageData(corrected.data, 0, 0);
     }
-
-    if (!autoCropApplied) {
-      // Surface the best guess for the manual crop overlay, uncropped output
-      const best = candidates[0];
-      detectedBoundsOriginal = scaleCropBounds(best.corners, 1 / detectScale);
-      confidence = best.confidence;
-    }
-  }
-
-  if (warped) {
-    outCanvas = document.createElement('canvas');
-    outCanvas.width = warped.width;
-    outCanvas.height = warped.height;
-    outCtx = outCanvas.getContext('2d', { willReadFrequently: true })!;
-    outCtx.putImageData(warped.data, 0, 0);
+  } else {
+    // No crop – just put the original on canvas
+    outCanvas.width = origW;
+    outCanvas.height = origH;
+    outCtx.drawImage(img, 0, 0, origW, origH);
   }
 
   // Enhancement + filter (only if crop was applied)
@@ -193,7 +183,6 @@ export async function scanDocument(
     imageData = applyFilter(imageData, filter);
     outCtx.putImageData(imageData, 0, 0);
   }
-
 
   const processedImage = outCanvas.toDataURL('image/jpeg', OUTPUT_JPEG_QUALITY);
 

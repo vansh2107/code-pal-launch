@@ -310,30 +310,13 @@ export default function Scan() {
       let imagePath = null;
       if (pdfFile) {
         imagePath = await uploadDocumentOriginal(pdfFile, user.id);
-      } else if (rawImg || croppedImg) {
-        const originalSrc = rawImg || croppedImg;
-        const originalBlob = await fetch(originalSrc).then(r => r.blob());
-        const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
-        const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
+      } else if (croppedImg || rawImg) {
+        // Store ONLY the cropped/processed image as the primary document
+        const primarySrc = croppedImg || rawImg;
+        const primaryBlob = await fetch(primarySrc).then(r => r.blob());
+        const fileExt = (primaryBlob.type.split('/')[1]) || 'jpg';
+        const imageFile = new File([primaryBlob], `document.${fileExt}`, { type: primaryBlob.type });
         imagePath = await uploadDocumentOriginal(imageFile, user.id);
-        
-        if (rawImg && croppedImg && rawImg !== croppedImg) {
-          try {
-            const processedBlob = await fetch(croppedImg).then(r => r.blob());
-            const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
-            if (imagePath) {
-              const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-              const processedPath = `${basePath}/processed.${processedFileExt}`;
-              await supabase.storage.from("document-images").upload(processedPath, processedBlob, {
-                cacheControl: "3600",
-                upsert: true,
-                contentType: processedBlob.type
-              });
-            }
-          } catch (e) {
-            console.warn("Failed to upload companion processed image:", e);
-          }
-        }
       }
 
       // Map document type
@@ -353,10 +336,15 @@ export default function Scan() {
           name: extractedFields.name || "Unnamed Document",
           document_type: mappedType as any,
           category_detail: extractedFields.document_type,
-          issuing_authority: extractedFields.issuing_authority || "DocVault",
+          // Auto-saved (no-expiry) docs like Aadhaar always route to DocVault.
+          // The real issuing authority is preserved in the notes below.
+          issuing_authority: "DocVault",
           expiry_date: null,
           renewal_period_days: extractedFields.renewal_period_days || 30,
-          notes: extractedFields.notes || "Saved automatically (no expiry date).",
+          notes: [
+            extractedFields.notes || "Saved automatically (no expiry date).",
+            extractedFields.issuing_authority ? `Issuing authority: ${extractedFields.issuing_authority}` : null,
+          ].filter(Boolean).join("\n"),
           user_id: user.id,
           image_path: imagePath,
           organization_id: selectedOrgId
@@ -685,34 +673,17 @@ export default function Scan() {
             throw new Error("PDF file size exceeds 20MB limit");
           }
           imagePath = await uploadDocumentOriginal(pdfFile, user.id);
-        } else if (rawCapturedImage || capturedImage) {
-          const originalSrc = rawCapturedImage || capturedImage;
-          const originalBlob = await fetch(originalSrc).then(r => r.blob());
+        } else if (capturedImage || rawCapturedImage) {
+          // Store ONLY the cropped/processed image as the primary document
+          const primarySrc = capturedImage || rawCapturedImage;
+          const primaryBlob = await fetch(primarySrc).then(r => r.blob());
           const maxSize = 20 * 1024 * 1024;
-          if (originalBlob.size > maxSize) {
+          if (primaryBlob.size > maxSize) {
             throw new Error("Image file size exceeds 20MB limit");
           }
-          const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
-          const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
+          const fileExt = (primaryBlob.type.split('/')[1]) || 'jpg';
+          const imageFile = new File([primaryBlob], `document.${fileExt}`, { type: primaryBlob.type });
           imagePath = await uploadDocumentOriginal(imageFile, user.id);
-          
-          if (rawCapturedImage && capturedImage && rawCapturedImage !== capturedImage) {
-            try {
-              const processedBlob = await fetch(capturedImage).then(r => r.blob());
-              const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
-              if (imagePath) {
-                const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-                const processedPath = `${basePath}/processed.${processedFileExt}`;
-                await supabase.storage.from("document-images").upload(processedPath, processedBlob, {
-                  cacheControl: "3600",
-                  upsert: true,
-                  contentType: processedBlob.type
-                });
-              }
-            } catch (e) {
-              console.warn("Failed to upload companion processed image:", e);
-            }
-          }
         }
       } catch (uploadErr) {
         console.error('Error uploading document file:', uploadErr);
