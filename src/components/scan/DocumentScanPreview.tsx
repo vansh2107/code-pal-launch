@@ -64,17 +64,84 @@ async function detectBoundsWithAI(imageDataUrl: string): Promise<CropBounds | nu
     const b = data.bounds;
     // Scale coordinates back to original image size
     const invScale = 1 / scale;
-    return {
+    const raw: CropBounds = {
       topLeft: { x: b.topLeft.x * invScale, y: b.topLeft.y * invScale },
       topRight: { x: b.topRight.x * invScale, y: b.topRight.y * invScale },
       bottomLeft: { x: b.bottomLeft.x * invScale, y: b.bottomLeft.y * invScale },
       bottomRight: { x: b.bottomRight.x * invScale, y: b.bottomRight.y * invScale },
     };
+
+    return sanitizeBounds(raw, img.width, img.height);
   } catch (err) {
     console.warn('AI document detection failed, falling back to local:', err);
     return null;
   }
 }
+
+/**
+ * Validate AI-returned corners and add a small outward safety margin so that
+ * document numbers / signatures / QR codes near the edges are never clipped.
+ * Returns null when the quad is implausible (caller then falls back to local
+ * edge detection, and ultimately to the original uncropped image).
+ */
+function sanitizeBounds(b: CropBounds, w: number, h: number): CropBounds | null {
+  const pts = [b.topLeft, b.topRight, b.bottomRight, b.bottomLeft];
+  if (pts.some(p => !p || !Number.isFinite(p.x) || !Number.isFinite(p.y))) return null;
+
+  // Corner ordering sanity (tolerant of rotation / perspective)
+  const tol = Math.min(w, h) * 0.15;
+  if (b.topRight.x + tol < b.topLeft.x) return null;
+  if (b.bottomRight.x + tol < b.bottomLeft.x) return null;
+  if (b.bottomLeft.y + tol < b.topLeft.y) return null;
+  if (b.bottomRight.y + tol < b.topRight.y) return null;
+
+  const minX = Math.min(...pts.map(p => p.x));
+  const maxX = Math.max(...pts.map(p => p.x));
+  const minY = Math.min(...pts.map(p => p.y));
+  const maxY = Math.max(...pts.map(p => p.y));
+  const bw = maxX - minX;
+  const bh = maxY - minY;
+
+  // Too small a region almost certainly means a bad detection
+  if (bw < w * 0.20 || bh < h * 0.20) return null;
+
+  const aspect = bw / bh;
+  if (aspect < 0.15 || aspect > 6.5) return null;
+
+  // Shoelace area of the quad vs. its bounding box — reject degenerate shapes
+  let sum = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const q = pts[(i + 1) % pts.length];
+    sum += p.x * q.y - q.x * p.y;
+  }
+  const area = Math.abs(sum) / 2;
+  if (area < bw * bh * 0.55) return null;
+  if (area < w * h * 0.08) return null;
+
+  // Outward safety margin (~1.5% of the smaller image dimension)
+  const cx = pts.reduce((s, p) => s + p.x, 0) / 4;
+  const cy = pts.reduce((s, p) => s + p.y, 0) / 4;
+  const margin = Math.max(4, Math.min(w, h) * 0.015);
+  const expand = (p: { x: number; y: number }) => {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    return {
+      x: Math.max(0, Math.min(w, p.x + (dx / len) * margin)),
+      y: Math.max(0, Math.min(h, p.y + (dy / len) * margin)),
+    };
+  };
+
+  return {
+    topLeft: expand(b.topLeft),
+    topRight: expand(b.topRight),
+    bottomLeft: expand(b.bottomLeft),
+    bottomRight: expand(b.bottomRight),
+  };
+}
+
+
 
 export function DocumentScanPreview({
   imageSource,
