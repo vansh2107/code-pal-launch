@@ -336,10 +336,15 @@ export default function Scan() {
           name: extractedFields.name || "Unnamed Document",
           document_type: mappedType as any,
           category_detail: extractedFields.document_type,
-          issuing_authority: extractedFields.issuing_authority || "DocVault",
+          // Auto-saved (no-expiry) docs like Aadhaar always route to DocVault.
+          // The real issuing authority is preserved in the notes below.
+          issuing_authority: "DocVault",
           expiry_date: null,
           renewal_period_days: extractedFields.renewal_period_days || 30,
-          notes: extractedFields.notes || "Saved automatically (no expiry date).",
+          notes: [
+            extractedFields.notes || "Saved automatically (no expiry date).",
+            extractedFields.issuing_authority ? `Issuing authority: ${extractedFields.issuing_authority}` : null,
+          ].filter(Boolean).join("\n"),
           user_id: user.id,
           image_path: imagePath,
           organization_id: selectedOrgId
