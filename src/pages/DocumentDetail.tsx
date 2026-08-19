@@ -72,47 +72,13 @@ export default function DocumentDetail() {
         .from('document-images')
         .createSignedUrl(cleanPath, 3600);
 
-      console.log('DEBUG: Attempting to create signed URL for path:', imagePath);
-      if (urlError) {
-        console.error('DEBUG: Error creating signed URL:', urlError);
-        console.log('DEBUG: Failed path (cleaned):', cleanPath);
-        console.log('DEBUG: Original path:', imagePath);
-        toast({
-          title: "Preview URL Error",
-          description: `Path: ${imagePath}. Error: ${urlError.message}`,
-          variant: "destructive",
-        });
-        setPreviewFailed(true);
-      } else {
-        console.log('DEBUG: Successfully created signed URL:', signedUrlData?.signedUrl);
-        // Test the URL
-        try {
-          const response = await fetch(signedUrlData?.signedUrl || '');
-          console.log('DEBUG: Test fetch response status:', response.status);
-          if (response.status !== 200) {
-            toast({
-              title: "Preview Fetch Error",
-              description: `Status: ${response.status}`,
-              variant: "destructive",
-            });
-          }
-          console.log('DEBUG: Test fetch response content-type:', response.headers.get('content-type'));
-        } catch (fetchError) {
-          console.error('DEBUG: Error testing signed URL:', fetchError);
-          toast({
-            title: "Preview Fetch Exception",
-            description: String(fetchError),
-            variant: "destructive",
-          });
-        }
-      }
-
       if (urlError || !signedUrlData?.signedUrl) {
-        console.error('Error getting signed URL:', urlError);
+        console.error('Error creating signed URL for', cleanPath, urlError);
         setPreviewFailed(true);
       } else {
         setImageUrl(signedUrlData.signedUrl);
       }
+
 
       // Companion processed image is optional
       try {
