@@ -55,7 +55,7 @@ const MAX_CONTOUR_AREA_RATIO = 0.92;
 const CANNY_LOW_THRESHOLD = 50;
 const CANNY_HIGH_THRESHOLD = 150;
 // Confidence threshold to auto-apply crop without manual intervention
-const MIN_AUTOCROP_APPLY_CONFIDENCE = 0.45;
+const MIN_AUTOCROP_APPLY_CONFIDENCE = 0.75;
 
 function isMeaningfulCrop(bounds: CropBounds, width: number, height: number): boolean {
   const area = quadArea(bounds);

@@ -141,10 +141,6 @@ const handler = async (req: Request): Promise<Response> => {
 
       try {
         const document = reminder.documents as any;
-        if (!document?.expiry_date) {
-          console.log(`Skipping reminder ${reminder.id} - document has no expiry date`);
-          continue;
-        }
         const displayName = userPrefs?.display_name || 'there';
         const expiryDate = new Date(document.expiry_date).toLocaleDateString('en-US', { 
           year: 'numeric', 

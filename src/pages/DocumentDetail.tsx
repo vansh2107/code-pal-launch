@@ -15,7 +15,7 @@ import { AIInsights } from "@/components/document/AIInsights";
 import { RenewalAdvisor } from "@/components/ai/RenewalAdvisor";
 import { DocumentViewer } from "@/components/document/DocumentViewer";
 import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
-import { getDocumentStatus, hasValidExpiryDate } from "@/utils/documentStatus";
+import { getDocumentStatus } from "@/utils/documentStatus";
 import { sanitizeDocumentNote } from "@/utils/documentNotes";
 import {
   AlertDialog,
@@ -72,13 +72,47 @@ export default function DocumentDetail() {
         .from('document-images')
         .createSignedUrl(cleanPath, 3600);
 
+      console.log('DEBUG: Attempting to create signed URL for path:', imagePath);
+      if (urlError) {
+        console.error('DEBUG: Error creating signed URL:', urlError);
+        console.log('DEBUG: Failed path (cleaned):', cleanPath);
+        console.log('DEBUG: Original path:', imagePath);
+        toast({
+          title: "Preview URL Error",
+          description: `Path: ${imagePath}. Error: ${urlError.message}`,
+          variant: "destructive",
+        });
+        setPreviewFailed(true);
+      } else {
+        console.log('DEBUG: Successfully created signed URL:', signedUrlData?.signedUrl);
+        // Test the URL
+        try {
+          const response = await fetch(signedUrlData?.signedUrl || '');
+          console.log('DEBUG: Test fetch response status:', response.status);
+          if (response.status !== 200) {
+            toast({
+              title: "Preview Fetch Error",
+              description: `Status: ${response.status}`,
+              variant: "destructive",
+            });
+          }
+          console.log('DEBUG: Test fetch response content-type:', response.headers.get('content-type'));
+        } catch (fetchError) {
+          console.error('DEBUG: Error testing signed URL:', fetchError);
+          toast({
+            title: "Preview Fetch Exception",
+            description: String(fetchError),
+            variant: "destructive",
+          });
+        }
+      }
+
       if (urlError || !signedUrlData?.signedUrl) {
-        console.error('Error creating signed URL for', cleanPath, urlError);
+        console.error('Error getting signed URL:', urlError);
         setPreviewFailed(true);
       } else {
         setImageUrl(signedUrlData.signedUrl);
       }
-
 
       // Companion processed image is optional
       try {
@@ -334,13 +368,12 @@ export default function DocumentDetail() {
   }
 
   const isDocVault = document.issuing_authority === 'DocVault';
-  const hasExpiry = hasValidExpiryDate(document.expiry_date);
-  const statusInfo = !isDocVault && hasExpiry ? getDocumentStatus(document.expiry_date) : null;
+  const statusInfo = !isDocVault && document.expiry_date ? getDocumentStatus(document.expiry_date) : null;
   const recommendedDays = renewalAdvice ? extractRecommendedDays(renewalAdvice) : null;
   
   // Calculate days until expiry to show countdown
-  const daysUntilExpiry = hasExpiry
-    ? Math.ceil((new Date(document.expiry_date as string).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+  const daysUntilExpiry = document.expiry_date 
+    ? Math.ceil((new Date(document.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
     : null;
   
   // Use AI recommended days if available, otherwise fall back to document's renewal period
@@ -597,9 +630,9 @@ export default function DocumentDetail() {
               
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
-                {hasExpiry ? (
+                {document.expiry_date ? (
                   <p className={statusInfo?.textClass || 'text-foreground'}>
-                    {new Date(document.expiry_date as string).toLocaleDateString()}
+                    {new Date(document.expiry_date).toLocaleDateString()}
                   </p>
                 ) : isDocVault ? (
                   <p className="text-muted-foreground">No expiry set for this document</p>
@@ -655,12 +688,12 @@ export default function DocumentDetail() {
         {/* AI Insights and Document History - Only for non-DocVault */}
         {!isDocVault && <DocumentHistory documentId={id!} />}
         {!isDocVault && <AIInsights document={document} statusInfo={statusInfo} />}
-        {!isDocVault && hasExpiry && (
+        {!isDocVault && document.expiry_date && (
           <RenewalAdvisor 
             documentId={document.id}
             documentType={document.document_type}
             documentName={document.name}
-            expiryDate={document.expiry_date as string}
+            expiryDate={document.expiry_date}
             statusInfo={statusInfo}
           />
         )}
