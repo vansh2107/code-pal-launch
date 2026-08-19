@@ -12,7 +12,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useToast } from "@/hooks/use-toast";
 import { exportToCSV } from "@/utils/exportData";
-import { getDocumentStatus } from "@/utils/documentStatus";
+import { getDocumentStatus, hasValidExpiryDate } from "@/utils/documentStatus";
 import { SwipeableDocumentCard } from "@/components/document/SwipeableDocumentCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getOfflineDocuments } from "@/utils/offlineStorage";
@@ -30,7 +30,7 @@ interface Document {
   document_type: string;
   category_detail?: string;
   issuing_authority: string;
-  expiry_date: string;
+  expiry_date: string | null;
   created_at: string;
 }
 
@@ -165,7 +165,9 @@ export default function Documents() {
     if (filterStatus !== "all") {
       const today = new Date();
       filtered = filtered.filter(doc => {
-        const daysUntilExpiry = Math.ceil((new Date(doc.expiry_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        // Documents without an expiry date never expire — treat them as valid.
+        if (!hasValidExpiryDate(doc.expiry_date)) return filterStatus === "valid";
+        const daysUntilExpiry = Math.ceil((new Date(doc.expiry_date as string).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         if (filterStatus === "expired") return daysUntilExpiry < 0;
         if (filterStatus === "expiring") return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
         if (filterStatus === "valid") return daysUntilExpiry > 30;
@@ -173,7 +175,12 @@ export default function Documents() {
       });
     }
 
-    if (sortBy === "expiry") filtered.sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
+    if (sortBy === "expiry") filtered.sort((a, b) => {
+      // No-expiry documents sort last instead of being pinned at the epoch.
+      const av = hasValidExpiryDate(a.expiry_date) ? new Date(a.expiry_date as string).getTime() : Number.POSITIVE_INFINITY;
+      const bv = hasValidExpiryDate(b.expiry_date) ? new Date(b.expiry_date as string).getTime() : Number.POSITIVE_INFINITY;
+      return av - bv;
+    });
     else if (sortBy === "name") filtered.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === "recent") filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
