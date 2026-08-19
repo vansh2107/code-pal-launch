@@ -66,6 +66,30 @@ const documentSchema = z.object({
     .or(z.literal("")),
 });
 
+/** Downscale a data URL so AI payloads stay within edge-function limits. */
+async function shrinkDataUrl(dataUrl: string, maxDim = 1600, quality = 0.85): Promise<string> {
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("decode failed"));
+      el.src = dataUrl;
+    });
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    if (scale >= 1 && dataUrl.length < 4_000_000) return dataUrl;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.width * scale));
+    canvas.height = Math.max(1, Math.round(img.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const out = canvas.toDataURL("image/jpeg", quality);
+    return out && out.length > 100 ? out : dataUrl;
+  } catch {
+    return dataUrl;
+  }
+}
+
 export default function Scan() {
   const { user } = useAuth();
   const navigate = useNavigate();
