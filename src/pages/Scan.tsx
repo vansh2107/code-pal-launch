@@ -388,13 +388,23 @@ export default function Scan() {
     setError("");
     
     try {
+      // Keep the AI payload small — full-resolution camera data URLs routinely
+      // exceed the edge function limit and fail on Android.
+      const payloadImage = await shrinkDataUrl(imageBase64, 1600, 0.85);
+      console.log("[SCAN DEBUG] extract request", {
+        originalChars: imageBase64.length,
+        payloadChars: payloadImage.length,
+        country: documentCountry || null,
+      });
+
       const { data, error } = await supabase.functions.invoke("scan-document", {
         body: { 
-          imageBase64,
+          imageBase64: payloadImage,
           country: documentCountry || null
         },
       });
 
+      console.log("[SCAN DEBUG] extract response", { error, data });
       if (error) throw error;
 
       if (data.success && data.data) {
@@ -445,11 +455,12 @@ export default function Scan() {
         throw new Error(data.error || "Failed to extract document data");
       }
     } catch (err) {
-      console.error("Extraction error:", err);
-      setError("Failed to extract document data. Please enter manually.");
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error("[SCAN DEBUG] Extraction error:", detail, err);
+      setError(`Could not read this document automatically (${detail}). Please enter the details manually.`);
       toast({
         title: "Extraction Failed",
-        description: "Please enter document details manually.",
+        description: detail.slice(0, 160),
         variant: "destructive",
       });
     } finally {
