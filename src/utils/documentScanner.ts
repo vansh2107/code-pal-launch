@@ -107,6 +107,7 @@ export async function scanDocument(
   let autoCropApplied = false;
   let confidence = 0;
   let candidates: DocumentCandidate[] = [];
+  let selectedCandidate: DocumentCandidate | null = null;
 
   if (autoCrop && !cropBounds) {
     const detectCanvas = document.createElement('canvas');
@@ -153,6 +154,7 @@ export async function scanDocument(
       if (!validation.valid) continue;
 
       warped = w;
+      selectedCandidate = cand;
       detectedBoundsOriginal = scaled;
       confidence = cand.confidence;
       autoCropApplied = true;
@@ -197,7 +199,7 @@ export async function scanDocument(
 
 
   if (import.meta.env.DEV) {
-    const selected = candidates.find((c) => c.corners === detectedBoundsOriginal) ?? candidates[0];
+    const selected = selectedCandidate ?? candidates[0];
     console.groupCollapsed('DOCUMENT SCAN DEBUG');
     console.log('original dims:', origW, 'x', origH);
     console.log('detection dims:', dw, 'x', dh, '(scale', detectScale, ')');
