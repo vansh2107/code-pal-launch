@@ -21,7 +21,7 @@ const FILTER_OPTIONS: { value: ScanFilter; label: string; icon: string }[] = [
 ];
 
 // Minimum confidence required for auto-crop to be accepted
-const MIN_AUTO_CROP_CONFIDENCE = 0.55;
+const MIN_AUTO_CROP_CONFIDENCE = 0.75;
 
 /**
  * Use AI vision (Gemini) to detect document boundaries.
