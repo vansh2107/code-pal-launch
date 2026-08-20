@@ -55,78 +55,26 @@ export default function DocumentDetail() {
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [renewalSheetOpen, setRenewalSheetOpen] = useState(false);
-  const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
-  const [viewOriginal, setViewOriginal] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
 
+  /** Signs the single canonical (processed) artifact stored at document.image_path. */
   const loadPreviewUrls = async (imagePath: string) => {
     setPreviewLoading(true);
     setPreviewFailed(false);
     setImageUrl(null);
-    setProcessedImageUrl(null);
     try {
       const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
       const { data: signedUrlData, error: urlError } = await supabase.storage
         .from('document-images')
         .createSignedUrl(cleanPath, 3600);
 
-      console.log('DEBUG: Attempting to create signed URL for path:', imagePath);
-      if (urlError) {
-        console.error('DEBUG: Error creating signed URL:', urlError);
-        console.log('DEBUG: Failed path (cleaned):', cleanPath);
-        console.log('DEBUG: Original path:', imagePath);
-        toast({
-          title: "Preview URL Error",
-          description: `Path: ${imagePath}. Error: ${urlError.message}`,
-          variant: "destructive",
-        });
-        setPreviewFailed(true);
-      } else {
-        console.log('DEBUG: Successfully created signed URL:', signedUrlData?.signedUrl);
-        // Test the URL
-        try {
-          const response = await fetch(signedUrlData?.signedUrl || '');
-          console.log('DEBUG: Test fetch response status:', response.status);
-          if (response.status !== 200) {
-            toast({
-              title: "Preview Fetch Error",
-              description: `Status: ${response.status}`,
-              variant: "destructive",
-            });
-          }
-          console.log('DEBUG: Test fetch response content-type:', response.headers.get('content-type'));
-        } catch (fetchError) {
-          console.error('DEBUG: Error testing signed URL:', fetchError);
-          toast({
-            title: "Preview Fetch Exception",
-            description: String(fetchError),
-            variant: "destructive",
-          });
-        }
-      }
-
       if (urlError || !signedUrlData?.signedUrl) {
-        console.error('Error getting signed URL:', urlError);
+        console.error('Error getting signed URL for processed document:', urlError, cleanPath);
         setPreviewFailed(true);
       } else {
         setImageUrl(signedUrlData.signedUrl);
-      }
-
-      // Companion processed image is optional
-      try {
-        const ext = imagePath.split('.').pop() || 'jpg';
-        const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-        const processedPath = `${basePath}/processed.${ext}`;
-        const { data: processedUrlData, error: processedUrlError } = await supabase.storage
-          .from('document-images')
-          .createSignedUrl(processedPath, 3600);
-        if (!processedUrlError && processedUrlData) {
-          setProcessedImageUrl(processedUrlData.signedUrl);
-        }
-      } catch (err) {
-        console.warn('No processed image found:', err);
       }
     } catch (err) {
       console.error('Error loading preview:', err);
