@@ -310,30 +310,14 @@ export default function Scan() {
       let imagePath = null;
       if (pdfFile) {
         imagePath = await uploadDocumentOriginal(pdfFile, user.id);
-      } else if (rawImg || croppedImg) {
-        const originalSrc = rawImg || croppedImg;
-        const originalBlob = await fetch(originalSrc).then(r => r.blob());
-        const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
-        const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
-        imagePath = await uploadDocumentOriginal(imageFile, user.id);
-        
-        if (rawImg && croppedImg && rawImg !== croppedImg) {
-          try {
-            const processedBlob = await fetch(croppedImg).then(r => r.blob());
-            const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
-            if (imagePath) {
-              const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-              const processedPath = `${basePath}/processed.${processedFileExt}`;
-              await supabase.storage.from("document-images").upload(processedPath, processedBlob, {
-                cacheControl: "3600",
-                upsert: true,
-                contentType: processedBlob.type
-              });
-            }
-          } catch (e) {
-            console.warn("Failed to upload companion processed image:", e);
-          }
-        }
+      } else if (croppedImg || rawImg) {
+        // Canonical artifact = the CROPPED/PROCESSED image only.
+        const processedSrc = croppedImg || rawImg;
+        const processedBlob = await fetch(processedSrc).then(r => r.blob());
+        const fileExt = (processedBlob.type.split('/')[1]) || 'jpg';
+        const processedFile = new File([processedBlob], `processed-document.${fileExt}`, { type: processedBlob.type });
+        imagePath = await uploadProcessedDocument(processedFile, user.id);
+        if (imagePath) await verifyProcessedDocument(imagePath);
       }
 
       // Map document type
