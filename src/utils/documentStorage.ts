@@ -39,6 +39,50 @@ export async function uploadDocumentOriginal(file: File, userId: string): Promis
 }
 
 /**
+ * Upload the PROCESSED (cropped & enhanced) document as the canonical artifact.
+ * This is the ONLY image written for camera/gallery scans — no raw frame is stored.
+ */
+export async function uploadProcessedDocument(file: File, userId: string): Promise<string | null> {
+  if (!file) throw new Error("No file provided");
+
+  const docUuid = crypto.randomUUID();
+  const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const filePath = `documents/${userId}/${docUuid}/processed-document.${fileExt}`;
+
+  const { error } = await supabase.storage
+    .from("document-images")
+    .upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type,
+    });
+
+  if (error) throw error;
+  return filePath;
+}
+
+/**
+ * Verification log for the processed-only storage contract.
+ */
+export async function verifyProcessedDocument(imagePath: string): Promise<void> {
+  try {
+    const dir = imagePath.substring(0, imagePath.lastIndexOf('/'));
+    const name = imagePath.substring(imagePath.lastIndexOf('/') + 1);
+    const { data: listed } = await supabase.storage.from("document-images").list(dir);
+    const exists = !!listed?.some((o) => o.name === name);
+    const signed = await getSignedUrl('document-images', imagePath);
+    console.log("PROCESSED DOCUMENT VERIFICATION", {
+      image_path: imagePath,
+      storage_object_exists: exists,
+      signed_url: signed ? `${signed.slice(0, 80)}...` : null,
+      preview_source: "image_path (processed artifact)",
+    });
+  } catch (e) {
+    console.warn("PROCESSED DOCUMENT VERIFICATION failed", e);
+  }
+}
+
+/**
  * Get a signed URL for a document image
  * This should be used when displaying documents in the UI
  */
