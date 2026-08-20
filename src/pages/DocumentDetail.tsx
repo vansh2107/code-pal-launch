@@ -458,7 +458,7 @@ export default function DocumentDetail() {
                   <div className="flex flex-col items-center justify-center gap-3 p-8 bg-muted rounded-lg text-center">
                     <FileText className="h-10 w-10 text-muted-foreground" />
                     <div>
-                      <p className="font-medium">Preview unavailable</p>
+                      <p className="font-medium">Processed document preview unavailable</p>
                       <p className="text-sm text-muted-foreground">
                         Your document is still stored safely. Only the preview could not be loaded.
                       </p>
