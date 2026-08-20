@@ -37,10 +37,6 @@ function scaleCropBounds(bounds: CropBounds, factor: number): CropBounds {
   };
 }
 
-function clamp01(n: number) {
-  return Math.max(0, Math.min(1, n));
-}
-
 function quadArea(b: CropBounds): number {
   const pts = [b.topLeft, b.topRight, b.bottomRight, b.bottomLeft];
   let sum = 0;
@@ -199,6 +195,27 @@ export async function scanDocument(
     outCtx.putImageData(imageData, 0, 0);
   }
 
+
+  if (import.meta.env.DEV) {
+    const selected = candidates.find((c) => c.corners === detectedBoundsOriginal) ?? candidates[0];
+    console.groupCollapsed('DOCUMENT SCAN DEBUG');
+    console.log('original dims:', origW, 'x', origH);
+    console.log('detection dims:', dw, 'x', dh, '(scale', detectScale, ')');
+    console.log('candidate count:', candidates.length);
+    console.log('selected candidate:', selected
+      ? { score: selected.score, confidence: selected.confidence, source: selected.source }
+      : cropBounds ? 'manual bounds' : 'none');
+    if (detectedBoundsOriginal) {
+      const area = quadArea(detectedBoundsOriginal);
+      console.log('area:', area, 'area ratio:', area / (origW * origH));
+      console.log('detection corners:', selected?.corners);
+      console.log('mapped corners:', detectedBoundsOriginal);
+    }
+    console.log('perspective output size:', warped ? `${warped.width}x${warped.height}` : 'n/a');
+    console.log('crop accepted:', autoCropApplied, 'confidence:', confidence);
+    console.log('fallback (uncropped original used):', !autoCropApplied);
+    console.groupEnd();
+  }
 
   const processedImage = outCanvas.toDataURL('image/jpeg', OUTPUT_JPEG_QUALITY);
 
@@ -387,9 +404,15 @@ export async function detectCropBounds(
   canvas.width = width; canvas.height = height;
   ctx.drawImage(img, 0, 0, width, height);
   const imageData = ctx.getImageData(0, 0, width, height);
-  const result = detectDocumentContourImproved(imageData, width, height);
-  if (!result?.bounds) return null;
-  return scaleCropBounds(result.bounds, 1 / scale);
+  let candidates: DocumentCandidate[] = [];
+  try {
+    candidates = detectDocumentCandidates(imageData, width, height, 3);
+  } catch (e) {
+    console.warn('Document detection failed:', e);
+    return null;
+  }
+  if (!candidates.length) return null;
+  return scaleCropBounds(candidates[0].corners, 1 / scale);
 }
 
 /**
