@@ -17,7 +17,7 @@ interface SwipeableDocumentCardProps {
     expiry_date: string | null;
   };
   statusInfo: {
-    status: 'expired' | 'expiring' | 'valid';
+    status: 'expired' | 'expiring' | 'valid' | 'permanent';
     label: string;
     badgeVariant: "default" | "destructive" | "outline" | "secondary";
     colorClass: string;
