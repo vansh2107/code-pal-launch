@@ -55,7 +55,7 @@ const MAX_CONTOUR_AREA_RATIO = 0.92;
 const CANNY_LOW_THRESHOLD = 50;
 const CANNY_HIGH_THRESHOLD = 150;
 // Confidence threshold to auto-apply crop without manual intervention
-const MIN_AUTOCROP_APPLY_CONFIDENCE = 0.45;
+const MIN_AUTOCROP_APPLY_CONFIDENCE = 0.75;
 
 function isMeaningfulCrop(bounds: CropBounds, width: number, height: number): boolean {
   const area = quadArea(bounds);
@@ -205,7 +205,25 @@ function detectDocumentContourImproved(
 ): { bounds: CropBounds; confidence: number } | null {
   const { data } = imageData;
 
-  // Grayscale
+  // ── Primary: multi-pass edge detector (documentEdgeDetection.ts) ──
+  try {
+    const result = detectDocumentQuad(data, width, height);
+    if (result) {
+      return {
+        bounds: {
+          topLeft: result.quad.topLeft,
+          topRight: result.quad.topRight,
+          bottomLeft: result.quad.bottomLeft,
+          bottomRight: result.quad.bottomRight,
+        },
+        confidence: result.score,
+      };
+    }
+  } catch (err) {
+    console.warn('Primary edge detection failed, falling back:', err);
+  }
+
+  // ── Last resort: legacy projection / colour-contrast detector ──
   const gray = new Uint8Array(width * height);
   for (let i = 0, j = 0; i < data.length; i += 4, j++) {
     gray[j] = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
@@ -218,9 +236,9 @@ function detectDocumentContourImproved(
   const contour = findDocumentContour(dilatedEdges, width, height);
   if (contour) return contour;
 
-  // Fallback: color contrast
   return detectByColorContrast(data, width, height);
 }
+
 
 // ─── Edge detection helpers ───────────────────────────────────────────────────
 

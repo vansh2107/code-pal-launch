@@ -15,7 +15,7 @@ import { AIInsights } from "@/components/document/AIInsights";
 import { RenewalAdvisor } from "@/components/ai/RenewalAdvisor";
 import { DocumentViewer } from "@/components/document/DocumentViewer";
 import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
-import { getDocumentStatus, hasValidExpiryDate } from "@/utils/documentStatus";
+import { getDocumentStatus } from "@/utils/documentStatus";
 import { sanitizeDocumentNote } from "@/utils/documentNotes";
 import {
   AlertDialog,
@@ -368,13 +368,12 @@ export default function DocumentDetail() {
   }
 
   const isDocVault = document.issuing_authority === 'DocVault';
-  const hasExpiry = hasValidExpiryDate(document.expiry_date);
-  const statusInfo = !isDocVault && hasExpiry ? getDocumentStatus(document.expiry_date) : null;
+  const statusInfo = !isDocVault && document.expiry_date ? getDocumentStatus(document.expiry_date) : null;
   const recommendedDays = renewalAdvice ? extractRecommendedDays(renewalAdvice) : null;
   
   // Calculate days until expiry to show countdown
-  const daysUntilExpiry = hasExpiry
-    ? Math.ceil((new Date(document.expiry_date as string).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+  const daysUntilExpiry = document.expiry_date 
+    ? Math.ceil((new Date(document.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
     : null;
   
   // Use AI recommended days if available, otherwise fall back to document's renewal period
@@ -631,9 +630,9 @@ export default function DocumentDetail() {
               
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
-                {hasExpiry ? (
+                {document.expiry_date ? (
                   <p className={statusInfo?.textClass || 'text-foreground'}>
-                    {new Date(document.expiry_date as string).toLocaleDateString()}
+                    {new Date(document.expiry_date).toLocaleDateString()}
                   </p>
                 ) : isDocVault ? (
                   <p className="text-muted-foreground">No expiry set for this document</p>
@@ -689,12 +688,12 @@ export default function DocumentDetail() {
         {/* AI Insights and Document History - Only for non-DocVault */}
         {!isDocVault && <DocumentHistory documentId={id!} />}
         {!isDocVault && <AIInsights document={document} statusInfo={statusInfo} />}
-        {!isDocVault && hasExpiry && (
+        {!isDocVault && document.expiry_date && (
           <RenewalAdvisor 
             documentId={document.id}
             documentType={document.document_type}
             documentName={document.name}
-            expiryDate={document.expiry_date as string}
+            expiryDate={document.expiry_date}
             statusInfo={statusInfo}
           />
         )}

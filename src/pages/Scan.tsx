@@ -383,6 +383,30 @@ export default function Scan() {
     }
   };
 
+  /** Distinguish an AI/backend failure from a genuinely unreadable document. */
+  const describeScanFailure = (payload: any, invokeError: any) => {
+    const code = payload?.code;
+    if (invokeError) {
+      console.error("SCAN AI DEBUG | invoke error", invokeError);
+    }
+    if (payload?.debug) {
+      console.error("SCAN AI DEBUG | backend debug", payload.debug);
+    }
+    if (code === "AI_UNAVAILABLE") {
+      return { title: "AI service unavailable", message: "The AI service is not configured. Please enter the document details manually." };
+    }
+    if (code === "RATE_LIMIT") {
+      return { title: "AI is busy", message: "The AI service is rate limited. Try again in a moment, or enter the details manually." };
+    }
+    if (code === "PAYMENT_REQUIRED") {
+      return { title: "AI credits depleted", message: "AI credits have run out. Add credits, or enter the details manually." };
+    }
+    if (code === "AI_ERROR" || code === "SERVER_ERROR" || invokeError) {
+      return { title: "AI analysis failed", message: "This isn't a problem with your document — the AI service failed. Please enter the details manually or retry." };
+    }
+    return { title: "Could not read this document", message: payload?.error || "The document details could not be read. Please enter them manually." };
+  };
+
   const extractDocumentData = async (imageBase64: string) => {
     setExtracting(true);
     setError("");
@@ -395,12 +419,17 @@ export default function Scan() {
         },
       });
 
-      if (error) throw error;
+      if (error || !data?.success || !data?.data) {
+        const f = describeScanFailure(data, error);
+        setError(f.message);
+        toast({ title: f.title, description: f.message, variant: "destructive" });
+        return;
+      }
 
       if (data.success && data.data) {
         // Run decision engine
         const dec = evaluateDocumentDecision(
-          data.data.document_type || "other",
+          `${data.data.document_type || "other"} ${data.data.name || ""}`.trim(),
           data.data,
           data.data.confidence || 0.9,
           data.data.fieldStatuses
@@ -441,14 +470,12 @@ export default function Scan() {
             description: "Document information extracted successfully. Please review and save.",
           });
         }
-      } else {
-        throw new Error(data.error || "Failed to extract document data");
       }
     } catch (err) {
-      console.error("Extraction error:", err);
-      setError("Failed to extract document data. Please enter manually.");
+      console.error("SCAN AI DEBUG | unexpected extraction error:", err);
+      setError("The AI service failed to analyse this document. Please enter the details manually.");
       toast({
-        title: "Extraction Failed",
+        title: "AI analysis failed",
         description: "Please enter document details manually.",
         variant: "destructive",
       });
@@ -473,12 +500,17 @@ export default function Scan() {
         },
       });
 
-      if (error) throw error;
+      if (error || !data?.success || !data?.data) {
+        const f = describeScanFailure(data, error);
+        setError(f.message);
+        toast({ title: f.title, description: f.message, variant: "destructive" });
+        return;
+      }
 
       if (data?.success && data.data) {
         // Run decision engine
         const dec = evaluateDocumentDecision(
-          data.data.document_type || "other",
+          `${data.data.document_type || "other"} ${data.data.name || ""}`.trim(),
           data.data,
           data.data.confidence || 0.9,
           data.data.fieldStatuses
@@ -518,15 +550,13 @@ export default function Scan() {
             description: `Information extracted from ${pages.length} page${pages.length > 1 ? "s" : ""}. Please review and save.`,
           });
         }
-      } else {
-        throw new Error(data?.error || "Unable to extract information from this document.");
       }
     } catch (err) {
-      console.error("Document extraction error:", err);
-      setError("Unable to extract information from this document. Please enter details manually.");
+      console.error("SCAN AI DEBUG | unexpected document extraction error:", err);
+      setError("The AI service failed to analyse this document. Please enter the details manually.");
       toast({
-        title: "Unable to extract information",
-        description: "All pages were processed, but the document details could not be read. Please enter them manually.",
+        title: "AI analysis failed",
+        description: "All pages were processed, but the AI service failed. Please enter the details manually.",
         variant: "destructive",
       });
     } finally {

@@ -1,246 +1,299 @@
 /**
  * documentEdgeDetection.ts
  *
- * Pure-TypeScript document quad detector (no DOM, no OpenCV) designed to work on
- * busy / patterned backgrounds where projection-profile detectors fail.
+ * Pure-TypeScript, DOM-free document edge detector.
  *
- * Pipeline:
- *   grayscale -> gaussian blur -> CLAHE
- *   Pass A: adaptive-threshold Canny + morphological close
- *   Pass B: adaptive binary threshold (both polarities) + Otsu
- *   contours -> convex hull -> approxPolyDP -> quad candidates
- *   scoring (area, rectangularity, convexity, edge support, aspect, centering,
- *            interior uniformity vs exterior)
+ * Given raw RGBA pixels it returns an ordered quadrilateral (in ORIGINAL image
+ * coordinates) describing the most likely document boundary, plus a confidence
+ * score in [0, 1] and structured debug information.
  *
- * Runs on a plain RGBA buffer so it can be unit tested in Node.
+ * Pipeline
+ *   1. Resize to a bounded processing copy (scale factors preserved)
+ *   2. Grayscale -> Gaussian blur -> CLAHE
+ *   3. Pass A: adaptive-hysteresis Canny + morphological close
+ *      Pass B: adaptive threshold in BOTH polarities + Otsu
+ *   4. Connected components -> convex hull -> approxPolyDP (bbox fallback)
+ *   5. Ordered quads with duplicate + self-intersection guards
+ *   6. Candidate scoring: area, rectangularity, convexity, per-side edge
+ *      support (with min-side penalty), opposite-side consistency, aspect,
+ *      centering, interior-vs-exterior gradient uniformity
  */
 
-export interface Point {
+export interface EdgePoint {
   x: number;
   y: number;
 }
 
-export interface Quad {
-  topLeft: Point;
-  topRight: Point;
-  bottomRight: Point;
-  bottomLeft: Point;
+export interface DetectedQuad {
+  topLeft: EdgePoint;
+  topRight: EdgePoint;
+  bottomRight: EdgePoint;
+  bottomLeft: EdgePoint;
+}
+
+export interface QuadScoreBreakdown {
+  area: number;
+  rectangularity: number;
+  convexity: number;
+  edgeSupport: number;
+  minSideSupport: number;
+  oppositeConsistency: number;
+  aspect: number;
+  centering: number;
+  uniformity: number;
+  total: number;
 }
 
 export interface QuadCandidate {
-  quad: Quad;
+  quad: DetectedQuad;
   score: number;
-  source: 'canny' | 'threshold-dark' | 'threshold-light' | 'otsu';
-  metrics: {
-    areaRatio: number;
-    rectangularity: number;
-    convexity: number;
-    edgeSupport: number;
-    minSideEdge: number;
-    aspect: number;
-    centering: number;
-    uniformity: number;
-  };
+  breakdown: QuadScoreBreakdown;
+  source: string;
 }
 
-export interface DetectionDebug {
-  processWidth: number;
-  processHeight: number;
-  scale: number;
-  contourCounts: Record<string, number>;
+export interface EdgeDetectionDebug {
+  processingWidth: number;
+  processingHeight: number;
+  scaleX: number;
+  scaleY: number;
   candidateCount: number;
-  candidates: Array<{ score: number; source: string; metrics: QuadCandidate['metrics'] }>;
-  selected: Quad | null;
-  reliable: boolean;
-  ms: number;
+  passACandidates: number;
+  passBCandidates: number;
+  topCandidates: Array<{ source: string; score: number; breakdown: QuadScoreBreakdown }>;
+  timings: { total: number };
 }
 
-export interface DetectionResult {
-  /** Quad in ORIGINAL image coordinates. Always present (fallback when unreliable). */
-  quad: Quad;
+export interface EdgeDetectionResult {
+  quad: DetectedQuad;
   score: number;
-  reliable: boolean;
-  usedFallback: boolean;
+  breakdown: QuadScoreBreakdown;
+  source: string;
   candidates: QuadCandidate[];
-  debug: DetectionDebug;
+  debug: EdgeDetectionDebug;
 }
 
-/** Minimum score for a detection to be trusted without user confirmation. */
+/** Scores at or above this value are considered trustworthy for auto-crop. */
 export const RELIABLE_SCORE = 0.62;
 
-const PROCESS_MAX_DIM = 640;
-const MIN_AREA_RATIO = 0.08;
-const MAX_AREA_RATIO = 0.98;
+const MAX_PROCESSING_DIM = 640;
 
-// ───────────────────────── public API ─────────────────────────
+/* ────────────────────────────── public API ─────────────────────────────── */
+
+export function centeredFallbackQuad(width: number, height: number, inset = 0.06): DetectedQuad {
+  const dx = width * inset;
+  const dy = height * inset;
+  return {
+    topLeft: { x: dx, y: dy },
+    topRight: { x: width - dx, y: dy },
+    bottomRight: { x: width - dx, y: height - dy },
+    bottomLeft: { x: dx, y: height - dy },
+  };
+}
 
 export function detectDocumentQuad(
-  rgba: Uint8ClampedArray | Uint8Array,
+  pixels: Uint8ClampedArray | Uint8Array,
   width: number,
   height: number
-): DetectionResult {
-  const t0 = Date.now();
+): EdgeDetectionResult | null {
+  const t0 = nowMs();
 
-  // 1. Resize to a processing copy (preserve scale factors)
-  const scale = Math.min(1, PROCESS_MAX_DIM / Math.max(width, height));
-  const pw = Math.max(1, Math.round(width * scale));
-  const ph = Math.max(1, Math.round(height * scale));
-  const gray = resizeToGray(rgba, width, height, pw, ph);
+  // ── 1. Processing copy ──
+  const scale = Math.min(1, MAX_PROCESSING_DIM / Math.max(width, height));
+  const pw = Math.max(32, Math.round(width * scale));
+  const ph = Math.max(32, Math.round(height * scale));
+  const scaleX = width / pw;
+  const scaleY = height / ph;
 
-  // 2. Denoise + local contrast
-  const blurred = gaussianBlur(gray, pw, ph);
-  const equalized = clahe(blurred, pw, ph);
+  const gray = resizeToGray(pixels, width, height, pw, ph);
 
-  // Gradient magnitude is reused for edge-support scoring.
-  const grad = sobelMagnitude(blurred, pw, ph);
+  // ── 2. Blur + CLAHE ──
+  const blurred = gaussianBlur5(gray, pw, ph);
+  const equalized = clahe(blurred, pw, ph, 8, 8, 3.0);
 
-  const contourCounts: Record<string, number> = {};
-  const candidates: QuadCandidate[] = [];
+  // Gradient magnitude map is reused by both passes and by scoring.
+  const grad = sobelMagnitude(equalized, pw, ph);
 
-  // 3. Pass A — Canny with adaptive hysteresis + morphological close
-  {
-    const { low, high } = adaptiveThresholds(grad);
-    const edges = cannyFromGradient(blurred, pw, ph, low, high);
-    const closed = morphClose(edges, pw, ph, 2);
-    const quads = quadsFromMask(closed, pw, ph);
-    contourCounts.canny = quads.length;
-    for (const q of quads) candidates.push(scoreQuad(q, equalized, grad, pw, ph, 'canny'));
-  }
+  // ── 3. Two independent binary masks ──
+  const cannyMask = adaptiveCanny(equalized, grad, pw, ph);
+  morphClose(cannyMask, pw, ph, 1);
 
-  // 4. Pass B — adaptive threshold (both polarities) + Otsu
-  const passes: Array<{ mask: Uint8Array; source: QuadCandidate['source'] }> = [
-    { mask: adaptiveThresholdMask(equalized, pw, ph, false), source: 'threshold-dark' },
-    { mask: adaptiveThresholdMask(equalized, pw, ph, true), source: 'threshold-light' },
-    { mask: otsuMask(equalized, pw, ph), source: 'otsu' },
+  const otsuT = otsuThreshold(equalized);
+  const masksB: Uint8Array[] = [
+    adaptiveThreshold(equalized, pw, ph, 15, 7, false),
+    adaptiveThreshold(equalized, pw, ph, 15, 7, true),
+    thresholdAt(equalized, otsuT, false),
+    thresholdAt(equalized, otsuT, true),
   ];
-  for (const p of passes) {
-    const closed = morphClose(p.mask, pw, ph, 1);
-    const quads = quadsFromMask(closed, pw, ph);
-    contourCounts[p.source] = quads.length;
-    for (const q of quads) candidates.push(scoreQuad(q, equalized, grad, pw, ph, p.source));
+  masksB.forEach((m) => morphClose(m, pw, ph, 1));
+
+  // ── 4. Candidates ──
+  const candidates: QuadCandidate[] = [];
+  let passA = 0;
+  let passB = 0;
+
+  for (const q of quadsFromMask(cannyMask, pw, ph, 'canny')) {
+    candidates.push(q);
+    passA++;
+  }
+  const bLabels = ['adaptive+', 'adaptive-', 'otsu+', 'otsu-'];
+  masksB.forEach((mask, i) => {
+    for (const q of quadsFromMask(mask, pw, ph, bLabels[i])) {
+      candidates.push(q);
+      passB++;
+    }
+  });
+
+  // ── 5/6. Score everything ──
+  const scored: QuadCandidate[] = [];
+  for (const cand of candidates) {
+    const breakdown = scoreQuad(cand.quad, grad, pw, ph);
+    if (breakdown.total <= 0) continue;
+    scored.push({ ...cand, breakdown, score: breakdown.total });
   }
 
-  candidates.sort((a, b) => b.score - a.score);
-  const best = candidates[0] ?? null;
-  const reliable = !!best && best.score >= RELIABLE_SCORE;
+  scored.sort((a, b) => b.score - a.score);
 
-  const invScale = 1 / scale;
-  const chosenProcess = best ? best.quad : centeredFallbackQuad(pw, ph);
-  const quad = scaleQuad(chosenProcess, invScale, width, height);
-
-  const debug: DetectionDebug = {
-    processWidth: pw,
-    processHeight: ph,
-    scale,
-    contourCounts,
-    candidateCount: candidates.length,
-    candidates: candidates.slice(0, 8).map((c) => ({ score: c.score, source: c.source, metrics: c.metrics })),
-    selected: quad,
-    reliable,
-    ms: Date.now() - t0,
+  const debug: EdgeDetectionDebug = {
+    processingWidth: pw,
+    processingHeight: ph,
+    scaleX,
+    scaleY,
+    candidateCount: scored.length,
+    passACandidates: passA,
+    passBCandidates: passB,
+    topCandidates: scored.slice(0, 5).map((c) => ({
+      source: c.source,
+      score: round3(c.score),
+      breakdown: roundBreakdown(c.breakdown),
+    })),
+    timings: { total: Math.round(nowMs() - t0) },
   };
 
+  if (!scored.length) return null;
+
+  const best = scored[0];
+  const upscaled = scaleQuad(best.quad, scaleX, scaleY);
+
   return {
-    quad,
-    score: best ? best.score : 0,
-    reliable,
-    usedFallback: !best,
-    candidates: candidates.map((c) => ({ ...c, quad: scaleQuad(c.quad, invScale, width, height) })),
+    quad: clampQuad(upscaled, width, height),
+    score: best.score,
+    breakdown: best.breakdown,
+    source: best.source,
+    candidates: scored.slice(0, 8).map((c) => ({
+      ...c,
+      quad: clampQuad(scaleQuad(c.quad, scaleX, scaleY), width, height),
+    })),
     debug,
   };
 }
 
-/** A centered quad covering ~85% of the frame — safe manual-crop starting point. */
-export function centeredFallbackQuad(width: number, height: number): Quad {
-  const mx = width * 0.075;
-  const my = height * 0.075;
-  return {
-    topLeft: { x: mx, y: my },
-    topRight: { x: width - mx, y: my },
-    bottomRight: { x: width - mx, y: height - my },
-    bottomLeft: { x: mx, y: height - my },
-  };
+/* ───────────────────────────── stage helpers ───────────────────────────── */
+
+function nowMs(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
-// ───────────────────────── image ops ─────────────────────────
-
 function resizeToGray(
-  rgba: Uint8ClampedArray | Uint8Array,
+  pixels: Uint8ClampedArray | Uint8Array,
   sw: number,
   sh: number,
   dw: number,
   dh: number
 ): Uint8Array {
   const out = new Uint8Array(dw * dh);
-  const xr = sw / dw;
-  const yr = sh / dh;
+  const xRatio = sw / dw;
+  const yRatio = sh / dh;
+
   for (let y = 0; y < dh; y++) {
-    const y0 = Math.min(sh - 1, Math.floor(y * yr));
-    const y1 = Math.min(sh - 1, Math.floor((y + 1) * yr - 0.001));
+    const sy0 = Math.floor(y * yRatio);
+    const sy1 = Math.min(sh, Math.max(sy0 + 1, Math.floor((y + 1) * yRatio)));
     for (let x = 0; x < dw; x++) {
-      const x0 = Math.min(sw - 1, Math.floor(x * xr));
-      const x1 = Math.min(sw - 1, Math.floor((x + 1) * xr - 0.001));
+      const sx0 = Math.floor(x * xRatio);
+      const sx1 = Math.min(sw, Math.max(sx0 + 1, Math.floor((x + 1) * xRatio)));
       let sum = 0;
-      let n = 0;
-      for (let yy = y0; yy <= y1; yy++) {
-        for (let xx = x0; xx <= x1; xx++) {
-          const i = (yy * sw + xx) * 4;
-          sum += rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114;
-          n++;
-        }
-      }
-      out[y * dw + x] = n ? Math.round(sum / n) : 0;
-    }
-  }
-  return out;
-}
-
-function gaussianBlur(src: Uint8Array, w: number, h: number): Uint8Array {
-  // separable 5-tap gaussian (sigma ~1)
-  const k = [1, 4, 6, 4, 1];
-  const ksum = 16;
-  const tmp = new Float32Array(w * h);
-  const out = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let s = 0;
-      for (let i = -2; i <= 2; i++) {
-        const xx = Math.min(w - 1, Math.max(0, x + i));
-        s += src[y * w + xx] * k[i + 2];
-      }
-      tmp[y * w + x] = s / ksum;
-    }
-  }
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let s = 0;
-      for (let i = -2; i <= 2; i++) {
-        const yy = Math.min(h - 1, Math.max(0, y + i));
-        s += tmp[yy * w + x] * k[i + 2];
-      }
-      out[y * w + x] = Math.round(s / ksum);
-    }
-  }
-  return out;
-}
-
-/** Contrast Limited Adaptive Histogram Equalization (tiled, bilinear-free approximation). */
-function clahe(src: Uint8Array, w: number, h: number, tiles = 8, clipLimit = 3): Uint8Array {
-  const out = new Uint8Array(w * h);
-  const tw = Math.ceil(w / tiles);
-  const th = Math.ceil(h / tiles);
-  const luts: Uint8Array[] = [];
-  for (let ty = 0; ty < tiles; ty++) {
-    for (let tx = 0; tx < tiles; tx++) {
-      const hist = new Int32Array(256);
       let count = 0;
-      for (let y = ty * th; y < Math.min(h, (ty + 1) * th); y++) {
-        for (let x = tx * tw; x < Math.min(w, (tx + 1) * tw); x++) {
-          hist[src[y * w + x]]++;
+      for (let sy = sy0; sy < sy1; sy++) {
+        const row = sy * sw;
+        for (let sx = sx0; sx < sx1; sx++) {
+          const i = (row + sx) * 4;
+          sum += pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114;
           count++;
         }
       }
-      const limit = Math.max(1, Math.floor((clipLimit * count) / 256));
+      out[y * dw + x] = count ? Math.round(sum / count) : 0;
+    }
+  }
+  return out;
+}
+
+const GAUSS5 = [1, 4, 6, 4, 1];
+
+function gaussianBlur5(src: Uint8Array, w: number, h: number): Uint8Array {
+  const tmp = new Float32Array(w * h);
+  const out = new Uint8Array(w * h);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let acc = 0;
+      let wsum = 0;
+      for (let k = -2; k <= 2; k++) {
+        const xx = x + k;
+        if (xx < 0 || xx >= w) continue;
+        const g = GAUSS5[k + 2];
+        acc += src[y * w + xx] * g;
+        wsum += g;
+      }
+      tmp[y * w + x] = acc / wsum;
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let acc = 0;
+      let wsum = 0;
+      for (let k = -2; k <= 2; k++) {
+        const yy = y + k;
+        if (yy < 0 || yy >= h) continue;
+        const g = GAUSS5[k + 2];
+        acc += tmp[yy * w + x] * g;
+        wsum += g;
+      }
+      out[y * w + x] = Math.round(acc / wsum);
+    }
+  }
+  return out;
+}
+
+/** Contrast Limited Adaptive Histogram Equalization (bilinear tile blend). */
+function clahe(
+  src: Uint8Array,
+  w: number,
+  h: number,
+  tilesX: number,
+  tilesY: number,
+  clipLimit: number
+): Uint8Array {
+  const tw = Math.max(1, Math.ceil(w / tilesX));
+  const th = Math.max(1, Math.ceil(h / tilesY));
+  const nx = Math.ceil(w / tw);
+  const ny = Math.ceil(h / th);
+  const maps: Uint8Array[] = [];
+
+  for (let ty = 0; ty < ny; ty++) {
+    for (let tx = 0; tx < nx; tx++) {
+      const hist = new Float32Array(256);
+      const x0 = tx * tw;
+      const y0 = ty * th;
+      const x1 = Math.min(w, x0 + tw);
+      const y1 = Math.min(h, y0 + th);
+      let n = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          hist[src[y * w + x]]++;
+          n++;
+        }
+      }
+      // Clip and redistribute
+      const limit = Math.max(1, (clipLimit * n) / 256);
       let excess = 0;
       for (let i = 0; i < 256; i++) {
         if (hist[i] > limit) {
@@ -248,165 +301,100 @@ function clahe(src: Uint8Array, w: number, h: number, tiles = 8, clipLimit = 3):
           hist[i] = limit;
         }
       }
-      const bonus = Math.floor(excess / 256);
-      const lut = new Uint8Array(256);
-      let cum = 0;
-      const total = count || 1;
+      const bonus = excess / 256;
+      let cdf = 0;
+      const map = new Uint8Array(256);
+      const total = n || 1;
       for (let i = 0; i < 256; i++) {
-        cum += hist[i] + bonus;
-        lut[i] = Math.min(255, Math.round((cum / total) * 255));
+        cdf += hist[i] + bonus;
+        map[i] = Math.max(0, Math.min(255, Math.round((cdf / total) * 255)));
       }
-      luts.push(lut);
+      maps.push(map);
     }
   }
+
+  const out = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {
-    const ty = Math.min(tiles - 1, Math.floor(y / th));
+    const fy = y / th - 0.5;
+    const ty0 = Math.floor(fy);
+    const wy = fy - ty0;
     for (let x = 0; x < w; x++) {
-      const tx = Math.min(tiles - 1, Math.floor(x / tw));
-      out[y * w + x] = luts[ty * tiles + tx][src[y * w + x]];
+      const fx = x / tw - 0.5;
+      const tx0 = Math.floor(fx);
+      const wx = fx - tx0;
+      const v = src[y * w + x];
+      const m = (tx: number, ty: number) =>
+        maps[Math.min(ny - 1, Math.max(0, ty)) * nx + Math.min(nx - 1, Math.max(0, tx))][v];
+      const top = m(tx0, ty0) * (1 - wx) + m(tx0 + 1, ty0) * wx;
+      const bottom = m(tx0, ty0 + 1) * (1 - wx) + m(tx0 + 1, ty0 + 1) * wx;
+      out[y * w + x] = Math.round(top * (1 - wy) + bottom * wy);
     }
   }
   return out;
 }
 
-interface Gradient {
-  mag: Float32Array;
-  dir: Float32Array;
-  max: number;
-}
-
-function sobelMagnitude(src: Uint8Array, w: number, h: number): Gradient {
+function sobelMagnitude(src: Uint8Array, w: number, h: number): Float32Array {
   const mag = new Float32Array(w * h);
-  const dir = new Float32Array(w * h);
-  let max = 0;
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const i = y * w + x;
       const gx =
-        -src[i - w - 1] + src[i - w + 1] - 2 * src[i - 1] + 2 * src[i + 1] - src[i + w - 1] + src[i + w + 1];
+        -src[i - w - 1] - 2 * src[i - 1] - src[i + w - 1] +
+        src[i - w + 1] + 2 * src[i + 1] + src[i + w + 1];
       const gy =
-        -src[i - w - 1] - 2 * src[i - w] - src[i - w + 1] + src[i + w - 1] + 2 * src[i + w] + src[i + w + 1];
-      const m = Math.hypot(gx, gy);
-      mag[i] = m;
-      dir[i] = Math.atan2(gy, gx);
-      if (m > max) max = m;
+        -src[i - w - 1] - 2 * src[i - w] - src[i - w + 1] +
+        src[i + w - 1] + 2 * src[i + w] + src[i + w + 1];
+      mag[i] = Math.sqrt(gx * gx + gy * gy);
     }
   }
-  return { mag, dir, max };
+  return mag;
 }
 
-function adaptiveThresholds(grad: Gradient): { low: number; high: number } {
-  const vals: number[] = [];
-  for (let i = 0; i < grad.mag.length; i += 3) vals.push(grad.mag[i]);
-  vals.sort((a, b) => a - b);
-  const median = vals[Math.floor(vals.length / 2)] || 1;
-  const p90 = vals[Math.floor(vals.length * 0.9)] || median * 2;
-  const high = Math.max(20, Math.min(p90, median * 3));
-  return { low: high * 0.4, high };
-}
+/** Canny with hysteresis thresholds derived from the gradient distribution. */
+function adaptiveCanny(
+  src: Uint8Array,
+  mag: Float32Array,
+  w: number,
+  h: number
+): Uint8Array {
+  // Percentile-based high threshold
+  const sorted = Float32Array.from(mag);
+  sorted.sort();
+  const high = sorted[Math.floor(sorted.length * 0.9)] || 40;
+  const low = Math.max(6, high * 0.4);
 
-function cannyFromGradient(src: Uint8Array, w: number, h: number, low: number, high: number): Uint8Array {
-  const { mag, dir } = sobelMagnitude(src, w, h);
-  const sup = new Float32Array(w * h);
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      const i = y * w + x;
-      const angle = ((dir[i] * 180) / Math.PI + 180) % 180;
-      let a: number, b: number;
-      if (angle < 22.5 || angle >= 157.5) {
-        a = mag[i - 1];
-        b = mag[i + 1];
-      } else if (angle < 67.5) {
-        a = mag[i - w + 1];
-        b = mag[i + w - 1];
-      } else if (angle < 112.5) {
-        a = mag[i - w];
-        b = mag[i + w];
-      } else {
-        a = mag[i - w - 1];
-        b = mag[i + w + 1];
-      }
-      sup[i] = mag[i] >= a && mag[i] >= b ? mag[i] : 0;
-    }
+  const strong = new Uint8Array(w * h);
+  const weak = new Uint8Array(w * h);
+  for (let i = 0; i < mag.length; i++) {
+    if (mag[i] >= high) strong[i] = 1;
+    else if (mag[i] >= low) weak[i] = 1;
   }
-  // hysteresis
-  const out = new Uint8Array(w * h);
-  const stack: number[] = [];
-  for (let i = 0; i < sup.length; i++) {
-    if (sup[i] >= high) {
-      out[i] = 1;
-      stack.push(i);
-    }
-  }
-  while (stack.length) {
-    const i = stack.pop()!;
-    const x = i % w;
-    const y = (i / w) | 0;
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-        const ni = ny * w + nx;
-        if (!out[ni] && sup[ni] >= low) {
-          out[ni] = 1;
-          stack.push(ni);
+
+  // Hysteresis: promote weak pixels connected to strong ones (iterative sweep)
+  const out = Uint8Array.from(strong);
+  let changed = true;
+  let guard = 0;
+  while (changed && guard++ < 6) {
+    changed = false;
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const i = y * w + x;
+        if (!weak[i] || out[i]) continue;
+        if (
+          out[i - 1] || out[i + 1] || out[i - w] || out[i + w] ||
+          out[i - w - 1] || out[i - w + 1] || out[i + w - 1] || out[i + w + 1]
+        ) {
+          out[i] = 1;
+          changed = true;
         }
       }
-    }
-  }
-  return out;
-}
-
-function morphClose(mask: Uint8Array, w: number, h: number, r: number): Uint8Array {
-  return erode(dilate(mask, w, h, r), w, h, r);
-}
-
-function dilate(mask: Uint8Array, w: number, h: number, r: number): Uint8Array {
-  const out = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let v = 0;
-      for (let dy = -r; dy <= r && !v; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-          if (mask[ny * w + nx]) {
-            v = 1;
-            break;
-          }
-        }
-      }
-      out[y * w + x] = v;
-    }
-  }
-  return out;
-}
-
-function erode(mask: Uint8Array, w: number, h: number, r: number): Uint8Array {
-  const out = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let v = 1;
-      for (let dy = -r; dy <= r && v; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          const nx = Math.min(w - 1, Math.max(0, x + dx));
-          const ny = Math.min(h - 1, Math.max(0, y + dy));
-          if (!mask[ny * w + nx]) {
-            v = 0;
-            break;
-          }
-        }
-      }
-      out[y * w + x] = v;
     }
   }
   return out;
 }
 
 function otsuThreshold(src: Uint8Array): number {
-  const hist = new Int32Array(256);
+  const hist = new Float64Array(256);
   for (let i = 0; i < src.length; i++) hist[src[i]]++;
   const total = src.length;
   let sum = 0;
@@ -414,33 +402,42 @@ function otsuThreshold(src: Uint8Array): number {
   let sumB = 0;
   let wB = 0;
   let best = 0;
-  let thr = 127;
-  for (let i = 0; i < 256; i++) {
-    wB += hist[i];
+  let bestT = 127;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t];
     if (!wB) continue;
     const wF = total - wB;
     if (!wF) break;
-    sumB += i * hist[i];
+    sumB += t * hist[t];
     const mB = sumB / wB;
     const mF = (sum - sumB) / wF;
     const between = wB * wF * (mB - mF) * (mB - mF);
     if (between > best) {
       best = between;
-      thr = i;
+      bestT = t;
     }
   }
-  return thr;
+  return bestT;
 }
 
-function otsuMask(src: Uint8Array, w: number, h: number): Uint8Array {
-  const thr = otsuThreshold(src);
-  const out = new Uint8Array(w * h);
-  for (let i = 0; i < src.length; i++) out[i] = src[i] > thr ? 1 : 0;
+function thresholdAt(src: Uint8Array, t: number, invert: boolean): Uint8Array {
+  const out = new Uint8Array(src.length);
+  for (let i = 0; i < src.length; i++) {
+    const on = invert ? src[i] < t : src[i] >= t;
+    out[i] = on ? 1 : 0;
+  }
   return out;
 }
 
-/** Mean-based adaptive threshold using an integral image. invert=true keeps darker-than-local. */
-function adaptiveThresholdMask(src: Uint8Array, w: number, h: number, invert: boolean): Uint8Array {
+/** Mean-based adaptive threshold using an integral image. */
+function adaptiveThreshold(
+  src: Uint8Array,
+  w: number,
+  h: number,
+  radius: number,
+  c: number,
+  invert: boolean
+): Uint8Array {
   const integral = new Float64Array((w + 1) * (h + 1));
   for (let y = 0; y < h; y++) {
     let rowSum = 0;
@@ -449,104 +446,155 @@ function adaptiveThresholdMask(src: Uint8Array, w: number, h: number, invert: bo
       integral[(y + 1) * (w + 1) + (x + 1)] = integral[y * (w + 1) + (x + 1)] + rowSum;
     }
   }
-  const r = Math.max(4, Math.floor(Math.min(w, h) / 16));
   const out = new Uint8Array(w * h);
-  const C = 5;
   for (let y = 0; y < h; y++) {
-    const y0 = Math.max(0, y - r);
-    const y1 = Math.min(h - 1, y + r);
+    const y0 = Math.max(0, y - radius);
+    const y1 = Math.min(h - 1, y + radius);
     for (let x = 0; x < w; x++) {
-      const x0 = Math.max(0, x - r);
-      const x1 = Math.min(w - 1, x + r);
+      const x0 = Math.max(0, x - radius);
+      const x1 = Math.min(w - 1, x + radius);
       const area = (y1 - y0 + 1) * (x1 - x0 + 1);
-      const s =
+      const sum =
         integral[(y1 + 1) * (w + 1) + (x1 + 1)] -
         integral[y0 * (w + 1) + (x1 + 1)] -
         integral[(y1 + 1) * (w + 1) + x0] +
         integral[y0 * (w + 1) + x0];
-      const mean = s / area;
+      const mean = sum / area;
       const v = src[y * w + x];
-      out[y * w + x] = invert ? (v > mean + C ? 1 : 0) : v < mean - C ? 1 : 0;
+      const on = invert ? v < mean - c : v > mean + c;
+      out[y * w + x] = on ? 1 : 0;
     }
   }
   return out;
 }
 
-// ───────────────────────── contours ─────────────────────────
+function morphClose(mask: Uint8Array, w: number, h: number, radius: number) {
+  const dil = new Uint8Array(mask.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let on = 0;
+      for (let dy = -radius; dy <= radius && !on; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= h) continue;
+        for (let dx = -radius; dx <= radius; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= w) continue;
+          if (mask[yy * w + xx]) {
+            on = 1;
+            break;
+          }
+        }
+      }
+      dil[y * w + x] = on;
+    }
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let all = 1;
+      for (let dy = -radius; dy <= radius && all; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= h) continue;
+        for (let dx = -radius; dx <= radius; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= w) continue;
+          if (!dil[yy * w + xx]) {
+            all = 0;
+            break;
+          }
+        }
+      }
+      mask[y * w + x] = all;
+    }
+  }
+}
 
-/** Connected components -> convex hull -> approxPolyDP -> quad. */
-function quadsFromMask(mask: Uint8Array, w: number, h: number): Quad[] {
-  const labels = new Int32Array(w * h).fill(-1);
-  const quads: Quad[] = [];
-  const minPixels = Math.max(40, Math.floor(w * h * 0.002));
+/* ─────────────────── components -> hull -> quad candidates ─────────────── */
+
+interface Component {
+  points: EdgePoint[];
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+function connectedComponents(
+  mask: Uint8Array,
+  w: number,
+  h: number,
+  maxComponents = 12
+): Component[] {
+  const labels = new Int32Array(w * h).fill(0);
+  const comps: Component[] = [];
   const stack: number[] = [];
+  const minArea = Math.max(60, (w * h) * 0.005);
 
   for (let start = 0; start < mask.length; start++) {
-    if (!mask[start] || labels[start] !== -1) continue;
+    if (!mask[start] || labels[start]) continue;
+    labels[start] = 1;
     stack.length = 0;
     stack.push(start);
-    labels[start] = start;
-    const pts: Point[] = [];
+    const points: EdgePoint[] = [];
+    let minX = w;
+    let minY = h;
+    let maxX = 0;
+    let maxY = 0;
+
     while (stack.length) {
       const i = stack.pop()!;
       const x = i % w;
-      const y = (i / w) | 0;
-      pts.push({ x, y });
+      const y = (i - x) / w;
+      points.push({ x, y });
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
       for (let dy = -1; dy <= 1; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= h) continue;
         for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-          const ni = ny * w + nx;
-          if (mask[ni] && labels[ni] === -1) {
-            labels[ni] = start;
-            stack.push(ni);
+          const xx = x + dx;
+          if (xx < 0 || xx >= w) continue;
+          const j = yy * w + xx;
+          if (mask[j] && !labels[j]) {
+            labels[j] = 1;
+            stack.push(j);
           }
         }
       }
     }
-    if (pts.length < minPixels) continue;
-
-    const hull = convexHull(pts);
-    if (hull.length < 4) continue;
-    const peri = perimeter(hull);
-    let quadPts: Point[] | null = null;
-    for (const eps of [0.02, 0.03, 0.05, 0.08]) {
-      const approx = approxPolyDP(hull, eps * peri);
-      if (approx.length === 4) {
-        quadPts = approx;
-        break;
-      }
+    if (points.length >= minArea / 4) {
+      comps.push({ points, minX, minY, maxX, maxY });
     }
-    if (!quadPts) quadPts = minAreaQuad(hull);
-    const ordered = orderCorners(quadPts);
-    if (ordered) quads.push(ordered);
-    if (quads.length > 40) break;
   }
-  return quads;
+
+  comps.sort((a, b) => b.points.length - a.points.length);
+  return comps.slice(0, maxComponents);
 }
 
-function convexHull(points: Point[]): Point[] {
+function convexHull(points: EdgePoint[]): EdgePoint[] {
+  if (points.length < 4) return points.slice();
   const pts = points.slice().sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
-  if (pts.length < 3) return pts;
-  const cross = (o: Point, a: Point, b: Point) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-  const lower: Point[] = [];
+  const cross = (o: EdgePoint, a: EdgePoint, b: EdgePoint) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+
+  const lower: EdgePoint[] = [];
   for (const p of pts) {
     while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
     lower.push(p);
   }
-  const upper: Point[] = [];
+  const upper: EdgePoint[] = [];
   for (let i = pts.length - 1; i >= 0; i--) {
     const p = pts[i];
     while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
     upper.push(p);
   }
-  lower.pop();
   upper.pop();
+  lower.pop();
   return lower.concat(upper);
 }
 
-function perimeter(poly: Point[]): number {
+function perimeter(poly: EdgePoint[]): number {
   let p = 0;
   for (let i = 0; i < poly.length; i++) {
     const a = poly[i];
@@ -556,294 +604,382 @@ function perimeter(poly: Point[]): number {
   return p;
 }
 
-function approxPolyDP(poly: Point[], epsilon: number): Point[] {
-  if (poly.length <= 3) return poly.slice();
-  // closed polygon: split at the two farthest-apart vertices
-  let iMax = 0;
-  let jMax = 1;
-  let dMax = -1;
-  for (let i = 0; i < poly.length; i++) {
-    for (let j = i + 1; j < poly.length; j++) {
-      const d = Math.hypot(poly[i].x - poly[j].x, poly[i].y - poly[j].y);
-      if (d > dMax) {
-        dMax = d;
-        iMax = i;
-        jMax = j;
+/** Douglas–Peucker on a closed polygon. */
+function approxPolyDP(poly: EdgePoint[], epsilon: number): EdgePoint[] {
+  if (poly.length <= 4) return poly.slice();
+
+  const dist = (p: EdgePoint, a: EdgePoint, b: EdgePoint) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return Math.abs(dy * (p.x - a.x) - dx * (p.y - a.y)) / len;
+  };
+
+  const simplify = (pts: EdgePoint[]): EdgePoint[] => {
+    if (pts.length < 3) return pts;
+    let maxD = -1;
+    let idx = 0;
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const d = dist(pts[i], first, last);
+      if (d > maxD) {
+        maxD = d;
+        idx = i;
       }
     }
-  }
-  const first = poly.slice(iMax, jMax + 1);
-  const second = poly.slice(jMax).concat(poly.slice(0, iMax + 1));
-  const a = rdp(first, epsilon);
-  const b = rdp(second, epsilon);
-  return a.slice(0, -1).concat(b.slice(0, -1));
-}
-
-function rdp(points: Point[], epsilon: number): Point[] {
-  if (points.length < 3) return points.slice();
-  const start = points[0];
-  const end = points[points.length - 1];
-  let index = -1;
-  let maxDist = 0;
-  for (let i = 1; i < points.length - 1; i++) {
-    const d = pointLineDistance(points[i], start, end);
-    if (d > maxDist) {
-      maxDist = d;
-      index = i;
-    }
-  }
-  if (maxDist > epsilon && index > 0) {
-    const left = rdp(points.slice(0, index + 1), epsilon);
-    const right = rdp(points.slice(index), epsilon);
+    if (maxD <= epsilon) return [first, last];
+    const left = simplify(pts.slice(0, idx + 1));
+    const right = simplify(pts.slice(idx));
     return left.slice(0, -1).concat(right);
+  };
+
+  const closed = poly.concat([poly[0]]);
+  const out = simplify(closed);
+  out.pop();
+  return out;
+}
+
+function polygonArea(poly: EdgePoint[]): number {
+  let a = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i];
+    const q = poly[(i + 1) % poly.length];
+    a += p.x * q.y - q.x * p.y;
   }
-  return [start, end];
+  return Math.abs(a) / 2;
 }
 
-function pointLineDistance(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const len = Math.hypot(dx, dy);
-  if (len === 0) return Math.hypot(p.x - a.x, p.y - a.y);
-  return Math.abs(dy * p.x - dx * p.y + b.x * a.y - b.y * a.x) / len;
-}
-
-/** Rotating-calipers-free approximation: axis-aligned bbox of the hull. */
-function minAreaQuad(hull: Point[]): Point[] {
-  const xs = hull.map((p) => p.x);
-  const ys = hull.map((p) => p.y);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  return [
-    { x: minX, y: minY },
-    { x: maxX, y: minY },
-    { x: maxX, y: maxY },
-    { x: minX, y: maxY },
-  ];
-}
-
-/** Order 4 points as TL, TR, BR, BL; reject duplicates / self-intersecting quads. */
-export function orderCorners(pts: Point[]): Quad | null {
+function orderQuad(pts: EdgePoint[]): DetectedQuad | null {
   if (pts.length !== 4) return null;
-  for (let i = 0; i < 4; i++) {
-    for (let j = i + 1; j < 4; j++) {
-      if (Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y) < 3) return null;
-    }
-  }
-  const cx = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
-  const cy = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
+  const cx = pts.reduce((s, p) => s + p.x, 0) / 4;
+  const cy = pts.reduce((s, p) => s + p.y, 0) / 4;
   const sorted = pts
     .slice()
     .sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
-  // rotate so the first point is the one closest to the top-left
+  // Rotate so the first point is the top-left-most
   let startIdx = 0;
-  let bestVal = Infinity;
-  for (let i = 0; i < 4; i++) {
-    const v = sorted[i].x + sorted[i].y;
-    if (v < bestVal) {
-      bestVal = v;
+  let bestSum = Infinity;
+  sorted.forEach((p, i) => {
+    const s = p.x + p.y;
+    if (s < bestSum) {
+      bestSum = s;
       startIdx = i;
     }
-  }
-  const o = [0, 1, 2, 3].map((i) => sorted[(startIdx + i) % 4]);
-  const quad: Quad = { topLeft: o[0], topRight: o[1], bottomRight: o[2], bottomLeft: o[3] };
-  if (segmentsIntersect(quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft)) return null;
-  if (segmentsIntersect(quad.topRight, quad.bottomRight, quad.bottomLeft, quad.topLeft)) return null;
+  });
+  const r = sorted.slice(startIdx).concat(sorted.slice(0, startIdx));
+  const quad: DetectedQuad = {
+    topLeft: r[0],
+    topRight: r[1],
+    bottomRight: r[2],
+    bottomLeft: r[3],
+  };
+  if (!isValidQuad(quad)) return null;
   return quad;
 }
 
-function segmentsIntersect(p1: Point, p2: Point, p3: Point, p4: Point): boolean {
-  const d = (a: Point, b: Point, c: Point) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-  const d1 = d(p3, p4, p1);
-  const d2 = d(p3, p4, p2);
-  const d3 = d(p1, p2, p3);
-  const d4 = d(p1, p2, p4);
-  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
-}
-
-// ───────────────────────── scoring ─────────────────────────
-
-function polygonArea(q: Quad): number {
+function isValidQuad(q: DetectedQuad): boolean {
   const pts = [q.topLeft, q.topRight, q.bottomRight, q.bottomLeft];
-  let s = 0;
+  // Duplicate guard
   for (let i = 0; i < 4; i++) {
-    const a = pts[i];
-    const b = pts[(i + 1) % 4];
-    s += a.x * b.y - b.x * a.y;
+    for (let j = i + 1; j < 4; j++) {
+      if (Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y) < 4) return false;
+    }
   }
-  return Math.abs(s) / 2;
+  // Self-intersection guard: diagonals must cross, adjacent sides must not
+  if (!segmentsIntersect(pts[0], pts[2], pts[1], pts[3])) return false;
+  if (segmentsIntersect(pts[0], pts[1], pts[2], pts[3])) return false;
+  if (segmentsIntersect(pts[1], pts[2], pts[3], pts[0])) return false;
+  return polygonArea(pts) > 0;
 }
 
-function scoreQuad(
-  quad: Quad,
-  gray: Uint8Array,
-  grad: Gradient,
-  w: number,
-  h: number,
-  source: QuadCandidate['source']
-): QuadCandidate {
-  const pts = [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft];
-  const area = polygonArea(quad);
-  const areaRatio = area / (w * h);
+function segmentsIntersect(a: EdgePoint, b: EdgePoint, c: EdgePoint, d: EdgePoint): boolean {
+  const o = (p: EdgePoint, q: EdgePoint, r: EdgePoint) =>
+    Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
+  const o1 = o(a, b, c);
+  const o2 = o(a, b, d);
+  const o3 = o(c, d, a);
+  const o4 = o(c, d, b);
+  return o1 !== o2 && o3 !== o4;
+}
 
-  // angle deviation from 90deg
-  let angleDev = 0;
-  for (let i = 0; i < 4; i++) {
-    const prev = pts[(i + 3) % 4];
-    const cur = pts[i];
-    const next = pts[(i + 1) % 4];
-    const a1 = Math.atan2(prev.y - cur.y, prev.x - cur.x);
-    const a2 = Math.atan2(next.y - cur.y, next.x - cur.x);
-    let ang = Math.abs(((a1 - a2) * 180) / Math.PI) % 360;
-    if (ang > 180) ang = 360 - ang;
-    angleDev += Math.abs(90 - ang);
-  }
-  const rectangularity = clamp01(1 - angleDev / 4 / 45);
-
-  const hull = convexHull(pts);
-  const convexity = hull.length === 4 ? 1 : 0.4;
-
-  // per-side edge support
-  const sideEdges: number[] = [];
-  for (let i = 0; i < 4; i++) {
-    sideEdges.push(sideEdgeStrength(pts[i], pts[(i + 1) % 4], grad, w, h));
-  }
-  const edgeSupport = sideEdges.reduce((a, b) => a + b, 0) / 4;
-  const minSideEdge = Math.min(...sideEdges);
-  // opposite-side consistency
-  const oppConsistency =
-    1 -
-    (Math.abs(sideEdges[0] - sideEdges[2]) + Math.abs(sideEdges[1] - sideEdges[3])) / 2;
-
-  const sideLens = pts.map((p, i) => {
-    const n = pts[(i + 1) % 4];
-    return Math.hypot(p.x - n.x, p.y - n.y);
-  });
-  const wAvg = (sideLens[0] + sideLens[2]) / 2;
-  const hAvg = (sideLens[1] + sideLens[3]) / 2;
-  const aspect = wAvg && hAvg ? Math.max(wAvg, hAvg) / Math.min(wAvg, hAvg) : 99;
-  const aspectScore = aspect <= 3 ? 1 : aspect <= 6 ? 0.5 : 0;
-
-  const cx = pts.reduce((s, p) => s + p.x, 0) / 4;
-  const cy = pts.reduce((s, p) => s + p.y, 0) / 4;
-  const centering = clamp01(1 - (Math.hypot(cx - w / 2, cy - h / 2) / Math.hypot(w / 2, h / 2)) * 1.2);
-
-  const uniformity = interiorVsExterior(quad, gray, grad, w, h);
-
-  let score =
-    0.16 * Math.min(1, areaRatio / 0.6) +
-    0.22 * rectangularity +
-    0.08 * convexity +
-    0.20 * edgeSupport +
-    0.10 * clamp01(oppConsistency) +
-    0.08 * aspectScore +
-    0.06 * centering +
-    0.10 * uniformity;
-
-  // hard rejections
-  if (areaRatio < MIN_AREA_RATIO || areaRatio > MAX_AREA_RATIO) score = 0;
-  if (minSideEdge < 0.12) score *= 0.45; // one side has no real edge behind it
-  if (rectangularity < 0.35) score *= 0.5;
-
+function bboxQuad(comp: Component): DetectedQuad {
   return {
-    quad,
-    score: clamp01(score),
-    source,
-    metrics: {
-      areaRatio,
-      rectangularity,
-      convexity,
-      edgeSupport,
-      minSideEdge,
-      aspect,
-      centering,
-      uniformity,
-    },
+    topLeft: { x: comp.minX, y: comp.minY },
+    topRight: { x: comp.maxX, y: comp.minY },
+    bottomRight: { x: comp.maxX, y: comp.maxY },
+    bottomLeft: { x: comp.minX, y: comp.maxY },
   };
 }
 
-/** Fraction of samples along a side that sit on a strong gradient. */
-function sideEdgeStrength(a: Point, b: Point, grad: Gradient, w: number, h: number): number {
-  const steps = 40;
-  const thr = Math.max(15, grad.max * 0.12);
+function quadsFromMask(
+  mask: Uint8Array,
+  w: number,
+  h: number,
+  source: string
+): QuadCandidate[] {
+  const out: QuadCandidate[] = [];
+  const comps = connectedComponents(mask, w, h);
+  const empty: QuadScoreBreakdown = {
+    area: 0, rectangularity: 0, convexity: 0, edgeSupport: 0, minSideSupport: 0,
+    oppositeConsistency: 0, aspect: 0, centering: 0, uniformity: 0, total: 0,
+  };
+
+  for (const comp of comps) {
+    const hull = convexHull(comp.points);
+    if (hull.length < 4) continue;
+    const per = perimeter(hull);
+
+    for (const factor of [0.02, 0.035, 0.05, 0.08]) {
+      const approx = approxPolyDP(hull, per * factor);
+      if (approx.length === 4) {
+        const quad = orderQuad(approx);
+        if (quad) out.push({ quad, score: 0, breakdown: empty, source: `${source}:dp${factor}` });
+      }
+    }
+    // bbox fallback for this component
+    out.push({ quad: bboxQuad(comp), score: 0, breakdown: empty, source: `${source}:bbox` });
+  }
+  return out;
+}
+
+/* ────────────────────────────── scoring ────────────────────────────────── */
+
+function scoreQuad(
+  quad: DetectedQuad,
+  grad: Float32Array,
+  w: number,
+  h: number
+): QuadScoreBreakdown {
+  const pts = [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft];
+  const imageArea = w * h;
+  const area = polygonArea(pts);
+  const areaRatio = area / imageArea;
+
+  const zero: QuadScoreBreakdown = {
+    area: 0, rectangularity: 0, convexity: 0, edgeSupport: 0, minSideSupport: 0,
+    oppositeConsistency: 0, aspect: 0, centering: 0, uniformity: 0, total: 0,
+  };
+  if (areaRatio < 0.08 || areaRatio > 0.995) return zero;
+
+  // Area preference: peaks around 55% of the frame
+  const areaScore = clamp01(1 - Math.abs(areaRatio - 0.55) / 0.55);
+
+  // Side lengths & angles
+  const sides = [0, 1, 2, 3].map((i) => {
+    const a = pts[i];
+    const b = pts[(i + 1) % 4];
+    return { a, b, len: Math.hypot(b.x - a.x, b.y - a.y) };
+  });
+
+  const angles = [0, 1, 2, 3].map((i) => {
+    const prev = pts[(i + 3) % 4];
+    const cur = pts[i];
+    const next = pts[(i + 1) % 4];
+    const v1 = { x: prev.x - cur.x, y: prev.y - cur.y };
+    const v2 = { x: next.x - cur.x, y: next.y - cur.y };
+    const dot = v1.x * v2.x + v1.y * v2.y;
+    const m = (Math.hypot(v1.x, v1.y) || 1) * (Math.hypot(v2.x, v2.y) || 1);
+    return (Math.acos(Math.max(-1, Math.min(1, dot / m))) * 180) / Math.PI;
+  });
+  const rectangularity = clamp01(
+    1 - angles.reduce((s, a) => s + Math.abs(a - 90), 0) / (4 * 45)
+  );
+
+  // Convexity: quad area / its convex hull area
+  const hullArea = polygonArea(convexHull(pts));
+  const convexity = hullArea > 0 ? clamp01(area / hullArea) : 0;
+
+  // Per-side edge support from the gradient map
+  const supports = sides.map((s) => sideSupport(s.a, s.b, grad, w, h));
+  const edgeSupport = supports.reduce((a, b) => a + b, 0) / 4;
+  const minSideSupport = Math.min(...supports);
+
+  // Opposite-side consistency (lengths of opposite sides should match)
+  const consistency = (a: number, b: number) =>
+    clamp01(1 - Math.abs(a - b) / Math.max(a, b, 1));
+  const oppositeConsistency =
+    (consistency(sides[0].len, sides[2].len) + consistency(sides[1].len, sides[3].len)) / 2;
+
+  // Aspect ratio plausibility (documents: 1:1 .. 1:2.2)
+  const wAvg = (sides[0].len + sides[2].len) / 2;
+  const hAvg = (sides[1].len + sides[3].len) / 2;
+  const ratio = Math.max(wAvg, hAvg) / Math.max(1, Math.min(wAvg, hAvg));
+  const aspect = ratio <= 2.2 ? 1 : clamp01(1 - (ratio - 2.2) / 2);
+
+  // Centering of the quad centroid
+  const cx = pts.reduce((s, p) => s + p.x, 0) / 4;
+  const cy = pts.reduce((s, p) => s + p.y, 0) / 4;
+  const centering = clamp01(
+    1 - (Math.abs(cx - w / 2) / (w / 2) + Math.abs(cy - h / 2) / (h / 2)) / 2
+  );
+
+  // Interior should be smoother than the region just outside the border
+  const uniformity = gradientUniformity(pts, grad, w, h);
+
+  let total =
+    areaScore * 0.14 +
+    rectangularity * 0.18 +
+    convexity * 0.08 +
+    edgeSupport * 0.26 +
+    oppositeConsistency * 0.1 +
+    aspect * 0.06 +
+    centering * 0.06 +
+    uniformity * 0.12;
+
+  // Hard penalty when any single side lacks support (classic false positive)
+  if (minSideSupport < 0.25) total *= 0.55 + minSideSupport;
+
+  return {
+    area: areaScore,
+    rectangularity,
+    convexity,
+    edgeSupport,
+    minSideSupport,
+    oppositeConsistency,
+    aspect,
+    centering,
+    uniformity,
+    total: clamp01(total),
+  };
+}
+
+function sideSupport(
+  a: EdgePoint,
+  b: EdgePoint,
+  grad: Float32Array,
+  w: number,
+  h: number
+): number {
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  const steps = Math.max(8, Math.round(len));
   let hits = 0;
+  let samples = 0;
+  const threshold = 30;
+
+  // Normal direction for a small perpendicular search
+  const nx = -(b.y - a.y) / (len || 1);
+  const ny = (b.x - a.x) / (len || 1);
+
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    const x = Math.round(a.x + (b.x - a.x) * t);
-    const y = Math.round(a.y + (b.y - a.y) * t);
+    const px = a.x + (b.x - a.x) * t;
+    const py = a.y + (b.y - a.y) * t;
     let best = 0;
-    for (let dy = -2; dy <= 2; dy++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx < 1 || ny < 1 || nx >= w - 1 || ny >= h - 1) continue;
-        const m = grad.mag[ny * w + nx];
-        if (m > best) best = m;
-      }
+    for (let d = -2; d <= 2; d++) {
+      const x = Math.round(px + nx * d);
+      const y = Math.round(py + ny * d);
+      if (x < 0 || y < 0 || x >= w || y >= h) continue;
+      const g = grad[y * w + x];
+      if (g > best) best = g;
     }
-    if (best >= thr) hits++;
+    samples++;
+    if (best >= threshold) hits++;
   }
-  return hits / (steps + 1);
+  return samples ? hits / samples : 0;
 }
 
-/**
- * Documents are smoother inside than a patterned background outside.
- * Returns 1 when the interior is markedly more uniform than the exterior ring.
- */
-function interiorVsExterior(quad: Quad, gray: Uint8Array, grad: Gradient, w: number, h: number): number {
-  const pts = [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft];
-  const minX = Math.max(0, Math.floor(Math.min(...pts.map((p) => p.x))));
-  const maxX = Math.min(w - 1, Math.ceil(Math.max(...pts.map((p) => p.x))));
-  const minY = Math.max(0, Math.floor(Math.min(...pts.map((p) => p.y))));
-  const maxY = Math.min(h - 1, Math.ceil(Math.max(...pts.map((p) => p.y))));
+function gradientUniformity(
+  pts: EdgePoint[],
+  grad: Float32Array,
+  w: number,
+  h: number
+): number {
+  const cx = pts.reduce((s, p) => s + p.x, 0) / 4;
+  const cy = pts.reduce((s, p) => s + p.y, 0) / 4;
+  const shrink = (f: number) =>
+    pts.map((p) => ({ x: cx + (p.x - cx) * f, y: cy + (p.y - cy) * f }));
 
-  let inSum = 0;
-  let inN = 0;
-  let outSum = 0;
-  let outN = 0;
-  const step = Math.max(1, Math.floor(Math.min(w, h) / 120));
-  for (let y = 0; y < h; y += step) {
-    for (let x = 0; x < w; x += step) {
-      const g = grad.mag[y * w + x];
-      const inside = x >= minX && x <= maxX && y >= minY && y <= maxY && pointInQuad({ x, y }, pts);
-      if (inside) {
-        // ignore a border band so the document's own edge doesn't count
-        inSum += g;
-        inN++;
-      } else {
-        outSum += g;
-        outN++;
-      }
-    }
-  }
-  if (!inN || !outN) return 0.5;
-  const inAvg = inSum / inN;
-  const outAvg = outSum / outN;
-  if (outAvg <= 0) return 0.5;
-  const ratio = inAvg / outAvg;
-  // ratio < 1 => interior smoother than exterior (good)
-  return clamp01(1.4 - ratio);
+  const inner = shrink(0.8);
+  const outer = shrink(1.15);
+
+  const meanIn = meanGradInPolygon(inner, grad, w, h);
+  const meanOut = meanGradInRing(outer, inner, grad, w, h);
+  if (meanOut <= 0 && meanIn <= 0) return 0.5;
+  // A real document border has more structure just outside/at the border
+  return clamp01(meanOut / (meanIn + meanOut + 1e-6) + 0.15);
 }
 
-function pointInQuad(p: Point, pts: Point[]): boolean {
+function pointInPolygon(x: number, y: number, poly: EdgePoint[]): boolean {
   let inside = false;
-  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-    const xi = pts[i].x;
-    const yi = pts[i].y;
-    const xj = pts[j].x;
-    const yj = pts[j].y;
-    if (yi > p.y !== yj > p.y && p.x < ((xj - xi) * (p.y - yi)) / (yj - yi) + xi) inside = !inside;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x;
+    const yi = poly[i].y;
+    const xj = poly[j].x;
+    const yj = poly[j].y;
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 1e-9) + xi) {
+      inside = !inside;
+    }
   }
   return inside;
 }
 
-function scaleQuad(q: Quad, factor: number, maxW: number, maxH: number): Quad {
-  const s = (p: Point) => ({
-    x: Math.max(0, Math.min(maxW, p.x * factor)),
-    y: Math.max(0, Math.min(maxH, p.y * factor)),
-  });
+function polyBounds(poly: EdgePoint[], w: number, h: number) {
+  const xs = poly.map((p) => p.x);
+  const ys = poly.map((p) => p.y);
+  return {
+    x0: Math.max(0, Math.floor(Math.min(...xs))),
+    x1: Math.min(w - 1, Math.ceil(Math.max(...xs))),
+    y0: Math.max(0, Math.floor(Math.min(...ys))),
+    y1: Math.min(h - 1, Math.ceil(Math.max(...ys))),
+  };
+}
+
+function meanGradInPolygon(poly: EdgePoint[], grad: Float32Array, w: number, h: number): number {
+  const { x0, x1, y0, y1 } = polyBounds(poly, w, h);
+  const step = Math.max(1, Math.round(Math.max(x1 - x0, y1 - y0) / 80));
+  let sum = 0;
+  let n = 0;
+  for (let y = y0; y <= y1; y += step) {
+    for (let x = x0; x <= x1; x += step) {
+      if (!pointInPolygon(x, y, poly)) continue;
+      sum += grad[y * w + x];
+      n++;
+    }
+  }
+  return n ? sum / n : 0;
+}
+
+function meanGradInRing(
+  outer: EdgePoint[],
+  inner: EdgePoint[],
+  grad: Float32Array,
+  w: number,
+  h: number
+): number {
+  const { x0, x1, y0, y1 } = polyBounds(outer, w, h);
+  const step = Math.max(1, Math.round(Math.max(x1 - x0, y1 - y0) / 80));
+  let sum = 0;
+  let n = 0;
+  for (let y = y0; y <= y1; y += step) {
+    for (let x = x0; x <= x1; x += step) {
+      if (!pointInPolygon(x, y, outer)) continue;
+      if (pointInPolygon(x, y, inner)) continue;
+      sum += grad[y * w + x];
+      n++;
+    }
+  }
+  return n ? sum / n : 0;
+}
+
+/* ───────────────────────────── small utils ─────────────────────────────── */
+
+function clamp01(n: number): number {
+  return n < 0 ? 0 : n > 1 ? 1 : n;
+}
+
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
+
+function roundBreakdown(b: QuadScoreBreakdown): QuadScoreBreakdown {
+  return Object.fromEntries(
+    Object.entries(b).map(([k, v]) => [k, round3(v as number)])
+  ) as unknown as QuadScoreBreakdown;
+}
+
+function scaleQuad(q: DetectedQuad, sx: number, sy: number): DetectedQuad {
+  const s = (p: EdgePoint) => ({ x: p.x * sx, y: p.y * sy });
   return {
     topLeft: s(q.topLeft),
     topRight: s(q.topRight),
@@ -852,6 +988,15 @@ function scaleQuad(q: Quad, factor: number, maxW: number, maxH: number): Quad {
   };
 }
 
-function clamp01(n: number) {
-  return Math.max(0, Math.min(1, n));
+function clampQuad(q: DetectedQuad, w: number, h: number): DetectedQuad {
+  const c = (p: EdgePoint) => ({
+    x: Math.max(0, Math.min(w, p.x)),
+    y: Math.max(0, Math.min(h, p.y)),
+  });
+  return {
+    topLeft: c(q.topLeft),
+    topRight: c(q.topRight),
+    bottomRight: c(q.bottomRight),
+    bottomLeft: c(q.bottomLeft),
+  };
 }
