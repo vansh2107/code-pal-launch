@@ -26,11 +26,10 @@ export interface EdgePoint {
 
 export interface DetectedQuad {
   topLeft: EdgePoint;
-  topRight: EdGePointAlias;
+  topRight: EdgePoint;
   bottomRight: EdgePoint;
   bottomLeft: EdgePoint;
 }
-type EdGePointAlias = EdgePoint;
 
 export interface QuadScoreBreakdown {
   area: number;
