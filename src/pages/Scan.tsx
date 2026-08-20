@@ -336,6 +336,10 @@ export default function Scan() {
         }
       }
 
+      if (import.meta.env.DEV) {
+        console.log('DOCUMENT SCAN DEBUG — final saved path:', imagePath);
+      }
+
       // Map document type
       const documentTypeMap: Record<string, string> = {
         'drivers_license': 'license',
@@ -713,6 +717,9 @@ export default function Scan() {
               console.warn("Failed to upload companion processed image:", e);
             }
           }
+        }
+        if (import.meta.env.DEV) {
+          console.log('DOCUMENT SCAN DEBUG — final saved path:', imagePath);
         }
       } catch (uploadErr) {
         console.error('Error uploading document file:', uploadErr);
