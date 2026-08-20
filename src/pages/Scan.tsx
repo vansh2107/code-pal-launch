@@ -669,34 +669,18 @@ export default function Scan() {
             throw new Error("PDF file size exceeds 20MB limit");
           }
           imagePath = await uploadDocumentOriginal(pdfFile, user.id);
-        } else if (rawCapturedImage || capturedImage) {
-          const originalSrc = rawCapturedImage || capturedImage;
-          const originalBlob = await fetch(originalSrc).then(r => r.blob());
+        } else if (capturedImage || rawCapturedImage) {
+          // Canonical artifact = the CROPPED/PROCESSED image only.
+          const processedSrc = capturedImage || rawCapturedImage;
+          const processedBlob = await fetch(processedSrc).then(r => r.blob());
           const maxSize = 20 * 1024 * 1024;
-          if (originalBlob.size > maxSize) {
+          if (processedBlob.size > maxSize) {
             throw new Error("Image file size exceeds 20MB limit");
           }
-          const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
-          const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
-          imagePath = await uploadDocumentOriginal(imageFile, user.id);
-          
-          if (rawCapturedImage && capturedImage && rawCapturedImage !== capturedImage) {
-            try {
-              const processedBlob = await fetch(capturedImage).then(r => r.blob());
-              const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
-              if (imagePath) {
-                const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-                const processedPath = `${basePath}/processed.${processedFileExt}`;
-                await supabase.storage.from("document-images").upload(processedPath, processedBlob, {
-                  cacheControl: "3600",
-                  upsert: true,
-                  contentType: processedBlob.type
-                });
-              }
-            } catch (e) {
-              console.warn("Failed to upload companion processed image:", e);
-            }
-          }
+          const fileExt = (processedBlob.type.split('/')[1]) || 'jpg';
+          const processedFile = new File([processedBlob], `processed-document.${fileExt}`, { type: processedBlob.type });
+          imagePath = await uploadProcessedDocument(processedFile, user.id);
+          if (imagePath) await verifyProcessedDocument(imagePath);
         }
       } catch (uploadErr) {
         console.error('Error uploading document file:', uploadErr);
