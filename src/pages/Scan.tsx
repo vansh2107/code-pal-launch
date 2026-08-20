@@ -20,7 +20,7 @@ import { processAllPages, type ProcessedPdfPage } from "@/utils/pdfPageProcessor
 import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
-import { uploadDocumentOriginal, uploadProcessedDocument, verifyProcessedDocument, getPDFPageCount } from "@/utils/documentStorage";
+import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
 import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstraints, setupVideoElement, requestCamera, stopMediaStream } from "@/utils/cameraManager";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
@@ -310,14 +310,30 @@ export default function Scan() {
       let imagePath = null;
       if (pdfFile) {
         imagePath = await uploadDocumentOriginal(pdfFile, user.id);
-      } else if (croppedImg || rawImg) {
-        // Canonical artifact = the CROPPED/PROCESSED image only.
-        const processedSrc = croppedImg || rawImg;
-        const processedBlob = await fetch(processedSrc).then(r => r.blob());
-        const fileExt = (processedBlob.type.split('/')[1]) || 'jpg';
-        const processedFile = new File([processedBlob], `processed-document.${fileExt}`, { type: processedBlob.type });
-        imagePath = await uploadProcessedDocument(processedFile, user.id);
-        if (imagePath) await verifyProcessedDocument(imagePath);
+      } else if (rawImg || croppedImg) {
+        const originalSrc = rawImg || croppedImg;
+        const originalBlob = await fetch(originalSrc).then(r => r.blob());
+        const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
+        const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
+        imagePath = await uploadDocumentOriginal(imageFile, user.id);
+        
+        if (rawImg && croppedImg && rawImg !== croppedImg) {
+          try {
+            const processedBlob = await fetch(croppedImg).then(r => r.blob());
+            const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
+            if (imagePath) {
+              const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
+              const processedPath = `${basePath}/processed.${processedFileExt}`;
+              await supabase.storage.from("document-images").upload(processedPath, processedBlob, {
+                cacheControl: "3600",
+                upsert: true,
+                contentType: processedBlob.type
+              });
+            }
+          } catch (e) {
+            console.warn("Failed to upload companion processed image:", e);
+          }
+        }
       }
 
       // Map document type
@@ -669,18 +685,34 @@ export default function Scan() {
             throw new Error("PDF file size exceeds 20MB limit");
           }
           imagePath = await uploadDocumentOriginal(pdfFile, user.id);
-        } else if (capturedImage || rawCapturedImage) {
-          // Canonical artifact = the CROPPED/PROCESSED image only.
-          const processedSrc = capturedImage || rawCapturedImage;
-          const processedBlob = await fetch(processedSrc).then(r => r.blob());
+        } else if (rawCapturedImage || capturedImage) {
+          const originalSrc = rawCapturedImage || capturedImage;
+          const originalBlob = await fetch(originalSrc).then(r => r.blob());
           const maxSize = 20 * 1024 * 1024;
-          if (processedBlob.size > maxSize) {
+          if (originalBlob.size > maxSize) {
             throw new Error("Image file size exceeds 20MB limit");
           }
-          const fileExt = (processedBlob.type.split('/')[1]) || 'jpg';
-          const processedFile = new File([processedBlob], `processed-document.${fileExt}`, { type: processedBlob.type });
-          imagePath = await uploadProcessedDocument(processedFile, user.id);
-          if (imagePath) await verifyProcessedDocument(imagePath);
+          const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
+          const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
+          imagePath = await uploadDocumentOriginal(imageFile, user.id);
+          
+          if (rawCapturedImage && capturedImage && rawCapturedImage !== capturedImage) {
+            try {
+              const processedBlob = await fetch(capturedImage).then(r => r.blob());
+              const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
+              if (imagePath) {
+                const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
+                const processedPath = `${basePath}/processed.${processedFileExt}`;
+                await supabase.storage.from("document-images").upload(processedPath, processedBlob, {
+                  cacheControl: "3600",
+                  upsert: true,
+                  contentType: processedBlob.type
+                });
+              }
+            } catch (e) {
+              console.warn("Failed to upload companion processed image:", e);
+            }
+          }
         }
       } catch (uploadErr) {
         console.error('Error uploading document file:', uploadErr);

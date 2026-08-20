@@ -15,7 +15,7 @@ import { AIInsights } from "@/components/document/AIInsights";
 import { RenewalAdvisor } from "@/components/ai/RenewalAdvisor";
 import { DocumentViewer } from "@/components/document/DocumentViewer";
 import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
-import { getDocumentStatus } from "@/utils/documentStatus";
+import { getDocumentStatus, hasValidExpiryDate } from "@/utils/documentStatus";
 import { sanitizeDocumentNote } from "@/utils/documentNotes";
 import {
   AlertDialog,
@@ -55,15 +55,17 @@ export default function DocumentDetail() {
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [renewalSheetOpen, setRenewalSheetOpen] = useState(false);
+  const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
+  const [viewOriginal, setViewOriginal] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
 
-  /** Signs the single canonical (processed) artifact stored at document.image_path. */
   const loadPreviewUrls = async (imagePath: string) => {
     setPreviewLoading(true);
     setPreviewFailed(false);
     setImageUrl(null);
+    setProcessedImageUrl(null);
     try {
       const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
       const { data: signedUrlData, error: urlError } = await supabase.storage
@@ -71,10 +73,26 @@ export default function DocumentDetail() {
         .createSignedUrl(cleanPath, 3600);
 
       if (urlError || !signedUrlData?.signedUrl) {
-        console.error('Error getting signed URL for processed document:', urlError, cleanPath);
+        console.error('Error creating signed URL for', cleanPath, urlError);
         setPreviewFailed(true);
       } else {
         setImageUrl(signedUrlData.signedUrl);
+      }
+
+
+      // Companion processed image is optional
+      try {
+        const ext = imagePath.split('.').pop() || 'jpg';
+        const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
+        const processedPath = `${basePath}/processed.${ext}`;
+        const { data: processedUrlData, error: processedUrlError } = await supabase.storage
+          .from('document-images')
+          .createSignedUrl(processedPath, 3600);
+        if (!processedUrlError && processedUrlData) {
+          setProcessedImageUrl(processedUrlData.signedUrl);
+        }
+      } catch (err) {
+        console.warn('No processed image found:', err);
       }
     } catch (err) {
       console.error('Error loading preview:', err);
@@ -316,12 +334,13 @@ export default function DocumentDetail() {
   }
 
   const isDocVault = document.issuing_authority === 'DocVault';
-  const statusInfo = !isDocVault && document.expiry_date ? getDocumentStatus(document.expiry_date) : null;
+  const hasExpiry = hasValidExpiryDate(document.expiry_date);
+  const statusInfo = !isDocVault && hasExpiry ? getDocumentStatus(document.expiry_date) : null;
   const recommendedDays = renewalAdvice ? extractRecommendedDays(renewalAdvice) : null;
   
   // Calculate days until expiry to show countdown
-  const daysUntilExpiry = document.expiry_date 
-    ? Math.ceil((new Date(document.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+  const daysUntilExpiry = hasExpiry
+    ? Math.ceil((new Date(document.expiry_date as string).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
     : null;
   
   // Use AI recommended days if available, otherwise fall back to document's renewal period
@@ -444,6 +463,26 @@ export default function DocumentDetail() {
         {/* Document Image/PDF */}
         {document.image_path && (
           <>
+            {processedImageUrl && imageUrl && (
+              <div className="flex justify-end gap-2 mb-2">
+                <Button 
+                  variant={viewOriginal ? "default" : "outline"} 
+                  size="sm"
+                  onClick={() => setViewOriginal(true)}
+                  className="h-8 text-xs rounded-lg"
+                >
+                  Original Document
+                </Button>
+                <Button 
+                  variant={!viewOriginal ? "default" : "outline"} 
+                  size="sm"
+                  onClick={() => setViewOriginal(false)}
+                  className="h-8 text-xs rounded-lg"
+                >
+                  Cropped & Enhanced
+                </Button>
+              </div>
+            )}
             <Card 
               className={imageUrl ? "cursor-pointer hover:shadow-lg transition-shadow" : ""}
               onClick={() => imageUrl && setViewerOpen(true)}
@@ -458,7 +497,7 @@ export default function DocumentDetail() {
                   <div className="flex flex-col items-center justify-center gap-3 p-8 bg-muted rounded-lg text-center">
                     <FileText className="h-10 w-10 text-muted-foreground" />
                     <div>
-                      <p className="font-medium">Processed document preview unavailable</p>
+                      <p className="font-medium">Preview unavailable</p>
                       <p className="text-sm text-muted-foreground">
                         Your document is still stored safely. Only the preview could not be loaded.
                       </p>
@@ -507,7 +546,7 @@ export default function DocumentDetail() {
                 ) : (
                   <div className="relative">
                     <img 
-                      src={imageUrl}
+                      src={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
                       alt={document.name}
                       className="w-full rounded-lg"
                       onError={() => setPreviewFailed(true)}
@@ -522,7 +561,7 @@ export default function DocumentDetail() {
 
             {imageUrl && (
               <DocumentViewer
-                fileUrl={imageUrl}
+                fileUrl={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
                 fileName={document.name}
                 open={viewerOpen}
                 onClose={() => setViewerOpen(false)}
@@ -558,9 +597,9 @@ export default function DocumentDetail() {
               
               <div>
                 <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
-                {document.expiry_date ? (
+                {hasExpiry ? (
                   <p className={statusInfo?.textClass || 'text-foreground'}>
-                    {new Date(document.expiry_date).toLocaleDateString()}
+                    {new Date(document.expiry_date as string).toLocaleDateString()}
                   </p>
                 ) : isDocVault ? (
                   <p className="text-muted-foreground">No expiry set for this document</p>
@@ -616,12 +655,12 @@ export default function DocumentDetail() {
         {/* AI Insights and Document History - Only for non-DocVault */}
         {!isDocVault && <DocumentHistory documentId={id!} />}
         {!isDocVault && <AIInsights document={document} statusInfo={statusInfo} />}
-        {!isDocVault && document.expiry_date && (
+        {!isDocVault && hasExpiry && (
           <RenewalAdvisor 
             documentId={document.id}
             documentType={document.document_type}
             documentName={document.name}
-            expiryDate={document.expiry_date}
+            expiryDate={document.expiry_date as string}
             statusInfo={statusInfo}
           />
         )}

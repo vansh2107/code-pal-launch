@@ -13,7 +13,7 @@ type Document = {
   id: string;
   name: string;
   document_type: string;
-  expiry_date: string;
+  expiry_date: string | null;
   issuing_authority: string | null;
   notes: string | null;
   renewal_period_days: number | null;
@@ -45,9 +45,11 @@ export function AIInsights({ document, statusInfo }: { document: Document; statu
     setLoadingType(type);
     setInsights(null); // Clear previous insights
     try {
-      const daysUntilExpiry = Math.ceil(
-        (new Date(document.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-      );
+      const daysUntilExpiry = document.expiry_date
+        ? Math.ceil(
+            (new Date(document.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+          )
+        : null;
 
       const { data, error } = await supabase.functions.invoke('ai-document-analysis', {
         body: {
