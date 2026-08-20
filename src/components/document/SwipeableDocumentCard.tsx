@@ -5,7 +5,7 @@ import { Trash2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
-import { hasValidExpiryDate, type DocumentStatusInfo } from "@/utils/documentStatus";
+import { hasValidExpiryDate } from "@/utils/documentStatus";
 
 interface SwipeableDocumentCardProps {
   doc: {
@@ -16,7 +16,15 @@ interface SwipeableDocumentCardProps {
     issuing_authority: string;
     expiry_date: string | null;
   };
-  statusInfo: DocumentStatusInfo;
+  statusInfo: {
+    status: 'expired' | 'expiring' | 'valid' | 'permanent';
+    label: string;
+    badgeVariant: "default" | "destructive" | "outline" | "secondary";
+    colorClass: string;
+    bgClass: string;
+    borderClass: string;
+    textClass: string;
+  };
   onDelete: (id: string) => void;
   getSubCategoryName: (type: string) => string;
 }
