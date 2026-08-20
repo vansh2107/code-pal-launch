@@ -507,7 +507,7 @@ export default function DocumentDetail() {
                 ) : (
                   <div className="relative">
                     <img 
-                      src={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
+                      src={imageUrl}
                       alt={document.name}
                       className="w-full rounded-lg"
                       onError={() => setPreviewFailed(true)}
@@ -522,7 +522,7 @@ export default function DocumentDetail() {
 
             {imageUrl && (
               <DocumentViewer
-                fileUrl={viewOriginal ? imageUrl : (processedImageUrl || imageUrl)}
+                fileUrl={imageUrl}
                 fileName={document.name}
                 open={viewerOpen}
                 onClose={() => setViewerOpen(false)}
