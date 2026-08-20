@@ -444,26 +444,6 @@ export default function DocumentDetail() {
         {/* Document Image/PDF */}
         {document.image_path && (
           <>
-            {processedImageUrl && imageUrl && (
-              <div className="flex justify-end gap-2 mb-2">
-                <Button 
-                  variant={viewOriginal ? "default" : "outline"} 
-                  size="sm"
-                  onClick={() => setViewOriginal(true)}
-                  className="h-8 text-xs rounded-lg"
-                >
-                  Original Document
-                </Button>
-                <Button 
-                  variant={!viewOriginal ? "default" : "outline"} 
-                  size="sm"
-                  onClick={() => setViewOriginal(false)}
-                  className="h-8 text-xs rounded-lg"
-                >
-                  Cropped & Enhanced
-                </Button>
-              </div>
-            )}
             <Card 
               className={imageUrl ? "cursor-pointer hover:shadow-lg transition-shadow" : ""}
               onClick={() => imageUrl && setViewerOpen(true)}
