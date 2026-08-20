@@ -20,7 +20,7 @@ import { processAllPages, type ProcessedPdfPage } from "@/utils/pdfPageProcessor
 import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
-import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
+import { uploadDocumentOriginal, uploadProcessedDocument, verifyProcessedDocument, getPDFPageCount } from "@/utils/documentStorage";
 import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstraints, setupVideoElement, requestCamera, stopMediaStream } from "@/utils/cameraManager";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
