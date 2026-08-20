@@ -3,6 +3,8 @@
  * Fast auto-crop with improved edge detection, perspective correction, and enhancement
  */
 
+import { detectDocumentQuad, RELIABLE_SCORE, type Quad } from './documentEdgeDetection';
+
 export type ScanFilter = 'color' | 'grayscale' | 'blackwhite';
 
 export interface ScanResult {
@@ -226,7 +228,22 @@ function detectDocumentContourImproved(
 ): { bounds: CropBounds; confidence: number } | null {
   const { data } = imageData;
 
-  // Grayscale
+  // ── Primary: new DOM-free adaptive detector ──
+  const result = detectDocumentQuad(data, width, height);
+  if (result.quad) {
+    const [tl, tr, br, bl] = result.quad;
+    return {
+      bounds: {
+        topLeft:     { x: tl.x, y: tl.y },
+        topRight:    { x: tr.x, y: tr.y },
+        bottomRight: { x: br.x, y: br.y },
+        bottomLeft:  { x: bl.x, y: bl.y },
+      },
+      confidence: result.score,
+    };
+  }
+
+  // ── Fallback: legacy Canny + projection profile ──
   const gray = new Uint8Array(width * height);
   for (let i = 0, j = 0; i < data.length; i += 4, j++) {
     gray[j] = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);

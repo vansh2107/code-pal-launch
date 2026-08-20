@@ -3,6 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Check, RotateCcw, Palette, Crop, AlertTriangle, ShieldCheck } from "lucide-react";
 import { scanDocument, ScanFilter, ScanResult, CropBounds } from "@/utils/documentScanner";
+import {
+  detectDocumentQuad,
+  centeredFallbackQuad,
+  RELIABLE_SCORE,
+} from "@/utils/documentEdgeDetection";
 import { ManualCropOverlay } from "./ManualCropOverlay";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -131,16 +136,88 @@ export function DocumentScanPreview({
           originalImageRef.current = originalDataUrl;
         }
 
-        // === Try AI-powered detection first ===
-        let aiBounds: CropBounds | null = null;
-        try {
-          aiBounds = await detectBoundsWithAI(originalDataUrl);
-        } catch {
-          // AI failed — will fall back to local
+        // === Run local detection first, Gemini as secondary ===
+
+        // Get a small detection canvas
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = reject;
+          i.src = originalDataUrl;
+        });
+        const DETECT_MAX = 1000;
+        const detectScale = Math.min(1, DETECT_MAX / Math.max(img.width, img.height));
+        const dw = Math.round(img.width * detectScale);
+        const dh = Math.round(img.height * detectScale);
+        const detectCanvas = document.createElement('canvas');
+        detectCanvas.width = dw;
+        detectCanvas.height = dh;
+        const dctx = detectCanvas.getContext('2d', { willReadFrequently: true });
+        if (!dctx) throw new Error('Canvas 2D context unavailable for detection');
+        dctx.drawImage(img, 0, 0, dw, dh);
+        const detectData = dctx.getImageData(0, 0, dw, dh);
+
+        const localResult = detectDocumentQuad(detectData.data, dw, dh);
+        let usedBounds: CropBounds | null = null;
+        let usedConfidence = 0;
+        let detectionSource: 'local' | 'ai' | 'none' = 'none';
+
+        if (localResult.quad && localResult.score >= RELIABLE_SCORE) {
+          // Local detector is confident — skip Gemini entirely
+          const [tl, tr, br, bl] = localResult.quad;
+          const invDS = 1 / detectScale;
+          usedBounds = {
+            topLeft:     { x: tl.x * invDS, y: tl.y * invDS },
+            topRight:    { x: tr.x * invDS, y: tr.y * invDS },
+            bottomRight: { x: br.x * invDS, y: br.y * invDS },
+            bottomLeft:  { x: bl.x * invDS, y: bl.y * invDS },
+          };
+          usedConfidence = localResult.score;
+          detectionSource = 'local';
+        } else {
+          // Local uncertain — try Gemini as secondary
+          try {
+            const aiBounds = await detectBoundsWithAI(originalDataUrl);
+            if (aiBounds) {
+              usedBounds = aiBounds;
+              usedConfidence = 0.95;
+              detectionSource = 'ai';
+            }
+          } catch {
+            // Gemini failed — continue
+          }
+
+          // If Gemini also failed but local had *some* quad, seed the manual overlay
+          if (!usedBounds && localResult.quad) {
+            const [tl, tr, br, bl] = localResult.quad;
+            const invDS = 1 / detectScale;
+            usedBounds = {
+              topLeft:     { x: tl.x * invDS, y: tl.y * invDS },
+              topRight:    { x: tr.x * invDS, y: tr.y * invDS },
+              bottomRight: { x: br.x * invDS, y: br.y * invDS },
+              bottomLeft:  { x: bl.x * invDS, y: bl.y * invDS },
+            };
+            usedConfidence = localResult.score;
+            // detectionSource stays 'none' — below threshold, requires manual
+          }
         }
 
-        if (aiBounds) {
-          // AI detected boundaries — use them directly
+        // If still no bounds at all, generate a centered fallback for the manual overlay
+        if (!usedBounds) {
+          const fb = centeredFallbackQuad(img.width, img.height);
+          usedBounds = {
+            topLeft:     { x: fb[0].x, y: fb[0].y },
+            topRight:    { x: fb[1].x, y: fb[1].y },
+            bottomRight: { x: fb[2].x, y: fb[2].y },
+            bottomLeft:  { x: fb[3].x, y: fb[3].y },
+          };
+          usedConfidence = 0;
+        }
+
+        const autoAccepted = detectionSource !== 'none' && usedConfidence >= MIN_AUTO_CROP_CONFIDENCE;
+
+        if (autoAccepted) {
+          // Auto-crop with detected bounds
           const result = await scanDocument(imageSource, {
             filter: 'color',
             enhanceContrast: true,
@@ -148,7 +225,7 @@ export function DocumentScanPreview({
             removeShadows: true,
             autoCrop: false,
             maxWidth: 1200,
-            cropBounds: aiBounds,
+            cropBounds: usedBounds,
           });
 
           const endTime = performance.now();
@@ -158,41 +235,33 @@ export function DocumentScanPreview({
             originalImageRef.current = result.originalImage;
             setCurrentFilter('color');
             setProcessingTime(Math.round(endTime - startTime));
-            setCropConfidence(0.95); // AI detection = high confidence
-            setCropBounds(aiBounds);
+            setCropConfidence(usedConfidence);
+            setCropBounds(usedBounds);
             setCropApplied(true);
             setRequiresManualCrop(false);
           }
         } else {
-          // === Fallback: local edge detection ===
+          // Not confident enough — show original + require manual crop
           const result = await scanDocument(imageSource, {
             filter: 'color',
             enhanceContrast: true,
             sharpen: true,
             removeShadows: true,
-            autoCrop: true,
+            autoCrop: false,
             maxWidth: 1200,
           });
-          
+
           const endTime = performance.now();
-          
           if (mounted) {
             setScanResult(result);
             originalImageRef.current = result.originalImage;
+            setDisplayImage(result.originalImage);
             setCurrentFilter('color');
             setProcessingTime(Math.round(endTime - startTime));
-            setCropConfidence(result.confidence || 0);
-            setCropBounds(result.cropBounds ?? null);
-            
-            if (result.autoCropApplied && (result.confidence || 0) >= MIN_AUTO_CROP_CONFIDENCE) {
-              setCropApplied(true);
-              setDisplayImage(result.processedImage);
-              setRequiresManualCrop(false);
-            } else {
-              setCropApplied(false);
-              setDisplayImage(result.originalImage);
-              setRequiresManualCrop(true);
-            }
+            setCropConfidence(usedConfidence);
+            setCropBounds(usedBounds);
+            setCropApplied(false);
+            setRequiresManualCrop(true);
           }
         }
       } catch (err) {
@@ -393,10 +462,10 @@ export function DocumentScanPreview({
               <AlertTriangle className="h-5 w-5 text-slate-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                  Using original image
+                  Couldn't reliably detect document edges
                 </p>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                  The document boundary could not be detected confidently, so the original image is being used. You can adjust the crop manually or proceed.
+                  We couldn't reliably detect the document edges. Please adjust the corners manually.
                 </p>
               </div>
             </div>

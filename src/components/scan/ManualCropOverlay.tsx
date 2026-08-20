@@ -143,12 +143,33 @@ export function ManualCropOverlay({
   };
 
   const resetBounds = () => {
-    setBounds({
-      topLeft: { x: 0.08, y: 0.08 },
-      topRight: { x: 0.92, y: 0.08 },
-      bottomLeft: { x: 0.08, y: 0.92 },
-      bottomRight: { x: 0.92, y: 0.92 },
-    });
+    if (initialBounds && imageSize.width > 0) {
+      setBounds({
+        topLeft: {
+          x: Math.max(0.02, Math.min(0.98, initialBounds.topLeft.x / imageSize.width)),
+          y: Math.max(0.02, Math.min(0.98, initialBounds.topLeft.y / imageSize.height)),
+        },
+        topRight: {
+          x: Math.max(0.02, Math.min(0.98, initialBounds.topRight.x / imageSize.width)),
+          y: Math.max(0.02, Math.min(0.98, initialBounds.topRight.y / imageSize.height)),
+        },
+        bottomLeft: {
+          x: Math.max(0.02, Math.min(0.98, initialBounds.bottomLeft.x / imageSize.width)),
+          y: Math.max(0.02, Math.min(0.98, initialBounds.bottomLeft.y / imageSize.height)),
+        },
+        bottomRight: {
+          x: Math.max(0.02, Math.min(0.98, initialBounds.bottomRight.x / imageSize.width)),
+          y: Math.max(0.02, Math.min(0.98, initialBounds.bottomRight.y / imageSize.height)),
+        },
+      });
+    } else {
+      setBounds({
+        topLeft: { x: 0.08, y: 0.08 },
+        topRight: { x: 0.92, y: 0.08 },
+        bottomLeft: { x: 0.08, y: 0.92 },
+        bottomRight: { x: 0.92, y: 0.92 },
+      });
+    }
   };
 
   // Build SVG path for crop polygon
