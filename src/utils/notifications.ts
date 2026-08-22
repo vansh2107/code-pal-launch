@@ -369,5 +369,3 @@ export async function sendTestNotification(): Promise<boolean> {
   const result = await sendTestNotificationDetailed();
   return result.success;
 }
-
-}
