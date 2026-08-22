@@ -272,12 +272,21 @@ export async function initializeNotifications(): Promise<void> {
  * Send a test notification
  */
 export async function sendTestNotification(): Promise<boolean> {
+  const result = await sendTestNotificationDetailed();
+  return result.success;
+}
+
+/**
+ * Send a test notification and surface the real failure reason from the backend
+ * (e.g. the OneSignal error) instead of a generic message.
+ */
+export async function sendTestNotificationDetailed(): Promise<{ success: boolean; message: string }> {
   try {
     // Get the current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       console.error('No authenticated user');
-      return false;
+      return { success: false, message: 'You must be logged in to send a test notification' };
     }
 
     // Try to get OneSignal player ID from localStorage (set by OneSignal in App.tsx)
@@ -290,15 +299,32 @@ export async function sendTestNotification(): Promise<boolean> {
       body: { userId: user.id }
     });
 
+    // Non-2xx responses come back as FunctionsHttpError — read the JSON body
+    // so the OneSignal reason reaches the UI.
     if (error) {
-      console.error('Failed to send test notification:', error);
-      return false;
+      let detail = error.message;
+      try {
+        const ctx = (error as unknown as { context?: Response }).context;
+        if (ctx && typeof ctx.json === 'function') {
+          const body = await ctx.json();
+          detail = body?.error || body?.message || detail;
+        }
+      } catch {
+        // keep the generic message
+      }
+      console.error('Failed to send test notification:', detail, error);
+      return { success: false, message: detail };
+    }
+
+    if (data && data.success === false) {
+      console.error('Test notification rejected:', data);
+      return { success: false, message: data.error || 'Failed to send test notification' };
     }
 
     console.log('Test notification sent:', data);
-    return true;
+    return { success: true, message: data?.message || 'Test notification sent!' };
   } catch (error) {
     console.error('Error sending test notification:', error);
-    return false;
+    return { success: false, message: (error as Error).message };
   }
 }
