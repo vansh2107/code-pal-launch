@@ -7,7 +7,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return handleCorsOptions(req);
 
   try {
-    const { userId } = await req.json();
+    const { userId, send } = await req.json();
     if (!userId) return createErrorResponse('userId required', 400, req);
 
     const appId = Deno.env.get('ONESIGNAL_APP_ID');
@@ -40,7 +40,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    return createJsonResponse({ app_id_prefix: appId.slice(0, 8), stored: ids.length, checks }, 200, req);
+    let sendResult: unknown = null;
+    if (send) {
+      const valid = (checks as any[]).filter((c) => c.invalid_identifier === false).map((c) => c.subscription_id);
+      const res = await fetch('https://api.onesignal.com/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Key ${apiKey.trim()}` },
+        body: JSON.stringify({
+          app_id: appId,
+          include_subscription_ids: valid,
+          target_channel: 'push',
+          headings: { en: 'Remonk test' },
+          contents: { en: 'Direct OneSignal API test from Supabase' },
+        }),
+      });
+      const t = await res.text();
+      sendResult = { http_status: res.status, body: t, targeted: valid };
+    }
+
+    return createJsonResponse({ app_id_prefix: appId.slice(0, 8), stored: ids.length, checks, sendResult }, 200, req);
   } catch (e) {
     return createErrorResponse(e as Error, 500, req);
   }
