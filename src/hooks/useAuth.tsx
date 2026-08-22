@@ -60,13 +60,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
         
         if (session?.user && Capacitor.isNativePlatform()) {
-          setTimeout(() => {
-            savePlayerIdToSupabase(session.user.id);
-            if (session.user.email) {
-              setUserEmail(session.user.email);
-            }
-          }, 3000);
+          void savePlayerIdToSupabase(session.user.id);
+          if (session.user.email) {
+            void setUserEmail(session.user.email);
+          }
         }
+
       }).catch(() => {
         setLoading(false);
       });
