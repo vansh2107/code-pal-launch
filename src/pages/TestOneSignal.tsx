@@ -83,14 +83,26 @@ export default function TestOneSignal() {
       });
 
       if (error) {
-        throw error;
+        // Non-2xx from the function: read the JSON body for the OneSignal reason
+        let detail = error.message;
+        try {
+          const ctx = (error as unknown as { context?: Response }).context;
+          if (ctx && typeof ctx.json === 'function') {
+            const body = await ctx.json();
+            detail = body?.error || body?.message || detail;
+          }
+        } catch {
+          // keep generic message
+        }
+        setResult({ success: false, message: detail });
+        return;
       }
 
       setResult({
-        success: data.success,
-        message: data.success 
-          ? 'Test OneSignal notification sent! Check your Despia mobile app.' 
-          : data.error || 'Failed to send notification'
+        success: !!data?.success,
+        message: data?.success
+          ? data.message || 'Test OneSignal notification sent! Check your Despia mobile app.'
+          : data?.error || 'Failed to send notification'
       });
     } catch (error) {
       console.error('Error testing OneSignal notification:', error);

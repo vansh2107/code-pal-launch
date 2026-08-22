@@ -7,17 +7,19 @@ import type { NotificationPayload } from '../_shared/types.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return handleCorsOptions(req);
+    return handleCorsOptions();
   }
 
   try {
     const { userId, title, message, data, buttons, url }: NotificationPayload = await req.json();
-
+    
     if (!userId || !title || !message) {
-      return createErrorResponse('Missing required fields: userId, title, message', 400, req);
+      return createErrorResponse('Missing required fields: userId, title, message', 400);
     }
 
-    // Authorization: server-to-server via CRON_SECRET, or a user pushing to themselves.
+    // Authorization: allow either
+    //  (a) server-to-server invocation with the CRON_SECRET header, or
+    //  (b) an authenticated user sending a notification to *themselves only*.
     const cronSecret = Deno.env.get('CRON_SECRET');
     const providedCronSecret = req.headers.get('x-cron-secret');
     const isServerCall = !!cronSecret && providedCronSecret === cronSecret;
@@ -25,7 +27,7 @@ Deno.serve(async (req) => {
     if (!isServerCall) {
       const authHeader = req.headers.get('Authorization');
       if (!authHeader?.startsWith('Bearer ')) {
-        return createErrorResponse('Unauthorized', 401, req);
+        return createErrorResponse('Unauthorized', 401);
       }
       const token = authHeader.replace('Bearer ', '');
       const authClient = createClient(
@@ -34,55 +36,61 @@ Deno.serve(async (req) => {
       );
       const { data: userData, error: userErr } = await authClient.auth.getUser(token);
       if (userErr || !userData?.user) {
-        return createErrorResponse('Unauthorized', 401, req);
+        return createErrorResponse('Unauthorized', 401);
       }
       if (userData.user.id !== userId) {
-        console.error(`Forbidden: caller ${userData.user.id} tried to push to ${userId}`);
-        return createErrorResponse('Forbidden: cannot send notifications to another user', 403, req);
+        console.error(
+          `Forbidden: caller ${userData.user.id} tried to push to ${userId}`
+        );
+        return createErrorResponse('Forbidden: cannot send notifications to another user', 403);
       }
     }
+
+    const sanitizedTitle = sanitizeInput(title);
+    const sanitizedMessage = sanitizeInput(message);
 
     const supabase = createSupabaseClient();
 
     const result = await sendOneSignalNotificationDetailed(supabase, {
       userId,
-      title: sanitizeInput(title),
-      message: sanitizeInput(message),
-      data: data || {},
+      title: sanitizedTitle,
+      message: sanitizedMessage,
+      data,
       buttons,
       url,
     });
 
     if (!result.success) {
+      const status = result.reason === 'no_subscriptions' ? 422 : 502;
       return createJsonResponse(
         {
           success: false,
-          error: result.reason || 'OneSignal did not accept the notification',
-          onesignal_status: result.status,
-          onesignal_response: result.body,
-          onesignal_errors: result.errors,
-          recipients: result.recipients,
-          targeted: result.targeted,
-          pruned_stale_subscription_ids: result.invalidSubscriptionIds,
+          error: result.detail ?? 'Failed to send notification',
+          reason: result.reason,
+          onesignal: {
+            status: result.status,
+            body: result.body,
+            invalidIds: result.invalidIds,
+            targeted: result.targeted,
+          },
         },
-        result.targeted === 0 ? 422 : 502,
-        req,
+        status
       );
     }
 
-    return createJsonResponse(
-      {
-        success: true,
-        message: `Sent to ${result.recipients} device(s)`,
-        notification_id: result.notificationId,
-        recipients: result.recipients,
-        targeted: result.targeted,
-      },
-      200,
-      req,
-    );
+    return createJsonResponse({
+      success: true,
+      message: `Sent to ${result.recipients} device(s)`,
+      notificationId: result.notificationId,
+      recipients: result.recipients,
+      details: result.body,
+    });
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('OneSignal request timeout');
+      return createErrorResponse('OneSignal request timeout', 504);
+    }
     console.error('Error in send-onesignal-notification:', error);
-    return createErrorResponse(error as Error, 500, req);
+    return createErrorResponse(error as Error);
   }
 });

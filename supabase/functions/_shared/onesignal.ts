@@ -3,6 +3,8 @@ import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const ONESIGNAL_API_URL = 'https://api.onesignal.com/notifications';
 const ONESIGNAL_TIMEOUT_MS = 10000;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface OneSignalPayload {
   userId: string;
   title: string;
@@ -12,204 +14,226 @@ interface OneSignalPayload {
   url?: string;
 }
 
-export interface OneSignalSendResult {
+export interface OneSignalResult {
   success: boolean;
-  status: number | null;
-  notificationId: string | null;
-  recipients: number;
-  errors: unknown;
-  body: unknown;
-  targeted: number;
-  invalidSubscriptionIds: string[];
-  reason?: string;
+  /** machine readable reason when success === false */
+  reason?:
+    | 'not_configured'
+    | 'no_subscriptions'
+    | 'onesignal_error'
+    | 'no_recipients'
+    | 'timeout'
+    | 'exception';
+  /** human readable detail coming straight from OneSignal when available */
+  detail?: string;
+  status?: number;
+  notificationId?: string;
+  recipients?: number;
+  targeted?: number;
+  invalidIds?: string[];
+  body?: unknown;
 }
 
-/** Collect every OneSignal subscription id we have stored for a user. */
-export async function collectSubscriptionIds(
+/** Remove subscription IDs that OneSignal reported as invalid. */
+async function pruneInvalidIds(
   supabase: SupabaseClient,
   userId: string,
-): Promise<string[]> {
-  const [tokenResult, playerResult] = await Promise.all([
-    supabase
-      .from('notification_tokens')
-      .select('token')
-      .eq('user_id', userId)
-      .eq('provider', 'onesignal'),
-    supabase
-      .from('onesignal_player_ids')
-      .select('player_id')
-      .eq('user_id', userId),
-  ]);
-
-  const ids: string[] = [];
-  if (tokenResult.data) ids.push(...tokenResult.data.map((t: { token: string }) => t.token));
-  if (playerResult.data) ids.push(...playerResult.data.map((p: { player_id: string }) => p.player_id));
-
-  // OneSignal subscription ids are UUIDs. An FCM token is NOT a subscription id.
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return [...new Set(ids)].filter((id) => typeof id === 'string' && UUID_RE.test(id.trim())).map((id) => id.trim());
-}
-
-/** Remove subscription ids OneSignal rejected so we stop targeting dead installs. */
-export async function pruneInvalidSubscriptionIds(
-  supabase: SupabaseClient,
-  userId: string,
-  invalidIds: string[],
-): Promise<void> {
+  invalidIds: string[]
+) {
   if (invalidIds.length === 0) return;
-  console.log(`[ONESIGNAL] Pruning ${invalidIds.length} stale subscription id(s) for user ${userId}`);
-  await Promise.all([
-    supabase.from('onesignal_player_ids').delete().eq('user_id', userId).in('player_id', invalidIds),
-    supabase
-      .from('notification_tokens')
-      .delete()
-      .eq('user_id', userId)
-      .eq('provider', 'onesignal')
-      .in('token', invalidIds),
-  ]);
+  console.log('[ONESIGNAL] Pruning invalid subscription IDs:', invalidIds);
+  try {
+    await Promise.all([
+      supabase
+        .from('onesignal_player_ids')
+        .delete()
+        .eq('user_id', userId)
+        .in('player_id', invalidIds),
+      supabase
+        .from('notification_tokens')
+        .delete()
+        .eq('user_id', userId)
+        .eq('provider', 'onesignal')
+        .in('token', invalidIds),
+    ]);
+  } catch (e) {
+    console.error('[ONESIGNAL] Failed to prune invalid ids:', e);
+  }
 }
 
 /**
- * Send a push via the OneSignal REST API and report exactly what happened.
- * NOTE: HTTP 200 from OneSignal does NOT mean delivery — OneSignal returns 200
- * with `recipients: 0` and an `errors` payload when every target is unsubscribed.
+ * Send push notification via OneSignal. Returns a detailed result — an HTTP 200
+ * from OneSignal is NOT treated as success unless at least one recipient was
+ * actually accepted.
  */
 export async function sendOneSignalNotificationDetailed(
   supabase: SupabaseClient,
-  payload: OneSignalPayload,
-): Promise<OneSignalSendResult> {
-  const base: OneSignalSendResult = {
-    success: false,
-    status: null,
-    notificationId: null,
-    recipients: 0,
-    errors: null,
-    body: null,
-    targeted: 0,
-    invalidSubscriptionIds: [],
-  };
-
-  const appId = Deno.env.get('ONESIGNAL_APP_ID');
-  const apiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
-
-  if (!appId || !apiKey) {
-    console.error('[ONESIGNAL] Error: credentials not configured (ONESIGNAL_APP_ID / ONESIGNAL_REST_API_KEY)');
-    return { ...base, reason: 'OneSignal credentials not configured' };
-  }
-
-  const subscriptionIds = await collectSubscriptionIds(supabase, payload.userId);
-  base.targeted = subscriptionIds.length;
-  console.log(`[ONESIGNAL] Recipient identifier(s) for user ${payload.userId}: ${subscriptionIds.length} subscription id(s)`);
-
-  if (subscriptionIds.length === 0) {
-    return { ...base, reason: 'No OneSignal subscription ids registered for this user' };
-  }
-
-  const body: Record<string, unknown> = {
-    app_id: appId,
-    // Current REST API targeting field (include_player_ids is the deprecated alias).
-    include_subscription_ids: subscriptionIds,
-    target_channel: 'push',
-    headings: { en: payload.title },
-    contents: { en: payload.message },
-    data: payload.data || {},
-  };
-
-  if (payload.buttons?.length) {
-    body.buttons = payload.buttons;
-    body.ios_category = 'REMINDER_ACTIONS';
-  }
-  if (payload.url) body.url = payload.url;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), ONESIGNAL_TIMEOUT_MS);
-
+  payload: OneSignalPayload
+): Promise<OneSignalResult> {
   try {
-    console.log(`[ONESIGNAL] Sending request to ${ONESIGNAL_API_URL} (app ${appId.slice(0, 8)}…)`);
+    const appId = Deno.env.get('ONESIGNAL_APP_ID');
+    const apiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
+
+    if (!appId || !apiKey) {
+      console.error('[ONESIGNAL] Credentials not configured');
+      return { success: false, reason: 'not_configured', detail: 'OneSignal credentials not configured' };
+    }
+
+    const [tokenResult, playerResult] = await Promise.all([
+      supabase
+        .from('notification_tokens')
+        .select('token')
+        .eq('user_id', payload.userId)
+        .eq('provider', 'onesignal'),
+      supabase
+        .from('onesignal_player_ids')
+        .select('player_id')
+        .eq('user_id', payload.userId),
+    ]);
+
+    const raw: string[] = [
+      ...(tokenResult.data?.map((t: { token: string }) => t.token) ?? []),
+      ...(playerResult.data?.map((p: { player_id: string }) => p.player_id) ?? []),
+    ].filter(Boolean);
+
+    // Only real OneSignal subscription IDs (UUIDs) may be targeted — an FCM
+    // token must never be sent as a subscription id.
+    const subscriptionIds = [...new Set(raw.map((v) => v.trim()))].filter((v) => UUID_RE.test(v));
+    const rejected = [...new Set(raw)].filter((v) => !UUID_RE.test(v));
+    if (rejected.length > 0) {
+      console.log(`[ONESIGNAL] Ignoring ${rejected.length} non-subscription-id value(s)`);
+    }
+
+    if (subscriptionIds.length === 0) {
+      console.log(`[ONESIGNAL] No subscription IDs for user ${payload.userId}`);
+      return {
+        success: false,
+        reason: 'no_subscriptions',
+        detail: 'No OneSignal subscription registered for this user/device',
+        targeted: 0,
+      };
+    }
+
+    const oneSignalMessage: Record<string, unknown> = {
+      app_id: appId,
+      target_channel: 'push',
+      include_subscription_ids: subscriptionIds,
+      headings: { en: payload.title },
+      contents: { en: payload.message },
+      data: payload.data || {},
+    };
+
+    if (payload.buttons && payload.buttons.length > 0) {
+      oneSignalMessage.buttons = payload.buttons;
+      oneSignalMessage.ios_category = 'REMINDER_ACTIONS';
+    }
+    if (payload.url) oneSignalMessage.url = payload.url;
+
+    console.log(
+      `[ONESIGNAL] Sending request to ${subscriptionIds.length} subscription(s) for user ${payload.userId}`
+    );
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ONESIGNAL_TIMEOUT_MS);
+
     const response = await fetch(ONESIGNAL_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Key ${apiKey.trim()}`,
+        'Authorization': `Key ${apiKey.trim()}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(oneSignalMessage),
       signal: controller.signal,
     });
+
     clearTimeout(timeoutId);
 
-    const rawText = await response.text();
-    let parsed: any = null;
+    const text = await response.text();
+    console.log('[ONESIGNAL] HTTP status:', response.status);
+    console.log('[ONESIGNAL] Response body:', text);
+
+    let result: any = {};
     try {
-      parsed = JSON.parse(rawText);
+      result = text ? JSON.parse(text) : {};
     } catch {
-      parsed = { raw: rawText };
+      result = { raw: text };
     }
 
-    console.log(`[ONESIGNAL] HTTP status: ${response.status}`);
-    console.log(`[ONESIGNAL] Response body: ${rawText}`);
+    if (!response.ok) {
+      const detail = Array.isArray(result?.errors)
+        ? result.errors.join(', ')
+        : JSON.stringify(result?.errors ?? result);
+      console.error('[ONESIGNAL] Error:', response.status, detail);
+      return {
+        success: false,
+        reason: 'onesignal_error',
+        detail,
+        status: response.status,
+        body: result,
+        targeted: subscriptionIds.length,
+      };
+    }
 
-    const notificationId: string | null = parsed?.id || null;
-    const errors = parsed?.errors ?? null;
-
-    // OneSignal surfaces dead installs as errors.invalid_player_ids / invalid_subscription_ids
-    const invalid: string[] = Array.isArray(errors?.invalid_player_ids)
-      ? errors.invalid_player_ids
-      : Array.isArray(errors?.invalid_subscription_ids)
-        ? errors.invalid_subscription_ids
+    const invalidIds: string[] = Array.isArray(result?.errors?.invalid_player_ids)
+      ? result.errors.invalid_player_ids
+      : Array.isArray(result?.errors?.invalid_external_user_ids)
+        ? result.errors.invalid_external_user_ids
         : [];
 
-    const allUnsubscribed =
-      Array.isArray(errors) && errors.some((e: unknown) => typeof e === 'string' && /not subscribed/i.test(e));
+    await pruneInvalidIds(supabase, payload.userId, invalidIds);
 
-    // The current REST API omits `recipients`; derive it from targets minus rejected ids.
-    const recipients: number =
-      typeof parsed?.recipients === 'number'
-        ? parsed.recipients
-        : allUnsubscribed
-          ? 0
-          : subscriptionIds.length - invalid.length;
+    // OneSignal sometimes omits `recipients`; derive it from what was targeted.
+    const recipients =
+      typeof result?.recipients === 'number'
+        ? result.recipients
+        : Math.max(subscriptionIds.length - invalidIds.length, 0);
 
-    console.log(`[ONESIGNAL] Notification ID: ${notificationId || 'none'}`);
-    console.log(`[ONESIGNAL] Recipients accepted: ${recipients}`);
-    if (errors) console.log(`[ONESIGNAL] Error: ${JSON.stringify(errors)}`);
+    console.log('[ONESIGNAL] Notification ID:', result?.id ?? 'none');
+    console.log('[ONESIGNAL] Recipients accepted:', recipients);
 
-    const staleIds = invalid.length > 0 ? invalid : allUnsubscribed ? subscriptionIds : [];
-    if (staleIds.length > 0) {
-      await pruneInvalidSubscriptionIds(supabase, payload.userId, staleIds);
+    if (!result?.id || recipients < 1) {
+      const detail =
+        invalidIds.length > 0
+          ? `OneSignal rejected all ${invalidIds.length} subscription ID(s) as invalid. Reopen the mobile app to re-register this device.`
+          : 'OneSignal accepted 0 recipients';
+      console.error('[ONESIGNAL] Error:', detail);
+      return {
+        success: false,
+        reason: 'no_recipients',
+        detail,
+        status: response.status,
+        notificationId: result?.id,
+        recipients: 0,
+        targeted: subscriptionIds.length,
+        invalidIds,
+        body: result,
+      };
     }
 
-    const success = response.ok && !!notificationId && recipients > 0;
-
     return {
-      success,
+      success: true,
       status: response.status,
-      notificationId,
+      notificationId: result.id,
       recipients,
-      errors,
-      body: parsed,
       targeted: subscriptionIds.length,
-      invalidSubscriptionIds: staleIds,
-      reason: success
-        ? undefined
-        : allUnsubscribed || recipients === 0
-          ? 'All targeted OneSignal subscriptions are unsubscribed or stale (device likely reinstalled). Open the app on the device to re-register it.'
-          : `OneSignal request failed with status ${response.status}`,
+      invalidIds,
+      body: result,
     };
-
   } catch (error) {
-    clearTimeout(timeoutId);
-    const isTimeout = error instanceof Error && error.name === 'AbortError';
-    console.error(`[ONESIGNAL] Error: ${isTimeout ? 'request timeout' : String(error)}`);
-    return { ...base, reason: isTimeout ? 'OneSignal request timeout' : String(error) };
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('[ONESIGNAL] Error: request timeout');
+      return { success: false, reason: 'timeout', detail: 'OneSignal request timed out' };
+    }
+    console.error('[ONESIGNAL] Error:', error);
+    return { success: false, reason: 'exception', detail: (error as Error).message };
   }
 }
 
-/** Backwards-compatible boolean wrapper used by schedulers. */
+/** Backwards-compatible boolean wrapper. */
 export async function sendOneSignalNotification(
   supabase: SupabaseClient,
-  payload: OneSignalPayload,
+  payload: OneSignalPayload
 ): Promise<boolean> {
   const result = await sendOneSignalNotificationDetailed(supabase, payload);
-  if (!result.success) console.error('[ONESIGNAL] Send failed:', result.reason);
   return result.success;
 }
