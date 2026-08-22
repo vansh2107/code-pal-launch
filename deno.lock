@@ -27,8 +27,7 @@
     "https://deno.land/std@0.190.0/async/retry.ts": "c9248325ec08cc2cceb7618472e77589a51a25cee460e07b6096be34966c2ead",
     "https://deno.land/std@0.190.0/async/tee.ts": "47e42d35f622650b02234d43803d0383a89eb4387e1b83b5a40106d18ae36757",
     "https://deno.land/std@0.190.0/http/server.ts": "1b23463b5b36e4eebc495417f6af47a6f7d52e3294827a1226d2a1aab23d9d20",
-    "https://esm.sh/@supabase/supabase-js@2.98.0": "7c91584aa8d7c3b272be04122a907e00a7028a20d0eaf5e40b2eb1eed10f06b3",
-    "https://esm.sh/jose@5.9.6": "8c535558ee938997693933217d3f71cdbb97f968cc9b5385ab442664458aa576"
+    "https://esm.sh/@supabase/supabase-js@2.98.0": "7c91584aa8d7c3b272be04122a907e00a7028a20d0eaf5e40b2eb1eed10f06b3"
   },
   "workspace": {
     "packageJson": {
@@ -40,7 +39,6 @@
         "npm:@capacitor/cli@^8.3.0",
         "npm:@capacitor/core@^7.4.4",
         "npm:@capacitor/push-notifications@^7.0.3",
-        "npm:@capacitor/splash-screen@^7.0.5",
         "npm:@capacitor/status-bar@^7.0.3",
         "npm:@eslint/js@^9.32.0",
         "npm:@hookform/resolvers@^3.10.0",
@@ -90,7 +88,6 @@
         "npm:eslint-plugin-react-hooks@^5.2.0",
         "npm:eslint-plugin-react-refresh@~0.4.20",
         "npm:eslint@^9.32.0",
-        "npm:framer-motion@^12.39.0",
         "npm:globals@^15.15.0",
         "npm:idb@8.0.1",
         "npm:input-otp@^1.4.2",
