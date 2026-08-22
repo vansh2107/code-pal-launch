@@ -6,7 +6,9 @@ export interface NotificationToken {
   token: string;
   provider: 'fcm' | 'onesignal' | 'capacitor';
   device_info?: string;
+  platform?: string;
 }
+
 
 export interface NotificationPayload {
   title: string;
@@ -141,14 +143,16 @@ export async function initializeCapacitorPushNotifications(): Promise<void> {
 
     // Listen for registration success
     await PushNotifications.addListener('registration', async (token) => {
-      console.log('Capacitor Push registration success, token: ' + token.value);
-      
+      console.log('[NOTIFICATIONS] Capacitor push registration success');
+
       await registerTokenWithBackend({
         token: token.value,
         provider: 'capacitor',
-        device_info: Capacitor.getPlatform(),
+        device_info: `capacitor/${Capacitor.getPlatform()}`,
+        platform: Capacitor.getPlatform(),
       });
     });
+
 
     // Listen for registration errors
     await PushNotifications.addListener('registrationError', (error) => {
