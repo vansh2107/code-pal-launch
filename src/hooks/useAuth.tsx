@@ -40,14 +40,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
         setLoading(false);
         
-        // Register OneSignal Player ID when user logs in (retrying, non-blocking)
+        // Register OneSignal Player ID when user logs in (deferred, non-blocking)
         if (session?.user && Capacitor.isNativePlatform()) {
-          void savePlayerIdToSupabase(session.user.id);
-          if (session.user.email) {
-            void setUserEmail(session.user.email);
-          }
+          setTimeout(() => {
+            savePlayerIdToSupabase(session.user.id);
+            if (session.user.email) {
+              setUserEmail(session.user.email);
+            }
+          }, 3000);
         }
-
       }
     );
 
@@ -60,12 +61,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
         
         if (session?.user && Capacitor.isNativePlatform()) {
-          void savePlayerIdToSupabase(session.user.id);
-          if (session.user.email) {
-            void setUserEmail(session.user.email);
-          }
+          setTimeout(() => {
+            savePlayerIdToSupabase(session.user.id);
+            if (session.user.email) {
+              setUserEmail(session.user.email);
+            }
+          }, 3000);
         }
-
       }).catch(() => {
         setLoading(false);
       });
