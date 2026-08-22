@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { lazy, Suspense, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
+import { supabase } from "@/integrations/supabase/client";
 
 import AuthEventListener from "./components/auth/AuthEventListener";
 import { OfflineIndicator } from "./components/layout/OfflineIndicator";
