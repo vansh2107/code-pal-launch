@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { sendUnifiedNotification } from '../_shared/unified-notifications.ts';
+import { sendUnifiedNotificationDetailed } from '../_shared/unified-notifications.ts';
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 Deno.serve(async (req) => {
@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
+
     if (userError || !user) {
       console.error('Authentication failed:', userError);
       return createErrorResponse('Not authenticated', 401);
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const serviceSupabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const sent = await sendUnifiedNotification(serviceSupabase, {
+    const result = await sendUnifiedNotificationDetailed(serviceSupabase, {
       userId: user.id,
       title: testNotification.title,
       message: testNotification.message + ' (Test notification sent via FCM/OneSignal! 🎉)',
@@ -46,13 +46,20 @@ Deno.serve(async (req) => {
       }
     });
 
-    if (!sent) {
-      return createErrorResponse('Failed to send test notification', 500);
+    if (!result.success) {
+      return createJsonResponse({
+        success: false,
+        message: result.error || 'Failed to send test notification',
+        recipients: 0,
+        providers: result.providers,
+      }, 500);
     }
 
-    return createJsonResponse({ 
-      success: true, 
-      message: 'Test push notification sent!',
+    return createJsonResponse({
+      success: true,
+      message: `Test push notification sent to ${result.recipients} device(s)!`,
+      recipients: result.recipients,
+      providers: result.providers,
     });
   } catch (error) {
     console.error('Error in test-push-notification:', error);
