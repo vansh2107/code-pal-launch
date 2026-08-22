@@ -102,12 +102,29 @@ export async function registerTokenWithBackend(
     });
 
     if (error) {
-      console.error('Failed to register notification token:', error);
+      // Surface the backend error body — FunctionsHttpError hides it by default.
+      let details: unknown = null;
+      try {
+        details = await (error as any)?.context?.json?.();
+      } catch {
+        try {
+          details = await (error as any)?.context?.text?.();
+        } catch {
+          /* no readable body */
+        }
+      }
+      console.error('[NOTIFICATIONS] Failed to register token:', error.message, details);
       return false;
     }
 
-    console.log(`Successfully registered ${tokenData.provider} token with backend`);
+    if (data && (data as any).success === false) {
+      console.error('[NOTIFICATIONS] Token registration rejected:', data);
+      return false;
+    }
+
+    console.log(`[NOTIFICATIONS] Registered ${tokenData.provider} token with backend`, data);
     return true;
+
   } catch (error) {
     console.error('Error registering token with backend:', error);
     return false;
