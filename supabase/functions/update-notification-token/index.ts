@@ -24,26 +24,64 @@ Deno.serve(async (req) => {
       return createErrorResponse('Not authenticated', 401);
     }
 
-    const { token: deviceToken, provider, device_info } = await req.json();
+    const body = await req.json();
+    const deviceToken: string | undefined = body?.token;
+    const rawProvider: string | undefined = body?.provider;
+    const platform: string | undefined = body?.platform;
+    const device_info: string | undefined = body?.device_info;
 
-    if (!deviceToken || !provider) {
+    if (!deviceToken || typeof deviceToken !== 'string' || !rawProvider) {
       return createErrorResponse('Missing required fields: token and provider', 400);
     }
 
-    if (!['fcm', 'onesignal'].includes(provider)) {
-      return createErrorResponse('Invalid provider. Must be fcm or onesignal', 400);
+    // Normalize provider aliases coming from different clients.
+    // The DB check constraint only allows 'fcm' | 'onesignal'.
+    const aliasMap: Record<string, 'fcm' | 'onesignal'> = {
+      onesignal: 'onesignal',
+      'onesignal-capacitor': 'onesignal',
+      'onesignal-cordova': 'onesignal',
+      despia: 'onesignal',
+      fcm: 'fcm',
+      gcm: 'fcm',
+      firebase: 'fcm',
+      // Capacitor's PushNotifications plugin yields a native FCM/APNs token
+      capacitor: 'fcm',
+      apns: 'fcm',
+    };
+
+    const provider = aliasMap[String(rawProvider).toLowerCase()];
+    if (!provider) {
+      return createErrorResponse(
+        `Invalid provider "${rawProvider}". Supported: onesignal, fcm (aliases: capacitor, gcm, apns, despia)`,
+        400
+      );
     }
 
-    console.log(`Registering ${provider} token for user ${user.id}`);
+    // Shape validation: OneSignal subscription IDs are UUIDs; FCM tokens are long opaque strings.
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (provider === 'onesignal' && !uuidRe.test(deviceToken)) {
+      return createErrorResponse('Malformed OneSignal subscription ID (expected UUID)', 400);
+    }
+    if (provider === 'fcm' && (deviceToken.length < 20 || uuidRe.test(deviceToken))) {
+      return createErrorResponse('Malformed FCM/APNs device token', 400);
+    }
 
-    // Upsert the notification token
+    const deviceInfo = [device_info, platform ? `platform=${platform}` : null]
+      .filter(Boolean)
+      .join(' | ') || null;
+
+    console.log(
+      `[NOTIFICATIONS] Registering provider=${provider} (raw=${rawProvider}) platform=${platform ?? 'unknown'} for user ${user.id}`
+    );
+
+    // Upsert the notification token (unique on user_id,token,provider → no duplicates)
     const { error: upsertError } = await supabase
       .from('notification_tokens')
       .upsert({
         user_id: user.id,
         token: deviceToken,
         provider,
-        device_info: device_info || null,
+        device_info: deviceInfo,
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'user_id,token,provider'
