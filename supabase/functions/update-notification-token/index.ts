@@ -1,6 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Map client-side provider aliases onto the values allowed by the DB constraint.
+const PROVIDER_ALIASES: Record<string, 'fcm' | 'onesignal'> = {
+  fcm: 'fcm',
+  gcm: 'fcm',
+  firebase: 'fcm',
+  apns: 'fcm',
+  capacitor: 'fcm',
+  onesignal: 'onesignal',
+  despia: 'onesignal',
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return handleCorsOptions();
@@ -13,99 +26,91 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const authClient = createClient(supabaseUrl, supabaseKey);
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const authClient = createClient(supabaseUrl, anonKey);
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await authClient.auth.getUser(token);
-    
+
     if (userError || !user) {
       console.error('Authentication failed:', userError);
       return createErrorResponse('Not authenticated', 401);
     }
 
-    // Write with service role (validated user id below) so RLS/grants can't
-    // silently drop a valid device registration.
-    const supabase = createClient(
-      supabaseUrl,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const body = await req.json().catch(() => null);
+    const deviceToken: unknown = body?.token;
+    const rawProvider: unknown = body?.provider;
+    const deviceInfo: unknown = body?.device_info;
+    const platform: unknown = body?.platform;
 
-
-    const body = await req.json();
-    const deviceToken: string | undefined = body?.token;
-    const rawProvider: string | undefined = body?.provider;
-    const platform: string | undefined = body?.platform;
-    const device_info: string | undefined = body?.device_info;
-
-    if (!deviceToken || typeof deviceToken !== 'string' || !rawProvider) {
+    if (typeof deviceToken !== 'string' || !deviceToken.trim() || typeof rawProvider !== 'string') {
       return createErrorResponse('Missing required fields: token and provider', 400);
     }
 
-    // Normalize provider aliases coming from different clients.
-    // The DB check constraint only allows 'fcm' | 'onesignal'.
-    const aliasMap: Record<string, 'fcm' | 'onesignal'> = {
-      onesignal: 'onesignal',
-      'onesignal-capacitor': 'onesignal',
-      'onesignal-cordova': 'onesignal',
-      despia: 'onesignal',
-      fcm: 'fcm',
-      gcm: 'fcm',
-      firebase: 'fcm',
-      // Capacitor's PushNotifications plugin yields a native FCM/APNs token
-      capacitor: 'fcm',
-      apns: 'fcm',
-    };
-
-    const provider = aliasMap[String(rawProvider).toLowerCase()];
-    if (!provider) {
+    const normalizedProvider = PROVIDER_ALIASES[rawProvider.toLowerCase()];
+    if (!normalizedProvider) {
       return createErrorResponse(
-        `Invalid provider "${rawProvider}". Supported: onesignal, fcm (aliases: capacitor, gcm, apns, despia)`,
-        400
+        `Unsupported provider "${rawProvider}". Allowed: ${Object.keys(PROVIDER_ALIASES).join(', ')}`,
+        400,
       );
     }
 
-    // Shape validation: OneSignal subscription IDs are UUIDs; FCM tokens are long opaque strings.
-    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (provider === 'onesignal' && !uuidRe.test(deviceToken)) {
-      return createErrorResponse('Malformed OneSignal subscription ID (expected UUID)', 400);
+    const cleanToken = deviceToken.trim();
+
+    // Shape validation: OneSignal subscription IDs are UUIDs, FCM/APNS tokens are long opaque strings.
+    if (normalizedProvider === 'onesignal' && !UUID_RE.test(cleanToken)) {
+      return createErrorResponse('Invalid OneSignal subscription id (expected a UUID)', 400);
     }
-    if (provider === 'fcm' && (deviceToken.length < 20 || uuidRe.test(deviceToken))) {
-      return createErrorResponse('Malformed FCM/APNs device token', 400);
+    if (normalizedProvider === 'fcm' && (UUID_RE.test(cleanToken) || cleanToken.length < 32)) {
+      return createErrorResponse('Invalid FCM/APNS device token', 400);
     }
 
-    const deviceInfo = [device_info, platform ? `platform=${platform}` : null]
-      .filter(Boolean)
-      .join(' | ') || null;
+    const deviceInfoValue = [
+      typeof deviceInfo === 'string' ? deviceInfo : null,
+      typeof platform === 'string' ? `platform=${platform}` : null,
+      `alias=${rawProvider.toLowerCase()}`,
+    ].filter(Boolean).join(' | ');
 
-    console.log(
-      `[NOTIFICATIONS] Registering provider=${provider} (raw=${rawProvider}) platform=${platform ?? 'unknown'} for user ${user.id}`
-    );
+    console.log(`Registering ${normalizedProvider} token (alias ${rawProvider}) for user ${user.id}`);
 
-    // Upsert the notification token (unique on user_id,token,provider → no duplicates)
-    const { error: upsertError } = await supabase
+    // Write with the service-role client so RLS can never silently drop a valid row.
+    const serviceClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+    const { error: upsertError } = await serviceClient
       .from('notification_tokens')
       .upsert({
         user_id: user.id,
-        token: deviceToken,
-        provider,
-        device_info: deviceInfo,
+        token: cleanToken,
+        provider: normalizedProvider,
+        device_info: deviceInfoValue || null,
         updated_at: new Date().toISOString(),
       }, {
-        onConflict: 'user_id,token,provider'
+        onConflict: 'user_id,token,provider',
       });
 
     if (upsertError) {
       console.error('Failed to save notification token:', upsertError);
-      return createErrorResponse('Failed to save notification token', 500);
+      return createErrorResponse(`Failed to save notification token: ${upsertError.message}`, 500);
     }
 
-    console.log(`Successfully registered ${provider} token for user ${user.id}`);
+    // Keep the legacy OneSignal table in sync for the older senders.
+    if (normalizedProvider === 'onesignal') {
+      const { error: playerError } = await serviceClient
+        .from('onesignal_player_ids')
+        .upsert({
+          user_id: user.id,
+          player_id: cleanToken,
+          device_info: deviceInfoValue || null,
+        }, { onConflict: 'player_id' });
+      if (playerError) {
+        console.error('Failed to mirror OneSignal player id:', playerError);
+      }
+    }
 
     return createJsonResponse({
       success: true,
       message: 'Notification token registered successfully',
-      provider,
+      provider: normalizedProvider,
     });
   } catch (error) {
     console.error('Error in update-notification-token:', error);

@@ -12,13 +12,22 @@ interface OneSignalPayload {
   url?: string;
 }
 
+export interface OneSignalSendResult {
+  success: boolean;
+  recipients?: number;
+  notificationId?: string;
+  error?: string;
+  playerIdCount: number;
+}
+
 /**
- * Send push notification via OneSignal
+ * Send push notification via OneSignal, returning the full outcome.
  */
-export async function sendOneSignalNotification(
+export async function sendOneSignalNotificationDetailed(
   supabase: SupabaseClient,
   payload: OneSignalPayload
-): Promise<boolean> {
+): Promise<OneSignalSendResult> {
+
   try {
     const appId = Deno.env.get('ONESIGNAL_APP_ID');
     const apiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');

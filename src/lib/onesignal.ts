@@ -1,17 +1,14 @@
 import OneSignal from "onesignal-cordova-plugin";
-import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 
 const ONESIGNAL_APP_ID = "8cced195-0fd2-487f-9f10-2a8bc898ff4e";
 const LOG = "[NOTIFICATIONS]";
 
-// ── Module-level singletons (survive React re-renders / HMR) ──
+// Module-level singletons — safe across re-renders and HMR reloads.
 let initStarted = false;
 let initCompleted = false;
 let listenersAttached = false;
-let pendingUserId: string | null = null;
-let lastSavedPlayerId: string | null = null;
-let saveInFlight = false;
+let currentUserId: string | null = null;
 
 type NotifData = {
   entity_type?: "task" | "document_reminder" | "routine_step";
@@ -48,10 +45,10 @@ async function callAction(payload: {
 }) {
   try {
     const { data, error } = await supabase.functions.invoke("notification-action", { body: payload });
-    if (error) console.error(`${LOG} Error notification-action`, error);
+    if (error) console.error(`${LOG} notification-action error`, error);
     return data;
   } catch (e) {
-    console.error(`${LOG} Error notification-action exception`, e);
+    console.error(`${LOG} notification-action exception`, e);
   }
 }
 
@@ -68,49 +65,41 @@ function deepLinkForEntity(entity_type: string | undefined, data: NotifData) {
   return "/";
 }
 
-/** Is the OneSignal cordova bridge actually available in this webview? */
-function isOneSignalAvailable(): boolean {
-  try {
-    return (
-      typeof OneSignal !== "undefined" &&
-      typeof (OneSignal as any).initialize === "function" &&
-      !!(OneSignal as any).User
-    );
-  } catch {
-    return false;
-  }
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /**
- * Wait until the cordova/Capacitor bridge has exposed the OneSignal plugin.
- * Does NOT depend on `deviceready` having not-yet-fired: it polls, and also
- * short-circuits if deviceready arrives while polling.
+ * Wait for the Cordova/Capacitor bridge to expose the OneSignal plugin.
+ * Does NOT depend on `deviceready` having not yet fired — by the time the
+ * deferred import runs, that event is usually already gone.
  */
-async function waitForBridge(maxMs = 15000): Promise<boolean> {
-  if (isOneSignalAvailable()) return true;
+function waitForBridge(timeoutMs = 15000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const pluginReady = () =>
+      typeof (window as any).plugins?.OneSignal !== "undefined" ||
+      typeof (OneSignal as any)?.initialize === "function";
 
-  let deviceReady = false;
-  const onReady = () => {
-    deviceReady = true;
-  };
-  document.addEventListener("deviceready", onReady, { once: true });
+    if (pluginReady()) return resolve(true);
 
-  const start = Date.now();
-  while (Date.now() - start < maxMs) {
-    if (isOneSignalAvailable()) {
-      document.removeEventListener("deviceready", onReady);
-      return true;
-    }
-    await sleep(250);
-    if (deviceReady && isOneSignalAvailable()) {
-      document.removeEventListener("deviceready", onReady);
-      return true;
-    }
-  }
-  document.removeEventListener("deviceready", onReady);
-  return isOneSignalAvailable();
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("deviceready", onDeviceReady);
+      clearInterval(poll);
+      resolve(ok);
+    };
+    const onDeviceReady = () => {
+      if (pluginReady()) finish(true);
+    };
+    document.addEventListener("deviceready", onDeviceReady);
+
+    const poll = setInterval(() => {
+      if (pluginReady()) return finish(true);
+      if (Date.now() - started > timeoutMs) {
+        console.warn(`${LOG} OneSignal plugin not available after ${timeoutMs}ms`);
+        finish(false);
+      }
+    }, 250);
+  });
 }
 
 function attachListeners() {
@@ -118,250 +107,215 @@ function attachListeners() {
   listenersAttached = true;
 
   try {
-    // Push subscription changes → this is the event-driven registration path
-    (OneSignal as any).User.pushSubscription.addEventListener("change", (event: any) => {
-      const current = event?.current ?? {};
-      console.log(`${LOG} Subscription state`, {
-        id: current.id ?? null,
-        optedIn: current.optedIn ?? null,
-        hasToken: !!current.token,
+    OneSignal.User.pushSubscription.addEventListener("change", (event: any) => {
+      const id = event?.current?.id;
+      console.log(`${LOG} pushSubscription changed`, {
+        hasId: !!id,
+        optedIn: event?.current?.optedIn,
       });
-      if (current?.id) {
-        console.log(`${LOG} Subscription/player ID obtained`, current.id);
-        if (pendingUserId) void persistPlayerId(pendingUserId, current.id);
+      if (id && currentUserId) {
+        void persistPlayerId(currentUserId, id);
       }
     });
   } catch (e) {
-    console.error(`${LOG} Error attaching pushSubscription listener`, e);
+    console.warn(`${LOG} could not attach pushSubscription listener`, e);
   }
 
   try {
-    (OneSignal as any).Notifications.addEventListener("permissionChange", (granted: boolean) => {
-      console.log(`${LOG} Permission status changed`, granted);
-      if (granted && pendingUserId) void registerDeviceWithRetry(pendingUserId);
+    OneSignal.Notifications.addEventListener("permissionChange", (granted: boolean) => {
+      console.log(`${LOG} permission changed`, { granted });
+      if (granted && currentUserId) {
+        void registerDeviceWithRetry(currentUserId);
+      }
     });
   } catch (e) {
-    console.error(`${LOG} Error attaching permissionChange listener`, e);
+    console.warn(`${LOG} could not attach permissionChange listener`, e);
   }
 
-  try {
-    (OneSignal as any).Notifications.addEventListener("click", async (event: any) => {
-      const data: NotifData = (event?.notification?.additionalData || {}) as NotifData;
-      const actionId: string | undefined = event?.result?.actionId;
-      const entity = resolveEntity(data);
+  OneSignal.Notifications.addEventListener("click", async (event: any) => {
+    const data: NotifData = (event?.notification?.additionalData || {}) as NotifData;
+    const actionId: string | undefined = event?.result?.actionId;
+    const entity = resolveEntity(data);
 
-      if (!actionId) {
-        window.location.href = deepLinkForEntity(entity?.entity_type, data);
-        return;
-      }
-      if (!entity) {
-        window.location.href = "/";
-        return;
-      }
-      if (actionId === "complete") {
-        await callAction({ ...entity, action: "complete" } as any);
-        return;
-      }
-      if (actionId === "snooze_1h") {
-        await callAction({ ...entity, action: "snooze", snooze: 60 } as any);
-        return;
-      }
-      if (actionId === "more") {
-        window.location.href = deepLinkForEntity(entity.entity_type, data);
-        return;
-      }
-      if (actionId === "open_app") {
-        window.location.href = "/";
-      }
-    });
+    if (!actionId) {
+      window.location.href = deepLinkForEntity(entity?.entity_type, data);
+      return;
+    }
+    if (!entity) {
+      window.location.href = "/";
+      return;
+    }
+    if (actionId === "complete") {
+      await callAction({ ...entity, action: "complete" });
+      return;
+    }
+    if (actionId === "snooze_1h") {
+      await callAction({ ...entity, action: "snooze", snooze: 60 });
+      return;
+    }
+    if (actionId === "more") {
+      window.location.href = deepLinkForEntity(entity.entity_type, data);
+      return;
+    }
+    if (actionId === "open_app") {
+      window.location.href = "/";
+    }
+  });
 
-    (OneSignal as any).Notifications.addEventListener("foregroundWillDisplay", (event: any) => {
-      console.log(`${LOG} Foreground notification`, event?.notification?.title);
-    });
-  } catch (e) {
-    console.error(`${LOG} Error attaching notification listeners`, e);
-  }
+  OneSignal.Notifications.addEventListener("foregroundWillDisplay", (event: any) => {
+    console.log(`${LOG} foreground notification`, { id: event?.notification?.notificationId });
+  });
 }
 
 /**
- * Initialize OneSignal exactly once on a native Capacitor platform.
- * Safe to call from multiple places / re-renders.
+ * Initialize OneSignal. Idempotent — safe to call multiple times.
  */
 export const initOneSignal = async (): Promise<boolean> => {
-  const platform = Capacitor.getPlatform();
-  const isNative = Capacitor.isNativePlatform();
-  console.log(`${LOG} Platform detected: ${platform}`);
-
-  if (!isNative) {
-    console.log(`${LOG} Web environment — skipping native OneSignal init`);
-    return false;
-  }
-  console.log(`${LOG} Native environment detected`);
-
-  if (initStarted) {
-    return initCompleted;
-  }
+  if (initCompleted) return true;
+  if (initStarted) return initCompleted;
   initStarted = true;
 
+  const ready = await waitForBridge();
+  if (!ready) {
+    initStarted = false;
+    return false;
+  }
+
   try {
-    console.log(`${LOG} OneSignal initialization started`);
-    const ready = await waitForBridge();
-    if (!ready) {
-      console.error(`${LOG} Error: OneSignal plugin bridge unavailable after wait`);
-      initStarted = false; // allow a later retry
-      return false;
-    }
-
-    (OneSignal as any).initialize(ONESIGNAL_APP_ID);
-    initCompleted = true;
-    console.log(`${LOG} OneSignal initialized`);
-
+    OneSignal.initialize(ONESIGNAL_APP_ID);
     attachListeners();
 
-    // Ask for permission (no-op if already granted)
     try {
-      const granted = await (OneSignal as any).Notifications.requestPermission(true);
-      console.log(`${LOG} Permission status`, granted);
+      await OneSignal.Notifications.requestPermission(true);
     } catch (e) {
-      console.error(`${LOG} Error requesting permission`, e);
+      console.warn(`${LOG} requestPermission failed`, e);
     }
 
-    // Make sure the device is opted in to push
     try {
-      (OneSignal as any).User.pushSubscription.optIn?.();
-    } catch {
-      /* optIn not available on older plugin versions */
+      OneSignal.User.pushSubscription.optIn();
+    } catch (e) {
+      console.warn(`${LOG} optIn failed`, e);
     }
 
-    const sub = (OneSignal as any).User?.pushSubscription;
-    console.log(`${LOG} Subscription state`, {
-      id: sub?.id ?? null,
-      optedIn: sub?.optedIn ?? null,
-    });
-
-    if (pendingUserId) void registerDeviceWithRetry(pendingUserId);
+    initCompleted = true;
+    console.log(`${LOG} OneSignal initialized`);
     return true;
   } catch (error) {
-    console.error(`${LOG} Error initializing OneSignal`, error);
     initStarted = false;
+    console.error(`${LOG} OneSignal init error`, error);
     return false;
   }
 };
 
-/** Read the current subscription id, supporting both sync-prop and async-getter plugin versions. */
 export const getPlayerId = async (): Promise<string | null> => {
   try {
-    const sub = (OneSignal as any)?.User?.pushSubscription;
-    if (!sub) return null;
-    if (typeof sub.getIdAsync === "function") {
+    const sub: any = OneSignal.User.pushSubscription;
+    if (typeof sub?.getIdAsync === "function") {
       const id = await sub.getIdAsync();
       if (id) return id;
     }
-    return sub.id || null;
+    return sub?.id || null;
   } catch (error) {
-    console.error(`${LOG} Error reading player ID`, error);
+    console.error(`${LOG} error getting player ID`, error);
     return null;
   }
 };
 
-async function persistPlayerId(userId: string, playerId: string): Promise<boolean> {
-  if (lastSavedPlayerId === playerId) return true;
-  if (saveInFlight) return false;
-  saveInFlight = true;
+/**
+ * Upsert the player ID (no duplicates) and mirror it into notification_tokens.
+ */
+export const persistPlayerId = async (userId: string, playerId: string): Promise<boolean> => {
   try {
-    console.log(`${LOG} Saving device registration`, { playerId, provider: "onesignal" });
-
-    // Primary store (unique on player_id → upsert prevents duplicates)
     const { error } = await supabase
       .from("onesignal_player_ids")
       .upsert(
         {
           user_id: userId,
           player_id: playerId,
-          device_info: `${Capacitor.getPlatform()} | ${navigator.userAgent}`,
+          device_info: navigator.userAgent,
         } as any,
         { onConflict: "player_id" }
       );
 
     if (error) {
-      console.error(`${LOG} Error saving device registration`, error);
+      console.error(`${LOG} failed to upsert player ID`, error);
       return false;
     }
 
-    // Mirror into notification_tokens so the unified sender sees the provider
+    // Mirror into the unified token table (best-effort).
     try {
-      const { error: fnError } = await supabase.functions.invoke("update-notification-token", {
-        body: {
-          token: playerId,
-          provider: "onesignal",
-          platform: Capacitor.getPlatform(),
-          device_info: `${Capacitor.getPlatform()} | ${navigator.userAgent}`,
-        },
+      await supabase.functions.invoke("update-notification-token", {
+        body: { token: playerId, provider: "onesignal", device_info: navigator.userAgent },
       });
-      if (fnError) console.error(`${LOG} Error mirroring token to backend`, fnError);
     } catch (e) {
-      console.error(`${LOG} Error invoking update-notification-token`, e);
+      console.warn(`${LOG} token mirror failed`, e);
     }
 
-    lastSavedPlayerId = playerId;
-    console.log(`${LOG} Device registration saved`);
+    console.log(`${LOG} player ID registered`);
     return true;
-  } finally {
-    saveInFlight = false;
+  } catch (error) {
+    console.error(`${LOG} persistPlayerId exception`, error);
+    return false;
   }
-}
+};
 
 /**
- * Wait for a valid OneSignal subscription ID with bounded exponential backoff,
- * then persist it. Replaces the old single 3-second timeout.
+ * Register the device with bounded exponential backoff — the subscription ID
+ * is often not assigned for several seconds after init on a physical device.
  */
-export async function registerDeviceWithRetry(userId: string, maxAttempts = 8): Promise<boolean> {
-  if (!Capacitor.isNativePlatform()) return false;
-  pendingUserId = userId;
-
-  if (!initCompleted) {
-    const ok = await initOneSignal();
-    if (!ok) return false;
-  }
+export const registerDeviceWithRetry = async (userId: string, maxAttempts = 8): Promise<boolean> => {
+  currentUserId = userId;
+  const ok = await initOneSignal();
+  if (!ok) return false;
 
   let delay = 1000;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const playerId = await getPlayerId();
-    console.log(`${LOG} Registration attempt ${attempt}/${maxAttempts}`, { playerId });
     if (playerId) {
       return persistPlayerId(userId, playerId);
     }
-    await sleep(delay);
+    console.log(`${LOG} no subscription ID yet (attempt ${attempt}/${maxAttempts})`);
+    if (attempt === maxAttempts) break;
+    await new Promise((r) => setTimeout(r, delay));
     delay = Math.min(delay * 2, 15000);
   }
-
-  console.error(
-    `${LOG} Error: no OneSignal subscription ID after ${maxAttempts} attempts — device not registered`
-  );
+  console.warn(`${LOG} gave up waiting for OneSignal subscription ID`);
   return false;
-}
+};
 
-/** Back-compat wrapper used by useAuth. */
-export const savePlayerIdToSupabase = async (userId: string) => registerDeviceWithRetry(userId);
+/** Back-compat entry point used by useAuth. */
+export const savePlayerIdToSupabase = async (userId: string): Promise<boolean> => {
+  return registerDeviceWithRetry(userId);
+};
+
+export const getOneSignalDiagnostics = async () => {
+  let permission: boolean | null = null;
+  let optedIn: boolean | null = null;
+  try {
+    permission = await OneSignal.Notifications.getPermissionAsync();
+  } catch {
+    /* plugin unavailable */
+  }
+  try {
+    optedIn = (OneSignal.User.pushSubscription as any)?.optedIn ?? null;
+  } catch {
+    /* plugin unavailable */
+  }
+  return {
+    appId: ONESIGNAL_APP_ID,
+    initStarted,
+    initCompleted,
+    listenersAttached,
+    playerId: await getPlayerId(),
+    permission,
+    optedIn,
+  };
+};
 
 export const setUserEmail = async (email: string) => {
   try {
-    if (!initCompleted) return;
-    (OneSignal as any).User.addEmail(email);
+    await OneSignal.User.addEmail(email);
   } catch (error) {
-    console.error(`${LOG} Error setting user email`, error);
+    console.error(`${LOG} error setting user email`, error);
   }
 };
-
-/** Diagnostics helper for the test screen. */
-export async function getOneSignalDiagnostics() {
-  const sub = (OneSignal as any)?.User?.pushSubscription;
-  return {
-    platform: Capacitor.getPlatform(),
-    isNative: Capacitor.isNativePlatform(),
-    bridgeAvailable: isOneSignalAvailable(),
-    initCompleted,
-    playerId: await getPlayerId(),
-    optedIn: sub?.optedIn ?? null,
-  };
-}

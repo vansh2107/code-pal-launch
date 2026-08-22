@@ -6,7 +6,9 @@ export interface NotificationToken {
   token: string;
   provider: 'fcm' | 'onesignal' | 'capacitor';
   device_info?: string;
+  platform?: string;
 }
+
 
 export interface NotificationPayload {
   title: string;
@@ -100,12 +102,29 @@ export async function registerTokenWithBackend(
     });
 
     if (error) {
-      console.error('Failed to register notification token:', error);
+      // Surface the backend error body — FunctionsHttpError hides it by default.
+      let details: unknown = null;
+      try {
+        details = await (error as any)?.context?.json?.();
+      } catch {
+        try {
+          details = await (error as any)?.context?.text?.();
+        } catch {
+          /* no readable body */
+        }
+      }
+      console.error('[NOTIFICATIONS] Failed to register token:', error.message, details);
       return false;
     }
 
-    console.log(`Successfully registered ${tokenData.provider} token with backend`);
+    if (data && (data as any).success === false) {
+      console.error('[NOTIFICATIONS] Token registration rejected:', data);
+      return false;
+    }
+
+    console.log(`[NOTIFICATIONS] Registered ${tokenData.provider} token with backend`, data);
     return true;
+
   } catch (error) {
     console.error('Error registering token with backend:', error);
     return false;
@@ -141,14 +160,16 @@ export async function initializeCapacitorPushNotifications(): Promise<void> {
 
     // Listen for registration success
     await PushNotifications.addListener('registration', async (token) => {
-      console.log('Capacitor Push registration success, token: ' + token.value);
-      
+      console.log('[NOTIFICATIONS] Capacitor push registration success');
+
       await registerTokenWithBackend({
         token: token.value,
         provider: 'capacitor',
-        device_info: Capacitor.getPlatform(),
+        device_info: `capacitor/${Capacitor.getPlatform()}`,
+        platform: Capacitor.getPlatform(),
       });
     });
+
 
     // Listen for registration errors
     await PushNotifications.addListener('registrationError', (error) => {
@@ -268,37 +289,83 @@ export async function initializeNotifications(): Promise<void> {
   }
 }
 
+export interface TestNotificationResult {
+  success: boolean;
+  message: string;
+  recipients?: number;
+  details?: unknown;
+}
+
 /**
- * Send a test notification
+ * Send a test notification and surface the real backend/OneSignal outcome.
  */
-export async function sendTestNotification(): Promise<boolean> {
+export async function sendTestNotificationDetailed(): Promise<TestNotificationResult> {
   try {
-    // Get the current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.error('No authenticated user');
-      return false;
+      return { success: false, message: 'No authenticated user' };
     }
 
-    // Try to get OneSignal player ID from localStorage (set by OneSignal in App.tsx)
-    const playerId = localStorage.getItem('onesignal_player_id');
-    
-    console.log('Sending test notification to user:', user.id);
-    console.log('OneSignal Player ID:', playerId || 'Not available');
+    // Read the live subscription id from the plugin (never a stale localStorage value).
+    let playerId: string | null = null;
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { getPlayerId } = await import('@/lib/onesignal');
+        playerId = await getPlayerId();
+      } catch {
+        /* plugin unavailable */
+      }
+    }
+    console.log('[NOTIFICATIONS] Sending test notification', {
+      userId: user.id,
+      hasSubscriptionId: !!playerId,
+    });
 
     const { data, error } = await supabase.functions.invoke('test-push-notification', {
-      body: { userId: user.id }
+      body: { userId: user.id },
     });
 
     if (error) {
-      console.error('Failed to send test notification:', error);
-      return false;
+      let details: any = null;
+      try {
+        details = await (error as any)?.context?.json?.();
+      } catch {
+        try {
+          details = await (error as any)?.context?.text?.();
+        } catch {
+          /* no readable body */
+        }
+      }
+      const message = details?.error || details?.message || error.message || 'Failed to send test notification';
+      console.error('[NOTIFICATIONS] Test notification failed:', message, details);
+      return { success: false, message, details };
     }
 
-    console.log('Test notification sent:', data);
-    return true;
+    const result = data as any;
+    if (result?.success === false) {
+      const message = result?.error || result?.message || 'Failed to send test notification';
+      console.error('[NOTIFICATIONS] Test notification failed:', message, result);
+      return { success: false, message, details: result, recipients: result?.recipients };
+    }
+
+    console.log('[NOTIFICATIONS] Test notification sent', result);
+    return {
+      success: true,
+      message: result?.message || 'Test notification sent',
+      recipients: result?.recipients,
+      details: result,
+    };
   } catch (error) {
-    console.error('Error sending test notification:', error);
-    return false;
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[NOTIFICATIONS] Test notification exception:', error);
+    return { success: false, message };
   }
+}
+
+/**
+ * Send a test notification (boolean convenience wrapper).
+ */
+export async function sendTestNotification(): Promise<boolean> {
+  const result = await sendTestNotificationDetailed();
+  return result.success;
 }
