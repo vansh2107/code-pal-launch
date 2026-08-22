@@ -47,13 +47,22 @@ Deno.serve(async (req) => {
     });
 
     if (!sent) {
-      return createErrorResponse('Failed to send test notification', 500);
+      // Not an error: usually means this user has no registered push device
+      // (e.g. they're using the web app, where the native OneSignal SDK isn't available).
+      return createJsonResponse({
+        success: true,
+        delivered: false,
+        reason: 'no_registered_device',
+        message: 'No push-enabled device is registered for this account.',
+      });
     }
 
     return createJsonResponse({ 
       success: true, 
+      delivered: true,
       message: 'Test push notification sent!',
     });
+
   } catch (error) {
     console.error('Error in test-push-notification:', error);
     return createErrorResponse(error as Error);
