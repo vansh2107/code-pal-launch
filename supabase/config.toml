@@ -68,3 +68,6 @@ verify_jwt = true
 
 [functions.notification-action]
 verify_jwt = true
+
+[functions.onesignal-diagnose]
+verify_jwt = false
