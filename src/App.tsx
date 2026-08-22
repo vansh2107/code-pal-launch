@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { lazy, Suspense, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
+import { supabase } from "@/integrations/supabase/client";
 
 import AuthEventListener from "./components/auth/AuthEventListener";
 import { OfflineIndicator } from "./components/layout/OfflineIndicator";
@@ -86,9 +87,11 @@ async function initializeBackground() {
       const { initializeStatusBar } = await import("@/lib/statusbar");
       await initializeStatusBar();
 
-      // Initialize OneSignal
-      const { initOneSignal } = await import("@/lib/onesignal");
-      initOneSignal();
+      // Initialize OneSignal (idempotent; registers device once subscribed)
+      const { initOneSignal, registerDeviceWithRetry } = await import("@/lib/onesignal");
+      await initOneSignal();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) void registerDeviceWithRetry(user.id);
 
       // Request permissions (non-blocking)
       const { Camera } = await import("@capacitor/camera");
