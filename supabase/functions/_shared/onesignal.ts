@@ -149,14 +149,9 @@ export async function sendOneSignalNotificationDetailed(
     console.log(`[ONESIGNAL] Response body: ${rawText}`);
 
     const notificationId: string | null = parsed?.id || null;
-    const recipients: number = typeof parsed?.recipients === 'number' ? parsed.recipients : 0;
     const errors = parsed?.errors ?? null;
 
-    console.log(`[ONESIGNAL] Notification ID: ${notificationId || 'none'}`);
-    console.log(`[ONESIGNAL] Recipients accepted: ${recipients}`);
-    if (errors) console.log(`[ONESIGNAL] Error: ${JSON.stringify(errors)}`);
-
-    // OneSignal surfaces dead installs as errors.invalid_player_ids / invalid_external_user_ids
+    // OneSignal surfaces dead installs as errors.invalid_player_ids / invalid_subscription_ids
     const invalid: string[] = Array.isArray(errors?.invalid_player_ids)
       ? errors.invalid_player_ids
       : Array.isArray(errors?.invalid_subscription_ids)
@@ -165,6 +160,18 @@ export async function sendOneSignalNotificationDetailed(
 
     const allUnsubscribed =
       Array.isArray(errors) && errors.some((e: unknown) => typeof e === 'string' && /not subscribed/i.test(e));
+
+    // The current REST API omits `recipients`; derive it from targets minus rejected ids.
+    const recipients: number =
+      typeof parsed?.recipients === 'number'
+        ? parsed.recipients
+        : allUnsubscribed
+          ? 0
+          : subscriptionIds.length - invalid.length;
+
+    console.log(`[ONESIGNAL] Notification ID: ${notificationId || 'none'}`);
+    console.log(`[ONESIGNAL] Recipients accepted: ${recipients}`);
+    if (errors) console.log(`[ONESIGNAL] Error: ${JSON.stringify(errors)}`);
 
     const staleIds = invalid.length > 0 ? invalid : allUnsubscribed ? subscriptionIds : [];
     if (staleIds.length > 0) {
@@ -184,12 +191,11 @@ export async function sendOneSignalNotificationDetailed(
       invalidSubscriptionIds: staleIds,
       reason: success
         ? undefined
-        : allUnsubscribed
-          ? 'All targeted OneSignal subscriptions are unsubscribed or stale (device likely reinstalled). Re-register this device.'
-          : recipients === 0
-            ? 'OneSignal accepted the request but matched 0 recipients'
-            : `OneSignal request failed with status ${response.status}`,
+        : allUnsubscribed || recipients === 0
+          ? 'All targeted OneSignal subscriptions are unsubscribed or stale (device likely reinstalled). Open the app on the device to re-register it.'
+          : `OneSignal request failed with status ${response.status}`,
     };
+
   } catch (error) {
     clearTimeout(timeoutId);
     const isTimeout = error instanceof Error && error.name === 'AbortError';
