@@ -86,9 +86,11 @@ async function initializeBackground() {
       const { initializeStatusBar } = await import("@/lib/statusbar");
       await initializeStatusBar();
 
-      // Initialize OneSignal
-      const { initOneSignal } = await import("@/lib/onesignal");
-      initOneSignal();
+      // Initialize OneSignal (idempotent; registers device once subscribed)
+      const { initOneSignal, registerDeviceWithRetry } = await import("@/lib/onesignal");
+      await initOneSignal();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) void registerDeviceWithRetry(user.id);
 
       // Request permissions (non-blocking)
       const { Camera } = await import("@capacitor/camera");
