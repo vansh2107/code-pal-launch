@@ -64,101 +64,158 @@ function deepLinkForEntity(entity_type: string | undefined, data: NotifData) {
   return "/";
 }
 
-export const initOneSignal = () => {
-  document.addEventListener("deviceready", () => {
-    console.log("Initializing OneSignal...");
-    OneSignal.initialize(ONESIGNAL_APP_ID);
-    OneSignal.Notifications.requestPermission(true);
+let initialized = false;
+let lastKnownUserId: string | null = null;
 
-    OneSignal.Notifications.addEventListener("click", async (event: any) => {
-      console.log("Notification clicked:", event);
-      const data: NotifData = (event?.notification?.additionalData || {}) as NotifData;
-      const actionId: string | undefined = event?.result?.actionId;
-      const entity = resolveEntity(data);
+function attachListeners() {
+  OneSignal.Notifications.addEventListener("click", async (event: any) => {
+    console.log("[OS] Notification clicked:", event);
+    const data: NotifData = (event?.notification?.additionalData || {}) as NotifData;
+    const actionId: string | undefined = event?.result?.actionId;
+    const entity = resolveEntity(data);
 
-      if (!actionId) {
-        // Body tap → just open app to a useful place
-        const url = deepLinkForEntity(entity?.entity_type, data);
-        window.location.href = url;
-        return;
-      }
+    if (!actionId) {
+      // Body tap → just open app to a useful place
+      const url = deepLinkForEntity(entity?.entity_type, data);
+      window.location.href = url;
+      return;
+    }
 
-      if (!entity) {
-        window.location.href = "/";
-        return;
-      }
+    if (!entity) {
+      window.location.href = "/";
+      return;
+    }
 
-      if (actionId === "complete") {
-        await callAction({ ...entity, action: "complete" });
-        return;
-      }
-      if (actionId === "snooze_1h") {
-        await callAction({ ...entity, action: "snooze", snooze: 60 });
-        return;
-      }
-      if (actionId === "more") {
-        // Open the app to the entity with snooze sheet
-        window.location.href = deepLinkForEntity(entity.entity_type, data);
-        return;
-      }
-      if (actionId === "open_app") {
-        window.location.href = "/";
-      }
-    });
-
-    OneSignal.Notifications.addEventListener("foregroundWillDisplay", (event: any) => {
-      console.log("Notification received in foreground:", event);
-    });
-
-    console.log("OneSignal initialized successfully");
+    if (actionId === "complete") {
+      await callAction({ ...entity, action: "complete" });
+      return;
+    }
+    if (actionId === "snooze_1h") {
+      await callAction({ ...entity, action: "snooze", snooze: 60 });
+      return;
+    }
+    if (actionId === "more") {
+      window.location.href = deepLinkForEntity(entity.entity_type, data);
+      return;
+    }
+    if (actionId === "open_app") {
+      window.location.href = "/";
+    }
   });
+
+  OneSignal.Notifications.addEventListener("foregroundWillDisplay", (event: any) => {
+    console.log("[OS] Notification received in foreground:", event);
+  });
+
+  // Subscription changes are the ONLY reliable moment the subscription id exists.
+  try {
+    OneSignal.User.pushSubscription.addEventListener("change", (event: any) => {
+      const id = event?.current?.id || null;
+      console.log("[OS] pushSubscription change → id:", id, "optedIn:", event?.current?.optedIn);
+      if (id && lastKnownUserId) {
+        void persistPlayerId(lastKnownUserId, id);
+      }
+    });
+  } catch (e) {
+    console.error("[OS] Failed to attach pushSubscription listener", e);
+  }
+}
+
+function doInit() {
+  if (initialized) return;
+  initialized = true;
+  try {
+    console.log("[OS] Initializing OneSignal…", ONESIGNAL_APP_ID);
+    OneSignal.initialize(ONESIGNAL_APP_ID);
+    OneSignal.Notifications.requestPermission(true).then?.((granted: boolean) => {
+      console.log("[OS] requestPermission →", granted);
+    });
+    attachListeners();
+    // If a user is already signed in, start syncing the id right away.
+    if (lastKnownUserId) void savePlayerIdToSupabase(lastKnownUserId);
+    console.log("[OS] OneSignal initialized");
+  } catch (e) {
+    initialized = false;
+    console.error("[OS] OneSignal init failed", e);
+  }
+}
+
+export const initOneSignal = () => {
+  // Capacitor fires `deviceready` for Cordova plugins, but it may already have
+  // fired before this deferred initializer runs — in that case the old
+  // listener-only approach never executed. Handle both cases.
+  if ((window as any).cordova?.plugins || (window as any).plugins || (window as any).cordova) {
+    doInit();
+  }
+  document.addEventListener("deviceready", doInit, { once: true });
+  // Final safety net for slow plugin bridges.
+  setTimeout(doInit, 4000);
 };
 
 export const getPlayerId = async (): Promise<string | null> => {
   try {
-    const subscription = OneSignal.User.pushSubscription;
-    const playerId = subscription.id;
-    return playerId || null;
+    return OneSignal.User.pushSubscription.id || null;
   } catch (error) {
-    console.error("Error getting OneSignal Player ID:", error);
+    console.error("[OS] Error getting OneSignal Player ID:", error);
     return null;
   }
 };
 
-export const savePlayerIdToSupabase = async (userId: string) => {
+async function persistPlayerId(userId: string, playerId: string): Promise<boolean> {
   try {
-    const playerId = await getPlayerId();
-    if (!playerId) return false;
-
     const { data: existing } = await supabase
       .from("onesignal_player_ids")
       .select("id")
       .eq("user_id", userId)
       .eq("player_id", playerId)
-      .single();
+      .maybeSingle();
 
-    if (existing) return true;
+    if (existing) {
+      console.log("[OS] Player ID already stored:", playerId);
+      return true;
+    }
 
     const { error } = await supabase.from("onesignal_player_ids").insert({
       user_id: userId,
       player_id: playerId,
       device_info: navigator.userAgent,
     } as any);
+
     if (error) {
-      console.error("Error saving Player ID:", error);
+      console.error("[OS] Error saving Player ID:", error);
       return false;
     }
+    console.log("[OS] Player ID saved:", playerId);
     return true;
   } catch (error) {
-    console.error("Error in savePlayerIdToSupabase:", error);
+    console.error("[OS] persistPlayerId exception:", error);
     return false;
   }
+}
+
+/**
+ * Poll for the OneSignal subscription id (it is null for a few seconds after
+ * app start) and store it against the signed-in user.
+ */
+export const savePlayerIdToSupabase = async (userId: string): Promise<boolean> => {
+  lastKnownUserId = userId;
+  for (let attempt = 0; attempt < 15; attempt++) {
+    const playerId = await getPlayerId();
+    if (playerId) {
+      return persistPlayerId(userId, playerId);
+    }
+    console.log(`[OS] Subscription id not ready (attempt ${attempt + 1}/15)`);
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  console.warn("[OS] Gave up waiting for OneSignal subscription id");
+  return false;
 };
 
 export const setUserEmail = async (email: string) => {
   try {
     await OneSignal.User.addEmail(email);
   } catch (error) {
-    console.error("Error setting user email:", error);
+    console.error("[OS] Error setting user email:", error);
   }
 };
+

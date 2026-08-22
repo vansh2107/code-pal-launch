@@ -143,9 +143,11 @@ export async function initializeCapacitorPushNotifications(): Promise<void> {
     await PushNotifications.addListener('registration', async (token) => {
       console.log('Capacitor Push registration success, token: ' + token.value);
       
+      // NOTE: backend only accepts 'fcm' | 'onesignal'. On Android the
+      // Capacitor token IS the FCM registration token.
       await registerTokenWithBackend({
         token: token.value,
-        provider: 'capacitor',
+        provider: 'fcm',
         device_info: Capacitor.getPlatform(),
       });
     });
@@ -271,13 +273,19 @@ export async function initializeNotifications(): Promise<void> {
 /**
  * Send a test notification
  */
-export async function sendTestNotification(): Promise<boolean> {
+export interface TestNotificationResult {
+  success: boolean;
+  message: string;
+  diagnostics?: Record<string, unknown>;
+}
+
+export async function sendTestNotification(): Promise<TestNotificationResult> {
   try {
     // Get the current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       console.error('No authenticated user');
-      return false;
+      return { success: false, message: 'You must be signed in.' };
     }
 
     // Try to get OneSignal player ID from localStorage (set by OneSignal in App.tsx)
@@ -292,13 +300,17 @@ export async function sendTestNotification(): Promise<boolean> {
 
     if (error) {
       console.error('Failed to send test notification:', error);
-      return false;
+      return { success: false, message: error.message || 'Edge function error' };
     }
 
-    console.log('Test notification sent:', data);
-    return true;
+    console.log('Test notification result:', data);
+    return {
+      success: !!data?.success,
+      message: data?.message || data?.error || 'Unknown result',
+      diagnostics: data?.diagnostics,
+    };
   } catch (error) {
     console.error('Error sending test notification:', error);
-    return false;
+    return { success: false, message: (error as Error).message };
   }
 }

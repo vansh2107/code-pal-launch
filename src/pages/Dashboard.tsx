@@ -142,13 +142,13 @@ export default function Dashboard() {
   const handleTestNotification = async () => {
     setSendingTest(true);
     try {
-      const success = await sendTestNotification();
+      const result = await sendTestNotification();
       toast({
-        title: success ? "Test notification sent! 📲" : "Failed to send test notification",
-        description: success 
+        title: result.success ? "Test notification sent! 📲" : "Failed to send test notification",
+        description: result.success
           ? "Check your device for the push notification."
-          : "Please make sure notifications are enabled in settings.",
-        variant: success ? "default" : "destructive",
+          : result.message,
+        variant: result.success ? "default" : "destructive",
       });
     } catch (error) {
       console.error('Error sending test notification:', error);
