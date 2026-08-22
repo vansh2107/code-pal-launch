@@ -144,11 +144,9 @@ export default function Dashboard() {
     try {
       const result = await sendTestNotification();
       toast({
-        title: result.success ? "Test notification sent! 📲" : "Failed to send test notification",
-        description: result.success
-          ? "Check your device for the push notification."
-          : result.message,
-        variant: result.success ? "default" : "destructive",
+        title: result.ok ? "Test notification sent! 📲" : "Couldn't send test notification",
+        description: result.message,
+        variant: result.ok ? "default" : "destructive",
       });
     } catch (error) {
       console.error('Error sending test notification:', error);
@@ -157,6 +155,7 @@ export default function Dashboard() {
       setSendingTest(false);
     }
   };
+
 
   const profileAvatar = (
     <Link to="/profile" aria-label="Open profile" className="shrink-0 block">
