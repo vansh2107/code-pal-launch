@@ -268,37 +268,59 @@ export async function initializeNotifications(): Promise<void> {
   }
 }
 
+export interface TestNotificationResult {
+  ok: boolean;
+  channel: 'push' | 'local' | 'none';
+  message: string;
+}
+
 /**
- * Send a test notification
+ * Send a test notification.
+ * Tries a real push via the backend first; if the account has no registered
+ * push device (typical on web), falls back to a local browser notification.
  */
-export async function sendTestNotification(): Promise<boolean> {
+export async function sendTestNotification(): Promise<TestNotificationResult> {
   try {
-    // Get the current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.error('No authenticated user');
-      return false;
+      return { ok: false, channel: 'none', message: 'You need to be signed in.' };
     }
 
-    // Try to get OneSignal player ID from localStorage (set by OneSignal in App.tsx)
-    const playerId = localStorage.getItem('onesignal_player_id');
-    
-    console.log('Sending test notification to user:', user.id);
-    console.log('OneSignal Player ID:', playerId || 'Not available');
-
     const { data, error } = await supabase.functions.invoke('test-push-notification', {
-      body: { userId: user.id }
+      body: { userId: user.id },
     });
 
     if (error) {
       console.error('Failed to send test notification:', error);
-      return false;
+      return { ok: false, channel: 'none', message: 'Notification service is unavailable right now.' };
     }
 
-    console.log('Test notification sent:', data);
-    return true;
+    if (data?.delivered) {
+      return { ok: true, channel: 'push', message: 'Check your device for the push notification.' };
+    }
+
+    // No push device registered → show a local notification so the test is still useful
+    const granted = await requestNotificationPermission();
+    if (granted) {
+      new Notification('Remonk Reminder', {
+        body: 'Test notification working 🎉 Push on this device uses your browser notifications.',
+        icon: '/favicon.ico',
+      });
+      return {
+        ok: true,
+        channel: 'local',
+        message: 'Shown as a browser notification (no push-enabled device registered yet).',
+      };
+    }
+
+    return {
+      ok: false,
+      channel: 'none',
+      message: 'Allow notifications in your browser, or open the mobile app to receive push notifications.',
+    };
   } catch (error) {
     console.error('Error sending test notification:', error);
-    return false;
+    return { ok: false, channel: 'none', message: 'Something went wrong sending the test.' };
   }
 }
+
