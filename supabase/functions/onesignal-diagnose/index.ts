@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
 
     let sendResult: unknown = null;
     if (send) {
-      const valid = (checks as any[]).filter((c) => c.invalid_identifier === false).map((c) => c.subscription_id);
+      const valid = send === 'all' ? ids : (checks as any[]).filter((c) => c.invalid_identifier === false).map((c) => c.subscription_id);
       const res = await fetch('https://api.onesignal.com/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Key ${apiKey.trim()}` },
