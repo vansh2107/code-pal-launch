@@ -14,15 +14,23 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const authClient = createClient(supabaseUrl, supabaseKey);
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: userError } = await authClient.auth.getUser(token);
     
     if (userError || !user) {
       console.error('Authentication failed:', userError);
       return createErrorResponse('Not authenticated', 401);
     }
+
+    // Write with service role (validated user id below) so RLS/grants can't
+    // silently drop a valid device registration.
+    const supabase = createClient(
+      supabaseUrl,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
 
     const body = await req.json();
     const deviceToken: string | undefined = body?.token;
