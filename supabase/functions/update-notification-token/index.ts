@@ -13,11 +13,13 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: userError } = await authClient.auth.getUser(token);
     
     if (userError || !user) {
       console.error('Authentication failed:', userError);
@@ -34,10 +36,20 @@ Deno.serve(async (req) => {
       return createErrorResponse('Invalid provider. Only onesignal provider is supported now.', 400, req);
     }
 
+    if (typeof deviceToken !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deviceToken)) {
+      return createErrorResponse('Invalid OneSignal subscription ID', 400, req);
+    }
+
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!serviceKey) return createErrorResponse('Notification service is not configured', 500, req);
+    const serviceClient = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
     console.log(`Registering ${provider} token for user ${user.id}`);
 
     // Upsert the notification token
-    const { error: upsertError } = await supabase
+    const { error: upsertError } = await serviceClient
       .from('notification_tokens')
       .upsert({
         user_id: user.id,
@@ -53,6 +65,17 @@ Deno.serve(async (req) => {
       console.error('Failed to save notification token:', upsertError);
       return createErrorResponse('Failed to save notification token', 500, req);
     }
+
+    const { error: legacyError } = await serviceClient
+      .from('onesignal_player_ids')
+      .upsert({
+        user_id: user.id,
+        player_id: deviceToken,
+        device_info: device_info || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'player_id' });
+
+    if (legacyError) console.warn('Could not mirror legacy OneSignal registration:', legacyError);
 
     console.log(`Successfully registered ${provider} token for user ${user.id}`);
 

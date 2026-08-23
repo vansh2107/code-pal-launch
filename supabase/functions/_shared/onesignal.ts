@@ -12,6 +12,15 @@ interface OneSignalPayload {
   url?: string;
 }
 
+export interface OneSignalSendResult {
+  delivered: boolean;
+  reason: 'sent' | 'no_registered_device' | 'credentials_missing' | 'database_error' | 'provider_rejected' | 'timeout' | 'unexpected_error';
+  recipients: number;
+  message: string;
+  providerStatus?: number;
+  providerId?: string;
+}
+
 /**
  * Send push notification via OneSignal
  */
@@ -19,13 +28,21 @@ export async function sendOneSignalNotification(
   supabase: SupabaseClient,
   payload: OneSignalPayload
 ): Promise<boolean> {
+  const result = await sendOneSignalNotificationDetailed(supabase, payload);
+  return result.delivered;
+}
+
+export async function sendOneSignalNotificationDetailed(
+  supabase: SupabaseClient,
+  payload: OneSignalPayload
+): Promise<OneSignalSendResult> {
   try {
     const appId = Deno.env.get('ONESIGNAL_APP_ID');
     const apiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
 
     if (!appId || !apiKey) {
       console.error('OneSignal credentials not configured');
-      return false;
+      return { delivered: false, reason: 'credentials_missing', recipients: 0, message: 'OneSignal credentials are not configured.' };
     }
 
     // Fetch OneSignal player IDs for the user from both tables
@@ -40,6 +57,12 @@ export async function sendOneSignalNotification(
         .select('player_id')
         .eq('user_id', payload.userId)
     ]);
+
+    if (tokenResult.error || playerResult.error) {
+      const message = tokenResult.error?.message || playerResult.error?.message || 'Could not read registered devices.';
+      console.error('OneSignal device lookup failed:', message);
+      return { delivered: false, reason: 'database_error', recipients: 0, message };
+    }
 
     const playerIds: string[] = [];
     
@@ -56,7 +79,7 @@ export async function sendOneSignalNotification(
 
     if (uniquePlayerIds.length === 0) {
       console.log(`No OneSignal player IDs found for user ${payload.userId}`);
-      return false;
+      return { delivered: false, reason: 'no_registered_device', recipients: 0, message: 'No push-enabled device is registered for this account.' };
     }
 
     console.log(`Sending OneSignal notification to ${uniquePlayerIds.length} device(s)`);
@@ -98,19 +121,24 @@ export async function sendOneSignalNotification(
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OneSignal notification failed:', response.status, errorText);
-      return false;
+      return { delivered: false, reason: 'provider_rejected', recipients: 0, message: `OneSignal rejected the notification: ${errorText}`, providerStatus: response.status };
     }
 
     const result = await response.json();
     console.log('OneSignal notification result:', result);
 
-    return result.id !== undefined;
+    const recipients = typeof result.recipients === 'number' ? result.recipients : 0;
+    if (!result.id || recipients === 0) {
+      return { delivered: false, reason: 'provider_rejected', recipients, message: 'OneSignal accepted the request but did not deliver it to any subscribed device.', providerId: result.id };
+    }
+    return { delivered: true, reason: 'sent', recipients, message: 'Push notification sent.', providerId: result.id };
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       console.error('OneSignal notification timeout');
+      return { delivered: false, reason: 'timeout', recipients: 0, message: 'OneSignal timed out.' };
     } else {
       console.error('OneSignal notification exception:', error);
+      return { delivered: false, reason: 'unexpected_error', recipients: 0, message: error instanceof Error ? error.message : 'Unexpected OneSignal error.' };
     }
-    return false;
   }
 }

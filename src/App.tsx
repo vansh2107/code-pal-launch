@@ -88,7 +88,7 @@ async function initializeBackground() {
 
       // Initialize OneSignal
       const { initOneSignal } = await import("@/lib/onesignal");
-      initOneSignal();
+      await initOneSignal();
 
       // Request permissions (non-blocking)
       const { Camera } = await import("@capacitor/camera");
