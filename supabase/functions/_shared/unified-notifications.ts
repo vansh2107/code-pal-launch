@@ -8,6 +8,7 @@ export interface UnifiedNotificationResult {
   provider: 'onesignal' | 'none';
   playerIds: string[];
   recipients: number;
+  notificationId?: string;
   error?: string;
 }
 
