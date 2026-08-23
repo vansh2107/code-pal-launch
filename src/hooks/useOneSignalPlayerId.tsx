@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { getPlayerId } from '@/lib/onesignal';
+import { getPlayerId, linkOneSignalUser } from '@/lib/onesignal';
 
 /**
  * Hook to manage OneSignal Player ID registration
