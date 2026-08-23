@@ -33,6 +33,7 @@ export async function sendUnifiedNotificationDetailed(
     provider: result.playerIds.length > 0 ? 'onesignal' : 'none',
     playerIds: result.playerIds,
     recipients: result.recipients,
+    ...(result.notificationId ? { notificationId: result.notificationId } : {}),
     ...(result.error ? { error: result.error } : {}),
   };
 
