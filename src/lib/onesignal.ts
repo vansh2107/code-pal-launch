@@ -130,8 +130,33 @@ export const getPlayerId = async (): Promise<string | null> => {
   return null;
 };
 
+/**
+ * Link this device to the Supabase user id as the OneSignal external_id.
+ * The backend targets `include_aliases: { external_id: [userId] }`, so this
+ * makes pushes work even if no player id row was ever stored.
+ */
+export const linkOneSignalUser = async (userId: string) => {
+  try {
+    await OneSignal.login(userId);
+    console.log("OneSignal external_id linked:", userId);
+    return true;
+  } catch (error) {
+    console.error("Error linking OneSignal external_id:", error);
+    return false;
+  }
+};
+
+export const unlinkOneSignalUser = async () => {
+  try {
+    await OneSignal.logout();
+  } catch (error) {
+    console.error("Error unlinking OneSignal external_id:", error);
+  }
+};
+
 export const savePlayerIdToSupabase = async (userId: string) => {
   try {
+    await linkOneSignalUser(userId);
     const playerId = await getPlayerId();
     if (!playerId) return false;
 
