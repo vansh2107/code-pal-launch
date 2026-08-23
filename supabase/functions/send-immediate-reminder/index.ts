@@ -77,7 +77,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("Reminder or document not found:", reminder_id);
       return new Response(
         JSON.stringify({ message: "Reminder not found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 404 }
       );
     }
 
@@ -104,7 +104,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("Profile not found for user:", reminder.user_id);
       return new Response(
         JSON.stringify({ message: "Profile not found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 404 }
       );
     }
 
@@ -115,7 +115,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Skipping reminder ${reminder.id} - notifications disabled or no email`);
       return new Response(
         JSON.stringify({ message: "Notifications disabled for user" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -124,7 +124,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Reminder ${reminder.id} already sent`);
       return new Response(
         JSON.stringify({ message: "Reminder already sent" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 200 }
       );
     }
 

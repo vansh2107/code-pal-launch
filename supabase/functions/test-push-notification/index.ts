@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { sendUnifiedNotification } from '../_shared/unified-notifications.ts';
+import { sendOneSignalNotificationDetailed } from '../_shared/onesignal.ts';
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 Deno.serve(async (req) => {
@@ -36,30 +36,30 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const serviceSupabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const sent = await sendUnifiedNotification(serviceSupabase, {
+    const result = await sendOneSignalNotificationDetailed(serviceSupabase, {
       userId: user.id,
       title: testNotification.title,
-      message: testNotification.message + ' (Test notification sent via FCM/OneSignal! 🎉)',
+       message: testNotification.message + ' (Test notification sent via OneSignal! 🎉)',
       data: {
         type: 'test',
         date: new Date().toISOString(),
       }
     });
 
-    if (!sent) {
-      // Not an error: usually means this user has no registered push device
-      // (e.g. they're using the web app, where the native OneSignal SDK isn't available).
+    if (!result.delivered) {
       return createJsonResponse({
         success: true,
         delivered: false,
-        reason: 'no_registered_device',
-        message: 'No push-enabled device is registered for this account.',
+        reason: result.reason,
+        recipients: result.recipients,
+        message: result.message,
       }, 200, req);
     }
 
     return createJsonResponse({ 
       success: true, 
       delivered: true,
+      recipients: result.recipients,
       message: 'Test push notification sent!',
     }, 200, req);
 
