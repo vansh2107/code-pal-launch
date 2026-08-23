@@ -1,32 +1,16 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { sendFCMNotification } from './fcm.ts';
-import { sendOneSignalNotificationDetailed, type OneSignalResult } from './onesignal.ts';
+import { sendOneSignalNotification } from './onesignal.ts';
 import type { NotificationPayload } from './types.ts';
 
 /**
  * Unified notification sender that automatically detects and uses
  * the available notification provider (FCM or OneSignal) for a user
  */
-export interface UnifiedResult {
-  success: boolean;
-  reason?: string;
-  detail?: string;
-  onesignal?: OneSignalResult;
-  fcm?: boolean;
-}
-
 export async function sendUnifiedNotification(
   supabase: SupabaseClient,
   payload: NotificationPayload
 ): Promise<boolean> {
-  const result = await sendUnifiedNotificationDetailed(supabase, payload);
-  return result.success;
-}
-
-export async function sendUnifiedNotificationDetailed(
-  supabase: SupabaseClient,
-  payload: NotificationPayload
-): Promise<UnifiedResult> {
   try {
     console.log(`Sending unified notification to user ${payload.userId}`);
 
@@ -38,7 +22,7 @@ export async function sendUnifiedNotificationDetailed(
 
     if (error) {
       console.error('Failed to fetch notification tokens:', error);
-      return { success: false, reason: 'db_error', detail: error.message };
+      return false;
     }
 
     const providers = new Set(tokens?.map(t => t.provider) || []);
@@ -56,38 +40,31 @@ export async function sendUnifiedNotificationDetailed(
 
     if (providers.size === 0) {
       console.log(`No notification providers found for user ${payload.userId}`);
-      return {
-        success: false,
-        reason: 'no_subscriptions',
-        detail: 'No push subscription registered for this user',
-      };
+      return false;
     }
 
-    let fcm: boolean | undefined;
-    let onesignal: OneSignalResult | undefined;
+    const results: boolean[] = [];
 
+    // Send via all available providers
     if (providers.has('fcm')) {
-      fcm = await sendFCMNotification(supabase, payload);
-      console.log(`FCM notification result: ${fcm}`);
+      const fcmResult = await sendFCMNotification(supabase, payload);
+      results.push(fcmResult);
+      console.log(`FCM notification result: ${fcmResult}`);
     }
 
     if (providers.has('onesignal')) {
-      onesignal = await sendOneSignalNotificationDetailed(supabase, payload);
-      console.log(`OneSignal notification result: ${onesignal.success}`);
+      const oneSignalResult = await sendOneSignalNotification(supabase, payload);
+      results.push(oneSignalResult);
+      console.log(`OneSignal notification result: ${oneSignalResult}`);
     }
 
-    const success = fcm === true || onesignal?.success === true;
+    // Return true if at least one provider succeeded
+    const success = results.some(r => r === true);
     console.log(`Unified notification ${success ? 'succeeded' : 'failed'} for user ${payload.userId}`);
-
-    return {
-      success,
-      reason: success ? undefined : onesignal?.reason ?? 'send_failed',
-      detail: success ? undefined : onesignal?.detail ?? 'Push provider did not accept the notification',
-      onesignal,
-      fcm,
-    };
+    
+    return success;
   } catch (error) {
     console.error('Error in unified notification sender:', error);
-    return { success: false, reason: 'exception', detail: (error as Error).message };
+    return false;
   }
 }

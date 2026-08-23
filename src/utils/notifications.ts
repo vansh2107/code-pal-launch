@@ -268,63 +268,59 @@ export async function initializeNotifications(): Promise<void> {
   }
 }
 
-/**
- * Send a test notification
- */
-export async function sendTestNotification(): Promise<boolean> {
-  const result = await sendTestNotificationDetailed();
-  return result.success;
+export interface TestNotificationResult {
+  ok: boolean;
+  channel: 'push' | 'local' | 'none';
+  message: string;
 }
 
 /**
- * Send a test notification and surface the real failure reason from the backend
- * (e.g. the OneSignal error) instead of a generic message.
+ * Send a test notification.
+ * Tries a real push via the backend first; if the account has no registered
+ * push device (typical on web), falls back to a local browser notification.
  */
-export async function sendTestNotificationDetailed(): Promise<{ success: boolean; message: string }> {
+export async function sendTestNotification(): Promise<TestNotificationResult> {
   try {
-    // Get the current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.error('No authenticated user');
-      return { success: false, message: 'You must be logged in to send a test notification' };
+      return { ok: false, channel: 'none', message: 'You need to be signed in.' };
     }
-
-    // Try to get OneSignal player ID from localStorage (set by OneSignal in App.tsx)
-    const playerId = localStorage.getItem('onesignal_player_id');
-    
-    console.log('Sending test notification to user:', user.id);
-    console.log('OneSignal Player ID:', playerId || 'Not available');
 
     const { data, error } = await supabase.functions.invoke('test-push-notification', {
-      body: { userId: user.id }
+      body: { userId: user.id },
     });
 
-    // Non-2xx responses come back as FunctionsHttpError — read the JSON body
-    // so the OneSignal reason reaches the UI.
     if (error) {
-      let detail = error.message;
-      try {
-        const ctx = (error as unknown as { context?: Response }).context;
-        if (ctx && typeof ctx.json === 'function') {
-          const body = await ctx.json();
-          detail = body?.error || body?.message || detail;
-        }
-      } catch {
-        // keep the generic message
-      }
-      console.error('Failed to send test notification:', detail, error);
-      return { success: false, message: detail };
+      console.error('Failed to send test notification:', error);
+      return { ok: false, channel: 'none', message: 'Notification service is unavailable right now.' };
     }
 
-    if (data && data.success === false) {
-      console.error('Test notification rejected:', data);
-      return { success: false, message: data.error || 'Failed to send test notification' };
+    if (data?.delivered) {
+      return { ok: true, channel: 'push', message: 'Check your device for the push notification.' };
     }
 
-    console.log('Test notification sent:', data);
-    return { success: true, message: data?.message || 'Test notification sent!' };
+    // No push device registered → show a local notification so the test is still useful
+    const granted = await requestNotificationPermission();
+    if (granted) {
+      new Notification('Remonk Reminder', {
+        body: 'Test notification working 🎉 Push on this device uses your browser notifications.',
+        icon: '/favicon.ico',
+      });
+      return {
+        ok: true,
+        channel: 'local',
+        message: 'Shown as a browser notification (no push-enabled device registered yet).',
+      };
+    }
+
+    return {
+      ok: false,
+      channel: 'none',
+      message: 'Allow notifications in your browser, or open the mobile app to receive push notifications.',
+    };
   } catch (error) {
     console.error('Error sending test notification:', error);
-    return { success: false, message: (error as Error).message };
+    return { ok: false, channel: 'none', message: 'Something went wrong sending the test.' };
   }
 }
+
