@@ -46,40 +46,40 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[SendOneSignal] Authenticated user_id: ${userId}`);
+    const sanitizedTitle = sanitizeInput(title);
+    const sanitizedMessage = sanitizeInput(message);
 
     const supabase = createSupabaseClient();
+
     const result = await sendOneSignalNotificationDetailed(supabase, {
       userId,
-      title: sanitizeInput(title),
-      message: sanitizeInput(message),
+      title: sanitizedTitle,
+      message: sanitizedMessage,
       data,
       buttons,
       url,
     });
 
-    if (result.error === 'no_registered_device') {
+    if (!result.success) {
+      console.error('[SendOneSignal] failed', JSON.stringify(result));
       return createJsonResponse({
         success: false,
-        message: 'No OneSignal player IDs registered for user',
-        player_ids_found: 0,
-      }, 200, req);
-    }
-
-    if (!result.success) {
-      console.error('[SendOneSignal] Delivery failed:', result.error);
-      return createErrorResponse(result.error ?? 'Failed to send notification', 502, req);
+        error: result.error,
+        details: result.raw,
+      }, 502, req);
     }
 
     return createJsonResponse({
       success: true,
-      message: `Sent to ${result.recipients} device(s)`,
-      recipients: result.recipients,
-      subscription_ids: result.playerIds,
-      notification_id: result.notificationId,
-      details: result,
+      target: result.target,
+      notificationId: result.notificationId,
+      details: result.raw,
     }, 200, req);
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('OneSignal request timeout');
+      return createErrorResponse('OneSignal request timeout', 504, req);
+    }
     console.error('Error in send-onesignal-notification:', error);
     return createErrorResponse(error as Error, 500, req);
   }
