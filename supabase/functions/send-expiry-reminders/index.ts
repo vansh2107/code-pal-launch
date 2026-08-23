@@ -7,14 +7,11 @@ const sendGridEndpoint = 'https://api.sendgrid.com/v3/mail/send';
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { handleCorsOptions, getCorsHeaders } from "../_shared/cors.ts";
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions(req);
   }
 
   // Validate cron secret to prevent unauthorized invocation
@@ -24,7 +21,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.error("Unauthorized access attempt to send-expiry-reminders");
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 401, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 
@@ -224,21 +221,20 @@ const handler = async (req: Request): Promise<Response> => {
         // Also send push notification if user has push enabled
         if (userPrefs?.push_notifications_enabled) {
           try {
-            const pushResponse = await supabase.functions.invoke('send-onesignal-notification', {
-              body: {
-                userId: reminder.user_id,
-                title: `📅 Document Expiring Soon`,
-                message: `${document.name} expires in ${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'}`,
-                data: {
-                  documentId: reminder.document_id,
-                  type: 'expiry_reminder',
-                  expiryDate: document.expiry_date
-                }
+            const { sendOneSignalNotification } = await import('../_shared/onesignal.ts');
+            const pushSuccess = await sendOneSignalNotification(supabase, {
+              userId: reminder.user_id,
+              title: `📅 Document Expiring Soon`,
+              message: `${document.name} expires in ${daysUntilExpiry} ${daysUntilExpiry === 1 ? 'day' : 'days'}`,
+              data: {
+                documentId: reminder.document_id,
+                type: 'expiry_reminder',
+                expiryDate: document.expiry_date
               }
             });
             
-            if (pushResponse.error) {
-              console.error('Error sending OneSignal push notification:', pushResponse.error);
+            if (!pushSuccess) {
+              console.error('Failed to send OneSignal push notification');
             } else {
               console.log('OneSignal push notification sent successfully');
             }
@@ -280,7 +276,7 @@ const handler = async (req: Request): Promise<Response> => {
         total: reminders.length
       }),
       { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }, 
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, 
         status: 200 
       }
     );
@@ -291,7 +287,7 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({ error: error.message }),
       {
         status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+        headers: { "Content-Type": "application/json", ...getCorsHeaders(req) },
       }
     );
   }

@@ -32,11 +32,6 @@
             android:name="onesignal_app_id"
             android:value="8cced195-0fd2-487f-9f10-2a8bc898ff4e" />
 
-        <!-- Required for OneSignal -->
-        <meta-data
-            android:name="onesignal_google_project_number"
-            android:value="REMOTE" />
-
         <!-- Firebase Notification Icon -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
@@ -73,15 +68,6 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-
-        <!-- FCM Messaging Service -->
-        <service
-            android:name=".MainMessagingService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
 
     </application>
 

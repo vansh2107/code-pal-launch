@@ -65,11 +65,8 @@ function deepLinkForEntity(entity_type: string | undefined, data: NotifData) {
 }
 
 export const initOneSignal = () => {
-  document.addEventListener("deviceready", () => {
-    console.log("Initializing OneSignal...");
-    OneSignal.initialize(ONESIGNAL_APP_ID);
-    OneSignal.Notifications.requestPermission(true);
-
+  console.log("Initializing OneSignal listeners...");
+  try {
     OneSignal.Notifications.addEventListener("click", async (event: any) => {
       console.log("Notification clicked:", event);
       const data: NotifData = (event?.notification?.additionalData || {}) as NotifData;
@@ -110,19 +107,27 @@ export const initOneSignal = () => {
       console.log("Notification received in foreground:", event);
     });
 
-    console.log("OneSignal initialized successfully");
-  });
+    console.log("OneSignal listeners set up successfully");
+  } catch (error) {
+    console.error("Error setting up OneSignal event listeners:", error);
+  }
 };
 
 export const getPlayerId = async (): Promise<string | null> => {
-  try {
-    const subscription = OneSignal.User.pushSubscription;
-    const playerId = subscription.id;
-    return playerId || null;
-  } catch (error) {
-    console.error("Error getting OneSignal Player ID:", error);
-    return null;
+  for (let i = 0; i < 30; i++) { // Poll for up to 15 seconds (30 * 500ms)
+    try {
+      const subscription = OneSignal.User.pushSubscription;
+      const playerId = subscription?.id;
+      if (playerId) {
+        return playerId;
+      }
+    } catch (error) {
+      // Ignore errors during initial phases while native bridges load
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
   }
+  console.warn("OneSignal player ID not available after polling");
+  return null;
 };
 
 export const savePlayerIdToSupabase = async (userId: string) => {
@@ -135,7 +140,7 @@ export const savePlayerIdToSupabase = async (userId: string) => {
       .select("id")
       .eq("user_id", userId)
       .eq("player_id", playerId)
-      .single();
+      .maybeSingle();
 
     if (existing) return true;
 

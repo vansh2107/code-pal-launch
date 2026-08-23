@@ -3,34 +3,22 @@ import type { NotificationPayload } from './types.ts';
 
 const ONESIGNAL_TIMEOUT_MS = 10000;
 
+import { sendOneSignalNotification } from './onesignal.ts';
+
 export async function sendPushNotification(
   supabase: SupabaseClient,
   payload: NotificationPayload
 ): Promise<boolean> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), ONESIGNAL_TIMEOUT_MS);
-
-    const cronSecret = Deno.env.get('CRON_SECRET');
-    const { error } = await supabase.functions.invoke('send-onesignal-notification', {
-      body: payload,
-      headers: cronSecret ? { 'x-cron-secret': cronSecret } : undefined,
+    return await sendOneSignalNotification(supabase, {
+      userId: payload.userId,
+      title: payload.title,
+      message: payload.message,
+      data: payload.data ? Object.fromEntries(Object.entries(payload.data).map(([k, v]) => [k, String(v)])) : undefined,
+      buttons: payload.buttons
     });
-    
-    clearTimeout(timeoutId);
-    
-    if (error) {
-      console.error('Push notification error:', error);
-      return false;
-    }
-    
-    return true;
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('Push notification timeout');
-    } else {
-      console.error('Push notification exception:', error);
-    }
+    console.error('Push notification exception:', error);
     return false;
   }
 }

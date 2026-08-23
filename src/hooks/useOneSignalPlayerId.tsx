@@ -2,15 +2,10 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import despia from 'despia-native';
+import { getPlayerId } from '@/lib/onesignal';
 
 /**
  * Hook to manage OneSignal Player ID registration
- * 
- * This hook manages OneSignal Player IDs for push notifications.
- * In Despia native apps, the Player ID is available via window.despia.onesignalplayerid
- * 
- * Note: Automatic registration only works in Despia native mobile app environment
  */
 export const useOneSignalPlayerId = () => {
   const { user } = useAuth();
@@ -22,21 +17,21 @@ export const useOneSignalPlayerId = () => {
       if (!user) return;
 
       try {
-        // Get OneSignal Player ID from Despia SDK
-        const playerIdFromDespia = despia.onesignalplayerid;
+        // Get OneSignal Player ID via SDK polling
+        const playerIdFromSDK = await getPlayerId();
         
-        if (!playerIdFromDespia) {
+        if (!playerIdFromSDK) {
           console.log('No OneSignal Player ID available yet');
           return;
         }
 
-        setPlayerId(playerIdFromDespia);
+        setPlayerId(playerIdFromSDK);
 
         // Check if player ID already exists
         const { data: existingPlayerId } = await supabase
           .from('onesignal_player_ids')
           .select('id')
-          .eq('player_id', playerIdFromDespia)
+          .eq('player_id', playerIdFromSDK)
           .maybeSingle();
 
         if (existingPlayerId) {
@@ -50,7 +45,7 @@ export const useOneSignalPlayerId = () => {
           .from('onesignal_player_ids')
           .insert({
             user_id: user.id,
-            player_id: playerIdFromDespia,
+            player_id: playerIdFromSDK,
             device_info: navigator.userAgent,
           } as any);
 

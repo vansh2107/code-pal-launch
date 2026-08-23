@@ -6,14 +6,14 @@ import type { NotificationPayload } from '../_shared/types.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return handleCorsOptions();
+    return handleCorsOptions(req);
   }
 
   try {
     const { userId, title, message, data, buttons, url }: NotificationPayload = await req.json();
     
     if (!userId || !title || !message) {
-      return createErrorResponse('Missing required fields: userId, title, message', 400);
+      return createErrorResponse('Missing required fields: userId, title, message', 400, req);
     }
 
     // Authorization: allow either
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     if (!isServerCall) {
       const authHeader = req.headers.get('Authorization');
       if (!authHeader?.startsWith('Bearer ')) {
-        return createErrorResponse('Unauthorized', 401);
+        return createErrorResponse('Unauthorized', 401, req);
       }
       const token = authHeader.replace('Bearer ', '');
       const authClient = createClient(
@@ -35,13 +35,13 @@ Deno.serve(async (req) => {
       );
       const { data: userData, error: userErr } = await authClient.auth.getUser(token);
       if (userErr || !userData?.user) {
-        return createErrorResponse('Unauthorized', 401);
+        return createErrorResponse('Unauthorized', 401, req);
       }
       if (userData.user.id !== userId) {
         console.error(
           `Forbidden: caller ${userData.user.id} tried to push to ${userId}`
         );
-        return createErrorResponse('Forbidden: cannot send notifications to another user', 403);
+        return createErrorResponse('Forbidden: cannot send notifications to another user', 403, req);
       }
     }
 
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       return createJsonResponse({ 
         success: false, 
         message: 'No OneSignal player IDs registered for user' 
-      });
+      }, 200, req);
     }
 
     const oneSignalAppId = Deno.env.get('ONESIGNAL_APP_ID');
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
 
     const payload: Record<string, unknown> = {
       app_id: oneSignalAppId,
-      include_player_ids: playerIds,
+      include_subscription_ids: playerIds,
       headings: { en: sanitizedTitle },
       contents: { en: sanitizedMessage },
       data: data || {},
@@ -105,13 +105,13 @@ Deno.serve(async (req) => {
       success: true, 
       message: `Sent to ${result.recipients || playerIds.length} devices`,
       details: result
-    });
+    }, 200, req);
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       console.error('OneSignal request timeout');
-      return createErrorResponse('OneSignal request timeout', 504);
+      return createErrorResponse('OneSignal request timeout', 504, req);
     }
     console.error('Error in send-onesignal-notification:', error);
-    return createErrorResponse(error as Error);
+    return createErrorResponse(error as Error, 500, req);
   }
 });

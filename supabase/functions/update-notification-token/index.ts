@@ -3,13 +3,13 @@ import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return handleCorsOptions();
+    return handleCorsOptions(req);
   }
 
   try {
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
-      return createErrorResponse('No authorization header', 401);
+      return createErrorResponse('No authorization header', 401, req);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -21,17 +21,17 @@ Deno.serve(async (req) => {
     
     if (userError || !user) {
       console.error('Authentication failed:', userError);
-      return createErrorResponse('Not authenticated', 401);
+      return createErrorResponse('Not authenticated', 401, req);
     }
 
     const { token: deviceToken, provider, device_info } = await req.json();
 
     if (!deviceToken || !provider) {
-      return createErrorResponse('Missing required fields: token and provider', 400);
+      return createErrorResponse('Missing required fields: token and provider', 400, req);
     }
 
-    if (!['fcm', 'onesignal'].includes(provider)) {
-      return createErrorResponse('Invalid provider. Must be fcm or onesignal', 400);
+    if (provider !== 'onesignal') {
+      return createErrorResponse('Invalid provider. Only onesignal provider is supported now.', 400, req);
     }
 
     console.log(`Registering ${provider} token for user ${user.id}`);
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     if (upsertError) {
       console.error('Failed to save notification token:', upsertError);
-      return createErrorResponse('Failed to save notification token', 500);
+      return createErrorResponse('Failed to save notification token', 500, req);
     }
 
     console.log(`Successfully registered ${provider} token for user ${user.id}`);
@@ -60,9 +60,9 @@ Deno.serve(async (req) => {
       success: true,
       message: 'Notification token registered successfully',
       provider,
-    });
+    }, 200, req);
   } catch (error) {
     console.error('Error in update-notification-token:', error);
-    return createErrorResponse(error as Error);
+    return createErrorResponse(error as Error, 500, req);
   }
 });

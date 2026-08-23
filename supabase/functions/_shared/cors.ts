@@ -5,6 +5,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8080',
   'capacitor://localhost',
   'http://localhost',
+  'https://localhost',
 ];
 
 export function getCorsHeaders(req?: Request): Record<string, string> {

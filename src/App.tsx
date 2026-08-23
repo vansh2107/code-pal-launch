@@ -92,19 +92,13 @@ async function initializeBackground() {
 
       // Request permissions (non-blocking)
       const { Camera } = await import("@capacitor/camera");
-      const { PushNotifications } = await import("@capacitor/push-notifications");
       
       Promise.allSettled([
         Camera.checkPermissions().then(p => {
           if (p.camera === 'prompt' || p.camera === 'prompt-with-rationale') {
             return Camera.requestPermissions({ permissions: ['camera'] });
           }
-        }),
-        PushNotifications.checkPermissions().then(p => {
-          if (p.receive === 'prompt' || p.receive === 'prompt-with-rationale') {
-            return PushNotifications.requestPermissions();
-          }
-        }),
+        })
       ]);
 
       // Listen for app resume to refresh data

@@ -6,10 +6,7 @@ const sendGridEndpoint = 'https://api.sendgrid.com/v3/mail/send';
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { handleCorsOptions, getCorsHeaders } from "../_shared/cors.ts";
 
 interface ReminderPayload {
   reminder_id: string;
@@ -37,7 +34,7 @@ interface ReminderWithDocument {
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions(req);
   }
 
   console.log("Processing immediate reminder email...");
@@ -206,7 +203,7 @@ const handler = async (req: Request): Promise<Response> => {
         reminder_id: reminder.id
       }),
       { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }, 
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, 
         status: 200 
       }
     );
@@ -217,10 +214,10 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({ error: error.message }),
       {
         status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+        headers: { "Content-Type": "application/json", ...getCorsHeaders(req) },
       }
     );
   }
 };
 
-serve(handler);
+Deno.serve(handler);

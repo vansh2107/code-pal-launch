@@ -66,7 +66,7 @@ export async function sendOneSignalNotification(
 
     const oneSignalMessage: Record<string, unknown> = {
       app_id: appId,
-      include_player_ids: uniquePlayerIds,
+      include_subscription_ids: uniquePlayerIds,
       headings: { en: payload.title },
       contents: { en: payload.message },
       data: payload.data || {},

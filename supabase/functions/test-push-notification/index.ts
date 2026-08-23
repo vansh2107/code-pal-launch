@@ -5,13 +5,13 @@ import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return handleCorsOptions();
+    return handleCorsOptions(req);
   }
 
   try {
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
-      return createErrorResponse('No authorization header', 401);
+      return createErrorResponse('No authorization header', 401, req);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     
     if (userError || !user) {
       console.error('Authentication failed:', userError);
-      return createErrorResponse('Not authenticated', 401);
+      return createErrorResponse('Not authenticated', 401, req);
     }
 
     console.log('Sending test OneSignal notification for user:', user.id);
@@ -54,17 +54,17 @@ Deno.serve(async (req) => {
         delivered: false,
         reason: 'no_registered_device',
         message: 'No push-enabled device is registered for this account.',
-      });
+      }, 200, req);
     }
 
     return createJsonResponse({ 
       success: true, 
       delivered: true,
       message: 'Test push notification sent!',
-    });
+    }, 200, req);
 
   } catch (error) {
     console.error('Error in test-push-notification:', error);
-    return createErrorResponse(error as Error);
+    return createErrorResponse(error as Error, 500, req);
   }
 });

@@ -68,3 +68,6 @@ verify_jwt = true
 
 [functions.notification-action]
 verify_jwt = true
+
+[functions.routine-step-reminder]
+verify_jwt = false
