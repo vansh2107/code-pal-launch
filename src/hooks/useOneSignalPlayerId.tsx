@@ -17,6 +17,10 @@ export const useOneSignalPlayerId = () => {
       if (!user) return;
 
       try {
+        // Link this device to the Supabase user id (OneSignal external_id)
+        // so the backend can target the user even without a stored player id.
+        await linkOneSignalUser(user.id);
+
         // Get OneSignal Player ID via SDK polling
         const playerIdFromSDK = await getPlayerId();
         
