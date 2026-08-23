@@ -1,6 +1,5 @@
 const ALLOWED_ORIGINS = [
-  'https://code-pal-launch.lovable.app',
-  'https://id-preview--d1222ad6-92d1-4962-bb68-850db4ca7052.lovable.app',
+  'https://blank-canvas-coming.lovable.app',
   'http://localhost:5173',
   'http://localhost:8080',
   'capacitor://localhost',
@@ -8,15 +7,28 @@ const ALLOWED_ORIGINS = [
   'https://localhost',
 ];
 
+// Any Lovable preview/published origin is allowed (project sandboxes rotate hosts)
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^https:\/\/([a-z0-9-]+\.)*lovable\.app$/i,
+  /^https:\/\/([a-z0-9-]+\.)*lovableproject\.com$/i,
+  /^https:\/\/([a-z0-9-]+\.)*lovable\.dev$/i,
+];
+
 export function getCorsHeaders(req?: Request): Record<string, string> {
   const origin = req?.headers?.get('origin') || '';
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const isAllowed =
+    ALLOWED_ORIGINS.includes(origin) ||
+    ALLOWED_ORIGIN_PATTERNS.some((re) => re.test(origin));
+  const allowedOrigin = isAllowed ? origin : ALLOWED_ORIGINS[0];
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Vary': 'Origin',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
     'Access-Control-Allow-Credentials': 'true',
   };
 }
+
 
 /** @deprecated Use getCorsHeaders(req) instead for origin-aware CORS */
 export const corsHeaders = {
