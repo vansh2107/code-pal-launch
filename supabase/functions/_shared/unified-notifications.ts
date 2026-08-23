@@ -1,53 +1,62 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { sendOneSignalNotification } from './onesignal.ts';
+import { sendOneSignalNotificationDetailed } from './onesignal.ts';
 import type { NotificationPayload } from './types.ts';
 
+export interface UnifiedNotificationResult {
+  success: boolean;
+  userId: string;
+  provider: 'onesignal' | 'none';
+  playerIds: string[];
+  recipients: number;
+  notificationId?: string;
+  error?: string;
+}
+
 /**
- * Unified notification sender that automatically detects and uses
- * OneSignal for a user.
+ * Unified notification sender.
+ *
+ * Delivery channel is OneSignal. The Supabase user_id is used ONLY to look
+ * up subscription IDs in public.onesignal_player_ids — it is never sent to
+ * OneSignal itself. The lookup happens inside sendOneSignalNotificationDetailed.
+ */
+export async function sendUnifiedNotificationDetailed(
+  supabase: SupabaseClient,
+  payload: NotificationPayload
+): Promise<UnifiedNotificationResult> {
+  console.log(`[Unified] Notification request for authenticated user_id: ${payload.userId}`);
+
+  const result = await sendOneSignalNotificationDetailed(supabase, payload);
+
+  const unified: UnifiedNotificationResult = {
+    success: result.success,
+    userId: payload.userId,
+    provider: result.playerIds.length > 0 ? 'onesignal' : 'none',
+    playerIds: result.playerIds,
+    recipients: result.recipients,
+    ...(result.notificationId ? { notificationId: result.notificationId } : {}),
+    ...(result.error ? { error: result.error } : {}),
+  };
+
+  if (result.playerIds.length === 0) {
+    console.warn(`[Unified] No OneSignal subscription IDs found for user ${payload.userId}`);
+  }
+  console.log(`[Unified] Result for user ${payload.userId}: success=${unified.success} provider=${unified.provider} recipients=${unified.recipients}`);
+
+  return unified;
+}
+
+/**
+ * Boolean wrapper kept for existing callers (reminder schedulers, etc.).
  */
 export async function sendUnifiedNotification(
   supabase: SupabaseClient,
   payload: NotificationPayload
 ): Promise<boolean> {
   try {
-    console.log(`Sending unified notification to user ${payload.userId}`);
-
-    // Check notification_tokens where provider is onesignal
-    const { data: tokens, error } = await supabase
-      .from('notification_tokens')
-      .select('provider')
-      .eq('user_id', payload.userId)
-      .eq('provider', 'onesignal');
-
-    if (error) {
-      console.error('Failed to fetch notification tokens:', error);
-      return false;
-    }
-
-    const hasOneSignalToken = tokens && tokens.length > 0;
-    
-    // Also check onesignal_player_ids table for backward compatibility
-    const { data: playerIds } = await supabase
-      .from('onesignal_player_ids')
-      .select('player_id')
-      .eq('user_id', payload.userId)
-      .limit(1);
-
-    const hasPlayerId = playerIds && playerIds.length > 0;
-
-    if (!hasOneSignalToken && !hasPlayerId) {
-      console.log(`No OneSignal notification channels found for user ${payload.userId}`);
-      return false;
-    }
-
-    const success = await sendOneSignalNotification(supabase, payload);
-    console.log(`OneSignal notification result: ${success}`);
-    console.log(`Unified notification ${success ? 'succeeded' : 'failed'} for user ${payload.userId}`);
-    
-    return success;
+    const result = await sendUnifiedNotificationDetailed(supabase, payload);
+    return result.success;
   } catch (error) {
-    console.error('Error in unified notification sender:', error);
+    console.error('[Unified] Error in unified notification sender:', error);
     return false;
   }
 }

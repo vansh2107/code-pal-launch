@@ -20,11 +20,17 @@
 
     <application
         android:allowBackup="true"
+        android:name=".ApplicationClass"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+
+        <!-- OneSignal App ID -->
+        <meta-data
+            android:name="onesignal_app_id"
+            android:value="8cced195-0fd2-487f-9f10-2a8bc898ff4e" />
 
         <!-- Firebase Notification Icon -->
         <meta-data

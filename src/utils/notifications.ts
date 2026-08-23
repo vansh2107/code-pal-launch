@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
-import { registerDeviceWithRetry } from '@/lib/onesignal';
 
 export interface NotificationToken {
   token: string;
@@ -52,11 +52,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
  */
 export async function initializeNotifications(): Promise<void> {
   try {
-    if (Capacitor.isNativePlatform()) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) await registerDeviceWithRetry(user.id);
-      return;
-    }
+    console.log('Initializing push notifications (OneSignal handles native registration)...');
 
     // Web fallback: Request permission
     const hasPermission = await requestNotificationPermission();
@@ -92,36 +88,15 @@ export async function sendTestNotification(): Promise<TestNotificationResult> {
     });
 
     if (error) {
-      let message = 'Notification service is unavailable right now.';
-      try {
-        const body = await (error as any).context?.json?.();
-        if (body?.error) message = body.error;
-      } catch { /* response body unavailable */ }
-      console.error('[NOTIFICATIONS] Failed to send test notification:', error);
-      return { ok: false, channel: 'none', message };
+      console.error('Failed to send test notification:', error);
+      return { ok: false, channel: 'none', message: 'Notification service is unavailable right now.' };
     }
 
     if (data?.delivered) {
       return { ok: true, channel: 'push', message: 'Check your device for the push notification.' };
     }
 
-    if (Capacitor.isNativePlatform()) {
-      const registered = await registerDeviceWithRetry(user.id);
-      if (registered) {
-        const retry = await supabase.functions.invoke('test-push-notification', { body: {} });
-        if (!retry.error && retry.data?.delivered) {
-          return { ok: true, channel: 'push', message: `Sent to ${retry.data.recipients ?? 1} device.` };
-        }
-      }
-      return {
-        ok: false,
-        channel: 'none',
-        message: data?.message || 'Push permission or device registration is not ready. Allow notifications and try again.',
-      };
-    }
-
-    // Web browsers require a configured web-push subscription. A local notification
-    // still verifies permission/display while the backend reports registration state.
+    // No push device registered → show a local notification so the test is still useful
     const granted = await requestNotificationPermission();
     if (granted) {
       new Notification('Remonk Reminder', {

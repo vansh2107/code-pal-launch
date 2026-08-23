@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Capacitor } from '@capacitor/core';
-import { registerDeviceWithRetry, setUserEmail, unregisterOneSignalUser } from '@/lib/onesignal';
+import { savePlayerIdToSupabase, setUserEmail } from '@/lib/onesignal';
 
 interface AuthContextType {
   user: User | null;
@@ -40,10 +40,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
         setLoading(false);
         
-        // Registration retries until OneSignal assigns this installation a subscription ID.
+        // Register OneSignal Player ID when user logs in (deferred, non-blocking)
         if (session?.user && Capacitor.isNativePlatform()) {
-          void registerDeviceWithRetry(session.user.id);
-          if (session.user.email) void setUserEmail(session.user.email);
+          setTimeout(() => {
+            savePlayerIdToSupabase(session.user.id);
+            if (session.user.email) {
+              setUserEmail(session.user.email);
+            }
+          }, 3000);
         }
       }
     );
@@ -57,8 +61,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
         
         if (session?.user && Capacitor.isNativePlatform()) {
-          void registerDeviceWithRetry(session.user.id);
-          if (session.user.email) void setUserEmail(session.user.email);
+          setTimeout(() => {
+            savePlayerIdToSupabase(session.user.id);
+            if (session.user.email) {
+              setUserEmail(session.user.email);
+            }
+          }, 3000);
         }
       }).catch(() => {
         setLoading(false);
@@ -72,7 +80,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    await unregisterOneSignalUser();
     await supabase.auth.signOut();
   };
 

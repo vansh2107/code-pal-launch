@@ -1,7 +1,6 @@
 const ALLOWED_ORIGINS = [
-  'https://arc-web-creator.lovable.app',
-  'https://id-preview--ecd586e9-7f72-40c2-b6f8-60a8662d5bae.lovable.app',
-  'https://ecd586e9-7f72-40c2-b6f8-60a8662d5bae.lovableproject.com',
+  'https://code-pal-launch.lovable.app',
+  'https://id-preview--d1222ad6-92d1-4962-bb68-850db4ca7052.lovable.app',
   'http://localhost:5173',
   'http://localhost:8080',
   'capacitor://localhost',

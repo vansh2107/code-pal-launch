@@ -61,7 +61,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("No reminders due today");
       return new Response(
         JSON.stringify({ message: "No reminders due today", count: 0 }),
-        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 

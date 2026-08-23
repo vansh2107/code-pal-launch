@@ -31,10 +31,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.test-push-notification]
-verify_jwt = false
-
-[functions.update-notification-token]
-verify_jwt = false
+verify_jwt = true
 
 [functions.delete-user-account]
 verify_jwt = true
