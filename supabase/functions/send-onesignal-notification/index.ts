@@ -1,6 +1,7 @@
 import { createSupabaseClient } from '../_shared/database.ts';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { getOneSignalPlayerIds, sanitizeInput } from '../_shared/notifications.ts';
+import { sanitizeInput } from '../_shared/notifications.ts';
+import { sendOneSignalNotificationDetailed } from '../_shared/onesignal.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import type { NotificationPayload } from '../_shared/types.ts';
 
