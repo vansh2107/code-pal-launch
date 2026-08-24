@@ -66,7 +66,10 @@ export function PageHeader({
   const hasActions = !!(action || secondaryAction || trailing);
 
   const wrapperClasses = cn(
-    "w-full",
+    // NOTE: no `w-full` here — for the sticky variant the negative side margins
+    // must be able to expand the header to the full width of the parent's
+    // padding box. `width:100%` would pin the width and leave the content
+    // inset by the padding, pushing trailing actions away from the right edge.
     variant === "sticky" && [
       "sticky top-0 z-30",
       "bg-background/75 backdrop-blur-xl backdrop-saturate-150",
@@ -74,10 +77,12 @@ export function PageHeader({
       "md:-mx-6 md:px-6 -mx-4 px-4 py-3 md:py-4",
     ],
     variant === "static" && [
+      "w-full",
       "pt-5 md:pt-6 pb-4 md:pb-5",
     ],
     className
   );
+
 
   const titleClasses = cn(
     "font-bold tracking-tight text-foreground",
