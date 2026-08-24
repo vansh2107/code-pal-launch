@@ -149,11 +149,13 @@ export function PageHeader({
         {hasActions && (
           <div
             className={cn(
-              "flex items-center gap-2 shrink-0",
+              "flex items-center gap-2",
+              "flex-none ml-auto",
               "justify-end",
               "w-auto"
             )}
           >
+
             {trailing}
             {secondaryAction}
             {action}
