@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { getPlayerId, linkOneSignalUser } from '@/lib/onesignal';
+import { getPlayerId } from '@/lib/onesignal';
 
 /**
  * Hook to manage OneSignal Player ID registration
@@ -17,10 +17,6 @@ export const useOneSignalPlayerId = () => {
       if (!user) return;
 
       try {
-        // Link this device to the Supabase user id (OneSignal external_id)
-        // so the backend can target the user even without a stored player id.
-        await linkOneSignalUser(user.id);
-
         // Get OneSignal Player ID via SDK polling
         const playerIdFromSDK = await getPlayerId();
         

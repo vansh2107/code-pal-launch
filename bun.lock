@@ -50,7 +50,6 @@
         "cmdk": "^1.1.1",
         "date-fns": "^3.6.0",
         "date-fns-tz": "^3.2.0",
-        "despia-native": "^1.0.14",
         "embla-carousel-react": "^8.6.0",
         "framer-motion": "^12.39.0",
         "idb": "8.0.1",
@@ -897,8 +896,6 @@
     "define-lazy-prop": ["define-lazy-prop@2.0.0", "", {}, "sha512-Ds09qNh8yw3khSjiJjiUInaGX9xlqZDY7JVryGxdxV7NPeuqQfplOpQ66yJFZut3jLa5zOwkXw1g9EI2uKh4Og=="],
 
     "define-properties": ["define-properties@1.2.1", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/define-properties/-/define-properties-1.2.1.tgz", { "dependencies": { "define-data-property": "^1.0.1", "has-property-descriptors": "^1.0.0", "object-keys": "^1.1.1" } }, "sha512-8QmQKqEASLd5nx0U1B1okLElbUuuttJ/AnYmRXbbbGDWh6uS208EjD4Xqq/I9wK7u0v6O08XhTWnt5XtEbR6Dg=="],
-
-    "despia-native": ["despia-native@1.0.14", "", {}, "sha512-UtHb5lsDEd9YNL6ZHth4ACF3cp0E2kLcyzTTptHGyRe4mIpmnS4fu+4YR+rlFGQRGPCdreNJOw1b5ga84YpgwA=="],
 
     "detect-node-es": ["detect-node-es@1.1.0", "", {}, "sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ=="],
 

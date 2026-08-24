@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { sendOneSignalNotificationDetailed } from '../_shared/onesignal.ts';
+import { sendUnifiedNotification } from '../_shared/unified-notifications.ts';
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 Deno.serve(async (req) => {
@@ -36,35 +36,30 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const serviceSupabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const result = await sendOneSignalNotificationDetailed(serviceSupabase, {
+    const sent = await sendUnifiedNotification(serviceSupabase, {
       userId: user.id,
       title: testNotification.title,
-      message: testNotification.message + ' (Test notification 🎉)',
+      message: testNotification.message + ' (Test notification sent via FCM/OneSignal! 🎉)',
       data: {
         type: 'test',
         date: new Date().toISOString(),
-      },
+      }
     });
 
-    console.log(
-      `[TestPush] user=${user.id} success=${result.success} target=${result.target} error=${result.error ?? 'none'}`
-    );
-
-    if (!result.success) {
+    if (!sent) {
+      // Not an error: usually means this user has no registered push device
+      // (e.g. they're using the web app, where the native OneSignal SDK isn't available).
       return createJsonResponse({
-        success: false,
+        success: true,
         delivered: false,
-        reason: result.error || 'onesignal_delivery_failed',
-        message: `OneSignal did not accept the notification: ${result.error ?? 'unknown error'}`,
-        details: result.raw,
-      }, 502, req);
+        reason: 'no_registered_device',
+        message: 'No push-enabled device is registered for this account.',
+      }, 200, req);
     }
 
-    return createJsonResponse({
-      success: true,
+    return createJsonResponse({ 
+      success: true, 
       delivered: true,
-      target: result.target,
-      notificationId: result.notificationId,
       message: 'Test push notification sent!',
     }, 200, req);
 
