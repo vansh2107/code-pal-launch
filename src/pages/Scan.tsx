@@ -136,45 +136,103 @@ export default function Scan() {
     }
   }, [user]);
 
-  // CRITICAL: Force cleanup camera on unmount
-  useEffect(() => {
-    let cancelled = false;
-    mountedRef.current = true;
-    console.log('[Scan] Mounting');
-    
-    return () => {
-      cancelled = true;
-      mountedRef.current = false;
-      console.log('[Scan] Unmounting, cleaning up camera...');
-      
-      // Stop this page's camera
-      stopCameraManager(videoRef.current);
-      
-      // Force stop all cameras as safety net
-      forceStopAllCameras();
-    };
+  // Keep a ref of the live stream so lifecycle listeners never use stale state
+  const streamRef = useRef<MediaStream | null>(null);
+  useEffect(() => { streamRef.current = stream; }, [stream]);
+
+  // Centralized, single source of truth for releasing the camera hardware
+  const stopCameraFully = useCallback((reason: string = "manual") => {
+    console.log(`[Scan] stopCameraFully (${reason})`);
+    // 1. Stop the tracked stream
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    // 2. Stop and detach the video element stream
+    stopCameraManager(videoRef.current);
+    // 3. Safety net: any other stream left in the document
+    forceStopAllCameras();
+    if (mountedRef.current) setStream(null);
   }, []);
 
-  // Cleanup function for camera
-  const cleanupCamera = useCallback(() => {
-    console.log('[Scan] Cleaning up camera...');
-    stopCameraManager(videoRef.current);
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
-    }
-    setStream(null);
-  }, [stream]);
-
-  // Start camera automatically when in camera mode
+  // CRITICAL: Force cleanup camera on unmount
   useEffect(() => {
-    if (scanMode === "camera" && !capturedImage && mountedRef.current) {
+    mountedRef.current = true;
+    console.log('[Scan] Mounting');
+
+    return () => {
+      mountedRef.current = false;
+      console.log('[Scan] Unmounting, cleaning up camera...');
+      stopCameraFully("unmount");
+    };
+  }, [stopCameraFully]);
+
+  // Privacy: release camera whenever page/app is no longer actively visible.
+  // The camera is NOT auto-restarted — the user must explicitly start it again.
+  useEffect(() => {
+    const suspend = (reason: string) => {
+      if (!streamRef.current && !videoRef.current?.srcObject) return;
+      stopCameraFully(reason);
+      setCameraSuspended(true);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") suspend("visibilitychange");
+    };
+    const onPageHide = () => suspend("pagehide");
+    const onFreeze = () => suspend("freeze");
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("freeze", onFreeze);
+    window.addEventListener("beforeunload", onPageHide);
+
+    // Capacitor (Android/iOS) app lifecycle
+    let removeNative: (() => void) | undefined;
+    (async () => {
+      try {
+        const { Capacitor } = await import("@capacitor/core");
+        if (!Capacitor.isNativePlatform()) return;
+        const { App: CapApp } = await import("@capacitor/app");
+        const stateHandle = await CapApp.addListener("appStateChange", ({ isActive }) => {
+          if (!isActive) suspend("appStateChange");
+        });
+        const pauseHandle = await CapApp.addListener("pause", () => suspend("appPause"));
+        removeNative = () => {
+          stateHandle.remove();
+          pauseHandle.remove();
+        };
+      } catch {
+        /* native lifecycle unavailable */
+      }
+    })();
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("freeze", onFreeze);
+      window.removeEventListener("beforeunload", onPageHide);
+      removeNative?.();
+    };
+  }, [stopCameraFully]);
+
+  // Start camera automatically when in camera mode (never after a suspend)
+  useEffect(() => {
+    if (
+      scanMode === "camera" &&
+      !capturedImage &&
+      !cameraSuspended &&
+      mountedRef.current &&
+      document.visibilityState === "visible"
+    ) {
       startCamera();
     }
-    
+
     return () => {
-      cleanupCamera();
+      stopCameraFully("mode-change");
     };
-  }, [scanMode, capturedImage]);
+  }, [scanMode, capturedImage, cameraSuspended, stopCameraFully]);
+
 
   const fetchOrganizations = async () => {
     const { data } = await supabase
