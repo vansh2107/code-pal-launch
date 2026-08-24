@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
-import LayoutProbe from "@/pages/LayoutProbe";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { lazy, Suspense, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
@@ -176,7 +175,6 @@ const App = () => {
                 <Suspense fallback={<PageFallback />}>
                   <Routes>
                     <Route path="/auth" element={<Auth />} />
-                    <Route path="/__layout-probe" element={<LayoutProbe />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
 
                     <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
