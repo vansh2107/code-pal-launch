@@ -21,7 +21,7 @@ import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
 import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
-import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstraints, setupVideoElement, requestCamera, stopMediaStream } from "@/utils/cameraManager";
+import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstraints, setupVideoElement, requestCamera } from "@/utils/cameraManager";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -107,6 +107,7 @@ export default function Scan() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [cameraSuspended, setCameraSuspended] = useState(false);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<string>("personal");
   const mountedRef = useRef(true);
@@ -295,6 +296,7 @@ export default function Scan() {
         }
       }
       setStream(mediaStream);
+      setCameraSuspended(false);
     } catch (err) {
       console.error("Camera error:", err);
       toast({
@@ -307,14 +309,8 @@ export default function Scan() {
   };
 
   const stopCameraLocal = useCallback(() => {
-    // Stop video element stream
-    stopCameraManager(videoRef.current);
-    // Stop tracked stream
-    if (stream) {
-      stopMediaStream(stream);
-      setStream(null);
-    }
-  }, [stream]);
+    stopCameraFully("capture");
+  }, [stopCameraFully]);
 
   const captureImage = () => {
     if (videoRef.current) {
@@ -1113,7 +1109,23 @@ export default function Scan() {
                   muted
                   className="w-full h-full object-cover"
                 />
-                {!stream && (
+                {!stream && cameraSuspended && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-card">
+                    <div className="text-center space-y-3">
+                      <CameraIcon className="h-8 w-8 mx-auto text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground font-medium">Camera was paused</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => startCamera()}
+                      >
+                        <CameraIcon className="h-4 w-4 mr-2" />
+                        Start camera
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {!stream && !cameraSuspended && (
                   <div className="absolute inset-0 flex items-center justify-center bg-card">
                     <div className="text-center space-y-2">
                       <Loader2 className="h-8 w-8 mx-auto text-primary animate-spin" />
