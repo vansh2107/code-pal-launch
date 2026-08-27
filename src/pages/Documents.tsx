@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Plus, Search } from "lucide-react";
+import { FileText, Plus, Search, Building2, Banknote, Heart, GraduationCap, Users, Shield, Folder } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -16,13 +16,6 @@ import { getDocumentStatus } from "@/utils/documentStatus";
 import { SwipeableDocumentCard } from "@/components/document/SwipeableDocumentCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getOfflineDocuments } from "@/utils/offlineStorage";
-import governmentIcon from "@/assets/category-icons/government-icon.png";
-import financialIcon from "@/assets/category-icons/financial-icon.png";
-import personalIcon from "@/assets/category-icons/personal-icon.png";
-import educationIcon from "@/assets/category-icons/education-icon.png";
-import familyIcon from "@/assets/category-icons/family-icon.png";
-import securityIcon from "@/assets/category-icons/security-icon.png";
-import otherIcon from "@/assets/category-icons/other-icon.png";
 
 interface Document {
   id: string;
@@ -35,13 +28,13 @@ interface Document {
 }
 
 const categories = [
-  { id: "government_legal", name: "Government & Legal Renewals", iconSrc: governmentIcon, color: "bg-blue-500/10 text-blue-500", types: ["passport", "passport_renewal", "license", "drivers_license", "permit", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "ticket_fines", "voting_registration"] },
-  { id: "financial_utility", name: "Financial & Utility Renewals", iconSrc: financialIcon, color: "bg-green-500/10 text-green-500", types: ["insurance", "credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card"] },
-  { id: "personal_productivity", name: "Personal Life & Productivity", iconSrc: personalIcon, color: "bg-pink-500/10 text-pink-500", types: ["health_checkup", "medication_refill", "pet_vaccination", "fitness_membership", "library_book", "warranty", "home_maintenance"] },
-  { id: "work_education", name: "Work & Education", iconSrc: educationIcon, color: "bg-indigo-500/10 text-indigo-500", types: ["certification", "professional_license", "training_certificate", "software_license", "student_visa", "course_registration"] },
-  { id: "family_shared", name: "Family & Shared Renewals", iconSrc: familyIcon, color: "bg-primary-soft text-primary", types: ["children_documents", "school_enrollment", "family_insurance", "joint_subscription", "pet_care", "property_lease"] },
-  { id: "digital_security", name: "Digital & Security Renewals", iconSrc: securityIcon, color: "bg-purple-500/10 text-purple-500", types: ["domain_name", "web_hosting", "cloud_storage", "device_warranty", "password_security"] },
-  { id: "other", name: "Other", iconSrc: otherIcon, color: "bg-gray-500/10 text-gray-500", types: ["other"] },
+  { id: "government_legal", name: "Government & Legal Renewals", icon: Building2, color: "bg-blue-500/10 text-blue-500", types: ["passport", "passport_renewal", "license", "drivers_license", "permit", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "ticket_fines", "voting_registration"] },
+  { id: "financial_utility", name: "Financial & Utility Renewals", icon: Banknote, color: "bg-green-500/10 text-green-500", types: ["insurance", "credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card"] },
+  { id: "personal_productivity", name: "Personal Life & Productivity", icon: Heart, color: "bg-pink-500/10 text-pink-500", types: ["health_checkup", "medication_refill", "pet_vaccination", "fitness_membership", "library_book", "warranty", "home_maintenance"] },
+  { id: "work_education", name: "Work & Education", icon: GraduationCap, color: "bg-indigo-500/10 text-indigo-500", types: ["certification", "professional_license", "training_certificate", "software_license", "student_visa", "course_registration"] },
+  { id: "family_shared", name: "Family & Shared Renewals", icon: Users, color: "bg-primary-soft text-primary", types: ["children_documents", "school_enrollment", "family_insurance", "joint_subscription", "pet_care", "property_lease"] },
+  { id: "digital_security", name: "Digital & Security Renewals", icon: Shield, color: "bg-purple-500/10 text-purple-500", types: ["domain_name", "web_hosting", "cloud_storage", "device_warranty", "password_security"] },
+  { id: "other", name: "Other", icon: Folder, color: "bg-gray-500/10 text-gray-500", types: ["other"] },
 ];
 
 const subCategoryNames: Record<string, string> = {
@@ -342,7 +335,7 @@ export default function Documents() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
-                          <img src={category.iconSrc} alt={category.name} className="w-10 h-10 object-contain shrink-0" loading="lazy" />
+                          <category.icon className="w-10 h-10 text-primary stroke-[1.5] shrink-0" />
                           <h3 className="text-sm font-medium text-foreground truncate">{category.name}</h3>
                         </div>
                         <Badge variant="secondary" className="font-semibold shrink-0 ml-2">{count}</Badge>
