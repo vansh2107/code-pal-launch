@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format, subDays } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
+import { parseDateOnly, resolveTimezone } from "@/utils/dateUtils";
 import { formatDuration } from "@/utils/taskDuration";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
@@ -160,7 +161,7 @@ export default function TaskHistory() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-foreground">
-                      {format(new Date(date), "EEEE, MMM d")}
+                      {format(parseDateOnly(date), "EEEE, MMM d")}
                     </h3>
                     <p className="text-xs text-muted-foreground">
                       {dateTasks.length} task{dateTasks.length !== 1 ? "s" : ""}
@@ -185,7 +186,7 @@ export default function TaskHistory() {
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           <span>
-                            {format(toZonedTime(new Date(task.start_time), userTimezone), "h:mm a")}
+                            {format(toZonedTime(new Date(task.start_time), resolveTimezone((task as any).timezone, userTimezone)), "h:mm a")}
                           </span>
                         </div>
                         {task.total_time_minutes && (
