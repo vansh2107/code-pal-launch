@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Capacitor } from '@capacitor/core';
-import { savePlayerIdToSupabase, setUserEmail } from '@/lib/onesignal';
+import { ensurePushRegistration, setUserEmail, logoutOneSignal } from '@/lib/onesignal';
 
 interface AuthContextType {
   user: User | null;
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Register OneSignal Player ID when user logs in (deferred, non-blocking)
         if (session?.user && Capacitor.isNativePlatform()) {
           setTimeout(() => {
-            savePlayerIdToSupabase(session.user.id);
+            ensurePushRegistration(session.user.id, { silent: true });
             if (session.user.email) {
               setUserEmail(session.user.email);
             }
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (session?.user && Capacitor.isNativePlatform()) {
           setTimeout(() => {
-            savePlayerIdToSupabase(session.user.id);
+            ensurePushRegistration(session.user.id, { silent: true });
             if (session.user.email) {
               setUserEmail(session.user.email);
             }
@@ -80,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    await logoutOneSignal();
     await supabase.auth.signOut();
   };
 
