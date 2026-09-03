@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
-import { resolveTimezone } from "@/utils/dateUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AIRecommendations } from "./AIRecommendations";
@@ -47,24 +46,22 @@ const TaskCardComponent = ({ task, statusInfo, funnyMessage, onRefresh, userTime
   const navigate = useNavigate();
   const { toast } = useToast();
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
-  // A task's own stored timezone is authoritative; fall back to the user's.
-  const taskTimezone = resolveTimezone((task as any).timezone, userTimezone);
   const [completionTime, setCompletionTime] = useState(() => {
     const now = new Date();
-    const zoned = toZonedTime(now, resolveTimezone((task as any).timezone, userTimezone));
+    const zoned = toZonedTime(now, userTimezone);
     return format(zoned, "yyyy-MM-dd'T'HH:mm");
   });
 
   const maxCompletionTime = (() => {
     const now = new Date();
-    const zoned = toZonedTime(now, taskTimezone);
+    const zoned = toZonedTime(now, userTimezone);
     return format(zoned, "yyyy-MM-dd'T'HH:mm");
   })();
   const [uploadingImage, setUploadingImage] = useState(false);
   const [completionImage, setCompletionImage] = useState<File | null>(null);
 
   // Convert UTC start time to user's timezone for display
-  const startTimeInUserTz = toZonedTime(new Date(task.start_time), taskTimezone);
+  const startTimeInUserTz = toZonedTime(new Date(task.start_time), userTimezone);
   const displayStartTime = format(startTimeInUserTz, "h:mm a");
 
   const handleComplete = async () => {
@@ -76,7 +73,7 @@ const TaskCardComponent = ({ task, statusInfo, funnyMessage, onRefresh, userTime
       const localDateTime = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes));
       
       // Convert from user's local timezone to UTC for storage
-      const completionUtc = fromZonedTime(localDateTime, taskTimezone).toISOString();
+      const completionUtc = fromZonedTime(localDateTime, userTimezone).toISOString();
 
       // Calculate duration using UTC timestamps
       const durationMinutes = calculateTaskDuration(

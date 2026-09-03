@@ -184,28 +184,3 @@ export function shouldSendRecurringNotification(
   
   return nowUtc >= nextReminderUtc;
 }
-
-/**
- * Parse a plain date string (YYYY-MM-DD) without timezone shifting.
- * Never use `new Date("YYYY-MM-DD")` — that is parsed as UTC midnight.
- */
-export function parseDateOnly(dateStr: string): Date {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  return new Date(year, (month || 1) - 1, day || 1);
-}
-
-/**
- * Resolve the timezone to use for a record: its stored timezone wins,
- * then the user's profile timezone, then the device timezone.
- */
-export function resolveTimezone(
-  recordTimezone?: string | null,
-  fallback?: string | null
-): string {
-  return (
-    recordTimezone ||
-    fallback ||
-    Intl.DateTimeFormat().resolvedOptions().timeZone ||
-    "UTC"
-  );
-}

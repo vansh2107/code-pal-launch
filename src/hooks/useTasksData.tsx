@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getDeviceTimezone, normalizeTimezone } from "@/utils/taskDateTime";
 import {
   getOfflineTasks,
   getOfflineFutureTasks,
@@ -20,6 +21,7 @@ interface Task {
   task_date: string;
   original_date: string;
   local_date: string;
+  timezone: string | null;
 }
 
 // Lighter interface for future tasks (subset of fields)
@@ -32,6 +34,7 @@ interface FutureTask {
   original_date: string;
   status: string;
   image_path: string | null;
+  timezone: string | null;
 }
 
 interface TasksDataState {
@@ -62,7 +65,7 @@ export function useTasksData() {
     tasks: sessionCache.tasks || [],
     futureTasks: sessionCache.futureTasks || [],
     loading: !sessionCache.tasks,
-    userTimezone: sessionCache.userTimezone || "UTC",
+    userTimezone: sessionCache.userTimezone || getDeviceTimezone(),
     error: null,
   });
 
@@ -92,7 +95,7 @@ export function useTasksData() {
         setState({
           tasks: sessionCache.tasks,
           futureTasks: sessionCache.futureTasks || [],
-          userTimezone: sessionCache.userTimezone || "UTC",
+          userTimezone: sessionCache.userTimezone || getDeviceTimezone(),
           loading: false,
           error: null,
         });
@@ -133,7 +136,7 @@ export function useTasksData() {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      const timezone = profile?.timezone || "UTC";
+      const timezone = normalizeTimezone(profile?.timezone) || getDeviceTimezone();
       const today = getTodayInTimezone(timezone);
 
       // Update timezone immediately for faster perceived load
@@ -146,7 +149,7 @@ export function useTasksData() {
         // Fetch today's tasks
         supabase
           .from("tasks")
-          .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date")
+          .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date, timezone")
           .eq("user_id", user.id)
           .eq("task_date", today)
           .order("start_time", { ascending: true })
@@ -154,7 +157,7 @@ export function useTasksData() {
         // Fetch future tasks
         supabase
           .from("tasks")
-          .select("id, title, description, start_time, task_date, original_date, status, image_path")
+          .select("id, title, description, start_time, task_date, original_date, status, image_path, timezone")
           .eq("user_id", user.id)
           .gt("task_date", today)
           .order("task_date", { ascending: true })
@@ -192,7 +195,7 @@ export function useTasksData() {
         if (isMounted.current) {
           supabase
             .from("tasks")
-            .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date")
+            .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date, timezone")
             .eq("user_id", user.id)
             .eq("task_date", today)
             .order("start_time", { ascending: true })
@@ -209,7 +212,7 @@ export function useTasksData() {
       console.error("Error fetching tasks:", error);
       // ── Offline fallback: try IndexedDB before surfacing an error ──
       try {
-        const tz = sessionCache.userTimezone || "UTC";
+        const tz = sessionCache.userTimezone || getDeviceTimezone();
         const today = getTodayInTimezone(tz);
         const [cachedToday, cachedFuture] = await Promise.all([
           getOfflineTasks(today),
@@ -256,7 +259,7 @@ export function useTasksData() {
 
       const { data, error } = await supabase
         .from("tasks")
-        .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date")
+        .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date, timezone")
         .eq("user_id", user.id)
         .eq("task_date", today)
         .order("start_time", { ascending: true })

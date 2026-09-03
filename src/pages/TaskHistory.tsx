@@ -7,8 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format, subDays } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
-import { parseDateOnly, resolveTimezone } from "@/utils/dateUtils";
+import { formatTaskTime, formatDateOnly, resolveTaskTimezone, getDeviceTimezone } from "@/utils/taskDateTime";
 import { formatDuration } from "@/utils/taskDuration";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
@@ -26,6 +25,7 @@ interface Task {
   task_date: string;
   original_date: string;
   local_date: string;
+  timezone?: string | null;
 }
 
 export default function TaskHistory() {
@@ -33,7 +33,7 @@ export default function TaskHistory() {
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userTimezone, setUserTimezone] = useState("UTC");
+  const [userTimezone, setUserTimezone] = useState(getDeviceTimezone());
 
   useEffect(() => {
     fetchUserTimezone();
@@ -161,7 +161,7 @@ export default function TaskHistory() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-foreground">
-                      {format(parseDateOnly(date), "EEEE, MMM d")}
+                      {formatDateOnly(date, "EEEE, MMM d")}
                     </h3>
                     <p className="text-xs text-muted-foreground">
                       {dateTasks.length} task{dateTasks.length !== 1 ? "s" : ""}
@@ -186,7 +186,7 @@ export default function TaskHistory() {
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           <span>
-                            {format(toZonedTime(new Date(task.start_time), resolveTimezone((task as any).timezone, userTimezone)), "h:mm a")}
+                            {formatTaskTime(task.start_time, resolveTaskTimezone(task.timezone, userTimezone))}
                           </span>
                         </div>
                         {task.total_time_minutes && (

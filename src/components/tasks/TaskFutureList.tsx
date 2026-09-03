@@ -1,8 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Calendar } from "lucide-react";
-import { format } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { formatTaskTime, formatDateOnly, resolveTaskTimezone } from "@/utils/taskDateTime";
 import { useNavigate } from "react-router-dom";
 
 interface Task {
@@ -14,6 +13,7 @@ interface Task {
   original_date: string;
   status: string;
   image_path: string | null;
+  timezone?: string | null;
 }
 
 interface TaskFutureListProps {
@@ -48,14 +48,16 @@ export function TaskFutureList({ tasks, userTimezone }: TaskFutureListProps) {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Calendar className="h-4 w-4" />
             <span className="font-medium">
-              {format(new Date(date), "EEEE, MMM d")}
+              {formatDateOnly(date, "EEEE, MMM d")}
             </span>
           </div>
 
           <div className="space-y-2">
             {dateTasks.map((task) => {
-              const startTimeLocal = toZonedTime(new Date(task.start_time), userTimezone);
-              const displayStartTime = format(startTimeLocal, "h:mm a");
+              const displayStartTime = formatTaskTime(
+                task.start_time,
+                resolveTaskTimezone(task.timezone, userTimezone)
+              );
 
               return (
                 <Card

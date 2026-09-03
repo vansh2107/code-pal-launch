@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Upload, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getDeviceTimezone, normalizeTimezone } from "@/utils/taskDateTime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,10 +31,7 @@ export default function EditTask() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // The task's own stored timezone is authoritative for display AND saving.
-  const [timezone, setTimezone] = useState(
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  );
+  const [timezone, setTimezone] = useState(getDeviceTimezone());
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [existingImagePath, setExistingImagePath] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -43,8 +41,28 @@ export default function EditTask() {
   });
 
   useEffect(() => {
+    fetchUserTimezone();
     fetchTask();
   }, [id]);
+
+  const fetchUserTimezone = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("timezone")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        
+        if (profile?.timezone) {
+          setTimezone(normalizeTimezone(profile.timezone) || getDeviceTimezone());
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching timezone:", error);
+    }
+  };
 
   const fetchTask = async () => {
     try {
@@ -66,14 +84,10 @@ export default function EditTask() {
         return;
       }
 
-      // Preserve the timezone the task was created in
-      const taskTimezone =
-        data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-      setTimezone(taskTimezone);
-
-      // Convert UTC timestamp to the task's timezone for display
-      const startTimeLocal = toZonedTime(new Date(data.start_time), taskTimezone);
-
+      // Convert UTC timestamp to user's local timezone for display
+      const startTimeUtc = new Date(data.start_time);
+      const startTimeLocal = toZonedTime(startTimeUtc, data.timezone || timezone);
+      
       // Format for datetime-local input (YYYY-MM-DDTHH:mm)
       const formattedTime = format(startTimeLocal, "yyyy-MM-dd'T'HH:mm");
 
@@ -83,7 +97,6 @@ export default function EditTask() {
         startTime: formattedTime,
       });
       setExistingImagePath(data.image_path);
-
     } catch (error: any) {
       toast({
         title: "Error",

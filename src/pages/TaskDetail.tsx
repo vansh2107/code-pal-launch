@@ -6,10 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { formatTaskTime, formatDateOnly, resolveTaskTimezone, getDeviceTimezone } from "@/utils/taskDateTime";
 import { formatDuration } from "@/utils/taskDuration";
-import { parseDateOnly, resolveTimezone } from "@/utils/dateUtils";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { getSignedUrl } from "@/utils/signedUrl";
 import {
@@ -31,7 +29,7 @@ export default function TaskDetail() {
   const [task, setTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [imageUrl, setImageUrl] = useState<string>("");
-  const [timezone, setTimezone] = useState("UTC");
+  const [profileTimezone, setProfileTimezone] = useState(getDeviceTimezone());
 
   useEffect(() => {
     if (id) fetchAll();
@@ -54,7 +52,7 @@ export default function TaskDetail() {
           .maybeSingle(),
       ]);
 
-      if (profileResult.data?.timezone) setTimezone(profileResult.data.timezone);
+      if (profileResult.data?.timezone) setProfileTimezone(profileResult.data.timezone);
 
       if (taskResult.error) throw taskResult.error;
       if (!taskResult.data) {
@@ -100,10 +98,9 @@ export default function TaskDetail() {
     }
   };
 
-  const formatTimeInTimezone = (utcTime: string) => {
-    const zonedTime = toZonedTime(new Date(utcTime), resolveTimezone(task?.timezone, timezone));
-    return format(zonedTime, "h:mm a");
-  };
+  // Task's own stored timezone is authoritative; profile timezone is only a fallback.
+  const timezone = resolveTaskTimezone(task?.timezone, profileTimezone);
+  const formatTimeInTimezone = (utcTime: string) => formatTaskTime(utcTime, timezone);
 
   if (loading || !task) {
     return (
@@ -200,7 +197,7 @@ export default function TaskDetail() {
               <div>
                 <p className="text-sm font-medium">Task Date</p>
                 <p className="text-sm text-muted-foreground">
-                  {format(parseDateOnly(task.task_date), "EEEE, MMM d, yyyy")}
+                  {formatDateOnly(task.task_date, "EEEE, MMM d, yyyy")}
                 </p>
               </div>
             </div>
@@ -210,7 +207,7 @@ export default function TaskDetail() {
               <div>
                 <p className="text-sm font-medium">Start Time</p>
                 <p className="text-sm text-muted-foreground">
-                  {formatTimeInTimezone(task.start_time)} ({resolveTimezone(task?.timezone, timezone)})
+                  {formatTimeInTimezone(task.start_time)} ({timezone})
                 </p>
               </div>
             </div>
@@ -221,7 +218,7 @@ export default function TaskDetail() {
                 <div>
                   <p className="text-sm font-medium">Completed At</p>
                   <p className="text-sm text-muted-foreground">
-                    {formatTimeInTimezone(task.end_time)} ({resolveTimezone(task?.timezone, timezone)})
+                    {formatTimeInTimezone(task.end_time)} ({timezone})
                   </p>
                 </div>
               </div>
