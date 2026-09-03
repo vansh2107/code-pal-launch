@@ -5,7 +5,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Bell, Clock, Globe } from "lucide-react";
+import { ArrowLeft, Bell, Clock, Globe, Smartphone, CheckCircle2, AlertTriangle, Send } from "lucide-react";
+import { getPushStatus, ensurePushRegistration, requestPushPermission, type PushStatus } from "@/lib/onesignal";
+import { sendTestNotification } from "@/utils/notifications";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,12 +26,74 @@ export default function NotificationSettings() {
   const [weeklyDigest, setWeeklyDigest] = useState(false);
   const [timezone, setTimezone] = useState("UTC");
   const [notificationTime, setNotificationTime] = useState("09:00");
+  const [pushStatus, setPushStatus] = useState<PushStatus | null>(null);
+  const [deviceBusy, setDeviceBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  const refreshPushStatus = async () => {
+    try {
+      setPushStatus(await getPushStatus());
+    } catch (e) {
+      console.error('Failed to read push status', e);
+    }
+  };
 
   useEffect(() => {
     if (user) {
       loadPreferences();
+      refreshPushStatus();
     }
   }, [user]);
+
+  const handleEnableDevice = async () => {
+    if (!user) return;
+    setDeviceBusy(true);
+    try {
+      const granted = await requestPushPermission();
+      if (!granted) {
+        toast({
+          title: "Permission needed",
+          description: "Allow notifications for Remonk in your device settings, then try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const result = await ensurePushRegistration(user.id);
+      await refreshPushStatus();
+
+      if (result.ok) {
+        setPushNotifications(true);
+        toast({ title: "Device registered", description: "This device will now receive push notifications." });
+      } else if (result.reason === 'not_native') {
+        toast({
+          title: "Browser notifications enabled",
+          description: "Install the mobile app to receive push notifications when the app is closed.",
+        });
+      } else {
+        toast({
+          title: "Couldn't register this device",
+          description: "Push service didn't return a device id yet. Reopen the app and try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setDeviceBusy(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const res = await sendTestNotification();
+      toast({
+        title: res.ok ? "Test sent" : "Test failed",
+        description: res.message,
+        variant: res.ok ? undefined : "destructive",
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const loadPreferences = async () => {
     try {
@@ -135,6 +199,58 @@ export default function NotificationSettings() {
       </header>
 
       <main className="px-4 py-6 space-y-6 max-w-2xl mx-auto">
+        {/* Device status */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Smartphone className="h-5 w-5" />
+              This Device
+            </CardTitle>
+            <CardDescription>Push delivery status for the device you're using now</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-3">
+              {pushStatus?.subscriptionId ? (
+                <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-muted-foreground mt-0.5" />
+              )}
+              <div className="text-sm">
+                <p className="font-medium">
+                  {!pushStatus
+                    ? "Checking…"
+                    : !pushStatus.native
+                      ? pushStatus.permission
+                        ? "Browser notifications allowed"
+                        : "Browser notifications blocked"
+                      : pushStatus.subscriptionId
+                        ? "Ready to receive push notifications"
+                        : pushStatus.permission
+                          ? "Permission granted, device not registered yet"
+                          : "Notification permission not granted"}
+                </p>
+                {pushStatus?.subscriptionId && (
+                  <p className="text-muted-foreground break-all">ID: {pushStatus.subscriptionId}</p>
+                )}
+                {pushStatus && !pushStatus.native && (
+                  <p className="text-muted-foreground">
+                    Install the mobile app for reminders when the app is closed.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleEnableDevice} disabled={deviceBusy} size="sm">
+                {deviceBusy ? "Registering…" : pushStatus?.subscriptionId ? "Re-register device" : "Enable on this device"}
+              </Button>
+              <Button onClick={handleTest} variant="outline" size="sm" disabled={testing}>
+                <Send className="h-4 w-4 mr-2" />
+                {testing ? "Sending…" : "Send test"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Notification Channels */}
         <Card>
           <CardHeader>
