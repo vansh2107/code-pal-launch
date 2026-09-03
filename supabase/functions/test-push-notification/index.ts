@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { sendUnifiedNotification } from '../_shared/unified-notifications.ts';
+import { sendUnifiedNotificationDetailed } from '../_shared/unified-notifications.ts';
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 Deno.serve(async (req) => {
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const serviceSupabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const sent = await sendUnifiedNotification(serviceSupabase, {
+    const result = await sendUnifiedNotificationDetailed(serviceSupabase, {
       userId: user.id,
       title: testNotification.title,
       message: testNotification.message + ' (Test notification sent via FCM/OneSignal! 🎉)',
@@ -46,21 +46,29 @@ Deno.serve(async (req) => {
       }
     });
 
-    if (!sent) {
-      // Not an error: usually means this user has no registered push device
-      // (e.g. they're using the web app, where the native OneSignal SDK isn't available).
+    if (!result.success) {
       return createJsonResponse({
         success: true,
         delivered: false,
-        reason: 'no_registered_device',
-        message: 'No push-enabled device is registered for this account.',
+        reason: result.reason,
+        recipients: result.recipients,
+        subscription_ids_found: result.subscriptionIds.length,
+        error: result.error,
+        message:
+          result.reason === 'no_registered_device'
+            ? 'No push-enabled device is registered for this account.'
+            : result.error || 'Push delivery failed.',
       }, 200, req);
     }
 
-    return createJsonResponse({ 
-      success: true, 
+    return createJsonResponse({
+      success: true,
       delivered: true,
-      message: 'Test push notification sent!',
+      reason: result.reason,
+      recipients: result.recipients,
+      subscription_ids_found: result.subscriptionIds.length,
+      notification_id: result.notificationId,
+      message: `Test push notification sent to ${result.recipients} device(s)!`,
     }, 200, req);
 
   } catch (error) {
