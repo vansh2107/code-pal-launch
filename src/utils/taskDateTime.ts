@@ -21,9 +21,9 @@ const TIMEZONE_ALIASES: Record<string, string> = {
   "Asia/Saigon": "Asia/Ho_Chi_Minh",
   "America/Buenos_Aires": "America/Argentina/Buenos_Aires",
   "Europe/Kiev": "Europe/Kyiv",
-  UTC: "UTC",
-  Etc/UTC: "UTC",
-  GMT: "UTC",
+  "UTC": "UTC",
+  "Etc/UTC": "UTC",
+  "GMT": "UTC",
 };
 
 export function getDeviceTimezone(): string {
