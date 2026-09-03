@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,11 +13,15 @@ import { fromZonedTime } from "date-fns-tz";
 import { AppShell, PageHeader } from "@/components/layout/";
 import { clearTasksCache } from "@/hooks/useTasksData";
 
+const getDeviceTimezone = () =>
+  Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
 export default function AddTask() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [timezone, setTimezone] = useState("UTC");
+  // Task input always uses the device timezone; it is stored with the task.
+  const [timezone] = useState(getDeviceTimezone);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState(() => {
     const now = new Date();
@@ -29,28 +33,6 @@ export default function AddTask() {
     };
   });
 
-  useEffect(() => {
-    fetchUserTimezone();
-  }, []);
-
-  const fetchUserTimezone = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("timezone")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        if (profile?.timezone) {
-          setTimezone(profile.timezone);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching timezone:", error);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

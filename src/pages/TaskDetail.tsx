@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { formatDuration } from "@/utils/taskDuration";
+import { parseDateOnly, resolveTimezone } from "@/utils/dateUtils";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { getSignedUrl } from "@/utils/signedUrl";
 import {
@@ -44,7 +45,7 @@ export default function TaskDetail() {
       // Fetch task + timezone in PARALLEL
       const [taskResult, profileResult] = await Promise.all([
         supabase.from("tasks")
-          .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date")
+          .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, timezone")
           .eq("id", id)
           .maybeSingle(),
         supabase.from("profiles")
@@ -100,7 +101,7 @@ export default function TaskDetail() {
   };
 
   const formatTimeInTimezone = (utcTime: string) => {
-    const zonedTime = toZonedTime(new Date(utcTime), timezone);
+    const zonedTime = toZonedTime(new Date(utcTime), resolveTimezone(task?.timezone, timezone));
     return format(zonedTime, "h:mm a");
   };
 
@@ -199,7 +200,7 @@ export default function TaskDetail() {
               <div>
                 <p className="text-sm font-medium">Task Date</p>
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(task.task_date), "EEEE, MMM d, yyyy")}
+                  {format(parseDateOnly(task.task_date), "EEEE, MMM d, yyyy")}
                 </p>
               </div>
             </div>
@@ -209,7 +210,7 @@ export default function TaskDetail() {
               <div>
                 <p className="text-sm font-medium">Start Time</p>
                 <p className="text-sm text-muted-foreground">
-                  {formatTimeInTimezone(task.start_time)} ({timezone})
+                  {formatTimeInTimezone(task.start_time)} ({resolveTimezone(task?.timezone, timezone)})
                 </p>
               </div>
             </div>
@@ -220,7 +221,7 @@ export default function TaskDetail() {
                 <div>
                   <p className="text-sm font-medium">Completed At</p>
                   <p className="text-sm text-muted-foreground">
-                    {formatTimeInTimezone(task.end_time)} ({timezone})
+                    {formatTimeInTimezone(task.end_time)} ({resolveTimezone(task?.timezone, timezone)})
                   </p>
                 </div>
               </div>
