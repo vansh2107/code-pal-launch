@@ -346,7 +346,7 @@ export default function Documents() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 min-w-0">
-                          <category.icon className="w-[34px] h-[34px] text-primary stroke-[1.5] shrink-0" />
+                          <category.icon className="w-10 h-10 text-primary stroke-[1.5] shrink-0" />
                           <h3 className="text-sm font-medium text-foreground truncate">{category.name}</h3>
                         </div>
                         <Badge variant="secondary" className="font-semibold shrink-0 ml-2">{count}</Badge>
