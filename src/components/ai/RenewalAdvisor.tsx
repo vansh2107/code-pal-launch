@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/useAuth";
 import { DocumentStatusInfo } from "@/utils/documentStatus";
+import { FormattedAdvice } from "@/components/ai/FormattedAdvice";
 
 interface RenewalAdvisorProps {
   documentId?: string;

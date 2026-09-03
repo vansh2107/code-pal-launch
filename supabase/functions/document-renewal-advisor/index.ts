@@ -121,7 +121,15 @@ When advising about document renewals:
 5. Be specific to the document type mentioned
 6. When asked about renewal timeline, recommend how many days before expiry to start the process
 
-Keep responses clear, organized, and actionable.`;
+Keep responses clear, organized, and actionable.
+
+Formatting rules (IMPORTANT):
+- Put the most important information first.
+- Use short Markdown sections with ### headings: "What you need", "What to do", and "Important deadlines" where applicable.
+- Use bullet lists for documents and numbered lists for steps.
+- Bold key dates, deadlines, document names, and critical warnings with **bold**.
+- Keep paragraphs short (1-2 sentences max). Avoid repetition and walls of text.
+- Be concise: prefer scannable lists over prose.`;
 
     // Sanitize user inputs
     const safeQuestion = question ? sanitizeInput(question) : '';
