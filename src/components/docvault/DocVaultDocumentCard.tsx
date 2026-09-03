@@ -1,12 +1,13 @@
 import { memo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Trash2, FolderInput, Eye, Star } from "lucide-react";
+import { MoreVertical, Trash2, FolderInput, Eye, Star, Share2, Loader2 } from "lucide-react";
 import { PDFPreview } from "@/components/document/PDFPreview";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -36,7 +37,9 @@ interface DocVaultDocumentCardProps {
   onView: (docId: string) => void;
   onDelete: (docId: string, imagePath: string | null) => void;
   onMove: (document: DocVaultDocument) => void;
+  onShare: (document: DocVaultDocument) => void;
   isDeleting: boolean;
+  isSharing?: boolean;
   showFrequentBadge?: boolean;
 }
 
@@ -46,7 +49,9 @@ export const DocVaultDocumentCard = memo(function DocVaultDocumentCard({
   onView,
   onDelete,
   onMove,
+  onShare,
   isDeleting,
+  isSharing = false,
   showFrequentBadge = false,
 }: DocVaultDocumentCardProps) {
   const isPdf = document.image_path?.toLowerCase().endsWith('.pdf');
@@ -108,6 +113,22 @@ export const DocVaultDocumentCard = memo(function DocVaultDocumentCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {/* Share — only shown when there is a file to share */}
+              {document.image_path && (
+                <>
+                  <DropdownMenuItem
+                    onClick={() => onShare(document)}
+                    disabled={isSharing}
+                  >
+                    {isSharing
+                      ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      : <Share2 className="h-4 w-4 mr-2" />
+                    }
+                    {isSharing ? "Preparing…" : "Share"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onClick={() => onMove(document)}>
                 <FolderInput className="h-4 w-4 mr-2" />
                 Move to Category

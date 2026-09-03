@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadDocumentOriginal } from "@/utils/documentStorage";
+import { shareDocument } from "@/utils/shareDocument";
 
 
 export default function DocVault() {
@@ -34,6 +35,7 @@ export default function DocVault() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [sharingId, setSharingId] = useState<string | null>(null);
   
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [categoryDialogMode, setCategoryDialogMode] = useState<"create" | "rename">("create");
@@ -156,6 +158,18 @@ export default function DocVault() {
     setMoveDialogOpen(true);
   };
 
+  const handleShareDocument = useCallback(async (doc: DocVaultDocument) => {
+    if (sharingId) return; // prevent double-tap
+    setSharingId(doc.id);
+    try {
+      await shareDocument(doc.name, doc.image_path);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Could not share document. Please try again.");
+    } finally {
+      setSharingId(null);
+    }
+  }, [sharingId]);
+
   const handleMoveConfirm = async (categoryId: string | null) => {
     if (!documentToMove) {
       return;
@@ -251,7 +265,9 @@ export default function DocVault() {
                     onView={() => navigate(`/documents/${doc.id}`)}
                     onDelete={handleDeleteDocument}
                     onMove={handleMoveDocument}
+                    onShare={handleShareDocument}
                     isDeleting={deletingId === doc.id}
+                    isSharing={sharingId === doc.id}
                   />
                 ))}
               </div>

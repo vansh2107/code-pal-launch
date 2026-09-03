@@ -13,6 +13,7 @@ import AuthEventListener from "./components/auth/AuthEventListener";
 import { OfflineIndicator } from "./components/layout/OfflineIndicator";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { ThemePreferenceProvider } from "./components/theme/ThemePreferenceProvider";
+import { AppLockGate } from "./components/AppLockGate";
 
 // ── Only eagerly load the landing page (Dashboard) ──
 import Dashboard from "./pages/Dashboard";
@@ -163,6 +164,7 @@ const App = () => {
               <Sonner />
 
               <BrowserRouter>
+                <AppLockGate>
                 <AuthEventListener />
                 <BackgroundInitializer />
                 <OfflineIndicator />
@@ -198,6 +200,7 @@ const App = () => {
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
+                </AppLockGate>
               </BrowserRouter>
             </TooltipProvider>
             </ThemePreferenceProvider>

@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Capacitor } from '@capacitor/core';
 import { ensurePushRegistration, setUserEmail, logoutOneSignal } from '@/lib/onesignal';
+import { resetLockState } from '@/lib/appLock';
 
 interface AuthContextType {
   user: User | null;
@@ -80,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    resetLockState();
     await logoutOneSignal();
     await supabase.auth.signOut();
   };
