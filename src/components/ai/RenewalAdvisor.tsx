@@ -296,9 +296,24 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
               </Alert>
             )}
 
-            <div className="prose prose-sm max-w-full overflow-hidden">
-              <div className="bg-muted/50 rounded-lg p-4 whitespace-pre-wrap text-sm break-words max-w-full overflow-hidden">
-                {advice}
+            <div className="max-w-full overflow-hidden">
+              <div className="bg-muted/50 rounded-lg p-4 max-w-full overflow-hidden">
+                {/* Document context summary */}
+                {(documentName || expiryDate) && (
+                  <div className="mb-4 pb-3 border-b border-border/60 space-y-1">
+                    {documentName && (
+                      <p className="text-sm font-semibold text-foreground break-words">
+                        {documentName}
+                      </p>
+                    )}
+                    {expiryDate && (
+                      <p className="text-xs text-muted-foreground">
+                        Expires: <span className="font-medium text-foreground">{new Date(expiryDate).toLocaleDateString()}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+                <FormattedAdvice text={advice} />
               </div>
             </div>
             <Button 
