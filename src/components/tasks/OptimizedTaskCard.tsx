@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Clock, CheckCircle2, Image as ImageIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { formatTaskTime, resolveTaskTimezone } from "@/utils/taskDateTime";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { LazyAIRecommendations } from "./LazyAIRecommendations";
@@ -26,6 +26,7 @@ interface Task {
   task_date: string;
   original_date: string;
   local_date: string;
+  timezone?: string | null;
 }
 
 interface StatusInfo {
@@ -58,8 +59,8 @@ function OptimizedTaskCardComponent({
   const [completionImage, setCompletionImage] = useState<File | null>(null);
 
   // Pre-compute display values
-  const startTimeLocal = toZonedTime(new Date(task.start_time), userTimezone);
-  const displayStartTime = format(startTimeLocal, "h:mm a");
+  const taskTimezone = resolveTaskTimezone(task.timezone, userTimezone);
+  const displayStartTime = formatTaskTime(task.start_time, taskTimezone);
 
   const handleComplete = useCallback(async () => {
     try {
