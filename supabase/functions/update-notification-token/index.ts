@@ -54,6 +54,29 @@ Deno.serve(async (req) => {
       return createErrorResponse('Failed to save notification token', 500, req);
     }
 
+    // Ensure the backend preference is on — every scheduler checks
+    // push_notifications_enabled before sending.  Only update when it is
+    // currently false so we don't touch users who explicitly disabled it.
+    try {
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      if (serviceKey) {
+        const { createClient: createServiceClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+        const serviceSupabase = createServiceClient(
+          Deno.env.get('SUPABASE_URL')!,
+          serviceKey,
+          { auth: { persistSession: false, autoRefreshToken: false } },
+        );
+        await serviceSupabase
+          .from('profiles')
+          .update({ push_notifications_enabled: true })
+          .eq('user_id', user.id)
+          .eq('push_notifications_enabled', false);
+      }
+    } catch (prefErr) {
+      // Non-fatal — token is already saved.
+      console.warn('Could not enable push preference:', prefErr);
+    }
+
     console.log(`Successfully registered ${provider} token for user ${user.id}`);
 
     return createJsonResponse({

@@ -1,6 +1,7 @@
 import { createSupabaseClient } from '../_shared/database.ts';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { getOneSignalPlayerIds, sanitizeInput } from '../_shared/notifications.ts';
+import { sanitizeInput } from '../_shared/notifications.ts';
+import { sendUnifiedNotificationDetailed } from '../_shared/unified-notifications.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import type { NotificationPayload } from '../_shared/types.ts';
 
@@ -11,7 +12,7 @@ Deno.serve(async (req) => {
 
   try {
     const { userId, title, message, data, buttons, url }: NotificationPayload = await req.json();
-    
+
     if (!userId || !title || !message) {
       return createErrorResponse('Missing required fields: userId, title, message', 400, req);
     }
@@ -29,6 +30,7 @@ Deno.serve(async (req) => {
         return createErrorResponse('Unauthorized', 401, req);
       }
       const token = authHeader.replace('Bearer ', '');
+      // Per-request anon client — needed to validate this specific user's JWT.
       const authClient = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_ANON_KEY')!,
@@ -38,9 +40,7 @@ Deno.serve(async (req) => {
         return createErrorResponse('Unauthorized', 401, req);
       }
       if (userData.user.id !== userId) {
-        console.error(
-          `Forbidden: caller ${userData.user.id} tried to push to ${userId}`
-        );
+        console.error(`Forbidden: caller ${userData.user.id} tried to push to ${userId}`);
         return createErrorResponse('Forbidden: cannot send notifications to another user', 403, req);
       }
     }
@@ -48,63 +48,33 @@ Deno.serve(async (req) => {
     const sanitizedTitle = sanitizeInput(title);
     const sanitizedMessage = sanitizeInput(message);
 
+    // Use the module-level service-role client from _shared/database.ts.
     const supabase = createSupabaseClient();
-    const playerIds = await getOneSignalPlayerIds(supabase, userId);
 
-    if (playerIds.length === 0) {
-      return createJsonResponse({ 
-        success: false, 
-        message: 'No OneSignal player IDs registered for user' 
-      }, 200, req);
-    }
-
-    const oneSignalAppId = Deno.env.get('ONESIGNAL_APP_ID');
-    const oneSignalRestApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
-
-    if (!oneSignalAppId || !oneSignalRestApiKey) {
-      throw new Error('OneSignal credentials not configured');
-    }
-
-    const payload: Record<string, unknown> = {
-      app_id: oneSignalAppId,
-      include_subscription_ids: playerIds,
-      headings: { en: sanitizedTitle },
-      contents: { en: sanitizedMessage },
-      data: data || {},
-    };
-
-    if (buttons && buttons.length > 0) {
-      payload.buttons = buttons;
-      payload.ios_category = 'REMINDER_ACTIONS';
-    }
-    if (url) payload.url = url;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    const response = await fetch('https://api.onesignal.com/notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Key ${oneSignalRestApiKey.trim()}`,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
+    const result = await sendUnifiedNotificationDetailed(supabase, {
+      userId,
+      title: sanitizedTitle,
+      message: sanitizedMessage,
+      data: data
+        ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]))
+        : undefined,
+      buttons,
+      url,
     });
 
-    clearTimeout(timeoutId);
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error('OneSignal error:', result);
-      throw new Error(result.errors?.join(', ') || 'Failed to send notification');
-    }
-
-    return createJsonResponse({ 
-      success: true, 
-      message: `Sent to ${result.recipients || playerIds.length} devices`,
-      details: result
+    return createJsonResponse({
+      success: result.success,
+      reason: result.reason,
+      targets: result.targets ?? 0,
+      notification_id: result.notificationId,
+      detail: result.detail,
+      message: result.success
+        ? `Sent to ${result.targets ?? 0} device(s)`
+        : result.reason === 'no_targets'
+          ? 'No push-enabled device registered for this user.'
+          : result.reason === 'no_credentials'
+            ? 'OneSignal credentials not configured on the server.'
+            : result.detail ?? 'Notification not delivered',
     }, 200, req);
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {

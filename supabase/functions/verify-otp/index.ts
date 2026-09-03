@@ -8,6 +8,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Module-level service-role client — reused across warm invocations.
+// Safe: this function uses only the service role, no per-user JWT context.
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  { auth: { persistSession: false, autoRefreshToken: false } },
+);
+
 interface VerifyOTPRequest {
   phone_number: string;
   otp_code: string;
@@ -23,10 +31,6 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Verifying OTP for:", phone_number);
 
     const normalizedPhone = phone_number.replace(/[\s\-()]/g, "");
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Check if phone number is locked due to too many failed attempts
     const { data: lockedCheck } = await supabase

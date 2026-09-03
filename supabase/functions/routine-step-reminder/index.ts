@@ -4,6 +4,14 @@ import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_
 import { verifyCronSecret } from '../_shared/cronAuth.ts';
 import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
 
+// Module-level service-role client — reused across warm invocations.
+// Safe: cron function uses only the service role, no per-user JWT context.
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  { auth: { persistSession: false, autoRefreshToken: false } },
+);
+
 /**
  * Routine Task Slot Reminder — simplified model.
  *
@@ -48,10 +56,6 @@ Deno.serve(async (req) => {
 
   try {
     console.log('🔔 Routine task slot reminder starting...');
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Cleanup old notification logs (older than 2 days)
     const twoDaysAgo = new Date(Date.now() - 2 * 86400 * 1000).toISOString();

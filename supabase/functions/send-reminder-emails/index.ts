@@ -7,6 +7,12 @@ const sendGridEndpoint = 'https://api.sendgrid.com/v3/mail/send';
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Module-level service-role client — reused across warm invocations.
+// Safe: this function uses only the service role, no per-user JWT context.
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -50,8 +56,6 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   console.log("Starting reminder email job...");
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     const nowUtc = new Date();

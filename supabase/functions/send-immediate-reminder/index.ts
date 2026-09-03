@@ -1,12 +1,16 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleCorsOptions, getCorsHeaders } from "../_shared/cors.ts";
 
 const sendGridApiKey = Deno.env.get("SENDGRID_API_KEY");
 const sendGridEndpoint = 'https://api.sendgrid.com/v3/mail/send';
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-import { handleCorsOptions, getCorsHeaders } from "../_shared/cors.ts";
+// Module-level service-role client — reused across warm invocations.
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 interface ReminderPayload {
   reminder_id: string;
@@ -38,8 +42,6 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   console.log("Processing immediate reminder email...");
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     const { reminder_id }: ReminderPayload = await req.json();
@@ -77,7 +79,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("Reminder or document not found:", reminder_id);
       return new Response(
         JSON.stringify({ message: "Reminder not found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 404 }
       );
     }
 
@@ -104,7 +106,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("Profile not found for user:", reminder.user_id);
       return new Response(
         JSON.stringify({ message: "Profile not found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 404 }
       );
     }
 
@@ -115,7 +117,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Skipping reminder ${reminder.id} - notifications disabled or no email`);
       return new Response(
         JSON.stringify({ message: "Notifications disabled for user" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 200 }
       );
     }
 
@@ -124,7 +126,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Reminder ${reminder.id} already sent`);
       return new Response(
         JSON.stringify({ message: "Reminder already sent" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 200 }
       );
     }
 

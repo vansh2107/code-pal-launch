@@ -186,10 +186,10 @@ export function useTasksData() {
         });
       }
 
-      // Carry-forward runs AFTER UI update (non-blocking)
-      carryForwardTasks(user.id, today).then(() => {
-        // Re-fetch only if carry-forward actually ran
-        if (isMounted.current) {
+      // Carry-forward runs AFTER UI update (non-blocking).
+      // Only re-fetches today's tasks when carry-forward actually moved records.
+      carryForwardTasks(user.id, today).then((didCarry) => {
+        if (didCarry && isMounted.current) {
           supabase
             .from("tasks")
             .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date")
@@ -291,8 +291,10 @@ export function useTasksData() {
   };
 }
 
-// Optimized carry-forward - only update if needed
-async function carryForwardTasks(userId: string, today: string) {
+// Returns true if any tasks were actually carried forward (caller uses this
+// to decide whether to re-fetch today's list).  Uses a single batched UPDATE
+// instead of N individual requests to avoid connection exhaustion.
+async function carryForwardTasks(userId: string, today: string): Promise<boolean> {
   try {
     const { data: pendingTasks, error: fetchError } = await supabase
       .from("tasks")
@@ -302,30 +304,55 @@ async function carryForwardTasks(userId: string, today: string) {
       .lt("task_date", today);
 
     if (fetchError) throw fetchError;
+    if (!pendingTasks || pendingTasks.length === 0) return false;
 
-    if (pendingTasks && pendingTasks.length > 0) {
-      const updates = pendingTasks.map((task) => {
-        const originalDateLocal = new Date(task.original_date + 'T00:00:00');
-        const todayDateLocal = new Date(today + 'T00:00:00');
-        const daysDiff = Math.floor(
-          (todayDateLocal.getTime() - originalDateLocal.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        const newConsecutiveDays = Math.max(0, daysDiff);
+    const todayDateLocal = new Date(today + "T00:00:00");
 
-        return supabase
+    // Build the per-task consecutive_missed_days values and collect the ids
+    // that actually need updating.  We use a single UPDATE … IN (ids) for the
+    // task_date / local_date flip, and individual updates only where the
+    // consecutive_missed_days value differs from what is already stored.
+    const needsUpdate = pendingTasks.map((task) => {
+      const originalDateLocal = new Date(task.original_date + "T00:00:00");
+      const daysDiff = Math.floor(
+        (todayDateLocal.getTime() - originalDateLocal.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      return {
+        id: task.id,
+        newConsecutiveDays: Math.max(0, daysDiff),
+        currentConsecutiveDays: task.consecutive_missed_days,
+      };
+    });
+
+    const ids = needsUpdate.map((t) => t.id);
+
+    // Single query to move task_date and local_date forward for all overdue tasks.
+    const { error: dateUpdateError } = await supabase
+      .from("tasks")
+      .update({ task_date: today, local_date: today })
+      .in("id", ids);
+
+    if (dateUpdateError) throw dateUpdateError;
+
+    // Only issue individual consecutive_missed_days updates when the value
+    // actually changed — avoids redundant writes on tasks seen before.
+    const consecutiveUpdates = needsUpdate
+      .filter((t) => t.newConsecutiveDays !== t.currentConsecutiveDays)
+      .map((t) =>
+        supabase
           .from("tasks")
-          .update({
-            local_date: today,
-            task_date: today,
-            consecutive_missed_days: newConsecutiveDays,
-          })
-          .eq("id", task.id);
-      });
+          .update({ consecutive_missed_days: t.newConsecutiveDays })
+          .eq("id", t.id)
+      );
 
-      await Promise.all(updates);
+    if (consecutiveUpdates.length > 0) {
+      await Promise.all(consecutiveUpdates);
     }
+
+    return true;
   } catch (error) {
     console.error("Carry-forward error:", error);
+    return false;
   }
 }
 

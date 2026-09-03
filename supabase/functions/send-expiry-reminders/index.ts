@@ -2,12 +2,18 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { toZonedTime } from 'npm:date-fns-tz@3.2.0';
 
+import { handleCorsOptions, getCorsHeaders } from "../_shared/cors.ts";
+
 const sendGridApiKey = Deno.env.get("SENDGRID_API_KEY");
 const sendGridEndpoint = 'https://api.sendgrid.com/v3/mail/send';
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-import { handleCorsOptions, getCorsHeaders } from "../_shared/cors.ts";
+// Module-level service-role client — reused across warm invocations.
+// Safe: this function uses only the service role, no per-user JWT context.
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -26,8 +32,6 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   console.log("Starting expiry reminders check...");
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -61,7 +65,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("No reminders due today");
       return new Response(
         JSON.stringify({ message: "No reminders due today", count: 0 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 200 }
       );
     }
 
