@@ -30,7 +30,10 @@ export default function EditTask() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [timezone, setTimezone] = useState("UTC");
+  // The task's own stored timezone is authoritative for display AND saving.
+  const [timezone, setTimezone] = useState(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+  );
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [existingImagePath, setExistingImagePath] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -40,28 +43,8 @@ export default function EditTask() {
   });
 
   useEffect(() => {
-    fetchUserTimezone();
     fetchTask();
   }, [id]);
-
-  const fetchUserTimezone = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("timezone")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        if (profile?.timezone) {
-          setTimezone(profile.timezone);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching timezone:", error);
-    }
-  };
 
   const fetchTask = async () => {
     try {
@@ -83,10 +66,14 @@ export default function EditTask() {
         return;
       }
 
-      // Convert UTC timestamp to user's local timezone for display
-      const startTimeUtc = new Date(data.start_time);
-      const startTimeLocal = toZonedTime(startTimeUtc, data.timezone || timezone);
-      
+      // Preserve the timezone the task was created in
+      const taskTimezone =
+        data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      setTimezone(taskTimezone);
+
+      // Convert UTC timestamp to the task's timezone for display
+      const startTimeLocal = toZonedTime(new Date(data.start_time), taskTimezone);
+
       // Format for datetime-local input (YYYY-MM-DDTHH:mm)
       const formattedTime = format(startTimeLocal, "yyyy-MM-dd'T'HH:mm");
 
@@ -96,6 +83,7 @@ export default function EditTask() {
         startTime: formattedTime,
       });
       setExistingImagePath(data.image_path);
+
     } catch (error: any) {
       toast({
         title: "Error",
