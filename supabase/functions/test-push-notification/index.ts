@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCorsOptions, createJsonResponse, createErrorResponse } from '../_shared/cors.ts';
-import { sendUnifiedNotification } from '../_shared/unified-notifications.ts';
+import { sendUnifiedNotificationDetailed } from '../_shared/unified-notifications.ts';
 import { getFunnyNotification } from '../_shared/funnyNotifications.ts';
 
 Deno.serve(async (req) => {
@@ -20,49 +20,50 @@ Deno.serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    
+
     if (userError || !user) {
       console.error('Authentication failed:', userError);
       return createErrorResponse('Not authenticated', 401, req);
     }
 
-    console.log('Sending test OneSignal notification for user:', user.id);
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const serviceSupabase = createClient(supabaseUrl, serviceRoleKey);
 
     const testNotification = getFunnyNotification('document_expiring', {
       documentName: 'Test Document',
       daysUntilExpiry: 5,
     });
 
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const serviceSupabase = createClient(supabaseUrl, serviceRoleKey);
-
-    const sent = await sendUnifiedNotification(serviceSupabase, {
+    const result = await sendUnifiedNotificationDetailed(serviceSupabase, {
       userId: user.id,
       title: testNotification.title,
-      message: testNotification.message + ' (Test notification sent via FCM/OneSignal! 🎉)',
-      data: {
-        type: 'test',
-        date: new Date().toISOString(),
-      }
+      message: testNotification.message + ' (Test push 🎉)',
+      data: { type: 'test', date: new Date().toISOString() },
     });
 
-    if (!sent) {
-      // Not an error: usually means this user has no registered push device
-      // (e.g. they're using the web app, where the native OneSignal SDK isn't available).
+    if (!result.success) {
       return createJsonResponse({
         success: true,
         delivered: false,
-        reason: 'no_registered_device',
-        message: 'No push-enabled device is registered for this account.',
+        reason: result.reason ?? 'unknown',
+        targets: result.targets ?? 0,
+        detail: result.detail,
+        message:
+          result.reason === 'no_targets'
+            ? 'No push-enabled device is registered for this account. Open the mobile app while signed in.'
+            : result.reason === 'no_credentials'
+              ? 'OneSignal credentials are not configured on the server.'
+              : 'OneSignal rejected the notification.',
       }, 200, req);
     }
 
-    return createJsonResponse({ 
-      success: true, 
+    return createJsonResponse({
+      success: true,
       delivered: true,
+      notificationId: result.notificationId,
+      targets: result.targets,
       message: 'Test push notification sent!',
     }, 200, req);
-
   } catch (error) {
     console.error('Error in test-push-notification:', error);
     return createErrorResponse(error as Error, 500, req);

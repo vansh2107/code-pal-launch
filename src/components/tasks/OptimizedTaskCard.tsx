@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Clock, CheckCircle2, Image as ImageIcon, Loader2 } from "lucide-react";
-import { formatTaskTime, resolveTaskTimezone, localInputToUtcISO } from "@/utils/taskDateTime";
+import { format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { LazyAIRecommendations } from "./LazyAIRecommendations";
@@ -25,7 +26,6 @@ interface Task {
   task_date: string;
   original_date: string;
   local_date: string;
-  timezone?: string | null;
 }
 
 interface StatusInfo {
@@ -58,8 +58,8 @@ function OptimizedTaskCardComponent({
   const [completionImage, setCompletionImage] = useState<File | null>(null);
 
   // Pre-compute display values
-  const taskTimezone = resolveTaskTimezone(task.timezone, userTimezone);
-  const displayStartTime = formatTaskTime(task.start_time, taskTimezone);
+  const startTimeLocal = toZonedTime(new Date(task.start_time), userTimezone);
+  const displayStartTime = format(startTimeLocal, "h:mm a");
 
   const handleComplete = useCallback(async () => {
     try {
@@ -81,11 +81,10 @@ function OptimizedTaskCardComponent({
         imagePath = fileName;
       }
 
-      // Completion time is entered in the task's timezone; convert exactly once.
-      const endTimeIso = completionTime
-        ? localInputToUtcISO(`${task.task_date}T${completionTime}`, taskTimezone)
-        : new Date().toISOString();
-      const endTime = new Date(endTimeIso);
+      const now = new Date();
+      const endTime = completionTime
+        ? new Date(`${task.task_date}T${completionTime}`)
+        : now;
 
       const startTime = new Date(task.start_time);
       const durationMs = endTime.getTime() - startTime.getTime();
@@ -124,7 +123,7 @@ function OptimizedTaskCardComponent({
     } finally {
       setUploadingImage(false);
     }
-  }, [task, taskTimezone, completionTime, completionImage, onRefresh, toast]);
+  }, [task, completionTime, completionImage, onRefresh, toast]);
 
   const handleCardClick = useCallback(() => {
     navigate(`/task/${task.id}`);

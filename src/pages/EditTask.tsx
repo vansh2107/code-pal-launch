@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Upload, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getDeviceTimezone, normalizeTimezone } from "@/utils/taskDateTime";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +30,7 @@ export default function EditTask() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [timezone, setTimezone] = useState(getDeviceTimezone());
+  const [timezone, setTimezone] = useState("UTC");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [existingImagePath, setExistingImagePath] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -56,7 +55,7 @@ export default function EditTask() {
           .maybeSingle();
         
         if (profile?.timezone) {
-          setTimezone(normalizeTimezone(profile.timezone) || getDeviceTimezone());
+          setTimezone(profile.timezone);
         }
       }
     } catch (error) {

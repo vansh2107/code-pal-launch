@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { formatTaskTime, formatDateOnly, resolveTaskTimezone, getDeviceTimezone } from "@/utils/taskDateTime";
+import { format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { formatDuration } from "@/utils/taskDuration";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 import { getSignedUrl } from "@/utils/signedUrl";
@@ -29,7 +30,7 @@ export default function TaskDetail() {
   const [task, setTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [imageUrl, setImageUrl] = useState<string>("");
-  const [profileTimezone, setProfileTimezone] = useState(getDeviceTimezone());
+  const [timezone, setTimezone] = useState("UTC");
 
   useEffect(() => {
     if (id) fetchAll();
@@ -43,7 +44,7 @@ export default function TaskDetail() {
       // Fetch task + timezone in PARALLEL
       const [taskResult, profileResult] = await Promise.all([
         supabase.from("tasks")
-          .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, timezone")
+          .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date")
           .eq("id", id)
           .maybeSingle(),
         supabase.from("profiles")
@@ -52,7 +53,7 @@ export default function TaskDetail() {
           .maybeSingle(),
       ]);
 
-      if (profileResult.data?.timezone) setProfileTimezone(profileResult.data.timezone);
+      if (profileResult.data?.timezone) setTimezone(profileResult.data.timezone);
 
       if (taskResult.error) throw taskResult.error;
       if (!taskResult.data) {
@@ -98,9 +99,10 @@ export default function TaskDetail() {
     }
   };
 
-  // Task's own stored timezone is authoritative; profile timezone is only a fallback.
-  const timezone = resolveTaskTimezone(task?.timezone, profileTimezone);
-  const formatTimeInTimezone = (utcTime: string) => formatTaskTime(utcTime, timezone);
+  const formatTimeInTimezone = (utcTime: string) => {
+    const zonedTime = toZonedTime(new Date(utcTime), timezone);
+    return format(zonedTime, "h:mm a");
+  };
 
   if (loading || !task) {
     return (
@@ -197,7 +199,7 @@ export default function TaskDetail() {
               <div>
                 <p className="text-sm font-medium">Task Date</p>
                 <p className="text-sm text-muted-foreground">
-                  {formatDateOnly(task.task_date, "EEEE, MMM d, yyyy")}
+                  {format(new Date(task.task_date), "EEEE, MMM d, yyyy")}
                 </p>
               </div>
             </div>
