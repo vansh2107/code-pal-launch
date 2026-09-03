@@ -5,6 +5,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { differenceInDays } from "date-fns";
+import { isValidCalendarDate } from "@/utils/documentDecisionEngine";
 
 interface Document {
   id: string;
@@ -35,6 +36,7 @@ export function AIRenewalSuggestions({ documents }: AIRenewalSuggestionsProps) {
   const getDocumentsNeedingRenewal = () => {
     const today = new Date();
     return documents.filter(doc => {
+      if (!doc.expiry_date || !isValidCalendarDate(doc.expiry_date)) return false;
       const daysUntilExpiry = differenceInDays(new Date(doc.expiry_date), today);
       return daysUntilExpiry <= 90 && daysUntilExpiry >= -30; // Documents expiring within 90 days or expired within last 30 days
     });

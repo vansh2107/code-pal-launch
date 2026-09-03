@@ -16,6 +16,7 @@ import { getDocumentStatus } from "@/utils/documentStatus";
 import { SwipeableDocumentCard } from "@/components/document/SwipeableDocumentCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getOfflineDocuments } from "@/utils/offlineStorage";
+import { isValidCalendarDate } from "@/utils/documentDecisionEngine";
 
 interface Document {
   id: string;
@@ -158,6 +159,7 @@ export default function Documents() {
     if (filterStatus !== "all") {
       const today = new Date();
       filtered = filtered.filter(doc => {
+        if (!doc.expiry_date || !isValidCalendarDate(doc.expiry_date)) return false;
         const daysUntilExpiry = Math.ceil((new Date(doc.expiry_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         if (filterStatus === "expired") return daysUntilExpiry < 0;
         if (filterStatus === "expiring") return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
@@ -166,7 +168,16 @@ export default function Documents() {
       });
     }
 
-    if (sortBy === "expiry") filtered.sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
+    if (sortBy === "expiry") {
+      filtered.sort((a, b) => {
+        const aValid = a.expiry_date && isValidCalendarDate(a.expiry_date);
+        const bValid = b.expiry_date && isValidCalendarDate(b.expiry_date);
+        if (!aValid && !bValid) return 0;
+        if (!aValid) return 1; // push a to the end
+        if (!bValid) return -1; // push b to the end
+        return new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime();
+      });
+    }
     else if (sortBy === "name") filtered.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === "recent") filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 

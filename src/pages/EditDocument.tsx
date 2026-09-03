@@ -38,6 +38,7 @@ export default function EditDocument() {
     document_type: "",
     issuing_authority: "",
     expiry_date: "",
+    expiry_date_label: "",
     renewal_period_days: 30,
     notes: "",
     custom_reminder_date: "",
@@ -83,6 +84,7 @@ export default function EditDocument() {
         document_type: (data as any).category_detail || data.document_type || "",
         issuing_authority: data.issuing_authority || "",
         expiry_date: data.expiry_date || "",
+        expiry_date_label: (data as any).expiry_date_label || "",
         renewal_period_days: data.renewal_period_days || 30,
         notes: sanitizeDocumentNote(data.notes || ""),
         custom_reminder_date: reminderData?.reminder_date || "",
@@ -111,7 +113,7 @@ export default function EditDocument() {
       // Validate required fields based on document type
       if (!isDocVault) {
         if (!formData.expiry_date) {
-          setError("Expiry date is required");
+          setError(`${formData.expiry_date_label || "Expiry date"} is required`);
           setSaving(false);
           return;
         }
@@ -190,6 +192,7 @@ export default function EditDocument() {
         updateData.category_detail = formData.document_type;
         updateData.issuing_authority = validatedData.issuing_authority;
         updateData.expiry_date = validatedData.expiry_date;
+        updateData.expiry_date_label = (formData.expiry_date_label as string) || null;
         updateData.renewal_period_days = validatedData.renewal_period_days;
       }
 
@@ -448,7 +451,7 @@ export default function EditDocument() {
               {!isDocVault && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="expiry_date">Expiry Date *</Label>
+                    <Label htmlFor="expiry_date">{formData.expiry_date_label || "Expiry Date"} *</Label>
                     <Input
                       id="expiry_date"
                       type="date"
@@ -491,7 +494,7 @@ export default function EditDocument() {
                           </div>
                           <div>
                             <p className="text-sm font-medium">
-                              {reminder.days} days before expiry
+                              {reminder.days} days before {(formData.expiry_date_label || "expiry").toLowerCase()}
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {reminder.formatted}

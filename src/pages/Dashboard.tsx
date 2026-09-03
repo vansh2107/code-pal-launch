@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getDocumentStatus } from "@/utils/documentStatus";
 import { sendTestNotification } from "@/utils/notifications";
 import { cn } from "@/lib/utils";
+import { isValidCalendarDate } from "@/utils/documentDecisionEngine";
 
 interface Document {
   id: string;
@@ -119,22 +120,23 @@ export default function Dashboard() {
     const today = new Date();
     const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
     const nonDocVault = documents.filter(doc => doc.issuing_authority !== 'DocVault');
+    const docsWithExpiry = nonDocVault.filter(doc => doc.expiry_date && isValidCalendarDate(doc.expiry_date));
     
-    const total = nonDocVault.length;
-    const expired = nonDocVault.filter(doc => new Date(doc.expiry_date) < today).length;
-    const expiringSoon = nonDocVault.filter(doc => {
+    const total = docsWithExpiry.length;
+    const expired = docsWithExpiry.filter(doc => new Date(doc.expiry_date) < today).length;
+    const expiringSoon = docsWithExpiry.filter(doc => {
       const expiryDate = new Date(doc.expiry_date);
       return expiryDate >= today && expiryDate <= thirtyDaysFromNow;
     }).length;
 
-    const attention = nonDocVault
+    const attention = docsWithExpiry
       .filter(doc => new Date(doc.expiry_date) <= thirtyDaysFromNow)
       .sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
 
     return {
       stats: { total, expiringSoon, expired, valid: total - expired - expiringSoon },
       recentDocuments: documents.slice(0, 3),
-      nonDocVaultDocs: nonDocVault,
+      nonDocVaultDocs: docsWithExpiry,
       attentionDocuments: attention,
     };
   }, [documents]);

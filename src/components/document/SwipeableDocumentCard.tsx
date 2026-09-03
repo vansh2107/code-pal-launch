@@ -5,6 +5,7 @@ import { Trash2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
+import { isValidCalendarDate } from "@/utils/documentDecisionEngine";
 
 interface SwipeableDocumentCardProps {
   doc: {
@@ -14,9 +15,10 @@ interface SwipeableDocumentCardProps {
     category_detail?: string;
     issuing_authority: string;
     expiry_date: string;
+    expiry_date_label?: string | null;
   };
   statusInfo: {
-    status: 'expired' | 'expiring' | 'valid';
+    status: 'expired' | 'expiring' | 'valid' | 'none';
     label: string;
     badgeVariant: "default" | "destructive" | "outline" | "secondary";
     colorClass: string;
@@ -56,7 +58,7 @@ export function SwipeableDocumentCard({
         setSwipeOffset(0);
       }
     },
-    trackMouse: false,
+    trackMouse: true,
     trackTouch: true,
   });
 
@@ -81,22 +83,16 @@ export function SwipeableDocumentCard({
 
   return (
     <>
-      <div className="relative overflow-hidden rounded-[16px]">
-        {/* Delete background */}
+      <div 
+        {...handlers} 
+        className="relative overflow-hidden w-full select-none touch-pan-y"
+      >
+        {/* Main card */}
         <div
-          className="absolute right-0 top-0 bottom-0 bg-destructive flex items-center justify-center px-6 transition-all duration-200"
-          style={{ width: `${swipeOffset}px` }}
-        >
-          <Trash2 className="h-5 w-5 text-destructive-foreground" />
-        </div>
-
-        {/* Swipeable card */}
-        <div
-          {...handlers}
-          className="relative transition-transform duration-200 ease-out"
+          className="w-full relative transition-transform duration-300 ease-out z-2"
           style={{ transform: `translateX(-${swipeOffset}px)` }}
         >
-          <Link to={`/documents/${doc.id}`} aria-label={`View document ${doc.name}`}>
+          <Link to={`/documents/${doc.id}`} className="block" aria-label={`View document ${doc.name}`}>
             <Card
               className="hover:shadow-md transition-shadow cursor-pointer border border-border rounded-[16px] bg-card text-card-foreground shadow-sm"
             >
@@ -111,15 +107,19 @@ export function SwipeableDocumentCard({
                       {doc.issuing_authority && ` · ${doc.issuing_authority}`}
                     </p>
                   </div>
-                  <Badge variant={statusInfo.badgeVariant} className={`shrink-0 flex items-center font-medium ${statusInfo.colorClass}`}>
-                    {getStatusIcon(statusInfo.status)}
-                    {statusInfo.label}
-                  </Badge>
+                  {statusInfo.status !== 'none' && (
+                    <Badge variant={statusInfo.badgeVariant} className={`shrink-0 flex items-center font-medium ${statusInfo.colorClass}`}>
+                      {getStatusIcon(statusInfo.status)}
+                      {statusInfo.label}
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center justify-between text-[13px] leading-[20px] pt-1 border-t border-border/50 mt-3">
-                  <span className="text-muted-foreground">Expiration Date</span>
+                  <span className="text-muted-foreground">{doc.expiry_date_label || "Expiration Date"}</span>
                   <span className={`font-medium ${statusInfo.textClass}`}>
-                    {new Date(doc.expiry_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                    {doc.expiry_date && isValidCalendarDate(doc.expiry_date)
+                      ? new Date(doc.expiry_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                      : "No expiry set"}
                   </span>
                 </div>
               </CardContent>

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock } from "lucide-react";
+import { isValidCalendarDate } from "@/utils/documentDecisionEngine";
 
 interface DocumentItem {
   id: string;
@@ -24,7 +25,8 @@ export function ExpiryTimeline({ documents }: ExpiryTimelineProps) {
   const today = useMemo(() => new Date(), []);
 
   const items = useMemo(() => {
-    const sorted = [...documents].sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
+    const validDocs = documents.filter(doc => doc.expiry_date && isValidCalendarDate(doc.expiry_date));
+    const sorted = [...validDocs].sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime());
     return sorted.map((doc, index) => {
       const expiry = new Date(doc.expiry_date);
       const isPast = expiry < today;

@@ -153,6 +153,7 @@ export type Database = {
           document_type: string
           docvault_category_id: string | null
           expiry_date: string | null
+          expiry_date_label: string | null
           id: string
           image_path: string | null
           issuing_authority: string | null
@@ -170,6 +171,7 @@ export type Database = {
           document_type?: string
           docvault_category_id?: string | null
           expiry_date?: string | null
+          expiry_date_label?: string | null
           id?: string
           image_path?: string | null
           issuing_authority?: string | null
@@ -187,6 +189,7 @@ export type Database = {
           document_type?: string
           docvault_category_id?: string | null
           expiry_date?: string | null
+          expiry_date_label?: string | null
           id?: string
           image_path?: string | null
           issuing_authority?: string | null

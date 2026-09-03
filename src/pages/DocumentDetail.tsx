@@ -36,6 +36,7 @@ interface Document {
   category_detail?: string;
   issuing_authority: string;
   expiry_date: string | null;
+  expiry_date_label?: string | null;
   renewal_period_days: number | null;
   notes: string;
   created_at: string;
@@ -629,7 +630,7 @@ export default function DocumentDetail() {
               )}
               
               <div>
-                <Label className="text-sm font-medium text-muted-foreground">Expiry Date</Label>
+                <Label className="text-sm font-medium text-muted-foreground">{document.expiry_date_label || "Expiry Date"}</Label>
                 {document.expiry_date ? (
                   <p className={statusInfo?.textClass || 'text-foreground'}>
                     {new Date(document.expiry_date).toLocaleDateString()}
@@ -637,7 +638,7 @@ export default function DocumentDetail() {
                 ) : isDocVault ? (
                   <p className="text-muted-foreground">No expiry set for this document</p>
                 ) : (
-                  <p className="text-muted-foreground">Not set — expiry could not be determined</p>
+                  <p className="text-muted-foreground">Not set — date could not be determined</p>
                 )}
               </div>
 
@@ -646,7 +647,7 @@ export default function DocumentDetail() {
                   <Label className="text-sm font-medium text-muted-foreground">Reminder Period</Label>
                   <p className={statusInfo?.textClass || 'text-foreground'}>
                     {document.renewal_period_days
-                      ? `${document.renewal_period_days} days before expiry`
+                      ? `${document.renewal_period_days} days before ${(document.expiry_date_label || "expiry").toLowerCase()}`
                       : 'Not set'}
                   </p>
                 </div>

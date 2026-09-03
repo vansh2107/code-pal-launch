@@ -1,4 +1,6 @@
-export type DocumentStatus = 'expired' | 'expiring' | 'valid';
+import { isValidCalendarDate } from "./documentDecisionEngine";
+
+export type DocumentStatus = 'expired' | 'expiring' | 'valid' | 'none';
 
 export interface DocumentStatusInfo {
   status: DocumentStatus;
@@ -10,7 +12,19 @@ export interface DocumentStatusInfo {
   badgeVariant: 'default' | 'destructive' | 'secondary';
 }
 
-export const getDocumentStatus = (expiryDate: string): DocumentStatusInfo => {
+export const getDocumentStatus = (expiryDate: string | null | undefined): DocumentStatusInfo => {
+  if (!expiryDate || !isValidCalendarDate(expiryDate)) {
+    return {
+      status: 'none',
+      label: 'No Expiry',
+      colorClass: 'text-muted-foreground',
+      bgClass: 'bg-muted/10 border-muted/30',
+      borderClass: 'border-muted/30',
+      textClass: 'text-muted-foreground',
+      badgeVariant: 'secondary',
+    };
+  }
+
   const today = new Date();
   const expiry = new Date(expiryDate);
   const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));

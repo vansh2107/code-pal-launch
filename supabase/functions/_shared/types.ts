@@ -36,6 +36,7 @@ export interface Document {
   name: string;
   document_type: string;
   expiry_date: string;
+  expiry_date_label: string | null;
   issuing_authority: string | null;
   image_path: string | null;
   notes: string | null;

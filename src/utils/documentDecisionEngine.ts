@@ -74,6 +74,30 @@ export function doesDocumentTypeRequireExpiry(docType: string): boolean {
   return false;
 }
 
+export function isValidCalendarDate(date: any): boolean {
+  if (!date) return false;
+  let parsed: Date;
+  if (date instanceof Date) {
+    parsed = date;
+  } else {
+    // If it's a number, or string of a number, reject it to avoid epoch parsing
+    if (typeof date === 'number' || !isNaN(Number(date))) return false;
+    const trimmed = String(date).trim();
+    if (trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') return false;
+    parsed = new Date(trimmed);
+  }
+  
+  if (isNaN(parsed.getTime())) return false;
+  
+  // Reject epoch-derived dates (like 1969-12-31 or 1970-01-01)
+  const year = parsed.getFullYear();
+  if (year === 1969 || year === 1970) {
+    return false;
+  }
+  
+  return true;
+}
+
 /**
  * Parses and normalizes dates in multiple formats.
  * Returns a valid Date object or null.
@@ -81,12 +105,23 @@ export function doesDocumentTypeRequireExpiry(docType: string): boolean {
 export function parseAndNormalizeDate(dateStr: any): Date | null {
   if (!dateStr) return null;
   if (dateStr instanceof Date) {
-    return isNaN(dateStr.getTime()) ? null : dateStr;
+    if (isNaN(dateStr.getTime())) return null;
+    const year = dateStr.getFullYear();
+    if (year === 1969 || year === 1970) return null;
+    return dateStr;
   }
+  
+  // Reject numeric timestamps or epoch-related strings
+  if (typeof dateStr === 'number' || !isNaN(Number(dateStr))) return null;
   if (typeof dateStr !== 'string') return null;
 
   const trimmed = dateStr.trim();
   if (!trimmed) return null;
+  if (trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined' || trimmed === '0') {
+    return null;
+  }
+
+  let parsedDate: Date | null = null;
 
   // Try standard YYYY-MM-DD
   let match = trimmed.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
@@ -96,39 +131,52 @@ export function parseAndNormalizeDate(dateStr: any): Date | null {
     const day = parseInt(match[3], 10);
     const date = new Date(year, month, day);
     if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
-      return date;
+      parsedDate = date;
     }
   }
 
   // Try DD-MM-YYYY or DD/MM/YYYY
-  match = trimmed.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
-  if (match) {
-    const day = parseInt(match[1], 10);
-    const month = parseInt(match[2], 10) - 1;
-    const year = parseInt(match[3], 10);
-    const date = new Date(year, month, day);
-    if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
-      return date;
+  if (!parsedDate) {
+    match = trimmed.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const year = parseInt(match[3], 10);
+      const date = new Date(year, month, day);
+      if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
+        parsedDate = date;
+      }
     }
   }
 
   // Try MM-DD-YYYY or MM/DD/YYYY
-  match = trimmed.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
-  if (match) {
-    const month = parseInt(match[1], 10) - 1;
-    const day = parseInt(match[2], 10);
-    const year = parseInt(match[3], 10);
-    const date = new Date(year, month, day);
-    if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
-      return date;
+  if (!parsedDate) {
+    match = trimmed.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+    if (match) {
+      const month = parseInt(match[1], 10) - 1;
+      const day = parseInt(match[2], 10);
+      const year = parseInt(match[3], 10);
+      const date = new Date(year, month, day);
+      if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
+        parsedDate = date;
+      }
     }
   }
 
   // Try default JS parser
-  const parsed = new Date(trimmed);
-  if (!isNaN(parsed.getTime())) {
-    // Validate impossible dates like Feb 31st
-    return parsed;
+  if (!parsedDate) {
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      parsedDate = parsed;
+    }
+  }
+
+  if (parsedDate) {
+    const year = parsedDate.getFullYear();
+    if (year === 1969 || year === 1970) {
+      return null;
+    }
+    return parsedDate;
   }
 
   return null;
@@ -185,6 +233,11 @@ export function evaluateDocumentDecision(
   const expiryStatus = getFieldStatus('expiry_date', isExpiryRequired);
   fieldStatuses['expiry_date'] = expiryStatus;
 
+  // Expiry date label check
+  const expiryLabelStatus = getFieldStatus('expiry_date_label', false);
+  fieldStatuses['expiry_date_label'] = expiryLabelStatus;
+  const dateLabel = expiryLabelStatus.value || 'Expiry Date';
+
   // Name check
   const nameStatus = getFieldStatus('name', true);
   fieldStatuses['name'] = nameStatus;
@@ -228,7 +281,7 @@ export function evaluateDocumentDecision(
       missingFields.push('expiry_date');
       return {
         decision: 'MISSING_REQUIRED_INFORMATION',
-        explanation: `Expiry date is required for document type "${docType}" but could not be extracted confidently. ${expiryStatus.reason || ''}`,
+        explanation: `${dateLabel} is required for document type "${docType}" but could not be extracted confidently. ${expiryStatus.reason || ''}`,
         missingFields,
         fieldStatuses
       };
@@ -238,10 +291,10 @@ export function evaluateDocumentDecision(
     if (!parsedExpiry) {
       missingFields.push('expiry_date');
       expiryStatus.status = 'uncertain';
-      expiryStatus.reason = 'Expiry date format is invalid or represents an impossible date.';
+      expiryStatus.reason = `${dateLabel} format is invalid or represents an impossible date.`;
       return {
         decision: 'MISSING_REQUIRED_INFORMATION',
-        explanation: `Expiry date was extracted as "${expiryStatus.value}" but is not a valid date.`,
+        explanation: `${dateLabel} was extracted as "${expiryStatus.value}" but is not a valid date.`,
         missingFields,
         fieldStatuses
       };
@@ -256,7 +309,7 @@ export function evaluateDocumentDecision(
     if (cleanExpiry < today) {
       return {
         decision: 'EXPIRED_REQUIRES_CONFIRMATION',
-        explanation: `The expiry date on this document is ${cleanExpiry.toLocaleDateString()}. This document has already expired.`,
+        explanation: `The ${dateLabel.toLowerCase()} on this document is ${cleanExpiry.toLocaleDateString()}. This document has already passed this date.`,
         missingFields,
         fieldStatuses
       };
@@ -269,19 +322,19 @@ export function evaluateDocumentDecision(
       fieldStatuses
     };
   } else {
-    // No expiry is required for this document type (e.g. Aadhaar)
+    // No expiry is required for this document type (e.g. Aadhaar or Credit Card)
     if (expiryStatus.status === 'missing' || expiryStatus.status === 'not_applicable') {
       expiryStatus.status = 'not_applicable';
-      expiryStatus.reason = `This document type (${docType}) does not have an expiry date.`;
+      expiryStatus.reason = `This document type (${docType}) does not have a deadline or expiry date.`;
       return {
         decision: 'NO_EXPIRY_AUTO_SAVE',
-        explanation: `This document type (${docType}) does not have an expiry date, so it will be saved to DocVault automatically.`,
+        explanation: `This document type (${docType}) does not have an expiry or actionable date, so it will be saved to DocVault automatically.`,
         missingFields,
         fieldStatuses
       };
     }
 
-    // If an expiry date WAS found, even if not strictly required, validate it
+    // If an expiry/due date WAS found, even if not strictly required, validate it
     const parsedExpiry = parseAndNormalizeDate(expiryStatus.value);
     if (parsedExpiry) {
       const today = new Date();
@@ -292,14 +345,14 @@ export function evaluateDocumentDecision(
       if (cleanExpiry < today) {
         return {
           decision: 'EXPIRED_REQUIRES_CONFIRMATION',
-          explanation: `The document is expired (Expiry: ${cleanExpiry.toLocaleDateString()}).`,
+          explanation: `The document is past its actionable date (${dateLabel}: ${cleanExpiry.toLocaleDateString()}).`,
           missingFields,
           fieldStatuses
         };
       }
       return {
         decision: 'READY_FOR_REMINDER',
-        explanation: 'Document has a valid expiry date. Ready for reminders.',
+        explanation: `Document has a valid actionable date (${dateLabel}). Ready for reminders.`,
         missingFields,
         fieldStatuses
       };

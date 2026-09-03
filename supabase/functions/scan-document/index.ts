@@ -109,7 +109,8 @@ Extract and analyze the following fields:
 - name: the document name/title (be specific, e.g. "Indian Union Driving Licence")
 - document_type: Choose the MOST SPECIFIC type from the list below
 - issuing_authority: the organization that issued the document
-- expiry_date: expiration date in YYYY-MM-DD format (or null/empty if none)
+- expiry_date: the selected actionable deadline or expiration date in YYYY-MM-DD format (or null/empty if none). Select this date intelligently using the priority rules below.
+- expiry_date_label: the label of the selected date as shown in the document (e.g. "Expiry Date", "Payment Due Date", "Due Date", "Filing Deadline", etc.), or null if no date is found.
 - renewal_period_days: suggestion for reminder days before expiry (default: 30)
 
 Document Type Options (choose the MOST SPECIFIC match):
@@ -127,10 +128,26 @@ Document Type Options (choose the MOST SPECIFIC match):
 - domain_name, web_hosting, cloud_storage, password_security
 - other (only if none of the above match)
 
+DATE SELECTION PRIORITY RULES:
+Intelligently detect and classify date fields based on the document type and context.
+Do NOT simply treat every date in a document as an expiry/action date.
+Statement periods, statement dates, statement issue/transaction dates, birth dates, purchase dates, etc. must NOT be chosen as the main actionable/expiry date.
+Select the most relevant actionable date using this priority order:
+1. Explicit expiry / expiration date (e.g., "Expiry Date", "Expiration Date", "Expires On")
+2. Valid until / valid through / expires on (e.g., "Valid Upto", "Valid Until", "Valid Through")
+3. Payment due date / due date / minimum payment due by (especially for credit card statements, utility bills, invoices)
+4. Renewal date (e.g., "Renewal Date")
+5. Filing / submission / deadline date (e.g., "Filing Deadline", "Submission Date")
+6. Other clearly actionable deadline dates (e.g., "Return due date")
+7. If no meaningful actionable/expiration/deadline date can be confidently identified, set expiry_date and expiry_date_label to null (which routes the document to DocVault).
+
+Make this logic work across all document types.
+Preserve other dates by listing them in the "notes" field for reference.
+
 CRITICAL RULES FOR NO HALLUCINATION:
 1. NEVER invent/guess dates, names, or identifiers. If a field is not visible, set its status to "missing" and its value to null.
 2. If a field is present but too blurry, obscured, or partially readable, set its status to "uncertain" and value to null/what is readable.
-3. If the document type genuinely does not have an expiry date (e.g., Aadhaar, PAN card, permanent certificates), set expiry_date status to "not_applicable" and value to null.
+3. If the document type genuinely does not have an expiry/actionable date (e.g., Aadhaar, PAN card, permanent certificates), set expiry_date status to "not_applicable" and value to null.
 4. Process EVERY page. If a field has different values on different pages (e.g. conflicting dates/names), set its status to "conflicting" and state the conflict in the reason.
 
 For renewal_period_days, consider:
@@ -149,6 +166,7 @@ Respond ONLY with valid JSON structure:
   "name": "Indian Driving Licence",
   "issuing_authority": "RTO Delhi",
   "expiry_date": "2032-12-31",
+  "expiry_date_label": "Expiry Date",
   "renewal_period_days": 60,
   "notes": "Any additional descriptive context about extraction, conflicts or missing details.",
   "fieldStatuses": {

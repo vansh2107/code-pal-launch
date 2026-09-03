@@ -56,6 +56,9 @@ const documentSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format")
     .optional()
     .or(z.literal("")),
+  expiry_date_label: z.string()
+    .optional()
+    .or(z.literal("")),
   renewal_period_days: z.number()
     .min(1, "Renewal period must be at least 1 day")
     .max(365, "Renewal period cannot exceed 365 days"),
@@ -126,6 +129,7 @@ export default function Scan() {
     document_type: "",
     issuing_authority: "",
     expiry_date: "",
+    expiry_date_label: "",
     renewal_period_days: 30,
     notes: "",
     custom_reminder_date: "",
@@ -442,6 +446,7 @@ export default function Scan() {
           category_detail: extractedFields.document_type,
           issuing_authority: extractedFields.issuing_authority || "DocVault",
           expiry_date: null,
+          expiry_date_label: null,
           renewal_period_days: extractedFields.renewal_period_days || 30,
           notes: extractedFields.notes || "Saved automatically (no expiry date).",
           user_id: user.id,
@@ -693,6 +698,7 @@ export default function Scan() {
       document_type: "",
       issuing_authority: "",
       expiry_date: "",
+      expiry_date_label: "",
       renewal_period_days: 30,
       notes: "",
       custom_reminder_date: "",
@@ -846,6 +852,7 @@ export default function Scan() {
             category_detail: formData.document_type,
             issuing_authority: validatedData.issuing_authority,
             expiry_date: validatedData.expiry_date || null,
+            expiry_date_label: (formData.expiry_date_label as string) || null,
             renewal_period_days: validatedData.renewal_period_days,
             notes: safeNotes,
             image_path: imagePath || existingDoc?.image_path,
@@ -873,6 +880,7 @@ export default function Scan() {
           category_detail: formData.document_type,
           issuing_authority: validatedData.issuing_authority,
           expiry_date: validatedData.expiry_date || null,
+          expiry_date_label: (formData.expiry_date_label as string) || null,
           renewal_period_days: validatedData.renewal_period_days,
           notes: safeNotes,
           user_id: user.id,
@@ -1362,7 +1370,7 @@ export default function Scan() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="expiry_date">Expiry Date *</Label>
+                <Label htmlFor="expiry_date">{formData.expiry_date_label || "Expiry Date"} *</Label>
                 <Input
                   id="expiry_date"
                   type="date"
@@ -1403,7 +1411,7 @@ export default function Scan() {
                           </div>
                           <div>
                             <p className="text-sm font-medium">
-                              {reminder.days} days before expiry
+                              {reminder.days} days before {(formData.expiry_date_label || "expiry").toLowerCase()}
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {reminder.formatted}
@@ -1473,7 +1481,7 @@ export default function Scan() {
             <AlertDialogHeader>
               <AlertDialogTitle>Document already expired</AlertDialogTitle>
               <AlertDialogDescription>
-                The expiry date on this document is {formData.expiry_date}. This document has already expired.
+                The {formData.expiry_date_label?.toLowerCase() || "expiry date"} on this document is {formData.expiry_date}. This date has already passed.
                 Do you still want to continue and save this document to DocVault?
               </AlertDialogDescription>
             </AlertDialogHeader>
