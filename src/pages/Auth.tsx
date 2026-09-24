@@ -32,6 +32,7 @@ import {
   sendPasswordReset,
   type SignUpMetadata,
 } from '@/integrations/firebase/auth';
+import { callSendOtp, callVerifyOtp } from '@/integrations/firebase/functions';
 import { doc, setDoc } from 'firebase/firestore';
 import { firebaseDb, firebaseAuth } from '@/integrations/firebase/client';
 
@@ -59,13 +60,11 @@ const signUpSchema = z.object({
     .regex(/^\+?[0-9]+$/, 'Phone number must contain only digits and optional + prefix'),
 });
 
-const COUNTRIES = [
-  'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France',
-  'Spain', 'Italy', 'Netherlands', 'Belgium', 'Switzerland', 'Austria', 'Sweden',
-  'Norway', 'Denmark', 'Finland', 'Ireland', 'Portugal', 'Greece', 'Poland',
-  'Czech Republic', 'Japan', 'South Korea', 'Singapore', 'India', 'Brazil',
-  'Mexico', 'Argentina', 'Chile', 'Colombia', 'Other',
-];
+import { countryNameToCode } from '@/utils/countryMapping';
+
+const COUNTRIES = Object.keys(countryNameToCode)
+  .concat(['Other'])
+  .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
 export default function Auth() {
   const [email,       setEmail]       = useState('');
@@ -77,8 +76,9 @@ export default function Auth() {
   const [error,       setError]       = useState('');
   const [success,     setSuccess]     = useState('');
 
-  // Sign-up state — replaces OTP flow with email-verification confirmation
-  const [signupEmailSent,     setSignupEmailSent]     = useState(false);
+  // ── Sign up state & OTP flow ─────────────────────────────────────────────
+  const [otpStep,          setOtpStep]          = useState(false);
+  const [otpCode,          setOtpCode]          = useState('');
   const [agreedToTerms,       setAgreedToTerms]       = useState(false);
   const [termsDialogOpen,     setTermsDialogOpen]     = useState(false);
   const [forgotPasswordOpen,  setForgotPasswordOpen]  = useState(false);
@@ -86,10 +86,6 @@ export default function Auth() {
 
   const navigate = useNavigate();
   const { user } = useAuth();
-
-  useEffect(() => {
-    if (user) navigate('/', { replace: true });
-  }, [user, navigate]);
 
   // ── Forgot password ──────────────────────────────────────────────────────
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -127,7 +123,6 @@ export default function Auth() {
       if (!result.ok) {
         setError(result.error);
       }
-      // Success → useEffect redirects
     } catch (err) {
       if (err instanceof z.ZodError) setError(err.errors[0].message);
       else setError('An unexpected error occurred');
@@ -136,8 +131,8 @@ export default function Auth() {
     }
   };
 
-  // ── Sign up ──────────────────────────────────────────────────────────────
-  const handleSignUp = async (e: React.FormEvent) => {
+  // ── Step 1: Request Email OTP ─────────────────────────────────────────────
+  const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -162,33 +157,71 @@ export default function Auth() {
         return;
       }
 
-      const validation = signUpSchema.parse({
+      signUpSchema.parse({
         name, email, password, phone_number: cleanedPhone,
       });
 
+      // Request server-side OTP email send
+      const response = await callSendOtp({ phoneNumber: cleanedPhone, email });
+      if (!response.success) {
+        setError(response.message || 'Failed to send OTP email.');
+        return;
+      }
+
+      setOtpStep(true);
+      setSuccess(`A 6-digit OTP has been sent to ${email}. Please enter it below to complete signup.`);
+    } catch (err) {
+      if (err instanceof z.ZodError) setError(err.errors[0].message);
+      else setError('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Step 2: Verify OTP Server-Side and Finalize Signup ───────────────────
+  const handleVerifyOtpAndSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (!otpCode || otpCode.trim().length !== 6) {
+        setError('Please enter a valid 6-digit OTP code');
+        setLoading(false);
+        return;
+      }
+
+      const cleanedPhone = phoneNumber.replace(/\s+/g, '');
+
+      // Server-side verification of OTP
+      const verifyRes = await callVerifyOtp({ phoneNumber: cleanedPhone, otpCode: otpCode.trim() });
+      if (!verifyRes.success) {
+        setError(verifyRes.message || 'Invalid or expired OTP code.');
+        return;
+      }
+
+      // OTP verified successfully → finalize account creation
       const metadata: SignUpMetadata = {
-        displayName: validation.name,
+        displayName: name.trim(),
         country,
         phoneNumber: cleanedPhone,
       };
 
-      const result = await signUp(validation.email, validation.password, metadata);
-
+      const result = await signUp(email, password, metadata);
       if (!result.ok) {
         setError(result.error);
         return;
       }
 
-      // Patch the profile with country + phone (onUserCreate trigger may not
-      // have these yet since Firebase Auth metadata doesn't carry them)
       try {
         const uid = result.data.uid;
         await setDoc(
           doc(firebaseDb, `users/${uid}/profile/data`),
           {
             userId:      uid,
-            displayName: validation.name,
-            email:       validation.email,
+            displayName: name.trim(),
+            email,
             phoneNumber: cleanedPhone,
             country,
             updatedAt:   new Date().toISOString(),
@@ -199,11 +232,10 @@ export default function Auth() {
         console.warn('[Auth] Profile patch failed (non-critical):', profileErr);
       }
 
-      setSignupEmailSent(true);
-      setSuccess(`Verification email sent to ${email}! Please check your inbox and click the link to verify your account.`);
+      setSuccess('Account created and verified successfully!');
+      // AuthProvider listener will redirect to '/'
     } catch (err) {
-      if (err instanceof z.ZodError) setError(err.errors[0].message);
-      else setError('An unexpected error occurred');
+      setError('Failed to finalize signup.');
     } finally {
       setLoading(false);
     }
@@ -257,8 +289,8 @@ export default function Auth() {
 
             {/* ── Sign Up ── */}
             <TabsContent value="signup">
-              {!signupEmailSent ? (
-                <form onSubmit={handleSignUp} className="space-y-4">
+              {!otpStep ? (
+                <form onSubmit={handleRequestOtp} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Name</Label>
                     <Input id="signup-name" type="text" value={name}
@@ -311,28 +343,43 @@ export default function Auth() {
                   {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                   {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
                   <Button type="submit" className="w-full" disabled={loading || !agreedToTerms}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create Account
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Send OTP Code
                   </Button>
                 </form>
               ) : (
-                /* Email verification sent — replace OTP entry UI */
-                <div className="space-y-4 text-center py-4">
-                  <div className="flex justify-center">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Mail className="h-8 w-8 text-primary" />
+                /* Step 2: 6-Digit OTP Verification Entry */
+                <form onSubmit={handleVerifyOtpAndSignUp} className="space-y-4">
+                  <div className="text-center space-y-2">
+                    <div className="flex justify-center">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Mail className="h-6 w-6 text-primary" />
+                      </div>
                     </div>
+                    <h3 className="text-lg font-semibold">Verify Email OTP</h3>
+                    <p className="text-xs text-muted-foreground">
+                      We sent a 6-digit verification code to <strong>{email}</strong>
+                    </p>
                   </div>
-                  <h3 className="text-lg font-semibold">Check your email</h3>
-                  <p className="text-sm text-muted-foreground">
-                    We sent a verification link to <strong>{email}</strong>. Click the link to verify
-                    your account, then sign in.
-                  </p>
-                  <Alert><AlertDescription>{success}</AlertDescription></Alert>
-                  <Button variant="outline" className="w-full"
-                    onClick={() => { setSignupEmailSent(false); setError(''); setSuccess(''); }}>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="otp-code">6-Digit OTP Code</Label>
+                    <Input id="otp-code" type="text" maxLength={6} value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="000000" required disabled={loading}
+                      className="text-center text-lg tracking-widest font-mono" />
+                  </div>
+
+                  {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+                  {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
+
+                  <Button type="submit" className="w-full" disabled={loading || otpCode.trim().length !== 6}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Verify &amp; Create Account
+                  </Button>
+                  <Button type="button" variant="outline" className="w-full text-sm"
+                    onClick={() => { setOtpStep(false); setOtpCode(''); setError(''); setSuccess(''); }}>
                     Go back
                   </Button>
-                </div>
+                </form>
               )}
             </TabsContent>
           </Tabs>

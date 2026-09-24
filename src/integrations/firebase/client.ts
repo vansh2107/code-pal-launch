@@ -33,7 +33,6 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, type Auth } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator, type FirebaseStorage } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator, type Functions } from 'firebase/functions';
 
@@ -105,10 +104,28 @@ export const firebaseApp: FirebaseApp =
 // directly.  This guarantees exactly one Firebase initialization path.
 // ---------------------------------------------------------------------------
 
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  connectFirestoreEmulator,
+  type Firestore,
+} from 'firebase/firestore';
+
 export const firebaseAuth: Auth                = getAuth(firebaseApp);
-export const firebaseDb: Firestore             = getFirestore(firebaseApp);
+export const firebaseDb: Firestore             = initializeFirestore(firebaseApp, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+});
 export const firebaseStorage: FirebaseStorage  = getStorage(firebaseApp);
 export const firebaseFunctions: Functions      = getFunctions(firebaseApp);
+
+// Short aliases for convenience
+export const auth = firebaseAuth;
+export const db = firebaseDb;
+export const storage = firebaseStorage;
+export const functions = firebaseFunctions;
 
 // ---------------------------------------------------------------------------
 // Local emulator support
