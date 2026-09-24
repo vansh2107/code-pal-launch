@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, addDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { callSendImmediateReminder, callSendReminderEmails } from "@/integrations/firebase/functions";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Mail, Calendar } from "lucide-react";
@@ -29,45 +31,32 @@ export default function TestEmails() {
 
     setLoading(true);
     try {
-      // Create a test document
-      const { data: document, error: docError } = await supabase
-        .from('documents')
-        .insert({
-          name: 'Test Document for Email',
-          document_type: 'passport',
-          expiry_date: testDate,
-          issuing_authority: 'Test Authority',
-          user_id: user.id,
-        })
-        .select()
-        .single();
-
-      if (docError) throw docError;
+      // Create a test document in Firestore
+      const docRef = await addDoc(collection(db, "users", user.id, "documents"), {
+        userId: user.id,
+        name: 'Test Document for Email',
+        documentType: 'passport',
+        expiryDate: testDate,
+        issuingAuthority: 'Test Authority',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
 
       // Create a test reminder
       const reminderDate = new Date(testDate);
       reminderDate.setDate(reminderDate.getDate() - 30); // 30 days before expiry
 
-      const { data: reminder, error: reminderError } = await supabase
-        .from('reminders')
-        .insert({
-          document_id: document.id,
-          user_id: user.id,
-          reminder_date: reminderDate.toISOString().split('T')[0],
-          is_custom: true,
-          is_sent: false,
-        })
-        .select()
-        .single();
-
-      if (reminderError) throw reminderError;
-
-      // Send immediate confirmation email
-      const { error: emailError } = await supabase.functions.invoke('send-immediate-reminder', {
-        body: { reminder_id: reminder.id }
+      const remRef = await addDoc(collection(db, "users", user.id, "reminders"), {
+        userId: user.id,
+        documentId: docRef.id,
+        reminderDate: reminderDate.toISOString().split('T')[0],
+        isCustom: true,
+        isSent: false,
+        createdAt: serverTimestamp(),
       });
 
-      if (emailError) throw emailError;
+      // Send immediate confirmation email via Firebase Cloud Function
+      await callSendImmediateReminder({ reminderId: remRef.id });
 
       toast({
         title: "✅ Test email sent!",
@@ -76,8 +65,8 @@ export default function TestEmails() {
 
       // Clean up test data after a delay
       setTimeout(async () => {
-        await supabase.from('reminders').delete().eq('id', reminder.id);
-        await supabase.from('documents').delete().eq('id', document.id);
+        await deleteDoc(remRef);
+        await deleteDoc(docRef);
       }, 2000);
 
     } catch (error: any) {
@@ -95,21 +84,17 @@ export default function TestEmails() {
   const testDailyEmailCron = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase.functions.invoke('send-reminder-emails', {
-        body: {}
-      });
-
-      if (error) throw error;
+      await callSendReminderEmails({});
 
       toast({
         title: "✅ Daily email function triggered!",
-        description: "Check the edge function logs in Supabase to see the results.",
+        description: "Check the Firebase Cloud Function logs to see the results.",
       });
     } catch (error: any) {
       console.error('Cron test error:', error);
       toast({
-        title: "Note",
-        description: "This function requires CRON_SECRET to be set. Check your Supabase secrets.",
+        title: "Error",
+        description: error.message || "Failed to trigger daily email function.",
         variant: "destructive",
       });
     } finally {

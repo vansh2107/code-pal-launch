@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Shield, FileText, Bell, User } from "lucide-react";
@@ -14,23 +16,41 @@ interface AuditLog {
 }
 
 export function AuditLogs() {
+  const { user } = useAuth();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
+    if (user) {
+      fetchLogs();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
 
   const fetchLogs = async () => {
+    if (!user) return;
     try {
-      const { data, error } = await supabase
-        .from("audit_logs")
-        .select("id, action, entity_type, created_at, document_id")
-        .order("created_at", { ascending: false })
-        .limit(50);
+      const q = query(
+        collection(db, "audit_logs"),
+        where("userId", "==", user.id),
+        limit(50)
+      );
+      const querySnap = await getDocs(q);
+      const logEntries: AuditLog[] = querySnap.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          action: data.action || "action",
+          entity_type: data.entityType || data.entity_type || "item",
+          created_at: data.createdAt?.toDate?.()?.toISOString() || data.created_at || new Date().toISOString(),
+          document_id: data.documentId || data.document_id || null,
+        };
+      });
 
-      if (error) throw error;
-      setLogs(data || []);
+      // Sort descending by created_at
+      logEntries.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setLogs(logEntries);
     } catch (error) {
       console.error("Error fetching audit logs:", error);
     } finally {

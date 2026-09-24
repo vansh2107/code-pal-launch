@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
+import { callTaskAiRecommendations } from "@/integrations/firebase/functions";
 
 interface AIRecommendationsProps {
   task: {
@@ -29,17 +29,15 @@ export function AIRecommendations({ task }: AIRecommendationsProps) {
       const safeTitle = task.title ?? "";
       const safeDesc = task.description ?? "";
       
-      const { data, error } = await supabase.functions.invoke("task-ai-recommendations", {
-        body: {
-          title: safeTitle,
-          description: safeDesc,
-          missedDays: task.consecutive_missed_days,
-          status: task.status,
-        },
-      });
+      const data = await callTaskAiRecommendations({
+        taskId: task.id,
+        taskTitle: safeTitle,
+        taskDescription: safeDesc,
+        missedDays: task.consecutive_missed_days,
+        status: task.status,
+      } as any);
 
-      if (error) throw error;
-      setRecommendation(data.recommendation);
+      setRecommendation(data.recommendation || data.tip || '');
     } catch (error) {
       console.error("Error fetching AI recommendation:", error);
     } finally {

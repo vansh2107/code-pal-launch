@@ -2,10 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Clock, AlertCircle } from "lucide-react";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { differenceInDays } from "date-fns";
 import { isValidCalendarDate } from "@/utils/documentDecisionEngine";
+import { callAiDocumentAnalysis } from "@/integrations/firebase/functions";
 
 interface Document {
   id: string;
@@ -57,26 +57,22 @@ export function AIRenewalSuggestions({ documents }: AIRenewalSuggestionsProps) {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('ai-document-analysis', {
-        body: {
-          documents: docsNeedingRenewal.map(doc => ({
-            id: doc.id,
-            name: doc.name,
-            document_type: doc.document_type,
-            expiry_date: doc.expiry_date,
-            issuing_authority: doc.issuing_authority,
-            daysUntilExpiry: differenceInDays(new Date(doc.expiry_date), new Date())
-          })),
-          analysisType: 'renewal_suggestions'
-        }
-      });
+      const data = await callAiDocumentAnalysis({
+        documents: docsNeedingRenewal.map(doc => ({
+          id: doc.id,
+          name: doc.name,
+          document_type: doc.document_type,
+          expiry_date: doc.expiry_date,
+          issuing_authority: doc.issuing_authority,
+          daysUntilExpiry: differenceInDays(new Date(doc.expiry_date), new Date())
+        })),
+        analysisType: 'renewal_suggestions'
+      } as any);
 
-      if (error) throw error;
-
-      setSuggestions(data.suggestions || []);
+      setSuggestions((data.suggestions as AISuggestion[]) || []);
       toast({
         title: "AI Analysis Complete",
-        description: `Generated renewal suggestions for ${data.suggestions?.length || 0} documents.`,
+        description: `Generated renewal suggestions for ${(data.suggestions as any[])?.length || 0} documents.`,
       });
     } catch (error: any) {
       console.error('Error generating AI suggestions:', error);

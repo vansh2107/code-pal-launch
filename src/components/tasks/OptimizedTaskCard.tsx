@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Clock, CheckCircle2, Image as ImageIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, db, storage } from "@/integrations/firebase/client";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { ref, uploadBytes } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import { LazyAIRecommendations } from "./LazyAIRecommendations";
 
@@ -63,7 +65,7 @@ function OptimizedTaskCardComponent({
 
   const handleComplete = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = auth.currentUser;
       if (!user) return;
 
       let imagePath = task.image_path;
@@ -71,13 +73,10 @@ function OptimizedTaskCardComponent({
       if (completionImage) {
         setUploadingImage(true);
         const fileExt = completionImage.name.split(".").pop();
-        const fileName = `${user.id}/${task.id}_${Date.now()}.${fileExt}`;
+        const fileName = `${user.uid}/${task.id}_${Date.now()}.${fileExt}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("task-images")
-          .upload(fileName, completionImage);
-
-        if (uploadError) throw uploadError;
+        const storageRef = ref(storage, fileName);
+        await uploadBytes(storageRef, completionImage);
         imagePath = fileName;
       }
 
@@ -98,22 +97,15 @@ function OptimizedTaskCardComponent({
       });
       onRefresh();
 
-      const { error } = await supabase
-        .from("tasks")
-        .update({
-          status: "completed",
-          end_time: endTime.toISOString(),
-          total_time_minutes: durationMinutes,
-          image_path: imagePath,
-          reminder_active: false,
-        })
-        .eq("id", task.id);
-
-      if (error) {
-        // Rollback on error
-        onRefresh();
-        throw error;
-      }
+      const taskRef = doc(db, "users", user.uid, "tasks", task.id);
+      await updateDoc(taskRef, {
+        status: "completed",
+        endTime: endTime.toISOString(),
+        totalTimeMinutes: durationMinutes,
+        imagePath: imagePath,
+        reminderActive: false,
+        updatedAt: serverTimestamp(),
+      });
     } catch (error) {
       toast({
         title: "Error",

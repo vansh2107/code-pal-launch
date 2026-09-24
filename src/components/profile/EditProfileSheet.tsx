@@ -9,7 +9,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { User, Shield, Trash2, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { db, storage } from "@/integrations/firebase/client";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { ref, deleteObject } from "firebase/storage";
 import { useAuth } from "@/hooks/useAuth";
 import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
 import { getCountryCode } from "@/utils/countryMapping";
@@ -55,24 +57,21 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
     setLoading(true);
     
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
+      const profileRef = doc(db, "users", user.id, "profile", "data");
+      const snap = await getDoc(profileRef);
 
-      if (error) throw error;
-
-      if (data) {
-        setDisplayName(data.display_name || "");
+      if (snap.exists()) {
+        const data = snap.data();
+        setDisplayName(data.displayName || "");
         setCountry(data.country || "");
-        setPhoneNumber(data.phone_number || "");
+        setPhoneNumber(data.phoneNumber || "");
         
-        if (data.avatar_url) {
-          if (data.avatar_url.startsWith('http')) {
-            setAvatarSignedUrl(data.avatar_url);
+        const avatarUrl = data.avatarUrl || data.avatar_url;
+        if (avatarUrl) {
+          if (avatarUrl.startsWith('http')) {
+            setAvatarSignedUrl(avatarUrl);
           } else {
-            const signedUrl = await getSignedUrl('document-images', data.avatar_url);
+            const signedUrl = await getSignedUrl('document-images', avatarUrl);
             if (signedUrl) {
               setAvatarSignedUrl(signedUrl);
             }
@@ -91,16 +90,12 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
     setSaving(true);
     
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          display_name: displayName || null,
-          country: country || null,
-          phone_number: phoneNumber || null,
-        })
-        .eq("user_id", user.id);
-
-      if (error) throw error;
+      const profileRef = doc(db, "users", user.id, "profile", "data");
+      await setDoc(profileRef, {
+        displayName: displayName || null,
+        country: country || null,
+        phoneNumber: phoneNumber || null,
+      }, { merge: true });
 
       toast({
         title: "Profile updated",
@@ -124,22 +119,21 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
     if (!user) return;
     
     try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("avatar_url")
-        .eq("user_id", user.id)
-        .single();
+      const profileRef = doc(db, "users", user.id, "profile", "data");
+      const snap = await getDoc(profileRef);
+      const profile = snap.data();
+      const avatarUrl = profile?.avatarUrl || profile?.avatar_url;
       
-      if (profile?.avatar_url && !profile.avatar_url.startsWith('http')) {
-        await supabase.storage.from('document-images').remove([profile.avatar_url]);
+      if (avatarUrl && !avatarUrl.startsWith('http')) {
+        try {
+          const storageRef = ref(storage, avatarUrl);
+          await deleteObject(storageRef);
+        } catch (sErr) {
+          // ignore if missing
+        }
       }
       
-      const { error } = await supabase
-        .from("profiles")
-        .update({ avatar_url: null })
-        .eq("user_id", user.id);
-      
-      if (error) throw error;
+      await setDoc(profileRef, { avatarUrl: null }, { merge: true });
       
       setAvatarSignedUrl(null);
       toast({

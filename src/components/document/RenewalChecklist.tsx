@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, getDocs } from "firebase/firestore";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Circle } from "lucide-react";
@@ -31,27 +32,6 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
   useEffect(() => {
     if (user) {
       fetchUserDocuments();
-      
-      // Real-time subscription for document changes
-      const channel = supabase
-        .channel('checklist-documents-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'documents',
-            filter: `user_id=eq.${user.id}`
-          },
-          () => {
-            fetchUserDocuments();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     }
   }, [user]);
 
@@ -62,13 +42,19 @@ export function RenewalChecklist({ documentId, requiredDocuments }: RenewalCheck
 
   const fetchUserDocuments = async () => {
     try {
-      const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
-      setUserDocuments(data || []);
+      if (!user) return;
+      const docsRef = collection(db, "users", user.uid, "documents");
+      const snap = await getDocs(docsRef);
+      const docsList = snap.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          name: data.name || '',
+          document_type: data.documentType || data.document_type || '',
+          issuing_authority: data.issuingAuthority || data.issuing_authority || null,
+        };
+      });
+      setUserDocuments(docsList);
     } catch (error) {
       console.error('Error fetching documents:', error);
     }

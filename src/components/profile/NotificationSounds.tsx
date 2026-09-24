@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { Volume2, Play, Check, RotateCcw, ChevronRight, Upload, X, Pause } from "lucide-react";
@@ -303,14 +304,13 @@ export function NotificationSounds() {
   const fetchPreferences = async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("notification_sounds")
-        .eq("user_id", user.id)
-        .single();
-      if (error) throw error;
-      if (data?.notification_sounds && typeof data.notification_sounds === "object") {
-        setPreferences(data.notification_sounds as SoundPreferences);
+      const profileRef = doc(db, "users", user.id, "profile", "data");
+      const snap = await getDoc(profileRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.notificationSounds && typeof data.notificationSounds === "object") {
+          setPreferences(data.notificationSounds as SoundPreferences);
+        }
       }
     } catch (err) {
       console.error("Error fetching sound preferences:", err);
@@ -327,11 +327,8 @@ export function NotificationSounds() {
       setPreferences(updated);
       setSaving(true);
       try {
-        const { error } = await supabase
-          .from("profiles")
-          .update({ notification_sounds: updated as any })
-          .eq("user_id", user.id);
-        if (error) throw error;
+        const profileRef = doc(db, "users", user.id, "profile", "data");
+        await setDoc(profileRef, { notificationSounds: updated }, { merge: true });
       } catch {
         toast({ title: "Error", description: "Failed to save preference", variant: "destructive" });
       } finally {
@@ -358,11 +355,8 @@ export function NotificationSounds() {
     NOTIFICATION_TYPES.forEach((t) => (defaults[t.key] = "default"));
     setPreferences(defaults);
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ notification_sounds: defaults as any })
-        .eq("user_id", user.id);
-      if (error) throw error;
+      const profileRef = doc(db, "users", user.id, "profile", "data");
+      await setDoc(profileRef, { notificationSounds: defaults }, { merge: true });
       toast({ title: "Reset complete", description: "All sounds set to default." });
     } catch {
       toast({ title: "Error", description: "Failed to reset", variant: "destructive" });

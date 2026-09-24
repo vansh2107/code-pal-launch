@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -29,20 +30,17 @@ export function FeedbackDialog() {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('audit_logs')
-        .insert([{
-          user_id: user?.id,
-          action: 'user_feedback',
-          entity_type: 'feedback',
-          changes: {
-            category,
-            feedback,
-            timestamp: new Date().toISOString()
-          }
-        }]);
-
-      if (error) throw error;
+      await addDoc(collection(db, "audit_logs"), {
+        userId: user?.id || "anonymous",
+        action: 'user_feedback',
+        entityType: 'feedback',
+        changes: {
+          category,
+          feedback,
+          timestamp: new Date().toISOString()
+        },
+        createdAt: serverTimestamp()
+      });
 
       toast({
         title: "Thank you!",

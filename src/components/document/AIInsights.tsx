@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +6,10 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Brain, TrendingUp, AlertTriangle, Lightbulb, Loader2, DollarSign, FileCheck, Sparkles } from "lucide-react";
 import { RenewalChecklist } from "./RenewalChecklist";
-import { DocumentStatusInfo } from "@/utils/documentStatus";
+import { useAuth } from "@/hooks/useAuth";
+import { getDoc } from "firebase/firestore";
+import { userProfileDoc } from "@/integrations/firebase/firestore";
+import { callAiDocumentAnalysis } from "@/integrations/firebase/functions";
 
 type Document = {
   id: string;
@@ -21,25 +23,26 @@ type Document = {
 
 export function AIInsights({ document, statusInfo }: { document: Document; statusInfo: DocumentStatusInfo | null }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [loadingType, setLoadingType] = useState<string | null>(null);
   const [insights, setInsights] = useState<any>(null);
   const [userCountry, setUserCountry] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch user's country
     const fetchUserCountry = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('country')
-          .eq('user_id', user.id)
-          .single();
-        setUserCountry(profile?.country || null);
+        try {
+          const snap = await getDoc(userProfileDoc(user.uid));
+          if (snap.exists()) {
+            setUserCountry((snap.data().country as string) || null);
+          }
+        } catch (e) {
+          console.error('[AIInsights] Error loading country:', e);
+        }
       }
     };
     fetchUserCountry();
-  }, []);
+  }, [user]);
 
   const analyzeDocument = async (type: 'classify' | 'renewal_prediction' | 'priority_scoring' | 'cost_estimate' | 'compliance_check' | 'full_analysis' | 'renewal_requirements') => {
     setLoadingType(type);
@@ -49,20 +52,16 @@ export function AIInsights({ document, statusInfo }: { document: Document; statu
         (new Date(document.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
       );
 
-      const { data, error } = await supabase.functions.invoke('ai-document-analysis', {
-        body: {
-          documentData: {
-            ...document,
-            daysUntilExpiry
-          },
-          analysisType: type,
-          userCountry
-        }
-      });
+      const data = await callAiDocumentAnalysis({
+        documentData: {
+          ...document,
+          daysUntilExpiry
+        },
+        analysisType: type,
+        userCountry
+      } as any);
 
-      if (error) throw error;
-
-      setInsights({ type, data: data.analysis });
+      setInsights({ type, data: (data.analysis || data.result) });
       toast({
         title: "Analysis Complete",
         description: "AI insights generated successfully",

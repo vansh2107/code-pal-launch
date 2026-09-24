@@ -1,21 +1,21 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import { MessageCircle, X, Send, Loader2, Upload, FileText, Image as ImageIcon, Camera, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
+import { db, auth } from "@/integrations/firebase/client";
+import { getIdToken } from "@/integrations/firebase/auth";
+import { CHATBOT_FUNCTION_URL } from "@/integrations/firebase/functions";
+import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, addDoc, serverTimestamp, getDoc } from "firebase/firestore";
 
 interface Message {
-  role: 'user' | 'assistant' | 'tool';
+  role: 'user' | 'assistant';
   content: string;
-  tool_calls?: any[];
-  tool_call_id?: string;
-  files?: File[];
 }
 
 interface ToolExecution {
@@ -28,41 +28,47 @@ interface PendingConfirmation {
   type: 'delete_task' | 'delete_document' | 'update_task' | 'update_document';
   record: any;
   action: string;
-  args?: any;
+  args: any;
 }
 
 // Name resolver - finds records by name using fuzzy matching
 async function resolveTaskByName(searchName: string): Promise<{ found: any[]; exactMatch: any | null }> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = auth.currentUser;
   if (!user) return { found: [], exactMatch: null };
 
-  const { data: tasks } = await supabase
-    .from('tasks')
-    .select('id, title, task_date, start_time, status, description')
-    .eq('user_id', user.id)
-    .ilike('title', `%${searchName}%`)
-    .limit(10);
+  const tasksRef = collection(db, "users", user.uid, "tasks");
+  const snap = await getDocs(tasksRef);
+  const tasks: any[] = [];
+  snap.forEach(d => {
+    const data = d.data();
+    if ((data.title || '').toLowerCase().includes(searchName.toLowerCase())) {
+      tasks.push({ id: d.id, ...data });
+    }
+  });
 
-  if (!tasks || tasks.length === 0) return { found: [], exactMatch: null };
+  if (tasks.length === 0) return { found: [], exactMatch: null };
   
-  const exactMatch = tasks.find(t => t.title.toLowerCase() === searchName.toLowerCase());
+  const exactMatch = tasks.find(t => (t.title || '').toLowerCase() === searchName.toLowerCase());
   return { found: tasks, exactMatch: exactMatch || (tasks.length === 1 ? tasks[0] : null) };
 }
 
 async function resolveDocumentByName(searchName: string): Promise<{ found: any[]; exactMatch: any | null }> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = auth.currentUser;
   if (!user) return { found: [], exactMatch: null };
 
-  const { data: docs } = await supabase
-    .from('documents')
-    .select('id, name, document_type, expiry_date, issuing_authority')
-    .eq('user_id', user.id)
-    .ilike('name', `%${searchName}%`)
-    .limit(10);
+  const docsRef = collection(db, "users", user.uid, "documents");
+  const snap = await getDocs(docsRef);
+  const docs: any[] = [];
+  snap.forEach(d => {
+    const data = d.data();
+    if ((data.name || '').toLowerCase().includes(searchName.toLowerCase())) {
+      docs.push({ id: d.id, ...data });
+    }
+  });
 
-  if (!docs || docs.length === 0) return { found: [], exactMatch: null };
+  if (docs.length === 0) return { found: [], exactMatch: null };
   
-  const exactMatch = docs.find(d => d.name.toLowerCase() === searchName.toLowerCase());
+  const exactMatch = docs.find(d => (d.name || '').toLowerCase() === searchName.toLowerCase());
   return { found: docs, exactMatch: exactMatch || (docs.length === 1 ? docs[0] : null) };
 }
 
@@ -193,15 +199,10 @@ export function ChatBot() {
     }
   }, [messages, toolExecutions]);
 
-  // Trigger notification refresh after task creation/update
-  const triggerNotificationRefresh = useCallback(async (taskId: string) => {
-    try {
-      await supabase.functions.invoke('task-two-hour-reminder', {
-        body: { taskId }
-      });
-    } catch (error) {
-      console.warn('Notification refresh failed:', error);
-    }
+  // Notification refresh is handled automatically by Cloud Scheduler
+  const triggerNotificationRefresh = useCallback(async (_taskId: string) => {
+    // Cloud Scheduler handles notification scheduling automatically
+    console.log('Task saved; Cloud Scheduler will handle notifications.');
   }, []);
 
   const executeTool = useCallback(async (toolName: string, args: any): Promise<string> => {
@@ -227,12 +228,18 @@ export function ChatBot() {
         }
 
         case 'get_documents': {
-          const { data: docs } = await supabase
-            .from('documents')
-            .select('id, name, document_type, expiry_date, issuing_authority')
-            .order('expiry_date', { ascending: true })
-            .limit(args.limit || 20);
-          return `Found ${docs?.length || 0} documents: ${JSON.stringify(docs?.map(d => ({ id: d.id, name: d.name, type: d.document_type, expiry: d.expiry_date })))}`;
+          const currentUser = auth.currentUser;
+          if (!currentUser) return 'Error: User not authenticated';
+          const docsRef = collection(db, 'users', currentUser.uid, 'documents');
+          const docsSnap = await getDocs(docsRef);
+          const docs: any[] = [];
+          docsSnap.forEach(d => {
+            const data = d.data();
+            docs.push({ id: d.id, name: data.name, type: data.documentType, expiry: data.expiryDate });
+          });
+          docs.sort((a, b) => (a.expiry || '').localeCompare(b.expiry || ''));
+          const limited = docs.slice(0, args.limit || 20);
+          return `Found ${limited.length} documents: ${JSON.stringify(limited)}`;
         }
 
         case 'find_document_by_name': {
@@ -258,26 +265,23 @@ export function ChatBot() {
         }
 
         case 'create_document': {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return 'Error: User not authenticated';
-          
-          const { data: newDoc, error: createError } = await supabase
-            .from('documents')
-            .insert({
-              user_id: user.id,
-              name: args.name,
-              document_type: args.document_type,
-              expiry_date: args.expiry_date,
-              issuing_authority: args.issuing_authority,
-              category_detail: args.category_detail,
-              notes: args.notes
-            })
-            .select()
-            .single();
-            
-          if (createError) return `Error: ${createError.message}`;
+          const currentUser = auth.currentUser;
+          if (!currentUser) return 'Error: User not authenticated';
+
+          const newDocRef = await addDoc(collection(db, 'users', currentUser.uid, 'documents'), {
+            userId: currentUser.uid,
+            name: args.name,
+            documentType: args.document_type,
+            expiryDate: args.expiry_date || null,
+            issuingAuthority: args.issuing_authority || null,
+            categoryDetail: args.category_detail || null,
+            notes: args.notes || null,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+
           toast({ title: "Document created", description: args.name });
-          return `Created document: ${newDoc.name} (ID: ${newDoc.id})`;
+          return `Created document: ${args.name} (ID: ${newDocRef.id})`;
         }
 
         case 'update_document_by_name': {
@@ -301,19 +305,17 @@ export function ChatBot() {
         }
 
         case 'update_document': {
-          const updateData: any = {};
+          const currentUser = auth.currentUser;
+          if (!currentUser) return 'Error: User not authenticated';
+          
+          const updateData: any = { updatedAt: serverTimestamp() };
           if (args.name) updateData.name = args.name;
-          if (args.expiry_date) updateData.expiry_date = args.expiry_date;
-          if (args.issuing_authority) updateData.issuing_authority = args.issuing_authority;
-          if (args.category_detail) updateData.category_detail = args.category_detail;
+          if (args.expiry_date) updateData.expiryDate = args.expiry_date;
+          if (args.issuing_authority) updateData.issuingAuthority = args.issuing_authority;
+          if (args.category_detail) updateData.categoryDetail = args.category_detail;
           if (args.notes) updateData.notes = args.notes;
           
-          const { error: updateError } = await supabase
-            .from('documents')
-            .update(updateData)
-            .eq('id', args.document_id);
-            
-          if (updateError) return `Error: ${updateError.message}`;
+          await updateDoc(doc(db, 'users', currentUser.uid, 'documents', args.document_id), updateData);
           toast({ title: "Document updated" });
           return `Updated document successfully`;
         }
@@ -334,64 +336,59 @@ export function ChatBot() {
             args: { document_id: result.exactMatch.id }
           });
           
-          return `CONFIRMATION_REQUIRED: I found document "${result.exactMatch.name}" (${result.exactMatch.document_type}, expires: ${result.exactMatch.expiry_date}). Are you sure you want to delete it? Reply "yes" to confirm or "no" to cancel.`;
+          return `CONFIRMATION_REQUIRED: I found document "${result.exactMatch.name}" (${result.exactMatch.documentType || result.exactMatch.document_type}, expires: ${result.exactMatch.expiryDate || result.exactMatch.expiry_date}). Are you sure you want to delete it? Reply "yes" to confirm or "no" to cancel.`;
         }
 
         case 'delete_document': {
-          const { error: deleteError } = await supabase
-            .from('documents')
-            .delete()
-            .eq('id', args.document_id);
-            
-          if (deleteError) return `Error: ${deleteError.message}`;
+          const currentUser = auth.currentUser;
+          if (!currentUser) return 'Error: User not authenticated';
+          
+          await deleteDoc(doc(db, 'users', currentUser.uid, 'documents', args.document_id));
           toast({ title: "Document deleted" });
           return `Deleted document successfully`;
         }
 
         case 'get_tasks': {
-          const { data: tasks } = await supabase
-            .from('tasks')
-            .select('id, title, task_date, start_time, status, description')
-            .order('task_date', { ascending: true });
-          return `Found ${tasks?.length || 0} tasks: ${JSON.stringify(tasks?.map(t => ({ id: t.id, title: t.title, date: t.task_date, status: t.status })))}`;
+          const currentUser = auth.currentUser;
+          if (!currentUser) return 'Error: User not authenticated';
+          
+          const tasksSnap = await getDocs(collection(db, 'users', currentUser.uid, 'tasks'));
+          const tasks: any[] = [];
+          tasksSnap.forEach(d => {
+            const data = d.data();
+            tasks.push({ id: d.id, title: data.title, date: data.taskDate || data.task_date, status: data.status });
+          });
+          tasks.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+          return `Found ${tasks.length} tasks: ${JSON.stringify(tasks)}`;
         }
 
         case 'create_task': {
-          const { data: { user: taskUser } } = await supabase.auth.getUser();
-          if (!taskUser) return 'Error: User not authenticated';
+          const currentUser = auth.currentUser;
+          if (!currentUser) return 'Error: User not authenticated';
           
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('timezone')
-            .eq('user_id', taskUser.id)
-            .single();
+          const profileDoc = await getDoc(doc(db, 'users', currentUser.uid, 'profile', 'data'));
+          const timezone = profileDoc.exists() ? (profileDoc.data()?.timezone || 'UTC') : 'UTC';
           
-          const timezone = profile?.timezone || 'UTC';
           const taskDate = new Date(`${args.task_date}T${args.start_time}:00`);
           
-          const { data: newTask, error: taskError } = await supabase
-            .from('tasks')
-            .insert({
-              user_id: taskUser.id,
-              title: args.title,
-              description: args.description,
-              task_date: args.task_date,
-              original_date: args.task_date,
-              start_time: taskDate.toISOString(),
-              end_time: args.end_time ? new Date(`${args.task_date}T${args.end_time}:00`).toISOString() : null,
-              timezone: timezone,
-              status: 'pending'
-            } as any)
-            .select()
-            .single();
-            
-          if (taskError) return `Error: ${taskError.message}`;
+          const newTaskRef = await addDoc(collection(db, 'users', currentUser.uid, 'tasks'), {
+            userId: currentUser.uid,
+            title: args.title,
+            description: args.description || '',
+            taskDate: args.task_date,
+            originalDate: args.task_date,
+            startTime: taskDate.toISOString(),
+            endTime: args.end_time ? new Date(`${args.task_date}T${args.end_time}:00`).toISOString() : null,
+            timezone: timezone,
+            status: 'pending',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
           
-          // Trigger notification scheduling
-          await triggerNotificationRefresh(newTask.id);
+          await triggerNotificationRefresh(newTaskRef.id);
           
           toast({ title: "Task created", description: args.title });
-          return `Created task: ${newTask.title} for ${args.task_date} at ${args.start_time}. Notifications scheduled.`;
+          return `Created task: ${args.title} for ${args.task_date} at ${args.start_time}. Notifications scheduled.`;
         }
 
         case 'update_task_by_name': {
@@ -407,37 +404,33 @@ export function ChatBot() {
             type: 'update_task',
             record: result.exactMatch,
             action: `Update "${result.exactMatch.title}"`,
-            args: { ...args, task_id: result.exactMatch.id, task_date: args.task_date || result.exactMatch.task_date }
+            args: { ...args, task_id: result.exactMatch.id, task_date: args.task_date || result.exactMatch.taskDate || result.exactMatch.task_date }
           });
           
-          return `CONFIRMATION_REQUIRED: Found task "${result.exactMatch.title}" (${result.exactMatch.task_date}, status: ${result.exactMatch.status}). Do you want to update it? Reply "yes" to confirm or "no" to cancel.`;
+          return `CONFIRMATION_REQUIRED: Found task "${result.exactMatch.title}" (${result.exactMatch.taskDate || result.exactMatch.task_date}, status: ${result.exactMatch.status}). Do you want to update it? Reply "yes" to confirm or "no" to cancel.`;
         }
 
         case 'update_task': {
-          const taskUpdateData: any = {};
+          const currentUser = auth.currentUser;
+          if (!currentUser) return 'Error: User not authenticated';
+
+          const taskUpdateData: any = { updatedAt: serverTimestamp() };
           if (args.title) taskUpdateData.title = args.title;
           if (args.description !== undefined) taskUpdateData.description = args.description;
-          if (args.task_date) taskUpdateData.task_date = args.task_date;
+          if (args.task_date) taskUpdateData.taskDate = args.task_date;
           if (args.start_time) {
             const date = args.task_date || new Date().toISOString().split('T')[0];
             const updatedStartTime = new Date(`${date}T${args.start_time}:00`);
-            taskUpdateData.start_time = updatedStartTime.toISOString();
+            taskUpdateData.startTime = updatedStartTime.toISOString();
           }
           if (args.end_time) {
             const date = args.task_date || new Date().toISOString().split('T')[0];
             const updatedEndTime = new Date(`${date}T${args.end_time}:00`);
-            taskUpdateData.end_time = updatedEndTime.toISOString();
+            taskUpdateData.endTime = updatedEndTime.toISOString();
           }
           if (args.status) taskUpdateData.status = args.status;
           
-          const { error: taskUpdateError } = await supabase
-            .from('tasks')
-            .update(taskUpdateData)
-            .eq('id', args.task_id);
-            
-          if (taskUpdateError) return `Error: ${taskUpdateError.message}`;
-          
-          // Trigger notification refresh
+          await updateDoc(doc(db, 'users', currentUser.uid, 'tasks', args.task_id), taskUpdateData);
           await triggerNotificationRefresh(args.task_id);
           
           toast({ title: "Task updated" });
@@ -460,51 +453,44 @@ export function ChatBot() {
             args: { task_id: result.exactMatch.id }
           });
           
-          return `CONFIRMATION_REQUIRED: I found task "${result.exactMatch.title}" (${result.exactMatch.task_date}, status: ${result.exactMatch.status}). Are you sure you want to delete it? Reply "yes" to confirm or "no" to cancel.`;
+          return `CONFIRMATION_REQUIRED: I found task "${result.exactMatch.title}" (${result.exactMatch.taskDate || result.exactMatch.task_date}, status: ${result.exactMatch.status}). Are you sure you want to delete it? Reply "yes" to confirm or "no" to cancel.`;
         }
 
         case 'delete_task': {
-          const { error: taskDeleteError } = await supabase
-            .from('tasks')
-            .delete()
-            .eq('id', args.task_id);
-            
-          if (taskDeleteError) return `Error: ${taskDeleteError.message}`;
+          const currentUser = auth.currentUser;
+          if (!currentUser) return 'Error: User not authenticated';
+
+          await deleteDoc(doc(db, 'users', currentUser.uid, 'tasks', args.task_id));
           toast({ title: "Task deleted" });
           return `Deleted task successfully`;
         }
 
         case 'update_profile': {
-          const { data: { user: profileUser } } = await supabase.auth.getUser();
-          if (!profileUser) return 'Error: User not authenticated';
+          const currentUser = auth.currentUser;
+          if (!currentUser) return 'Error: User not authenticated';
           
-          const profileUpdates: any = {};
-          if (args.display_name) profileUpdates.display_name = args.display_name;
+          const profileUpdates: any = { updatedAt: serverTimestamp() };
+          if (args.display_name) profileUpdates.displayName = args.display_name;
           if (args.country) profileUpdates.country = args.country;
           if (args.timezone) profileUpdates.timezone = args.timezone;
-          if (args.push_notifications_enabled !== undefined) profileUpdates.push_notifications_enabled = args.push_notifications_enabled;
-          if (args.email_notifications_enabled !== undefined) profileUpdates.email_notifications_enabled = args.email_notifications_enabled;
+          if (args.push_notifications_enabled !== undefined) profileUpdates.pushNotificationsEnabled = args.push_notifications_enabled;
+          if (args.email_notifications_enabled !== undefined) profileUpdates.emailNotificationsEnabled = args.email_notifications_enabled;
           
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update(profileUpdates)
-            .eq('user_id', profileUser.id);
-            
-          if (profileError) return `Error: ${profileError.message}`;
+          await setDoc(doc(db, 'users', currentUser.uid, 'profile', 'data'), profileUpdates, { merge: true });
           toast({ title: "Profile updated" });
           return `Updated profile settings`;
         }
 
         case 'move_to_docvault': {
-          const { error: vaultError } = await supabase
-            .from('documents')
-            .update({ 
-              expiry_date: '9999-12-31',
-              notes: `Moved to DocVault on ${new Date().toISOString().split('T')[0]}`
-            })
-            .eq('id', args.document_id);
+          const currentUser = auth.currentUser;
+          if (!currentUser) return 'Error: User not authenticated';
+
+          await updateDoc(doc(db, 'users', currentUser.uid, 'documents', args.document_id), {
+            expiryDate: '9999-12-31',
+            notes: `Moved to DocVault on ${new Date().toISOString().split('T')[0]}`,
+            updatedAt: serverTimestamp(),
+          });
             
-          if (vaultError) return `Error: ${vaultError.message}`;
           toast({ title: "Moved to DocVault", description: "Document is now permanent" });
           return `Moved document to DocVault`;
         }
@@ -579,13 +565,14 @@ export function ChatBot() {
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
     try {
-      const CHAT_URL = 'https://rndunloczfpfbubuwffb.supabase.co/functions/v1/chatbot';
+      const token = await getIdToken();
+      const CHAT_URL = CHATBOT_FUNCTION_URL || 'https://chatbot-598687313626.us-central1.run.app';
       
       const response = await fetch(CHAT_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJuZHVubG9jemZwZmJ1YnV3ZmZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkxNDEyMjIsImV4cCI6MjA3NDcxNzIyMn0.DsiQcXrQKHVg1WDJjJ2aAuABv5O7KLd6-7lKxmKcDCM',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ messages: newMessages }),
       });

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, doc, getDocs, getDoc, setDoc, deleteDoc, updateDoc, query, where, orderBy, serverTimestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 type Organization = {
   id: string;
   name: string;
-  created_at: string;
+  created_at?: string;
   owner_id: string;
 };
 
@@ -25,7 +26,7 @@ type OrganizationMember = {
   id: string;
   user_id: string;
   role: 'admin' | 'editor' | 'viewer';
-  created_at: string;
+  created_at?: string;
   profiles?: {
     display_name: string | null;
   };
@@ -60,210 +61,174 @@ export default function Teams() {
   }, [selectedOrg]);
 
   const fetchOrganizations = async () => {
+    if (!user) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('organizations')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      // Query organizations owned by user
+      const ownedQuery = query(collection(db, "organizations"), where("ownerId", "==", user.id));
+      const ownedSnap = await getDocs(ownedQuery);
+      const orgsList: Organization[] = ownedSnap.docs.map(docSnap => ({
+        id: docSnap.id,
+        name: docSnap.data().name || "Unnamed Org",
+        owner_id: docSnap.data().ownerId,
+        created_at: docSnap.data().createdAt ? docSnap.data().createdAt.toDate?.()?.toISOString() : new Date().toISOString()
+      }));
 
-    if (error) {
+      setOrganizations(orgsList);
+      if (orgsList.length > 0 && !selectedOrg) {
+        setSelectedOrg(orgsList[0].id);
+      }
+    } catch (error) {
+      console.error("Failed to load organizations:", error);
       toast({
         title: "Error",
         description: "Failed to load organizations",
         variant: "destructive",
       });
-    } else {
-      setOrganizations(data || []);
-      if (data && data.length > 0 && !selectedOrg) {
-        setSelectedOrg(data[0].id);
-      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const fetchMembers = async (orgId: string) => {
-    const { data, error } = await supabase
-      .from('organization_members')
-      .select('*')
-      .eq('organization_id', orgId)
-      .order('created_at', { ascending: true });
+    try {
+      const membersRef = collection(db, "organizations", orgId, "members");
+      const membersSnap = await getDocs(membersRef);
 
-    if (error) {
+      const memberList: OrganizationMember[] = [];
+      for (const mDoc of membersSnap.docs) {
+        const mData = mDoc.data();
+        const userId = mData.userId || mDoc.id;
+
+        // Try to fetch profile for display name
+        let displayName: string | null = null;
+        try {
+          const profileSnap = await getDoc(doc(db, "users", userId, "profile", "data"));
+          if (profileSnap.exists()) {
+            displayName = profileSnap.data().displayName || null;
+          }
+        } catch (pErr) {
+          console.warn("Could not fetch profile for user:", userId);
+        }
+
+        memberList.push({
+          id: mDoc.id,
+          user_id: userId,
+          role: mData.role || "viewer",
+          created_at: mData.createdAt ? mData.createdAt.toDate?.()?.toISOString() : new Date().toISOString(),
+          profiles: {
+            display_name: displayName
+          }
+        });
+      }
+
+      setMembers(memberList);
+    } catch (error) {
       console.error("Error fetching members:", error);
       toast({
         title: "Error",
         description: "Failed to load team members",
         variant: "destructive",
       });
-      return;
     }
-
-    // Fetch profiles separately
-    const userIds = data?.map(m => m.user_id) || [];
-    if (userIds.length === 0) {
-      setMembers([]);
-      return;
-    }
-
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('user_id, display_name')
-      .in('user_id', userIds);
-
-    const membersWithProfiles = data?.map(member => ({
-      ...member,
-      profiles: profiles?.find(p => p.user_id === member.user_id) || null
-    })) || [];
-
-    setMembers(membersWithProfiles as any);
   };
 
   const createOrganization = async () => {
     if (!newOrgName.trim() || !user) return;
 
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .insert([{ name: newOrgName, owner_id: user.id }])
-      .select()
-      .single();
+    try {
+      const orgRef = doc(collection(db, "organizations"));
+      const orgId = orgRef.id;
 
-    if (orgError) {
+      await setDoc(orgRef, {
+        id: orgId,
+        name: newOrgName.trim(),
+        ownerId: user.id,
+        createdAt: serverTimestamp()
+      });
+
+      // Add creator as member doc in /organizations/{orgId}/members/{user.id}
+      await setDoc(doc(db, "organizations", orgId, "members", user.id), {
+        userId: user.id,
+        organizationId: orgId,
+        role: "admin",
+        createdAt: serverTimestamp()
+      });
+
+      toast({
+        title: "Success",
+        description: "Organization created successfully",
+      });
+
+      setNewOrgName("");
+      setCreateDialogOpen(false);
+      await fetchOrganizations();
+    } catch (orgError) {
+      console.error("Error creating organization:", orgError);
       toast({
         title: "Error",
         description: "Failed to create organization",
         variant: "destructive",
       });
-      return;
     }
-
-    // Add creator as admin member
-    const { error: memberError } = await supabase
-      .from('organization_members')
-      .insert([{ organization_id: org.id, user_id: user.id, role: 'admin' }]);
-
-    if (memberError) {
-      console.error("Error adding creator as member:", memberError);
-    }
-
-    toast({
-      title: "Success",
-      description: "Organization created successfully",
-    });
-
-    setNewOrgName("");
-    setCreateDialogOpen(false);
-    fetchOrganizations();
   };
 
   const inviteMember = async () => {
     if (!inviteEmail.trim() || !selectedOrg) return;
 
-    // Find user by email through auth.users (we need to use an edge function or admin API for this in production)
-    // For now, we'll show a more helpful error message
     toast({
       title: "Feature Not Available",
-      description: "Email-based invites require additional setup. Please share your organization ID with users to join.",
+      description: "Email-based invites require user lookup setup. Please share your organization ID with users to join.",
       variant: "destructive",
     });
-    return;
-
-    const { error } = await supabase
-      .from('organization_members')
-      .insert([{
-        organization_id: selectedOrg,
-        user_id: inviteEmail, // In production, this would need proper user lookup
-        role: inviteRole
-      }]);
-
-    if (error) {
-      if (error.code === '23505') { // Unique constraint violation
-        toast({
-          title: "Error",
-          description: "User is already a member of this organization",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to invite member",
-          variant: "destructive",
-        });
-      }
-      return;
-    }
-
-    toast({
-      title: "Success",
-      description: "Member invited successfully",
-    });
-
-    setInviteEmail("");
-    setInviteRole('viewer');
-    setInviteDialogOpen(false);
-    fetchMembers(selectedOrg);
   };
 
   const updateMemberRole = async (memberId: string, newRole: 'admin' | 'editor' | 'viewer') => {
-    const { error } = await supabase
-      .from('organization_members')
-      .update({ role: newRole })
-      .eq('id', memberId);
+    if (!selectedOrg) return;
+    try {
+      await updateDoc(doc(db, "organizations", selectedOrg, "members", memberId), {
+        role: newRole
+      });
 
-    if (error) {
+      toast({
+        title: "Success",
+        description: "Member role updated",
+      });
+      fetchMembers(selectedOrg);
+    } catch (error) {
       toast({
         title: "Error",
         description: "Failed to update member role",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Success",
-        description: "Member role updated",
-      });
-      if (selectedOrg) {
-        fetchMembers(selectedOrg);
-      }
     }
   };
 
   const removeMember = async (memberId: string) => {
-    const { error } = await supabase
-      .from('organization_members')
-      .delete()
-      .eq('id', memberId);
+    if (!selectedOrg) return;
+    try {
+      await deleteDoc(doc(db, "organizations", selectedOrg, "members", memberId));
 
-    if (error) {
+      toast({
+        title: "Success",
+        description: "Member removed from organization",
+      });
+      fetchMembers(selectedOrg);
+    } catch (error) {
       toast({
         title: "Error",
         description: "Failed to remove member",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Success",
-        description: "Member removed from organization",
-      });
-      if (selectedOrg) {
-        fetchMembers(selectedOrg);
-      }
     }
   };
 
   const deleteOrganization = async () => {
     if (!orgToDelete) return;
 
-    const { error } = await supabase
-      .from('organizations')
-      .delete()
-      .eq('id', orgToDelete);
+    try {
+      await deleteDoc(doc(db, "organizations", orgToDelete));
 
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete organization",
-        variant: "destructive",
-      });
-    } else {
       toast({
         title: "Success",
         description: "Organization deleted",
@@ -272,6 +237,12 @@ export default function Teams() {
       setOrgToDelete(null);
       setSelectedOrg(null);
       fetchOrganizations();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete organization",
+        variant: "destructive",
+      });
     }
   };
 

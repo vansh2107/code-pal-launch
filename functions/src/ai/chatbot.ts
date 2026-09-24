@@ -16,109 +16,10 @@ import { https, logger } from 'firebase-functions/v2';
 import * as express from 'express';
 import { adminAuth, adminDb } from '../shared/admin';
 import { getCorsHeaders } from '../shared/cors';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// ---------------------------------------------------------------------------
-// Tool definitions (mirrors Supabase chatbot's 16 tools)
-// ---------------------------------------------------------------------------
-const TOOLS_DESCRIPTION = `
-You have access to these tools (respond with JSON action when needed):
-- navigate(path: string) — Navigate to a page
-- list_tasks() — List user's tasks
-- create_task(title, description?, startTime, taskDate) — Create a task
-- update_task(id, fields) — Update a task
-- delete_task(id) — Delete a task
-- list_documents() — List user's documents
-- create_document(name, documentType, expiryDate?) — Create a document
-- update_document(id, fields) — Update a document
-- delete_document(id) — Delete a document
-- update_profile(fields) — Update user profile
-- move_to_docvault(documentId, categoryId?) — Move document to DocVault
-- find_task_by_name(name) — Find a task by name
-- find_document_by_name(name) — Find a document by name
-
-Respond conversationally. When you need to perform an action, include a JSON block:
-<action>{"tool":"tool_name","params":{...}}</action>
-`;
-
-async function buildContext(uid: string): Promise<string> {
-  const [docsSnap, tasksSnap] = await Promise.all([
-    adminDb.collection('users').doc(uid).collection('documents').limit(20).get(),
-    adminDb.collection('users').doc(uid).collection('tasks')
-      .where('status', '==', 'pending').limit(20).get(),
-  ]);
-
-  const docs  = docsSnap.docs.map((d)  => ({ id: d.id, name: d.data().name, expiryDate: d.data().expiryDate, type: d.data().documentType }));
-  const tasks = tasksSnap.docs.map((d) => ({ id: d.id, title: d.data().title, taskDate: d.data().taskDate, status: d.data().status }));
-
-  return `User context:\nDocuments: ${JSON.stringify(docs)}\nTasks: ${JSON.stringify(tasks)}`;
-}
-
-async function streamWithGemini(
-  prompt: string,
-  context: string,
-  res: express.Response
-): Promise<boolean> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return false;
-
-  try {
-    const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-    const fullPrompt = `${TOOLS_DESCRIPTION}\n\n${context}\n\nUser: ${prompt}`;
-    const streamResult = await model.generateContentStream(fullPrompt);
-
-    for await (const chunk of streamResult.stream) {
-      const text = chunk.text();
-      if (text) {
-        res.write(`data: ${JSON.stringify({ text })}\n\n`);
-      }
-    }
-    return true;
-  } catch (err) {
-    logger.warn('[chatbot] Gemini stream failed:', err instanceof Error ? err.message : err);
-    return false;
-  }
-}
-
-async function respondWithGroq(
-  prompt: string,
-  context: string,
-  res: express.Response
-): Promise<boolean> {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) return false;
-
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: 'mixtral-8x7b-32768',
-        messages: [
-          { role: 'system', content: `${TOOLS_DESCRIPTION}\n\n${context}` },
-          { role: 'user',   content: prompt },
-        ],
-        max_tokens: 1000,
-      }),
-    });
-    const data = await response.json() as { choices?: { message?: { content?: string } }[] };
-    const text = data.choices?.[0]?.message?.content ?? 'I could not generate a response.';
-    res.write(`data: ${JSON.stringify({ text })}\n\n`);
-    return true;
-  } catch (err) {
-    logger.warn('[chatbot] Groq failed:', err instanceof Error ? err.message : err);
-    return false;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// HTTP handler
-// ---------------------------------------------------------------------------
 export const chatbot = https.onRequest(
   { timeoutSeconds: 120, cors: false },
-  async (req, res) => {
+  async (req: express.Request, res: express.Response) => {
     // CORS
     const origin = req.headers.origin as string | undefined;
     Object.entries(getCorsHeaders(origin)).forEach(([k, v]) => res.set(k, v));
@@ -126,7 +27,7 @@ export const chatbot = https.onRequest(
 
     if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-    // Auth
+    // Auth verification
     const authHeader = req.headers.authorization as string | undefined;
     if (!authHeader?.startsWith('Bearer ')) {
       res.status(401).json({ error: 'Authentication required.' });
@@ -142,10 +43,13 @@ export const chatbot = https.onRequest(
       return;
     }
 
-    const { message } = req.body as { message?: string };
-    if (!message) { res.status(400).json({ error: 'message is required.' }); return; }
+    const { messages } = req.body as { messages?: any[] };
+    if (!Array.isArray(messages) || messages.length === 0) {
+      res.status(400).json({ error: 'messages array is required.' });
+      return;
+    }
 
-    // Set up SSE
+    // Set up SSE headers
     res.set({
       'Content-Type':  'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -153,20 +57,301 @@ export const chatbot = https.onRequest(
     });
     res.status(200);
 
+    // Fetch user context from Firestore
+    let userContext = '';
     try {
-      const context = await buildContext(uid);
+      const [docsSnap, tasksSnap] = await Promise.all([
+        adminDb.collection('users').doc(uid).collection('documents').orderBy('expiryDate', 'asc').limit(20).get(),
+        adminDb.collection('users').doc(uid).collection('tasks').orderBy('taskDate', 'asc').limit(20).get(),
+      ]);
 
-      let handled = await streamWithGemini(message, context, res);
-      if (!handled) handled = await respondWithGroq(message, context, res);
-      if (!handled) {
-        res.write(`data: ${JSON.stringify({ text: "I'm here to help! I can manage your tasks and documents. What would you like to do?" })}\n\n`);
+      if (!docsSnap.empty) {
+        userContext += `\n\nUser's documents (use these names for operations):\n${docsSnap.docs.map(doc => {
+          const d = doc.data();
+          return `- "${d.name}" (${d.documentType}): expires ${d.expiryDate}, ID: ${doc.id}`;
+        }).join('\n')}`;
       }
 
+      if (!tasksSnap.empty) {
+        userContext += `\n\nUser's tasks (use these titles for operations):\n${tasksSnap.docs.map(task => {
+          const t = task.data();
+          return `- "${t.title}": ${t.taskDate}, status: ${t.status}, ID: ${task.id}`;
+        }).join('\n')}`;
+      }
+    } catch (e) {
+      logger.warn('[chatbot] Error fetching context:', e);
+    }
+
+    const systemPrompt = `You are the AI Agent inside a Capacitor + React + Firebase mobile app named **Remonk Reminder**.  
+Your job is to understand natural language and convert it into correct frontend actions, backend API calls, navigation, file uploads, filters, updates, and reminder scheduling.
+
+===============================
+STRICT RULES
+===============================
+1. **Use ONLY existing files, components, services, APIs, hooks, and layouts inside the project**.  
+2. **Never create new files or rename anything.**  
+3. **All actions MUST match the real code of this project exactly** (pages, hooks, API names, param names).  
+4. **NAME-BASED OPERATIONS ARE REQUIRED**: When user mentions a task or document BY NAME:
+   - Use the *_by_name tools (delete_task_by_name, update_task_by_name, delete_document_by_name, update_document_by_name)
+   - These tools will find the record by name and handle disambiguation if multiple matches exist
+   - NEVER ask user for ID - always resolve by name
+5. After every create/update action on tasks, notifications will be automatically scheduled.
+
+===============================
+NATURAL LANGUAGE UNDERSTANDING
+===============================
+Recognize command variations for CREATE, UPDATE, DELETE.
+
+===============================
+CURRENT USER CONTEXT
+===============================
+${userContext}
+`;
+
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "navigate",
+          description: "Navigate to a page in the app.",
+          parameters: {
+            type: "object",
+            properties: {
+              page: { type: "string", enum: ["/", "/documents", "/docvault", "/tasks", "/scan", "/profile", "/notifications"] },
+              filter: { type: "string", enum: ["all", "valid", "expiring", "expired", "license", "passport", "permit", "insurance", "certification", "tickets_and_fines", "other"] }
+            },
+            required: ["page"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_documents",
+          description: "Fetch user's documents",
+          parameters: { type: "object", properties: { limit: { type: "number" } } }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "find_document_by_name",
+          description: "Search for a document by name using fuzzy matching",
+          parameters: { type: "object", properties: { search_name: { type: "string" } }, required: ["search_name"] }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "find_task_by_name",
+          description: "Search for a task by title using fuzzy matching",
+          parameters: { type: "object", properties: { search_name: { type: "string" } }, required: ["search_name"] }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "create_document",
+          description: "Create a new document entry.",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              document_type: { type: "string", enum: ["license", "passport", "permit", "insurance", "certification", "tickets_and_fines", "other"] },
+              expiry_date: { type: "string" },
+              issuing_authority: { type: "string" },
+              category_detail: { type: "string" },
+              notes: { type: "string" }
+            },
+            required: ["name", "document_type", "expiry_date"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "update_document_by_name",
+          description: "Update a document by searching for it by name.",
+          parameters: {
+            type: "object",
+            properties: {
+              search_name: { type: "string" },
+              name: { type: "string" },
+              expiry_date: { type: "string" },
+              issuing_authority: { type: "string" },
+              notes: { type: "string" }
+            },
+            required: ["search_name"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "delete_document_by_name",
+          description: "Delete a document by searching for it by name.",
+          parameters: { type: "object", properties: { search_name: { type: "string" } }, required: ["search_name"] }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_tasks",
+          description: "Fetch user's tasks",
+          parameters: { type: "object", properties: { status: { type: "string" }, date: { type: "string" } } }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "create_task",
+          description: "Create a new task.",
+          parameters: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              description: { type: "string" },
+              task_date: { type: "string" },
+              start_time: { type: "string" },
+              end_time: { type: "string" }
+            },
+            required: ["title", "task_date", "start_time"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "update_task_by_name",
+          description: "Update a task by searching for it by title/name.",
+          parameters: {
+            type: "object",
+            properties: {
+              search_name: { type: "string" },
+              title: { type: "string" },
+              description: { type: "string" },
+              task_date: { type: "string" },
+              start_time: { type: "string" },
+              end_time: { type: "string" },
+              status: { type: "string" }
+            },
+            required: ["search_name"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "delete_task_by_name",
+          description: "Delete a task by searching for it by title/name.",
+          parameters: { type: "object", properties: { search_name: { type: "string" } }, required: ["search_name"] }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "update_profile",
+          description: "Update user profile settings",
+          parameters: {
+            type: "object",
+            properties: {
+              display_name: { type: "string" },
+              country: { type: "string" },
+              timezone: { type: "string" },
+              push_notifications_enabled: { type: "boolean" },
+              email_notifications_enabled: { type: "boolean" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "move_to_docvault",
+          description: "Move a document to DocVault",
+          parameters: { type: "object", properties: { document_id: { type: "string" } }, required: ["document_id"] }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "trigger_upload",
+          description: "Trigger file upload UI",
+          parameters: { type: "object", properties: { type: { type: "string" } }, required: ["type"] }
+        }
+      }
+    ];
+
+    const geminiKey  = process.env.GEMINI_API_KEY;
+    const groqKey    = process.env.GROQ_API_KEY;
+    const lovableKey = process.env.LOVABLE_API_KEY;
+
+    let apiKey = '';
+    let apiEndpoint = '';
+    let modelName = '';
+
+    if (geminiKey) {
+      apiKey = geminiKey;
+      apiEndpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+      modelName = 'gemini-2.5-flash';
+    } else if (groqKey) {
+      apiKey = groqKey;
+      apiEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
+      modelName = 'llama-3.3-70b-versatile';
+    } else if (lovableKey) {
+      apiKey = lovableKey;
+      apiEndpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+      modelName = 'google/gemini-2.5-flash';
+    }
+
+    if (!apiKey) {
+      res.write(`data: ${JSON.stringify({ text: "AI service is not configured." })}\n\n`);
       res.write('data: [DONE]\n\n');
       res.end();
+      return;
+    }
+
+    try {
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages,
+          ],
+          tools,
+          tool_choice: 'auto',
+          stream: true,
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        res.write(`data: ${JSON.stringify({ text: "I'm having trouble connecting right now. Please try again." })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        res.end();
+        return;
+      }
+
+      // Stream the response body directly to SSE client
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        res.write(chunk);
+      }
+
+      res.end();
     } catch (err) {
-      logger.error('[chatbot] Error:', err instanceof Error ? err.message : err);
-      res.write(`data: ${JSON.stringify({ error: 'An error occurred.' })}\n\n`);
+      logger.error('[chatbot] Streaming error:', err);
+      res.write(`data: ${JSON.stringify({ error: 'Streaming error occurred.' })}\n\n`);
       res.end();
     }
   }

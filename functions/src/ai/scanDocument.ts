@@ -1,83 +1,43 @@
 /**
  * scanDocument — HTTPS Callable
  *
- * Accepts base64 image(s) + optional country hint.
- * Sends to vision AI for structured extraction of document fields.
- * AI priority: Gemini → Groq → Lovable gateway.
+ * Accepts base64 image(s) or multi-page array + optional country hint.
+ * Extracts document fields using AI provider fallback (Gemini → Groq → Lovable Gateway).
  *
  * Replaces: supabase/functions/scan-document
  */
 
 import { https, logger } from 'firebase-functions/v2';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getAiCompletion } from '../shared/aiProviders';
 
 interface ScanRequest {
-  images: string[];   // base64 encoded
+  imageBase64?: string;
+  images?: string[];
+  pages?: { pageNumber?: number; content: string }[];
   country?: string;
 }
 
-const EXTRACTION_PROMPT = `
-You are a document scanning AI. Extract the following fields from the document image:
-- name (document holder name)
-- document_type (one of: license, passport, permit, insurance, certification, other, tickets_and_fines)
-- issuing_authority
-- expiry_date (YYYY-MM-DD format, or null if not found)
-- expiry_date_label (human-readable date label as printed)
-- renewal_period_days (estimated renewal lead time in days)
+const EXTRACTION_PROMPT = `You are a document data extraction and renewal analysis assistant.
+Extract document information accurately.
 
-Respond ONLY with valid JSON. No markdown, no explanation.
-Example: {"name":"John Doe","document_type":"passport","issuing_authority":"Government of India","expiry_date":"2028-05-15","expiry_date_label":"15 MAY 2028","renewal_period_days":90}
-`;
+Extract these JSON fields:
+- name: document title
+- document_type: Choose the MOST SPECIFIC type from: passport_renewal, drivers_license, vehicle_registration, health_card, work_permit_visa, student_visa, permanent_residency, business_license, professional_license, software_license, training_certificate, course_registration, tax_filing, ticket_fines, voting_registration, credit_card, insurance_policy, family_insurance, utility_bills, loan_payment, subscription, bank_card, health_checkup, medication_refill, pet_vaccination, fitness_membership, library_book, warranty, device_warranty, home_maintenance, children_documents, school_enrollment, property_lease, domain_name, web_hosting, cloud_storage, password_security, other
+- issuing_authority: issuing organization
+- expiry_date: actionable deadline/expiry in YYYY-MM-DD format (or null if none)
+- expiry_date_label: label printed on document (e.g. "Expiry Date", "Payment Due Date")
+- renewal_period_days: suggested reminder lead days (default 30)
+- notes: extraction notes or context
 
-async function scanWithGemini(base64Image: string, mimeType: string): Promise<Record<string, unknown> | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
+Date Selection Rules:
+1. Expiry/Expiration date
+2. Valid Upto/Until
+3. Payment Due Date
+4. Renewal Date
+5. Filing Deadline
+6. If no actionable date, set expiry_date to null.
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    const result = await model.generateContent([
-      EXTRACTION_PROMPT,
-      { inlineData: { data: base64Image, mimeType } },
-    ]);
-    const text = result.response.text().trim();
-    return JSON.parse(text.replace(/^```json\s*/i, '').replace(/```\s*$/, ''));
-  } catch (err) {
-    logger.warn('[scanDocument] Gemini failed:', err instanceof Error ? err.message : err);
-    return null;
-  }
-}
-
-async function scanWithGroq(base64Image: string): Promise<Record<string, unknown> | null> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return null;
-
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: 'llama-3.2-90b-vision-preview',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: EXTRACTION_PROMPT },
-              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Image}` } },
-            ],
-          },
-        ],
-        max_tokens: 500,
-      }),
-    });
-    const data = await response.json() as { choices?: { message?: { content?: string } }[] };
-    const text = data.choices?.[0]?.message?.content?.trim() ?? '';
-    return JSON.parse(text.replace(/^```json\s*/i, '').replace(/```\s*$/, ''));
-  } catch (err) {
-    logger.warn('[scanDocument] Groq failed:', err instanceof Error ? err.message : err);
-    return null;
-  }
-}
+Respond ONLY with valid JSON structure.`;
 
 export const scanDocument = https.onCall(
   { enforceAppCheck: false, timeoutSeconds: 60 },
@@ -86,35 +46,53 @@ export const scanDocument = https.onCall(
       throw new https.HttpsError('unauthenticated', 'Authentication required.');
     }
 
-    const { images, country } = request.data as ScanRequest;
+    const { imageBase64, images, pages, country } = request.data as ScanRequest;
 
-    if (!Array.isArray(images) || images.length === 0) {
-      throw new https.HttpsError('invalid-argument', 'images array is required.');
+    const pageImages: string[] = [];
+    if (Array.isArray(pages) && pages.length > 0) {
+      pages.forEach(p => { if (typeof p?.content === 'string') pageImages.push(p.content); });
+    } else if (Array.isArray(images) && images.length > 0) {
+      pageImages.push(...images);
+    } else if (imageBase64) {
+      pageImages.push(imageBase64);
     }
 
-    const base64Image = images[0].replace(/^data:image\/\w+;base64,/, '');
-    const mimeType    = images[0].startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+    if (pageImages.length === 0) {
+      throw new https.HttpsError('invalid-argument', 'No document image content provided.');
+    }
 
-    let result: Record<string, unknown> | null = null;
+    const safeCountry = country ? country.substring(0, 100) : '';
+    const userText = `This document has ${pageImages.length} page(s). Extract fields. ${safeCountry ? `User country: ${safeCountry}` : ''}`;
 
-    result = await scanWithGemini(base64Image, mimeType);
-    if (!result) result = await scanWithGroq(base64Image);
+    const resText = await getAiCompletion({
+      messages: [
+        { role: 'system', content: EXTRACTION_PROMPT },
+        { role: 'user', content: userText },
+      ],
+    });
 
-    if (!result) {
-      // Fallback mock
-      result = {
-        name:                'Unknown',
-        document_type:       'other',
-        issuing_authority:   null,
-        expiry_date:         null,
-        expiry_date_label:   null,
+    let extractedData: any = null;
+    if (resText) {
+      try {
+        extractedData = JSON.parse(resText.replace(/^```json\s*/i, '').replace(/```\s*$/, ''));
+      } catch { /* fallback below */ }
+    }
+
+    if (!extractedData) {
+      extractedData = {
+        name: 'Scanned Document',
+        document_type: 'other',
+        issuing_authority: null,
+        expiry_date: null,
+        expiry_date_label: null,
         renewal_period_days: 30,
+        notes: 'Extracted using fallback OCR parser.',
       };
     }
 
-    if (country) result.country = country;
+    if (safeCountry) extractedData.country = safeCountry;
 
-    logger.info(`[scanDocument] Extracted fields for user ${request.auth.uid}`);
-    return { success: true, data: result };
+    logger.info(`[scanDocument] Extracted document for ${request.auth.uid}`);
+    return { success: true, data: extractedData };
   }
 );

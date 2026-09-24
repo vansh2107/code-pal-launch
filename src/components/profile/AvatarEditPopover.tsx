@@ -3,7 +3,9 @@ import { Camera, Upload, User } from "lucide-react";
 import { useCamera } from "@/hooks/useCamera";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { db, storage } from "@/integrations/firebase/client";
+import { ref, uploadBytes, deleteObject } from "firebase/storage";
+import { doc, setDoc } from "firebase/firestore";
 import { Capacitor } from "@capacitor/core";
 import { autoCropImage } from "@/utils/imageCrop";
 
@@ -63,25 +65,20 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
                   file.type.split('/')[1] || 'jpg';
       const storagePath = `avatars/${userId}/profile.${ext}`;
 
-      // Remove old avatar if exists
-      await supabase.storage.from('document-images').remove([storagePath]);
+      // Remove old avatar if exists in storage
+      try {
+        const storageRef = ref(storage, storagePath);
+        await deleteObject(storageRef);
+      } catch (delErr) {
+        // Ignored if doesn't exist
+      }
 
-      const { error: uploadError } = await supabase.storage
-        .from('document-images')
-        .upload(storagePath, croppedFile, { 
-          cacheControl: '3600',
-          upsert: true 
-        });
+      const storageRef = ref(storage, storagePath);
+      await uploadBytes(storageRef, croppedFile);
 
-      if (uploadError) throw uploadError;
-
-      // Update profile with the file path
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: storagePath })
-        .eq('user_id', userId);
-
-      if (updateError) throw updateError;
+      // Update profile in Firestore: users/{userId}/profile/data
+      const profileRef = doc(db, "users", userId, "profile", "data");
+      await setDoc(profileRef, { avatarUrl: storagePath }, { merge: true });
 
       toast({
         title: "Profile photo updated",

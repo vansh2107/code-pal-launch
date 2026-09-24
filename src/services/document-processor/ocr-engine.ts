@@ -1,5 +1,5 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { callDocumentAnalyzer } from '@/integrations/firebase/functions';
 
 export interface OcrResult {
   text: string;
@@ -11,15 +11,9 @@ export class OcrEngine {
   static async extract(imageBase64: string): Promise<OcrResult> {
     console.log('Sending image to document analyzer...');
     
-    // Call the existing Supabase Edge Function
-    const { data, error } = await supabase.functions.invoke('document-analyzer', { 
-      body: { image: imageBase64 } 
-    });
-
-    if (error) {
-      console.error('Error calling document-analyzer:', error);
-      throw new Error(`OCR extraction failed: ${error.message}`);
-    }
+    const data = await callDocumentAnalyzer({ 
+      image: imageBase64 
+    } as any);
 
     if (!data) {
       throw new Error('No data returned from document analyzer');

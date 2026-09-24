@@ -1,1 +1,0 @@
-ALTER TABLE public.routine_steps ADD COLUMN IF NOT EXISTS step_start_time time without time zone;

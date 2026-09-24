@@ -3,11 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Sparkles, Loader2, Calendar, Bell } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/useAuth";
 import { DocumentStatusInfo } from "@/utils/documentStatus";
+import { callDocumentRenewalAdvisor, callSendImmediateReminder } from "@/integrations/firebase/functions";
 
 interface RenewalAdvisorProps {
   documentId?: string;
@@ -31,37 +33,13 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
     setAdvice("");
 
     try {
-      const { data, error } = await supabase.functions.invoke('document-renewal-advisor', {
-        body: {
-          documentType,
-          documentName,
-          expiryDate,
-          question: customQuestion || question
-        }
+      const data = await callDocumentRenewalAdvisor({
+        documentId,
+        question: customQuestion || question,
       });
 
-      if (error) {
-        console.error('Function error:', error);
-        throw error;
-      }
-
-      if (data.error) {
-        if (data.error.includes("Rate limit")) {
-          toast({
-            title: "Rate limit exceeded",
-            description: "Please wait a moment before trying again.",
-            variant: "destructive",
-          });
-        } else if (data.error.includes("Payment required")) {
-          toast({
-            title: "Credits needed",
-            description: "Please add credits to continue using AI features.",
-            variant: "destructive",
-          });
-        } else {
-          throw new Error(data.error);
-        }
-        return;
+      if (!data.success) {
+        throw new Error('Failed to get renewal advice.');
       }
 
       setAdvice(data.advice);
@@ -120,16 +98,18 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
     try {
       const reminderDate = new Date(expiryDate);
       reminderDate.setDate(reminderDate.getDate() - recommendedDays);
+      const reminderDateStr = reminderDate.toISOString().split('T')[0];
       
       // Check if a similar reminder already exists
-      const { data: existing } = await supabase
-        .from('reminders')
-        .select('id')
-        .eq('document_id', documentId)
-        .eq('reminder_date', reminderDate.toISOString().split('T')[0])
-        .maybeSingle();
+      const remCol = collection(db, "users", user.id, "reminders");
+      const existingQuery = query(
+        remCol,
+        where("documentId", "==", documentId),
+        where("reminderDate", "==", reminderDateStr)
+      );
+      const existingSnap = await getDocs(existingQuery);
       
-      if (existing) {
+      if (!existingSnap.empty) {
         toast({
           title: "Reminder already exists",
           description: "This AI recommendation is already saved as a reminder.",
@@ -138,25 +118,18 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
       }
       
       // Insert the AI-recommended reminder
-      const { data: insertedReminder, error } = await supabase
-        .from('reminders')
-        .insert({
-          document_id: documentId,
-          user_id: user.id,
-          reminder_date: reminderDate.toISOString().split('T')[0],
-          is_custom: false,
-          is_sent: false,
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
+      const remRef = await addDoc(remCol, {
+        userId: user.id,
+        documentId: documentId,
+        reminderDate: reminderDateStr,
+        isCustom: false,
+        isSent: false,
+        createdAt: serverTimestamp(),
+      });
       
       // Send immediate confirmation email
       try {
-        await supabase.functions.invoke('send-immediate-reminder', {
-          body: { reminder_id: insertedReminder.id }
-        });
+        await callSendImmediateReminder({ reminderId: remRef.id });
       } catch (emailError) {
         console.error('Error sending confirmation email:', emailError);
         // Don't fail the whole operation if email fails

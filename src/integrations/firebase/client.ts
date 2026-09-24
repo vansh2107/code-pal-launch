@@ -62,6 +62,12 @@ export const firebaseDb: Firestore    = getFirestore(firebaseApp);
 export const firebaseStorage: FirebaseStorage = getStorage(firebaseApp);
 export const firebaseFunctions: Functions = getFunctions(firebaseApp);
 
+// Short aliases for convenience
+export const auth = firebaseAuth;
+export const db = firebaseDb;
+export const storage = firebaseStorage;
+export const functions = firebaseFunctions;
+
 // ---------------------------------------------------------------------------
 // Local emulator support
 // Connect to the Firebase Local Emulator Suite when

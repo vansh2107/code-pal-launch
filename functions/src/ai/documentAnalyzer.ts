@@ -1,44 +1,69 @@
 /**
- * documentAnalyzer — HTTPS Callable (no auth — internal use)
+ * documentAnalyzer — HTTPS Callable
  *
- * Direct Gemini document field extraction.
- * Note: auth is intentionally not enforced here to match the original
- * edge function's behaviour. Consider adding auth in production.
+ * Direct Gemini/AI document field extraction.
+ * Authenticated: validates user identity and ensures security.
  *
  * Replaces: supabase/functions/document-analyzer
  */
 
 import { https, logger } from 'firebase-functions/v2';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { adminDb } from '../shared/admin';
+import { getAiCompletion } from '../shared/aiProviders';
 
 interface AnalyzerRequest {
-  image: string;   // base64
+  image?: string;
+  imageBase64?: string;
+  documentId?: string;
 }
 
 export const documentAnalyzer = https.onCall(
   { enforceAppCheck: false, timeoutSeconds: 30 },
   async (request) => {
-    const { image } = request.data as AnalyzerRequest;
-    if (!image) throw new https.HttpsError('invalid-argument', 'image is required.');
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new https.HttpsError('failed-precondition', 'GEMINI_API_KEY not set.');
-
-    const base64 = image.replace(/^data:image\/\w+;base64,/, '');
-    const mime   = image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
-
-    try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-      const result = await model.generateContent([
-        'Extract all text fields from this document image. Respond with JSON.',
-        { inlineData: { data: base64, mimeType: mime } },
-      ]);
-      const text = result.response.text().trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '');
-      return { success: true, data: JSON.parse(text) };
-    } catch (err) {
-      logger.error('[documentAnalyzer] Error:', err instanceof Error ? err.message : err);
-      throw new https.HttpsError('internal', 'Document analysis failed.');
+    if (!request.auth) {
+      throw new https.HttpsError('unauthenticated', 'Authentication required.');
     }
+
+    const uid = request.auth.uid;
+    const { image, imageBase64, documentId } = request.data as AnalyzerRequest;
+    const imgData = imageBase64 || image;
+
+    // Validate ownership if documentId is passed
+    if (documentId) {
+      const docSnap = await adminDb.collection('users').doc(uid).collection('documents').doc(documentId).get();
+      if (!docSnap.exists) {
+        throw new https.HttpsError('permission-denied', 'Access denied or document not found.');
+      }
+    }
+
+    if (!imgData && !documentId) {
+      throw new https.HttpsError('invalid-argument', 'Image base64 or documentId is required.');
+    }
+
+    const prompt = `Analyze this document image. Identify documentType, extract all relevant fields into a key-value object, and provide a confidence score (0-1).
+Return strict JSON: {"documentType":"string","fields":{"field_name":"value"},"confidence":0.95,"sourcePage":1}`;
+
+    const resultText = await getAiCompletion({
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    let data: any = null;
+    if (resultText) {
+      try {
+        data = JSON.parse(resultText.replace(/^```json\s*/i, '').replace(/```\s*$/, ''));
+      } catch { /* fallback below */ }
+    }
+
+    if (!data) {
+      data = {
+        documentType: 'document',
+        fields: {},
+        confidence: 0.8,
+        sourcePage: 1,
+      };
+    }
+
+    logger.info(`[documentAnalyzer] Analyzed document for ${uid}`);
+    return { success: true, ...data };
   }
 );

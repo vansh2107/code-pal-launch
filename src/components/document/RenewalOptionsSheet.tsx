@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { db, storage } from "@/integrations/firebase/client";
+import { doc, getDoc, deleteDoc } from "firebase/firestore";
+import { ref, deleteObject } from "firebase/storage";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useCamera } from "@/hooks/useCamera";
 import {
@@ -56,31 +59,28 @@ export function RenewalOptionsSheet({
   };
 
   const handleDelete = async () => {
+    if (!user) return;
     setLoading(true);
     try {
       // Get document details first
-      const { data: doc, error: fetchError } = await supabase
-        .from("documents")
-        .select("image_path")
-        .eq("id", documentId)
-        .single();
+      const docRef = doc(db, "users", user.uid, "documents", documentId);
+      const docSnap = await getDoc(docRef);
 
-      if (fetchError) throw fetchError;
-
-      // Delete image from storage if exists
-      if (doc?.image_path) {
-        await supabase.storage
-          .from("document-images")
-          .remove([doc.image_path]);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const imagePath = data.imagePath || data.image_path;
+        if (imagePath) {
+          try {
+            const storageRef = ref(storage, imagePath);
+            await deleteObject(storageRef);
+          } catch (sErr) {
+            // Ignore if storage file missing
+          }
+        }
       }
 
-      // Delete document
-      const { error } = await supabase
-        .from("documents")
-        .delete()
-        .eq("id", documentId);
-
-      if (error) throw error;
+      // Delete document from Firestore
+      await deleteDoc(docRef);
 
       onOpenChange(false);
       showGenZToast();

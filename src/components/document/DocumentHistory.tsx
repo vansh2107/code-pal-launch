@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { History } from "lucide-react";
@@ -27,14 +28,26 @@ export function DocumentHistory({ documentId }: DocumentHistoryProps) {
 
   const fetchHistory = async () => {
     try {
-      const { data, error } = await supabase
-        .from("document_history")
-        .select("*")
-        .eq("document_id", documentId)
-        .order("created_at", { ascending: false });
+      const q = query(
+        collection(db, "document_history"),
+        where("documentId", "==", documentId)
+      );
+      const querySnap = await getDocs(q);
+      const entries: HistoryEntry[] = querySnap.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          action: data.action || "updated",
+          old_expiry_date: data.oldExpiryDate || data.old_expiry_date || null,
+          new_expiry_date: data.newExpiryDate || data.new_expiry_date || null,
+          notes: data.notes || null,
+          created_at: data.createdAt?.toDate?.()?.toISOString() || data.created_at || new Date().toISOString(),
+        };
+      });
 
-      if (error) throw error;
-      setHistory(data || []);
+      // Sort descending by created_at
+      entries.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setHistory(entries);
     } catch (error) {
       console.error("Error fetching history:", error);
     } finally {

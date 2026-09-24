@@ -10,7 +10,7 @@ import {
 } from "@/utils/documentEdgeDetection";
 import { ManualCropOverlay } from "./ManualCropOverlay";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { callDetectDocumentBounds } from "@/integrations/firebase/functions";
 
 interface DocumentScanPreviewProps {
   imageSource: string | File;
@@ -58,15 +58,17 @@ async function detectBoundsWithAI(imageDataUrl: string): Promise<CropBounds | nu
       sendDataUrl = c.toDataURL('image/jpeg', 0.85);
     }
 
-    const { data, error } = await supabase.functions.invoke('detect-document-bounds', {
-      body: { imageBase64: sendDataUrl, width: sendW, height: sendH },
+    const data = await callDetectDocumentBounds({
+      image: sendDataUrl,
+      width: sendW,
+      height: sendH,
     });
 
-    if (error || !data?.success || !data?.found) {
+    if (!data || !data.found) {
       return null;
     }
 
-    const b = data.bounds;
+    const b = (data.bounds || data) as any;
     // Scale coordinates back to original image size
     const invScale = 1 / scale;
     return {

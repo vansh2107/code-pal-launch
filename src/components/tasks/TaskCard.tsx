@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
-import { supabase } from "@/integrations/supabase/client";
+import { auth, db, storage } from "@/integrations/firebase/client";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { ref, uploadBytes } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import { AIRecommendations } from "./AIRecommendations";
 import { calculateTaskDuration, formatDuration } from "@/utils/taskDuration";
@@ -92,32 +94,29 @@ const TaskCardComponent = ({ task, statusInfo, funnyMessage, onRefresh, userTime
         }
         
         setUploadingImage(true);
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = auth.currentUser;
         if (!user) throw new Error("Not authenticated");
 
         const fileExt = completionImage.name.split(".").pop();
-        const fileName = `${user.id}/${task.id}-completion-${Date.now()}.${fileExt}`;
+        const fileName = `${user.uid}/${task.id}-completion-${Date.now()}.${fileExt}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("task-images")
-          .upload(fileName, completionImage);
-
-        if (uploadError) throw uploadError;
+        const storageRef = ref(storage, fileName);
+        await uploadBytes(storageRef, completionImage);
         imagePath = fileName;
       }
 
-      const { error } = await supabase
-        .from("tasks")
-        .update({
-          status: "completed",
-          end_time: completionUtc,
-          total_time_minutes: durationMinutes,
-          image_path: imagePath,
-          reminder_active: false,
-        })
-        .eq("id", task.id);
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
 
-      if (error) throw error;
+      const taskRef = doc(db, "users", user.uid, "tasks", task.id);
+      await updateDoc(taskRef, {
+        status: "completed",
+        endTime: completionUtc,
+        totalTimeMinutes: durationMinutes,
+        imagePath: imagePath,
+        reminderActive: false,
+        updatedAt: serverTimestamp(),
+      });
 
       toast({
         title: "Task completed! 🎉",

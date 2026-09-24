@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, memo } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
+import { callTaskAiRecommendations } from "@/integrations/firebase/functions";
 
 interface LazyAIRecommendationsProps {
   task: {
@@ -55,18 +55,15 @@ function LazyAIRecommendationsComponent({ task }: LazyAIRecommendationsProps) {
     const fetchRecommendation = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.functions.invoke("task-ai-recommendations", {
-          body: {
-            title: task.title ?? "",
-            description: task.description ?? "",
-            missedDays: task.consecutive_missed_days,
-            status: task.status,
-          },
-        });
+        const data = await callTaskAiRecommendations({
+          taskId: task.id,
+          taskTitle: task.title ?? "",
+          taskDescription: task.description ?? "",
+          missedDays: task.consecutive_missed_days,
+          status: task.status,
+        } as any);
 
-        if (error) throw error;
-        
-        const rec = data.recommendation || "";
+        const rec = data.recommendation || data.tip || "";
         recommendationCache.set(task.id, rec);
         setRecommendation(rec);
       } catch (error) {

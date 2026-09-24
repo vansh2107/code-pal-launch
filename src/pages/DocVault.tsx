@@ -16,8 +16,8 @@ import { DocVaultDocumentCard, type DocVaultDocument } from "@/components/docvau
 import { useDocVaultCategories } from "@/hooks/useDocVaultCategories";
 import { useDocVaultDocuments } from "@/hooks/useDocVaultDocuments";
 import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { uploadDocumentOriginal } from "@/utils/documentStorage";
 import { shareDocument } from "@/utils/shareDocument";
 
@@ -107,22 +107,17 @@ export default function DocVault() {
         throw new Error("The document upload was not completed.");
       }
 
-      const { error } = await supabase
-        .from("documents")
-        .insert({
-          user_id: user.id,
-          name: (documentName || file.name).trim() || file.name,
-          document_type: "other",
-          image_path: storagePath,
-          issuing_authority: "DocVault",
-          docvault_category_id: categoryId,
-          category_detail: "uploaded",
-          updated_at: new Date().toISOString(),
-        });
-
-      if (error) {
-        throw error;
-      }
+      await addDoc(collection(db, "users", user.id, "documents"), {
+        userId: user.id,
+        name: (documentName || file.name).trim() || file.name,
+        documentType: "other",
+        imagePath: storagePath,
+        issuingAuthority: "DocVault",
+        docvaultCategoryId: categoryId,
+        categoryDetail: "uploaded",
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
 
       toast.success("Document uploaded");
       await refetch();

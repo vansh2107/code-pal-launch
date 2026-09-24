@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTheme as useNextTheme } from "next-themes";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/client";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import {
   DEFAULT_MODE,
@@ -67,23 +68,26 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
     if (!user || hydratedRef.current) return;
     hydratedRef.current = true;
     (async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("theme_preference")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const pref = ((data as any)?.theme_preference ?? null) as
-        | { mode?: ThemeMode; theme?: PaletteId }
-        | null;
-      if (!pref) return;
-      const nextPalette =
-        (PALETTES.find((p) => p.id === pref.theme)?.id as PaletteId) ?? DEFAULT_PALETTE;
-      const nextModeVal = (
-        ["light", "dark", "system"].includes(pref.mode || "") ? pref.mode : DEFAULT_MODE
-      ) as ThemeMode;
-      setPaletteState(nextPalette);
-      localStorage.setItem(STORAGE_KEY, nextPalette);
-      setNextMode(nextModeVal);
+      try {
+        const profileRef = doc(db, "users", user.id, "profile", "data");
+        const snap = await getDoc(profileRef);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const pref = (data?.themePreference ?? data?.theme_preference ?? null) as
+          | { mode?: ThemeMode; theme?: PaletteId }
+          | null;
+        if (!pref) return;
+        const nextPalette =
+          (PALETTES.find((p) => p.id === pref.theme)?.id as PaletteId) ?? DEFAULT_PALETTE;
+        const nextModeVal = (
+          ["light", "dark", "system"].includes(pref.mode || "") ? pref.mode : DEFAULT_MODE
+        ) as ThemeMode;
+        setPaletteState(nextPalette);
+        localStorage.setItem(STORAGE_KEY, nextPalette);
+        setNextMode(nextModeVal);
+      } catch (e) {
+        console.warn("Failed to hydrate theme preference:", e);
+      }
     })();
   }, [user, setNextMode]);
 
@@ -91,10 +95,16 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
     async (next: { palette: PaletteId; mode: ThemeMode }) => {
       localStorage.setItem(STORAGE_KEY, next.palette);
       if (!user) return;
-      await supabase
-        .from("profiles")
-        .update({ theme_preference: { theme: next.palette, mode: next.mode } } as any)
-        .eq("user_id", user.id);
+      try {
+        const profileRef = doc(db, "users", user.id, "profile", "data");
+        await setDoc(
+          profileRef,
+          { themePreference: { theme: next.palette, mode: next.mode } },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn("Failed to persist theme preference:", e);
+      }
     },
     [user]
   );
