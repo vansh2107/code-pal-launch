@@ -1,0 +1,405 @@
+rules_version = '2';
+
+// =============================================================================
+// Remonk Reminder — Firestore Security Rules
+//
+// Replaces all Supabase Row-Level Security policies.
+//
+// Principals
+// ──────────
+//   - Unauthenticated:  denied everywhere.
+//   - Owner:            the authenticated user whose UID matches the userId
+//                       path segment.
+//   - Org member:       a user with a document in
+//                       /organizations/{orgId}/members/{uid}.
+//   - Org admin:        org member with role == "admin".
+//   - Org editor:       org member with role == "admin" or "editor".
+//   - Service (Admin):  Cloud Functions running with a service account — they
+//                       bypass all client rules via the Admin SDK.
+//
+// Design decisions
+// ────────────────
+//   - "allow read, write: if true" is NEVER used.
+//   - Service-only collections deny ALL client access (read and write).
+//   - Audit / history collections are client-readable (own data only) but
+//     client-write is fully denied — writes come from Cloud Function triggers.
+//   - The users/{userId} container document itself is not readable/writable
+//     directly; access is always through a named sub-document or sub-collection.
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // Helper functions
+    // =========================================================================
+
+    /** True if the caller is signed in. */
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    /** True if the caller's UID matches userId. */
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    /**
+     * True if the caller has a member document in the organisation.
+     * Uses exists() which counts as one document read against limits.
+     */
+    function isOrgMember(orgId) {
+      return isAuth() &&
+        exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid));
+    }
+
+    /**
+     * Returns the caller's member document data for the organisation.
+     * Uses get() — one billed read. Call this only when you need the role field.
+     */
+    function orgMemberData(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data;
+    }
+
+    /** True if the caller is an org admin. */
+    function isOrgAdmin(orgId) {
+      return isOrgMember(orgId) && orgMemberData(orgId).role == 'admin';
+    }
+
+    /** True if the caller can edit (admin or editor). */
+    function isOrgEditor(orgId) {
+      return isOrgMember(orgId) &&
+        (orgMemberData(orgId).role == 'admin' || orgMemberData(orgId).role == 'editor');
+    }
+
+    /**
+     * Returns the org owner UID from the organization document.
+     * One billed read. Avoid calling multiple times in the same rule.
+     */
+    function orgOwnerId(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId;
+    }
+
+    /** True if the caller is the org owner (by UID lookup). */
+    function isOrgOwner(orgId) {
+      return isAuth() && request.auth.uid == orgOwnerId(orgId);
+    }
+
+    // =========================================================================
+    // users/{userId}  —  container document (no direct access)
+    // =========================================================================
+
+    match /users/{userId} {
+      // The container document itself is not directly read/written.
+      allow read, write: if false;
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/profile/data  —  single document per user
+      //
+      // Sub-collection "profile", document "data".
+      // Auto-created by the onUserCreate Cloud Function trigger.
+      // Owner has full read/write (including create for repair scenarios).
+      // -----------------------------------------------------------------------
+      match /profile/{profileDoc} {
+        allow read:   if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if false;  // deleted via deleteUserAccount Cloud Function
+      }
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/tasks/{taskId}
+      //
+      // Owner has full CRUD. No org sharing for tasks.
+      // -----------------------------------------------------------------------
+      match /tasks/{taskId} {
+        allow read:   if isOwner(userId);
+        allow create: if isOwner(userId)
+                      // Enforce userId field matches the path segment
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/documents/{docId}
+      //
+      // Owner: full CRUD.
+      // Org members: read access to org-shared documents.
+      // Org editors:  update org-shared documents.
+      // Org admins:   delete org-shared documents.
+      // -----------------------------------------------------------------------
+      match /documents/{docId} {
+        allow read:
+          if isOwner(userId)
+          || (isAuth()
+              && resource.data.organizationId != null
+              && isOrgMember(resource.data.organizationId));
+
+        allow create:
+          if isOwner(userId)
+          && request.resource.data.userId == userId
+          // Enforce notes length constraint (mirrors Supabase CHECK constraint)
+          && (!('notes' in request.resource.data)
+              || request.resource.data.notes == null
+              || request.resource.data.notes.size() <= 5000);
+
+        allow update:
+          if isOwner(userId)
+          || (isAuth()
+              && resource.data.organizationId != null
+              && isOrgEditor(resource.data.organizationId));
+
+        allow delete:
+          if isOwner(userId)
+          || (isAuth()
+              && resource.data.organizationId != null
+              && isOrgAdmin(resource.data.organizationId));
+      }
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/reminders/{remId}
+      //
+      // Owner: full CRUD.
+      // Auto-created by the onDocumentWrite Cloud Function trigger.
+      // -----------------------------------------------------------------------
+      match /reminders/{remId} {
+        allow read:   if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/routines/{routineId}  +  nested tasks and slots
+      //
+      // Owner: full CRUD on routines and all sub-collections.
+      // -----------------------------------------------------------------------
+      match /routines/{routineId} {
+        allow read:   if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        match /tasks/{taskId} {
+          allow read:   if isOwner(userId);
+          allow create: if isOwner(userId)
+                        && request.resource.data.routineId == routineId;
+          allow update: if isOwner(userId);
+          allow delete: if isOwner(userId);
+
+          match /slots/{slotId} {
+            allow read:   if isOwner(userId);
+            allow create: if isOwner(userId)
+                          && request.resource.data.taskId == taskId;
+            allow update: if isOwner(userId);
+            allow delete: if isOwner(userId);
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/docvault_categories/{catId}
+      // -----------------------------------------------------------------------
+      match /docvault_categories/{catId} {
+        allow read:   if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/notification_tokens/{tokenId}
+      //
+      // tokenId is the token value itself (upsert key).
+      // -----------------------------------------------------------------------
+      match /notification_tokens/{tokenId} {
+        allow read:   if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/onesignal_player_ids/{id}  (legacy backup)
+      // -----------------------------------------------------------------------
+      match /onesignal_player_ids/{id} {
+        allow read:   if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/learned_preferences/data  (single document per user)
+      // Sub-collection "learned_preferences", document "data".
+      // -----------------------------------------------------------------------
+      match /learned_preferences/{prefDoc} {
+        allow read:   if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId);
+        allow delete: if false;
+      }
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/snooze_usage/{id}
+      // -----------------------------------------------------------------------
+      match /snooze_usage/{id} {
+        allow read:   if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // -----------------------------------------------------------------------
+      // users/{userId}/snooze_sync_queue/{id}
+      // -----------------------------------------------------------------------
+      match /snooze_sync_queue/{id} {
+        allow read:   if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+    }  // end /users/{userId}
+
+    // =========================================================================
+    // organizations/{orgId}
+    // =========================================================================
+
+    match /organizations/{orgId} {
+      // Any authenticated member (or owner) can read.
+      allow read:
+        if isAuth()
+        && (resource.data.ownerId == request.auth.uid || isOrgMember(orgId));
+
+      // Any authenticated user can create an org they own.
+      allow create:
+        if isAuth()
+        && request.resource.data.ownerId == request.auth.uid;
+
+      // Owner or admin can update org details (not ownerId).
+      allow update:
+        if isAuth()
+        && (resource.data.ownerId == request.auth.uid || isOrgAdmin(orgId))
+        // Prevent changing the owner via a client update
+        && request.resource.data.ownerId == resource.data.ownerId;
+
+      // Only the owner can delete the organisation.
+      allow delete:
+        if isAuth() && resource.data.ownerId == request.auth.uid;
+
+      // -----------------------------------------------------------------------
+      // organizations/{orgId}/members/{memberId}
+      //
+      // memberId is always the member's Firebase Auth UID.
+      //
+      // Role hierarchy enforcement:
+      //   - Owners can manage all members.
+      //   - Admins can manage non-owner members but not themselves.
+      //   - Members can only read.
+      //   - Nobody can elevate themselves.
+      // -----------------------------------------------------------------------
+      match /members/{memberId} {
+        allow read:
+          if isOrgMember(orgId);
+
+        allow create:
+          if isAuth()
+          && (orgOwnerId(orgId) == request.auth.uid || isOrgAdmin(orgId))
+          // Enforce required fields
+          && request.resource.data.userId == memberId
+          && request.resource.data.organizationId == orgId;
+
+        allow update:
+          if isAuth()
+          // Caller must be owner or admin
+          && (orgOwnerId(orgId) == request.auth.uid || isOrgAdmin(orgId))
+          // Cannot update own membership record
+          && request.auth.uid != memberId
+          // Cannot change the org owner's role
+          && orgOwnerId(orgId) != memberId
+          // Cannot change the userId or organizationId fields
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.organizationId == resource.data.organizationId;
+
+        allow delete:
+          if isAuth()
+          && (orgOwnerId(orgId) == request.auth.uid || isOrgAdmin(orgId))
+          // Cannot remove yourself
+          && request.auth.uid != memberId
+          // Cannot remove the owner
+          && orgOwnerId(orgId) != memberId;
+      }
+    }  // end /organizations/{orgId}
+
+    // =========================================================================
+    // document_history/{id}
+    //
+    // Written exclusively by the onDocumentWrite Cloud Function trigger.
+    // Clients may read their own entries only.
+    // No client writes of any kind.
+    // =========================================================================
+    match /document_history/{id} {
+      allow read:   if isAuth() && resource.data.userId == request.auth.uid;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // audit_logs/{id}
+    //
+    // Immutable — written by Cloud Function triggers only.
+    // Clients may read their own entries only.
+    // No client creates, updates, or deletes — ever.
+    // =========================================================================
+    match /audit_logs/{id} {
+      allow read:   if isAuth() && resource.data.userId == request.auth.uid;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // routine_notification_log/{id}
+    //
+    // Service-only. Used internally by routineStepReminder Cloud Function for
+    // deduplication. No client access of any kind.
+    // =========================================================================
+    match /routine_notification_log/{id} {
+      allow read:   if false;
+      allow write:  if false;
+    }
+
+    // =========================================================================
+    // otp_codes/{id}
+    //
+    // Service-only. Managed exclusively by sendOtpEmail and verifyOtp
+    // Cloud Functions via the Admin SDK. No client access of any kind.
+    // =========================================================================
+    match /otp_codes/{id} {
+      allow read:   if false;
+      allow write:  if false;
+    }
+
+    // =========================================================================
+    // Catch-all deny
+    //
+    // Any path not explicitly matched above is denied.
+    // This must be the last rule in the block.
+    // =========================================================================
+    match /{document=**} {
+      allow read:   if false;
+      allow write:  if false;
+    }
+
+  }  // end /databases/{database}/documents
+}

@@ -1,35 +1,29 @@
-import React, { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { ChevronRight, Download, User, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Bell } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { AppShell } from "@/components/layout/AppShell";
-import { toast } from "@/hooks/use-toast";
-import { useNavigate, Link } from "react-router-dom";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
-import { exportToCSV, exportToJSON } from "@/utils/exportData";
-import { getSignedUrl } from "@/utils/signedUrl";
-import { AvatarEditPopover } from "@/components/profile/AvatarEditPopover";
-import { EditProfileSheet } from "@/components/profile/EditProfileSheet";
-import { AppearanceSettings } from "@/components/theme/AppearanceSettings";
+/**
+ * src/pages/Profile.tsx — Firestore profile page
+ * Replaces Supabase with Firestore. UI unchanged.
+ */
 
+import React, { useEffect, useState } from 'react';
+import { ChevronRight, Download, User, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Bell } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { AppShell } from '@/components/layout/AppShell';
+import { toast } from '@/hooks/use-toast';
+import { useNavigate, Link } from 'react-router-dom';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { FeedbackDialog } from '@/components/feedback/FeedbackDialog';
+import { exportToCSV, exportToJSON } from '@/utils/exportData';
+import { getSignedUrl } from '@/utils/signedUrl';
+import { AvatarEditPopover } from '@/components/profile/AvatarEditPopover';
+import { EditProfileSheet } from '@/components/profile/EditProfileSheet';
+import { AppearanceSettings } from '@/components/theme/AppearanceSettings';
+import { getDoc, getDocs, collection } from 'firebase/firestore';
+import { firebaseDb } from '@/integrations/firebase/client';
+import { userProfileDoc } from '@/integrations/firebase/firestore';
 
-interface Profile {
-  id: string;
-  display_name: string | null;
-  country: string | null;
-  phone_number: string | null;
-  avatar_url?: string | null;
-}
+interface Profile { id?: string; display_name: string | null; country: string | null; phone_number: string | null; avatar_url?: string | null; }
 
-interface SettingsItemProps {
-  icon: React.ElementType;
-  title: string;
-  onClick?: () => void;
-  to?: string;
-}
-
+interface SettingsItemProps { icon: React.ElementType; title: string; onClick?: () => void; to?: string; }
 function SettingsItem({ icon: Icon, title, onClick, to }: SettingsItemProps) {
   const content = (
     <div className="flex items-center justify-between p-4 hover:bg-accent/5 smooth cursor-pointer group">
@@ -40,174 +34,99 @@ function SettingsItem({ icon: Icon, title, onClick, to }: SettingsItemProps) {
       <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 smooth" />
     </div>
   );
-
-  if (to) {
-    return (
-      <Link to={to} className="block border-b border-border/50 last:border-0">
-        {content}
-      </Link>
-    );
-  }
-
-  return (
-    <button onClick={onClick} className="w-full text-left border-b border-border/50 last:border-0">
-      {content}
-    </button>
-  );
+  if (to) return <Link to={to} className="block border-b border-border/50 last:border-0">{content}</Link>;
+  return <button onClick={onClick} className="w-full text-left border-b border-border/50 last:border-0">{content}</button>;
 }
 
-interface SettingsSectionProps {
-  title: string;
-  children: React.ReactNode;
-}
-
-function SettingsSection({ title, children }: SettingsSectionProps) {
+function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-6 animate-fade-in w-full">
       <h2 className="text-xl font-semibold text-foreground mb-3 px-1">{title}</h2>
-      <div className="w-full bg-card rounded-2xl border border-border/50 overflow-hidden shadow-sm">
-        {children}
-      </div>
+      <div className="w-full bg-card rounded-2xl border border-border/50 overflow-hidden shadow-sm">{children}</div>
     </div>
   );
 }
 
 export default function Profile() {
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [avatarSignedUrl, setAvatarSignedUrl] = useState<string | null>(null);
-  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const { user, signOut }  = useAuth();
+  const navigate            = useNavigate();
+  const [profile,           setProfile]           = useState<Profile | null>(null);
+  const [loading,           setLoading]           = useState(true);
+  const [avatarSignedUrl,   setAvatarSignedUrl]   = useState<string | null>(null);
+  const [editProfileOpen,   setEditProfileOpen]   = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
-  }, [user]);
+  useEffect(() => { if (user) fetchProfile(); }, [user]);
 
   const fetchProfile = async () => {
     if (!user) return;
-
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
-
-      if (error) throw error;
-      setProfile(data);
-      
-      // Fetch signed URL for avatar if it exists
-      if (data.avatar_url) {
-        if (data.avatar_url.startsWith('http')) {
-          setAvatarSignedUrl(data.avatar_url);
-        } else {
-          const signedUrl = await getSignedUrl('document-images', data.avatar_url);
-          if (signedUrl) {
-            setAvatarSignedUrl(signedUrl);
+      const snap = await getDoc(userProfileDoc(user.uid));
+      if (snap.exists()) {
+        const data = snap.data();
+        const p: Profile = {
+          display_name: (data.displayName as string | null) ?? null,
+          country:      (data.country     as string | null) ?? null,
+          phone_number: (data.phoneNumber as string | null) ?? null,
+          avatar_url:   (data.avatarUrl   as string | null) ?? null,
+        };
+        setProfile(p);
+        if (p.avatar_url) {
+          if (p.avatar_url.startsWith('http')) {
+            setAvatarSignedUrl(p.avatar_url);
+          } else {
+            const url = await getSignedUrl('document-images', p.avatar_url);
+            if (url) setAvatarSignedUrl(url);
           }
+        } else {
+          setAvatarSignedUrl(null);
         }
-      } else {
-        setAvatarSignedUrl(null);
       }
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error('[Profile] fetchProfile:', err); }
+    finally { setLoading(false); }
   };
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate('/auth');
-    } catch (error) {
-      console.error('Error signing out:', error);
-      toast({
-        title: "Error",
-        description: "Failed to sign out",
-        variant: "destructive",
-      });
-    }
+    try { await signOut(); navigate('/auth'); }
+    catch { toast({ title: 'Error', description: 'Failed to sign out', variant: 'destructive' }); }
   };
 
   const handleExportCSV = async () => {
+    if (!user) return;
     try {
-      const { data: documents } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('user_id', user?.id);
-
-      if (documents) {
-        exportToCSV(documents);
-        toast({
-          title: "Export successful",
-          description: "Your documents have been exported to CSV",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Export failed",
-        description: "Could not export documents",
-        variant: "destructive",
-      });
-    }
+      const snap = await getDocs(collection(firebaseDb, `users/${user.uid}/documents`));
+      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      exportToCSV(docs);
+      toast({ title: 'Export successful', description: 'Your documents have been exported to CSV' });
+    } catch { toast({ title: 'Export failed', description: 'Could not export documents', variant: 'destructive' }); }
   };
 
   const handleExportJSON = async () => {
+    if (!user) return;
     try {
-      const { data: documents } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('user_id', user?.id);
-
-      if (documents) {
-        exportToJSON(documents);
-        toast({
-          title: "Export successful",
-          description: "Your documents have been exported to JSON",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Export failed",
-        description: "Could not export documents",
-        variant: "destructive",
-      });
-    }
+      const snap = await getDocs(collection(firebaseDb, `users/${user.uid}/documents`));
+      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      exportToJSON(docs);
+      toast({ title: 'Export successful', description: 'Your documents have been exported to JSON' });
+    } catch { toast({ title: 'Export failed', description: 'Could not export documents', variant: 'destructive' }); }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
   }
 
   return (
     <AppShell contentWidth="full">
       <div className="w-full flex flex-col">
-        {/* Header with Profile Info */}
         <header className="bg-card border-b border-border/50 -mx-4 md:-mx-6 px-4 md:px-6 py-4 sticky top-0 z-10">
           <div className="w-full flex items-center gap-3">
-            {/* Static Avatar */}
             <div className="relative shrink-0 w-14 h-14 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-              {avatarSignedUrl ? (
-                <img 
-                  src={avatarSignedUrl} 
-                  alt="Profile" 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <User className="h-7 w-7 text-primary" />
-              )}
+              {avatarSignedUrl
+                ? <img src={avatarSignedUrl} alt="Profile" className="w-full h-full object-cover" />
+                : <User className="h-7 w-7 text-primary" />}
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold text-foreground truncate">
-                {profile?.display_name || user?.email?.split('@')[0] || 'User'}
+                {profile?.display_name ?? user?.email?.split('@')[0] ?? 'User'}
               </h1>
               <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
             </div>
@@ -215,243 +134,82 @@ export default function Profile() {
         </header>
 
         <main className="flex-1 py-6 w-full max-w-full overflow-x-hidden">
-          {/* Account Section - Edit Profile as main action */}
           <SettingsSection title="Account">
-            <SettingsItem 
-              icon={User} 
-              title="Edit Profile" 
-              onClick={() => setEditProfileOpen(true)} 
-            />
+            <SettingsItem icon={User} title="Edit Profile" onClick={() => setEditProfileOpen(true)} />
           </SettingsSection>
 
-          {/* Documents Section */}
           <SettingsSection title="Documents">
-            
             <Dialog>
-              <DialogTrigger asChild>
-                <button className="w-full">
-                  <SettingsItem icon={Download} title="Export Data" />
-                </button>
-              </DialogTrigger>
+              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={Download} title="Export Data" /></button></DialogTrigger>
               <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Export Your Documents</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>Export Your Documents</DialogTitle></DialogHeader>
                 <div className="space-y-4 pt-4">
-                  <Button onClick={handleExportCSV} className="w-full" variant="outline">
-                    <FileCheck className="h-4 w-4 mr-2" />
-                    Export as CSV
-                  </Button>
-                  <Button onClick={handleExportJSON} className="w-full" variant="outline">
-                    <FileCheck className="h-4 w-4 mr-2" />
-                    Export as JSON
-                  </Button>
+                  <Button onClick={handleExportCSV} className="w-full" variant="outline"><FileCheck className="h-4 w-4 mr-2" />Export as CSV</Button>
+                  <Button onClick={handleExportJSON} className="w-full" variant="outline"><FileCheck className="h-4 w-4 mr-2" />Export as JSON</Button>
                 </div>
               </DialogContent>
             </Dialog>
           </SettingsSection>
 
-          {/* Notification Settings */}
           <SettingsSection title="Notifications">
             <SettingsItem icon={Bell} title="Notification Settings" to="/notification-sound-settings" />
           </SettingsSection>
 
-          {/* Appearance */}
-          <SettingsSection title="Appearance">
-            <AppearanceSettings />
-          </SettingsSection>
+          <SettingsSection title="Appearance"><AppearanceSettings /></SettingsSection>
 
-          {/* Support Section */}
           <SettingsSection title="Support">
             <Dialog>
-              <DialogTrigger asChild>
-                <button className="w-full">
-                  <SettingsItem icon={HelpCircle} title="Help Center" />
-                </button>
-              </DialogTrigger>
+              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={HelpCircle} title="Help Center" /></button></DialogTrigger>
               <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Help Center</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>Help Center</DialogTitle></DialogHeader>
                 <div className="pt-4 space-y-4">
-                  <div>
-                    <h3 className="font-semibold mb-2">How to scan documents?</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Tap the Scan button, allow camera access, and position your document within the frame. The app will automatically detect and capture it.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-2">Managing reminders</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Reminders are automatically set based on document expiry dates. You can customize them in the document details page.
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-2">Need more help?</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Contact us through the feedback form or email remind659@gmail.com
-                    </p>
-                  </div>
+                  <div><h3 className="font-semibold mb-2">How to scan documents?</h3><p className="text-sm text-muted-foreground">Tap Scan, allow camera access, and position your document in the frame.</p></div>
+                  <div><h3 className="font-semibold mb-2">Need more help?</h3><p className="text-sm text-muted-foreground">Contact us at remind659@gmail.com</p></div>
                 </div>
               </DialogContent>
             </Dialog>
-
             <Dialog>
-              <DialogTrigger asChild>
-                <button className="w-full">
-                  <SettingsItem icon={MessageSquare} title="Send Feedback" />
-                </button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Send Feedback</DialogTitle>
-                </DialogHeader>
-                <div className="pt-4">
-                  <FeedbackDialog />
-                </div>
-              </DialogContent>
+              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={MessageSquare} title="Send Feedback" /></button></DialogTrigger>
+              <DialogContent><DialogHeader><DialogTitle>Send Feedback</DialogTitle></DialogHeader><div className="pt-4"><FeedbackDialog /></div></DialogContent>
             </Dialog>
-
             <Dialog>
-              <DialogTrigger asChild>
-                <button className="w-full">
-                  <SettingsItem icon={Mail} title="Contact Us" />
-                </button>
-              </DialogTrigger>
+              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={Mail} title="Contact Us" /></button></DialogTrigger>
               <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Contact Us</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>Contact Us</DialogTitle></DialogHeader>
                 <div className="pt-4 space-y-4">
-                  <div>
-                    <p className="text-sm font-medium mb-2">Email Support</p>
-                    <a href="mailto:remind659@gmail.com" className="text-sm text-primary hover:underline">
-                      remind659@gmail.com
-                    </a>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium mb-2">Business Hours</p>
-                    <p className="text-sm text-muted-foreground">
-                      Monday - Friday: 9:00 AM - 6:00 PM
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium mb-2">Response Time</p>
-                    <p className="text-sm text-muted-foreground">
-                      We typically respond within 24-48 hours
-                    </p>
-                  </div>
+                  <div><p className="text-sm font-medium mb-2">Email Support</p><a href="mailto:remind659@gmail.com" className="text-sm text-primary hover:underline">remind659@gmail.com</a></div>
+                  <div><p className="text-sm font-medium mb-2">Response Time</p><p className="text-sm text-muted-foreground">We typically respond within 24-48 hours</p></div>
                 </div>
               </DialogContent>
             </Dialog>
           </SettingsSection>
 
-          {/* About Section */}
           <SettingsSection title="About">
             <Dialog>
-              <DialogTrigger asChild>
-                <button className="w-full">
-                  <SettingsItem icon={Info} title="App Information" />
-                </button>
-              </DialogTrigger>
+              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={Info} title="App Information" /></button></DialogTrigger>
               <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>About Remonk Reminder</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>About Remonk Reminder</DialogTitle></DialogHeader>
                 <div className="pt-4 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Version</span>
-                    <span className="text-sm font-medium">1.0.0</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Build</span>
-                    <span className="text-sm font-medium">2025.01</span>
-                  </div>
-                  <div className="pt-4 border-t">
-                    <p className="text-sm text-muted-foreground">
-                      Remonk Reminder helps you manage document expiry dates with AI-powered insights and timely notifications.
-                    </p>
-                  </div>
+                  <div className="flex justify-between items-center"><span className="text-sm text-muted-foreground">Version</span><span className="text-sm font-medium">1.0.0</span></div>
+                  <div className="pt-4 border-t"><p className="text-sm text-muted-foreground">Remonk Reminder helps you manage document expiry dates with AI-powered insights and timely notifications.</p></div>
                 </div>
               </DialogContent>
             </Dialog>
-
             <Dialog>
-              <DialogTrigger asChild>
-                <button className="w-full">
-                  <SettingsItem icon={FileCheck} title="Terms & Privacy" />
-                </button>
-              </DialogTrigger>
+              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={FileCheck} title="Terms &amp; Privacy" /></button></DialogTrigger>
               <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Terms & Privacy Policy</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>Terms &amp; Privacy Policy</DialogTitle></DialogHeader>
                 <div className="pt-4 space-y-5 max-h-[60vh] overflow-y-auto text-sm text-muted-foreground">
                   <p className="text-base font-medium text-foreground">Your privacy matters to us.</p>
-                  <p>
-                    Remonk Reminder is designed to help you manage important deadlines and reminders while keeping your data secure.
-                  </p>
-
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-1">What We Collect</h3>
-                    <p className="mb-1">We may collect:</p>
-                    <ul className="list-disc list-inside space-y-0.5">
-                      <li>Reminder details you create</li>
-                      <li>Document names and expiration dates</li>
-                      <li>Optional uploaded files</li>
-                      <li>Basic device information for app performance</li>
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-1">How We Use Your Data</h3>
-                    <p className="mb-1">Your data is used only to:</p>
-                    <ul className="list-disc list-inside space-y-0.5">
-                      <li>Send reminder notifications</li>
-                      <li>Manage your stored documents</li>
-                      <li>Improve app performance</li>
-                    </ul>
-                    <p className="mt-1 font-medium text-foreground">We never sell your personal data.</p>
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-1">Notifications</h3>
-                    <p>The app sends notifications to remind you about upcoming deadlines. You can disable notifications anytime in your device settings.</p>
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-1">Document Storage</h3>
-                    <p>If you upload documents, they are stored securely and used only for reminder and organization purposes.</p>
-                  </div>
-
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-1">Your Control</h3>
-                    <p className="mb-1">You can:</p>
-                    <ul className="list-disc list-inside space-y-0.5">
-                      <li>Delete reminders anytime</li>
-                      <li>Remove uploaded documents</li>
-                      <li>Stop using the app by uninstalling it</li>
-                    </ul>
-                  </div>
-
-                  <p>For full details, please read the complete Privacy Policy.</p>
-
-                  <div>
-                    <h3 className="font-semibold text-foreground mb-1">Contact</h3>
-                    <p>Email: support@remonk.com</p>
-                  </div>
+                  <p>Remonk Reminder is designed to help you manage important deadlines and reminders while keeping your data secure. We never sell your personal data.</p>
                 </div>
               </DialogContent>
             </Dialog>
           </SettingsSection>
 
-          {/* Sign Out */}
           <div className="mb-6">
             <div className="bg-card rounded-xl border border-border/50 overflow-hidden shadow-sm">
-              <button 
-                onClick={handleSignOut}
-                className="w-full flex items-center justify-between p-4 hover:bg-destructive/5 smooth cursor-pointer group"
-              >
+              <button onClick={handleSignOut} className="w-full flex items-center justify-between p-4 hover:bg-destructive/5 smooth cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <LogOut className="h-5 w-5 text-destructive" />
                   <span className="text-destructive font-medium">Sign Out</span>
@@ -462,18 +220,7 @@ export default function Profile() {
           </div>
         </main>
       </div>
-
-      {/* Edit Profile Sheet */}
-      <EditProfileSheet 
-        open={editProfileOpen} 
-        onOpenChange={(open) => {
-          setEditProfileOpen(open);
-          if (!open) {
-            // Refresh profile when sheet closes
-            fetchProfile();
-          }
-        }} 
-      />
+      <EditProfileSheet open={editProfileOpen} onOpenChange={(open) => { setEditProfileOpen(open); if (!open) fetchProfile(); }} />
     </AppShell>
   );
 }

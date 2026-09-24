@@ -1,8 +1,26 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { getSignedUrls } from "@/utils/signedUrl";
+/**
+ * src/hooks/useDocVaultDocuments.tsx — Firestore DocVault documents hook
+ *
+ * Drop-in replacement for the Supabase version.
+ * Public API is identical so DocVault pages compile unchanged.
+ */
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+} from 'firebase/firestore';
+import { firebaseDb } from '@/integrations/firebase/client';
+import { deleteStorageFile } from '@/integrations/firebase/storage';
+import { getSignedUrls } from '@/utils/signedUrl';
+import { toast } from 'sonner';
 
 interface DocVaultDocument {
   id: string;
@@ -19,154 +37,153 @@ export function useDocVaultDocuments(userId: string | undefined) {
   const queryClient = useQueryClient();
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
 
-  // Fetch all DocVault documents
+  // ── Fetch ──────────────────────────────────────────────────────────────────
   const { data: documents = [], isLoading: documentsLoading, refetch } = useQuery({
-    queryKey: ["docvault-documents", userId],
+    queryKey: ['docvault-documents', userId],
     queryFn: async () => {
       if (!userId) return [];
-      
-      const { data, error } = await supabase
-        .from("documents")
-        .select("id, name, document_type, image_path, created_at, docvault_category_id, access_count, last_accessed_at")
-        .eq("user_id", userId)
-        .eq("issuing_authority", "DocVault")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return (data || []) as DocVaultDocument[];
+      const snap = await getDocs(
+        query(
+          collection(firebaseDb, `users/${userId}/documents`),
+          where('issuingAuthority', '==', 'DocVault'),
+          orderBy('createdAt', 'desc'),
+        ),
+      );
+      return snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id:                   d.id,
+          name:                 data.name as string,
+          document_type:        data.documentType as string,
+          image_path:           (data.imagePath as string | null) ?? null,
+          created_at:           data.createdAt as string,
+          docvault_category_id: (data.docvaultCategoryId as string | null) ?? null,
+          access_count:         (data.accessCount as number) ?? 0,
+          last_accessed_at:     (data.lastAccessedAt as string | null) ?? null,
+        } as DocVaultDocument;
+      });
     },
     enabled: !!userId,
   });
 
-  // Fetch signed URLs when documents change
+  // ── Signed URLs ────────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchSignedUrls = async () => {
       const imagePaths = documents
-        .filter((doc) => doc.image_path)
-        .map((doc) => doc.image_path as string);
-
+        .filter((d) => d.image_path)
+        .map((d) => d.image_path as string);
       if (imagePaths.length > 0) {
-        const urls = await getSignedUrls("document-images", imagePaths);
+        const urls = await getSignedUrls('document-images', imagePaths);
         setSignedUrls(urls);
       }
     };
-
-    if (documents.length > 0) {
-      fetchSignedUrls();
-    }
+    if (documents.length > 0) fetchSignedUrls();
   }, [documents]);
 
-  // Frequently used documents: opened 3+ times within the last 3 days
+  // ── Frequently used ────────────────────────────────────────────────────────
   const frequentlyUsedDocuments = useMemo(() => {
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-
     return documents
-      .filter((doc) => {
-        const count = doc.access_count || 0;
-        const lastAccess = doc.last_accessed_at ? new Date(doc.last_accessed_at) : null;
+      .filter((d) => {
+        const count       = d.access_count ?? 0;
+        const lastAccess  = d.last_accessed_at ? new Date(d.last_accessed_at) : null;
         return count >= 3 && lastAccess && lastAccess >= threeDaysAgo;
       })
-      .sort((a, b) => (b.access_count || 0) - (a.access_count || 0))
+      .sort((a, b) => (b.access_count ?? 0) - (a.access_count ?? 0))
       .slice(0, 5);
   }, [documents]);
 
-  // Get documents by category
-  const getDocumentsByCategory = useCallback((categoryId: string | null) => {
-    if (categoryId === null) {
-      return documents; // All documents
-    }
-    if (categoryId === "frequently-used") {
-      return frequentlyUsedDocuments;
-    }
-    return documents.filter((doc) => doc.docvault_category_id === categoryId);
-  }, [documents, frequentlyUsedDocuments]);
+  // ── Category filters ───────────────────────────────────────────────────────
+  const getDocumentsByCategory = useCallback(
+    (categoryId: string | null) => {
+      if (categoryId === null) return documents;
+      if (categoryId === 'frequently-used') return frequentlyUsedDocuments;
+      return documents.filter((d) => d.docvault_category_id === categoryId);
+    },
+    [documents, frequentlyUsedDocuments],
+  );
 
-  // Count documents per category
-  const getCategoryDocumentCount = useCallback((categoryId: string) => {
-    return documents.filter((doc) => doc.docvault_category_id === categoryId).length;
-  }, [documents]);
+  const getCategoryDocumentCount = useCallback(
+    (categoryId: string) =>
+      documents.filter((d) => d.docvault_category_id === categoryId).length,
+    [documents],
+  );
 
-  // Move document mutation
+  // ── Move document ──────────────────────────────────────────────────────────
   const moveDocumentMutation = useMutation({
-    mutationFn: async ({ documentId, categoryId }: { documentId: string; categoryId: string | null }) => {
-      const { error } = await supabase
-        .from("documents")
-        .update({ docvault_category_id: categoryId })
-        .eq("id", documentId);
-
-      if (error) throw error;
+    mutationFn: async ({
+      documentId,
+      categoryId,
+    }: {
+      documentId: string;
+      categoryId: string | null;
+    }) => {
+      if (!userId) throw new Error('Not authenticated');
+      await updateDoc(doc(firebaseDb, `users/${userId}/documents/${documentId}`), {
+        docvaultCategoryId: categoryId,
+        updatedAt:          new Date().toISOString(),
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["docvault-documents", userId] });
-      toast.success("Document moved");
+      queryClient.invalidateQueries({ queryKey: ['docvault-documents', userId] });
+      toast.success('Document moved');
     },
-    onError: (error: any) => {
-      toast.error(error?.message || "Failed to move document");
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to move document');
     },
   });
 
-  // Track document access
-  const trackDocumentAccess = useCallback(async (documentId: string) => {
-    const { error } = await supabase
-      .from("documents")
-      .update({
-        access_count: documents.find((d) => d.id === documentId)?.access_count 
-          ? documents.find((d) => d.id === documentId)!.access_count + 1 
-          : 1,
-        last_accessed_at: new Date().toISOString(),
-      })
-      .eq("id", documentId);
+  // ── Track access ───────────────────────────────────────────────────────────
+  const trackDocumentAccess = useCallback(
+    async (documentId: string) => {
+      if (!userId) return;
+      const docData = documents.find((d) => d.id === documentId);
+      const newCount = (docData?.access_count ?? 0) + 1;
+      await updateDoc(doc(firebaseDb, `users/${userId}/documents/${documentId}`), {
+        accessCount:    newCount,
+        lastAccessedAt: new Date().toISOString(),
+      });
+      queryClient.invalidateQueries({ queryKey: ['docvault-documents', userId] });
+    },
+    [documents, queryClient, userId],
+  );
 
-    if (!error) {
-      queryClient.invalidateQueries({ queryKey: ["docvault-documents", userId] });
-    }
-  }, [documents, queryClient, userId]);
+  // ── Delete document ────────────────────────────────────────────────────────
+  const deleteDocument = useCallback(
+    async (docId: string, imagePath: string | null) => {
+      try {
+        if (!userId) throw new Error('Not authenticated');
 
-  // Delete document
-  const deleteDocument = useCallback(async (docId: string, imagePath: string | null) => {
-    try {
-      if (imagePath) {
-        const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
-        const { error: removeError } = await supabase.storage
-          .from("document-images")
-          .remove([cleanPath]);
-        
-        if (removeError) {
-          // If the object is not found, we consider it a success (idempotent),
-          // as the goal (storage object is gone) is already satisfied.
-          const isNotFoundError = 
-            removeError.message.toLowerCase().includes("not found") ||
-            (removeError as any).statusCode === 404;
-
-          if (!isNotFoundError) {
-            console.error("Genuine storage removal error:", removeError);
-            throw removeError;
-          } else {
-            console.warn("Storage object already missing (orphaned record), proceeding with DB deletion.");
+        if (imagePath) {
+          try {
+            await deleteStorageFile(imagePath);
+          } catch (err: unknown) {
+            // object-not-found is fine — already gone
+            const code = (err as { code?: string })?.code;
+            if (code !== 'storage/object-not-found') {
+              console.warn('[useDocVaultDocuments] Storage delete warning:', err);
+            }
           }
         }
+
+        await deleteDoc(doc(firebaseDb, `users/${userId}/documents/${docId}`));
+        toast.success('Document deleted');
+        refetch();
+      } catch (error: unknown) {
+        console.error('[useDocVaultDocuments] Delete error:', error);
+        toast.error(error instanceof Error ? error.message : 'Failed to delete document');
+        throw error;
       }
+    },
+    [refetch, userId],
+  );
 
-      const { error } = await supabase
-        .from("documents")
-        .delete()
-        .eq("id", docId);
-
-      if (error) throw error;
-
-      toast.success("Document deleted");
-      refetch();
-    } catch (error: any) {
-      console.error("Error deleting document:", error);
-      toast.error(error?.message || "Failed to delete document");
-      throw error;
-    }
-  }, [refetch]);
-
-  const moveDocument = useCallback((documentId: string, categoryId: string | null) => {
-    moveDocumentMutation.mutate({ documentId, categoryId });
-  }, [moveDocumentMutation]);
+  const moveDocument = useCallback(
+    (documentId: string, categoryId: string | null) =>
+      moveDocumentMutation.mutate({ documentId, categoryId }),
+    [moveDocumentMutation],
+  );
 
   return {
     documents,

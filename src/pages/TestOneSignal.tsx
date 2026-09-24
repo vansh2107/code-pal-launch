@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { httpsCallable } from 'firebase/functions';
+import { firebaseFunctions } from '@/integrations/firebase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -70,27 +71,26 @@ export default function TestOneSignal() {
     setResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('send-onesignal-notification', {
-        body: {
-          userId: user.id,
-          title: '📱 Test: OneSignal Notification',
-          message: 'Your OneSignal push notifications are working perfectly! You\'ll receive document reminders via Despia.',
-          data: {
-            type: 'test',
-            date: '2025-11-04'
-          }
+      const fn = httpsCallable<any, { success: boolean; reason?: string; error?: string }>(
+        firebaseFunctions,
+        'sendOnesignalNotification'
+      );
+      const res = await fn({
+        userId: user.uid,
+        title: '📱 Test: OneSignal Notification',
+        message: 'Your OneSignal push notifications are working perfectly! You\'ll receive document reminders via Despia.',
+        data: {
+          type: 'test',
+          date: '2025-11-04'
         }
       });
-
-      if (error) {
-        throw error;
-      }
+      const data = res.data;
 
       setResult({
         success: data.success,
         message: data.success 
           ? 'Test OneSignal notification sent! Check your Despia mobile app.' 
-          : data.error || 'Failed to send notification'
+          : data.reason || data.error || 'Failed to send notification'
       });
     } catch (error) {
       console.error('Error testing OneSignal notification:', error);

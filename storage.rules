@@ -1,0 +1,180 @@
+rules_version = '2';
+
+// =============================================================================
+// Remonk Reminder — Firebase Storage Security Rules
+//
+// All buckets are PRIVATE.  No public read/write anywhere.
+//
+// Access model
+// ─────────────
+//   Owner:      the authenticated user whose UID matches the {userId} segment
+//               in the storage path.
+//   Org member: a user who belongs to an organisation that shares a document.
+//               Org-member access is handled EXCLUSIVELY by the getSignedUrl
+//               Cloud Function (server-side Admin SDK).  Storage rules do NOT
+//               need to model org membership — the function validates it and
+//               generates the URL using service-account credentials.
+//
+//   Storage rules therefore never use `allow read: if true` or any cross-
+//   service Firestore lookup.
+//
+// Path conventions
+// ─────────────────
+//   documents/{userId}/{docId}/document.{ext}  — document images & PDFs
+//   avatars/{userId}/profile.{ext}             — profile avatars
+//   tasks/{userId}/{taskId}/image.{ext}        — task attachment images
+//
+// Allowed MIME types / size limits
+// ─────────────────────────────────
+//   Documents:  image/jpeg, image/jpg, image/png, image/webp, application/pdf
+//               Max 10 MB
+//   Task images: image/jpeg, image/jpg, image/png, image/webp
+//               Max 5 MB
+//   Avatars:     image/jpeg, image/jpg, image/png, image/webp
+//               Max 2 MB
+// =============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // =========================================================================
+    // Helper functions
+    // =========================================================================
+
+    /** True if the caller is authenticated. */
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    /** True if the caller's UID matches the userId path segment. */
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    /** True if the uploaded file's content type is one of the allowed types. */
+    function isAllowedDocumentType() {
+      return request.resource.contentType in [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+        'application/pdf'
+      ];
+    }
+
+    function isAllowedImageType() {
+      return request.resource.contentType in [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp'
+      ];
+    }
+
+    /** File size helpers (bytes). */
+    function maxDocumentSize()  { return 10 * 1024 * 1024; }  // 10 MB
+    function maxTaskImageSize() { return  5 * 1024 * 1024; }  //  5 MB
+    function maxAvatarSize()    { return  2 * 1024 * 1024; }  //  2 MB
+
+    function withinDocumentSizeLimit() {
+      return request.resource.size <= maxDocumentSize();
+    }
+
+    function withinTaskImageSizeLimit() {
+      return request.resource.size <= maxTaskImageSize();
+    }
+
+    function withinAvatarSizeLimit() {
+      return request.resource.size <= maxAvatarSize();
+    }
+
+    // =========================================================================
+    // documents/{userId}/{docId}/{fileName}
+    //
+    // Document images and PDFs.
+    //
+    // READ:   Owner only.
+    //         Org members must use the getSignedUrl Cloud Function —
+    //         Storage rules cannot query Firestore for org membership.
+    //
+    // WRITE:  Owner only, with MIME type + size constraints.
+    //
+    // DELETE: Owner only.
+    // =========================================================================
+    match /documents/{userId}/{docId}/{fileName} {
+      allow read:
+        if isOwner(userId);
+
+      allow create:
+        if isOwner(userId)
+        && isAllowedDocumentType()
+        && withinDocumentSizeLimit();
+
+      allow update:
+        if isOwner(userId)
+        && isAllowedDocumentType()
+        && withinDocumentSizeLimit();
+
+      allow delete:
+        if isOwner(userId);
+    }
+
+    // =========================================================================
+    // avatars/{userId}/{fileName}
+    //
+    // Profile avatar images.
+    // =========================================================================
+    match /avatars/{userId}/{fileName} {
+      allow read:
+        if isOwner(userId);
+
+      allow create:
+        if isOwner(userId)
+        && isAllowedImageType()
+        && withinAvatarSizeLimit();
+
+      allow update:
+        if isOwner(userId)
+        && isAllowedImageType()
+        && withinAvatarSizeLimit();
+
+      allow delete:
+        if isOwner(userId);
+    }
+
+    // =========================================================================
+    // tasks/{userId}/{taskId}/{fileName}
+    //
+    // Task attachment images.
+    // =========================================================================
+    match /tasks/{userId}/{taskId}/{fileName} {
+      allow read:
+        if isOwner(userId);
+
+      allow create:
+        if isOwner(userId)
+        && isAllowedImageType()
+        && withinTaskImageSizeLimit();
+
+      allow update:
+        if isOwner(userId)
+        && isAllowedImageType()
+        && withinTaskImageSizeLimit();
+
+      allow delete:
+        if isOwner(userId);
+    }
+
+    // =========================================================================
+    // Catch-all deny
+    //
+    // Any path not explicitly matched above is denied for all operations.
+    // This is the secure default — nothing slips through.
+    // =========================================================================
+    match /{allPaths=**} {
+      allow read:   if false;
+      allow write:  if false;
+    }
+
+  }
+}

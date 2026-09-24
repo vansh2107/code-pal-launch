@@ -23,3 +23,19 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.local
+.env.*.local
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+functions/lib/
+functions/node_modules/
+
+# Firebase service account keys — NEVER commit these
+*service-account*.json
+*serviceAccount*.json
+*firebase-adminsdk*.json

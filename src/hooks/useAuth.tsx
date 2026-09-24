@@ -1,156 +1,163 @@
+/**
+ * useAuth.tsx — Firebase Auth provider
+ *
+ * Replaces the Supabase Auth implementation.
+ * Public API is identical so all consumers compile without changes:
+ *   { user, session, loading, signOut, deleteAccount }
+ *
+ * Key differences from Supabase version:
+ *   - `user` is firebase/auth User (not @supabase/supabase-js User)
+ *   - `session` is the Firebase ID token string (not a Supabase Session object)
+ *   - deleteAccount pre-deletes Firestore sub-collections then calls the
+ *     deleteUserAccount Cloud Function, same pattern as before
+ *   - OneSignal registration is unchanged (still deferred 3 s on native)
+ */
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import type { User } from 'firebase/auth';
+import {
+  collection,
+  writeBatch,
+  getDocs,
+  doc,
+} from 'firebase/firestore';
+import { firebaseAuth, firebaseDb, firebaseFunctions } from '@/integrations/firebase/client';
+import { onAuthChange, signOut as fbSignOut, getIdToken } from '@/integrations/firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import { Capacitor } from '@capacitor/core';
 import { ensurePushRegistration, setUserEmail, logoutOneSignal } from '@/lib/onesignal';
 import { resetLockState } from '@/lib/appLock';
 
+// ---------------------------------------------------------------------------
+// Types — keep the same shape as the Supabase version so pages don't break
+// ---------------------------------------------------------------------------
+
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user:    User | null;
+  /** Firebase ID token string — replaces Supabase Session object */
+  session: string | null;
   loading: boolean;
-  signOut: () => Promise<void>;
+  signOut:       () => Promise<void>;
   deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const initialized = React.useRef(false);
-  const loadingRef = React.useRef(true);
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
 
-  // Keep ref in sync
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user,    setUser]    = useState<User | null>(null);
+  const [session, setSession] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadingRef = React.useRef(true);
   loadingRef.current = loading;
 
   useEffect(() => {
-    // Fail-safe: never stay loading longer than 2 seconds
+    // Fail-safe: never stay loading longer than 3 s
     const failSafe = setTimeout(() => {
       if (loadingRef.current) {
-        console.warn('⚠️ Auth fail-safe triggered after 2s');
+        console.warn('⚠️ Auth fail-safe triggered after 3s');
         setLoading(false);
       }
-    }, 2000);
+    }, 3000);
 
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-        
-        // Register OneSignal Player ID when user logs in (deferred, non-blocking)
-        if (session?.user && Capacitor.isNativePlatform()) {
+    const unsubscribe = onAuthChange(async (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoading(false);
+      clearTimeout(failSafe);
+
+      if (firebaseUser) {
+        // Get and cache the ID token as the "session"
+        const token = await getIdToken();
+        setSession(token);
+
+        // Register OneSignal on native platforms (deferred, non-blocking)
+        if (Capacitor.isNativePlatform()) {
           setTimeout(() => {
-            ensurePushRegistration(session.user.id, { silent: true });
-            if (session.user.email) {
-              setUserEmail(session.user.email);
+            ensurePushRegistration(firebaseUser.uid, { silent: true });
+            if (firebaseUser.email) {
+              setUserEmail(firebaseUser.email);
             }
           }, 3000);
         }
+      } else {
+        setSession(null);
       }
-    );
-
-    // THEN check for existing session (only once)
-    if (!initialized.current) {
-      initialized.current = true;
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-        
-        if (session?.user && Capacitor.isNativePlatform()) {
-          setTimeout(() => {
-            ensurePushRegistration(session.user.id, { silent: true });
-            if (session.user.email) {
-              setUserEmail(session.user.email);
-            }
-          }, 3000);
-        }
-      }).catch(() => {
-        setLoading(false);
-      });
-    }
+    });
 
     return () => {
       clearTimeout(failSafe);
-      subscription.unsubscribe();
+      unsubscribe();
     };
   }, []);
 
+  // ── Sign out ──────────────────────────────────────────────────────────────
   const signOut = async () => {
     resetLockState();
     await logoutOneSignal();
-    await supabase.auth.signOut();
+    await fbSignOut();
   };
 
+  // ── Delete account ────────────────────────────────────────────────────────
   const deleteAccount = async () => {
-    if (!user) {
-      throw new Error('No user logged in');
-    }
+    if (!user) throw new Error('No user logged in');
 
-    try {
-      // First, delete all user data from the database
-      // This includes documents, reminders, audit logs, etc.
-      // The CASCADE constraints will handle related data automatically
-      
-      // Delete user's documents (this will cascade to reminders, document_history, etc.)
-      const { error: documentsError } = await supabase
-        .from('documents')
-        .delete()
-        .eq('user_id', user.id);
+    // 1. Delete all Firestore data for the user before deleting the Auth account.
+    //    Firestore Security Rules prevent writes after auth is gone, so order matters.
+    const userDocRef = doc(firebaseDb, 'users', user.uid);
 
-      if (documentsError) throw documentsError;
+    // Sub-collections to delete (one batch per collection for large sets)
+    const subCollections = [
+      'tasks', 'documents', 'reminders', 'routines',
+      'docvault_categories', 'notification_tokens', 'onesignal_player_ids',
+      'snooze_usage', 'snooze_sync_queue',
+    ];
 
-      // Delete user's profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('user_id', user.id);
+    for (const colName of subCollections) {
+      const colRef = collection(userDocRef, colName);
+      const snap   = await getDocs(colRef);
+      if (snap.empty) continue;
 
-      if (profileError) throw profileError;
-
-      // Delete any remaining audit logs for the user
-      const { error: auditError } = await supabase
-        .from('audit_logs')
-        .delete()
-        .eq('user_id', user.id);
-
-      if (auditError) throw auditError;
-
-      // Call the Edge Function to delete the auth user
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session) {
-        throw new Error('No valid session found');
+      // Delete in batches of 500 (Firestore limit)
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += 500) {
+        const batch = writeBatch(firebaseDb);
+        docs.slice(i, i + 500).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
       }
-
-      const { data, error: functionError } = await supabase.functions.invoke('delete-user-account', {
-        headers: {
-          Authorization: `Bearer ${session.session.access_token}`,
-        },
-      });
-
-      if (functionError) throw functionError;
-
-      // Clear local state and sign out
-      setUser(null);
-      setSession(null);
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      throw error;
     }
+
+    // Delete the profile document
+    try {
+      const batch = writeBatch(firebaseDb);
+      const profileSnap = await getDocs(collection(userDocRef, 'profile'));
+      profileSnap.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    } catch { /* ignore */ }
+
+    // 2. Call the Cloud Function to delete the Firebase Auth user
+    const token = await getIdToken(true);
+    if (!token) throw new Error('No valid session found');
+
+    const deleteFn = httpsCallable<Record<string, never>, { success: boolean }>(
+      firebaseFunctions,
+      'deleteUserAccount',
+    );
+    const result = await deleteFn({});
+    if (!result.data.success) {
+      throw new Error('Account deletion failed on server');
+    }
+
+    // 3. Sign out locally
+    setUser(null);
+    setSession(null);
+    await fbSignOut();
   };
 
-  const value = {
-    user,
-    session,
-    loading,
-    signOut,
-    deleteAccount,
-  };
+  const value: AuthContextType = { user, session, loading, signOut, deleteAccount };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

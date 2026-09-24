@@ -1,411 +1,226 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Plus, Search, Building2, Banknote, Heart, GraduationCap, Users, Shield, Folder } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { useToast } from "@/hooks/use-toast";
-import { exportToCSV } from "@/utils/exportData";
-import { getDocumentStatus } from "@/utils/documentStatus";
-import { SwipeableDocumentCard } from "@/components/document/SwipeableDocumentCard";
-import { Skeleton } from "@/components/ui/skeleton";
-import { getOfflineDocuments } from "@/utils/offlineStorage";
-import { isValidCalendarDate } from "@/utils/documentDecisionEngine";
+/**
+ * src/pages/Documents.tsx — Firestore documents list page
+ * Replaces Supabase with Firestore + real-time listener. UI unchanged.
+ */
 
-interface Document {
-  id: string;
-  name: string;
-  document_type: string;
-  category_detail?: string;
-  issuing_authority: string;
-  expiry_date: string;
-  created_at: string;
-}
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FileText, Plus, Search, Building2, Banknote, Heart, GraduationCap, Users, Shield, Folder } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { AppShell } from '@/components/layout/AppShell';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { useToast } from '@/hooks/use-toast';
+import { exportToCSV } from '@/utils/exportData';
+import { getDocumentStatus } from '@/utils/documentStatus';
+import { SwipeableDocumentCard } from '@/components/document/SwipeableDocumentCard';
+import { Skeleton } from '@/components/ui/skeleton';
+import { getOfflineDocuments } from '@/utils/offlineStorage';
+import { isValidCalendarDate } from '@/utils/documentDecisionEngine';
+import { collection, query, where, orderBy, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
+import { firebaseDb } from '@/integrations/firebase/client';
+
+interface Document { id: string; name: string; document_type: string; category_detail?: string; issuing_authority: string; expiry_date: string; created_at: string; }
 
 const categories = [
-  { id: "government_legal", name: "Government & Legal Renewals", icon: Building2, color: "bg-blue-500/10 text-blue-500", types: ["passport", "passport_renewal", "license", "drivers_license", "permit", "vehicle_registration", "health_card", "work_permit_visa", "permanent_residency", "business_license", "tax_filing", "ticket_fines", "voting_registration"] },
-  { id: "financial_utility", name: "Financial & Utility Renewals", icon: Banknote, color: "bg-green-500/10 text-green-500", types: ["insurance", "credit_card", "insurance_policy", "utility_bills", "loan_payment", "subscription", "bank_card"] },
-  { id: "personal_productivity", name: "Personal Life & Productivity", icon: Heart, color: "bg-pink-500/10 text-pink-500", types: ["health_checkup", "medication_refill", "pet_vaccination", "fitness_membership", "library_book", "warranty", "home_maintenance"] },
-  { id: "work_education", name: "Work & Education", icon: GraduationCap, color: "bg-indigo-500/10 text-indigo-500", types: ["certification", "professional_license", "training_certificate", "software_license", "student_visa", "course_registration"] },
-  { id: "family_shared", name: "Family & Shared Renewals", icon: Users, color: "bg-primary-soft text-primary", types: ["children_documents", "school_enrollment", "family_insurance", "joint_subscription", "pet_care", "property_lease"] },
-  { id: "digital_security", name: "Digital & Security Renewals", icon: Shield, color: "bg-purple-500/10 text-purple-500", types: ["domain_name", "web_hosting", "cloud_storage", "device_warranty", "password_security"] },
-  { id: "other", name: "Other", icon: Folder, color: "bg-gray-500/10 text-gray-500", types: ["other"] },
+  { id: 'government_legal',    name: 'Government & Legal Renewals',   icon: Building2, color: 'bg-blue-500/10 text-blue-500',    types: ['passport','passport_renewal','license','drivers_license','permit','vehicle_registration','health_card','work_permit_visa','permanent_residency','business_license','tax_filing','ticket_fines','voting_registration'] },
+  { id: 'financial_utility',   name: 'Financial & Utility Renewals',  icon: Banknote,  color: 'bg-green-500/10 text-green-500',  types: ['insurance','credit_card','insurance_policy','utility_bills','loan_payment','subscription','bank_card'] },
+  { id: 'personal_productivity',name:'Personal Life & Productivity',  icon: Heart,     color: 'bg-pink-500/10 text-pink-500',    types: ['health_checkup','medication_refill','pet_vaccination','fitness_membership','library_book','warranty','home_maintenance'] },
+  { id: 'work_education',      name: 'Work & Education',              icon: GraduationCap,color:'bg-indigo-500/10 text-indigo-500',types:['certification','professional_license','training_certificate','software_license','student_visa','course_registration'] },
+  { id: 'family_shared',       name: 'Family & Shared Renewals',      icon: Users,     color: 'bg-primary-soft text-primary',    types: ['children_documents','school_enrollment','family_insurance','joint_subscription','pet_care','property_lease'] },
+  { id: 'digital_security',    name: 'Digital & Security Renewals',   icon: Shield,    color: 'bg-purple-500/10 text-purple-500', types: ['domain_name','web_hosting','cloud_storage','device_warranty','password_security'] },
+  { id: 'other',               name: 'Other',                         icon: Folder,    color: 'bg-gray-500/10 text-gray-500',    types: ['other'] },
 ];
 
-const subCategoryNames: Record<string, string> = {
-  passport: "Passport", license: "License", permit: "Permit", insurance: "Insurance",
-  certification: "Certification", passport_renewal: "Passport Renewal",
-  drivers_license: "Driver's License / ID Card", vehicle_registration: "Vehicle Registration / Insurance",
-  health_card: "Health Card Renewal", work_permit_visa: "Work Permit / Visa / Study Permit",
-  permanent_residency: "Permanent Residency", business_license: "Business License",
-  tax_filing: "Tax Filing", ticket_fines: "Tickets and Fines",
-  voting_registration: "Voting Registration", credit_card: "Credit Card",
-  insurance_policy: "Insurance Policy", utility_bills: "Utility Bills",
-  loan_payment: "Loan / EMI Payment", subscription: "Subscription", bank_card: "Bank Card",
-  health_checkup: "Health Checkup", medication_refill: "Medication Refill",
-  pet_vaccination: "Pet Vaccination", fitness_membership: "Fitness Membership",
-  library_book: "Library Book", warranty: "Warranty", home_maintenance: "Home Maintenance",
-  professional_license: "Professional License", training_certificate: "Training Certificate",
-  software_license: "Software License", student_visa: "Student Visa",
-  course_registration: "Course Registration", children_documents: "Children's Documents",
-  school_enrollment: "School Enrollment", family_insurance: "Family Insurance",
-  joint_subscription: "Joint Subscription", pet_care: "Pet Care",
-  property_lease: "Property Lease", domain_name: "Domain Name",
-  web_hosting: "Web Hosting / SSL", cloud_storage: "Cloud Storage",
-  device_warranty: "Device Warranty", password_security: "Password Security", other: "Other",
-};
+const subCategoryNames: Record<string,string> = { passport:'Passport',license:'License',permit:'Permit',insurance:'Insurance',certification:'Certification',passport_renewal:'Passport Renewal',drivers_license:"Driver's License / ID Card",vehicle_registration:'Vehicle Registration / Insurance',health_card:'Health Card Renewal',work_permit_visa:'Work Permit / Visa / Study Permit',permanent_residency:'Permanent Residency',business_license:'Business License',tax_filing:'Tax Filing',ticket_fines:'Tickets and Fines',voting_registration:'Voting Registration',credit_card:'Credit Card',insurance_policy:'Insurance Policy',utility_bills:'Utility Bills',loan_payment:'Loan / EMI Payment',subscription:'Subscription',bank_card:'Bank Card',health_checkup:'Health Checkup',medication_refill:'Medication Refill',pet_vaccination:'Pet Vaccination',fitness_membership:'Fitness Membership',library_book:'Library Book',warranty:'Warranty',home_maintenance:'Home Maintenance',professional_license:'Professional License',training_certificate:'Training Certificate',software_license:'Software License',student_visa:'Student Visa',course_registration:'Course Registration',children_documents:"Children's Documents",school_enrollment:'School Enrollment',family_insurance:'Family Insurance',joint_subscription:'Joint Subscription',pet_care:'Pet Care',property_lease:'Property Lease',domain_name:'Domain Name',web_hosting:'Web Hosting / SSL',cloud_storage:'Cloud Storage',device_warranty:'Device Warranty',password_security:'Password Security',other:'Other' };
 
 export default function Documents() {
-  const { user } = useAuth();
-  const { toast } = useToast();
+  const { user }   = useAuth();
+  const { toast }  = useToast();
   const [searchParams] = useSearchParams();
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterType, setFilterType] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"expiry" | "name" | "recent">("expiry");
-  const [filterStatus, setFilterStatus] = useState<"all" | "expired" | "expiring" | "valid">("all");
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [documents,    setDocuments]    = useState<Document[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [filterType,   setFilterType]   = useState('all');
+  const [searchQuery,  setSearchQuery]  = useState('');
+  const [sortBy,       setSortBy]       = useState<'expiry'|'name'|'recent'>('expiry');
+  const [filterStatus, setFilterStatus] = useState<'all'|'expired'|'expiring'|'valid'>('all');
+  const [isMobile,     setIsMobile]     = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const h = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
   }, []);
 
   useEffect(() => {
     const status = searchParams.get('status');
-    if (status && ['all', 'valid', 'expiring', 'expired'].includes(status)) {
-      setFilterStatus(status as any);
-    }
+    if (status && ['all','valid','expiring','expired'].includes(status)) setFilterStatus(status as any);
   }, [searchParams]);
 
   useEffect(() => {
-    if (user) {
-      fetchDocuments();
-      const channel = supabase
-        .channel('documents-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'documents', filter: `user_id=eq.${user.id}` }, () => fetchDocuments())
-        .subscribe();
-      return () => { supabase.removeChannel(channel); };
-    }
-  }, [user]);
-
-  const fetchDocuments = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('documents')
-        .select('id, name, document_type, category_detail, issuing_authority, expiry_date, created_at')
-        .eq('user_id', user?.id)
-        .neq('issuing_authority', 'DocVault')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setDocuments(data || []);
-    } catch (error: any) {
-      console.error('Error fetching documents:', error);
-      // Offline / network failure → fall back to IndexedDB cache
+    if (!user) return;
+    const uid = user.uid;
+    const q = query(
+      collection(firebaseDb, `users/${uid}/documents`),
+      where('issuingAuthority', '!=', 'DocVault'),
+      orderBy('issuingAuthority'),
+      orderBy('createdAt', 'desc'),
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setDocuments(snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id:                d.id,
+          name:              data.name             as string,
+          document_type:     data.documentType     as string,
+          category_detail:   (data.categoryDetail  as string | undefined),
+          issuing_authority: (data.issuingAuthority as string) ?? '',
+          expiry_date:       (data.expiryDate       as string) ?? '',
+          created_at:        data.createdAt         as string,
+        };
+      }));
+      setLoading(false);
+    }, async (err) => {
+      console.error('[Documents] onSnapshot error:', err);
+      // Offline fallback
       try {
         const cached = await getOfflineDocuments();
-        const filtered = cached
-          .filter((d) => d.user_id === user?.id && d.issuing_authority !== 'DocVault')
-          .map((d) => ({
-            id: d.id,
-            name: d.name,
-            document_type: d.document_type,
-            category_detail: d.category_detail || undefined,
-            issuing_authority: d.issuing_authority || '',
-            expiry_date: d.expiry_date,
-            created_at: d.created_at || d.updated_at,
-          })) as Document[];
-        if (filtered.length > 0) {
-          setDocuments(filtered);
-        } else {
-          toast({ title: "Error", description: error.message || "Failed to fetch documents", variant: "destructive" });
-        }
-      } catch {
-        toast({ title: "Error", description: error.message || "Failed to fetch documents", variant: "destructive" });
-      }
-    } finally {
+        const filtered = cached.filter((d) => d.user_id === uid && d.issuing_authority !== 'DocVault').map((d) => ({
+          id: d.id, name: d.name, document_type: d.document_type,
+          category_detail: d.category_detail ?? undefined,
+          issuing_authority: d.issuing_authority ?? '',
+          expiry_date: d.expiry_date, created_at: d.created_at ?? d.updated_at,
+        })) as Document[];
+        if (filtered.length > 0) setDocuments(filtered);
+      } catch { /* noop */ }
       setLoading(false);
-    }
-  };
+    });
+    return () => unsub();
+  }, [user]);
 
-  // Memoize filtered documents instead of separate state + useEffect
   const filteredDocuments = useMemo(() => {
     let filtered = [...documents];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(doc =>
-        doc.name.toLowerCase().includes(q) || doc.issuing_authority?.toLowerCase().includes(q)
-      );
-    }
-
-    if (filterType !== "all") {
-      const category = categories.find(c => c.id === filterType);
-      if (category) {
-        filtered = filtered.filter(doc => category.types.includes(doc.category_detail || doc.document_type));
-      }
-    }
-
-    if (filterStatus !== "all") {
+    if (searchQuery.trim()) { const q = searchQuery.toLowerCase(); filtered = filtered.filter(d => d.name.toLowerCase().includes(q) || d.issuing_authority?.toLowerCase().includes(q)); }
+    if (filterType !== 'all') { const cat = categories.find(c => c.id === filterType); if (cat) filtered = filtered.filter(d => cat.types.includes(d.category_detail ?? d.document_type)); }
+    if (filterStatus !== 'all') {
       const today = new Date();
-      filtered = filtered.filter(doc => {
-        if (!doc.expiry_date || !isValidCalendarDate(doc.expiry_date)) return false;
-        const daysUntilExpiry = Math.ceil((new Date(doc.expiry_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        if (filterStatus === "expired") return daysUntilExpiry < 0;
-        if (filterStatus === "expiring") return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
-        if (filterStatus === "valid") return daysUntilExpiry > 30;
+      filtered = filtered.filter(d => {
+        if (!d.expiry_date || !isValidCalendarDate(d.expiry_date)) return false;
+        const days = Math.ceil((new Date(d.expiry_date).getTime() - today.getTime()) / 86400000);
+        if (filterStatus === 'expired')  return days < 0;
+        if (filterStatus === 'expiring') return days >= 0 && days <= 30;
+        if (filterStatus === 'valid')    return days > 30;
         return true;
       });
     }
-
-    if (sortBy === "expiry") {
-      filtered.sort((a, b) => {
-        const aValid = a.expiry_date && isValidCalendarDate(a.expiry_date);
-        const bValid = b.expiry_date && isValidCalendarDate(b.expiry_date);
-        if (!aValid && !bValid) return 0;
-        if (!aValid) return 1; // push a to the end
-        if (!bValid) return -1; // push b to the end
-        return new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime();
-      });
-    }
-    else if (sortBy === "name") filtered.sort((a, b) => a.name.localeCompare(b.name));
-    else if (sortBy === "recent") filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
+    if (sortBy === 'expiry')  filtered.sort((a,b) => { const av=a.expiry_date&&isValidCalendarDate(a.expiry_date),bv=b.expiry_date&&isValidCalendarDate(b.expiry_date); if(!av&&!bv)return 0;if(!av)return 1;if(!bv)return -1;return new Date(a.expiry_date).getTime()-new Date(b.expiry_date).getTime(); });
+    else if (sortBy === 'name')   filtered.sort((a,b) => a.name.localeCompare(b.name));
+    else if (sortBy === 'recent') filtered.sort((a,b) => new Date(b.created_at).getTime()-new Date(a.created_at).getTime());
     return filtered;
   }, [documents, filterType, searchQuery, sortBy, filterStatus]);
 
-  const handleExport = () => {
-    exportToCSV(documents);
-    toast({ title: "Export Successful", description: "Your documents have been exported to CSV." });
-  };
+  const handleExport = () => { exportToCSV(documents); toast({ title: 'Export Successful', description: 'Your documents have been exported to CSV.' }); };
 
-  const getSubCategoryName = useCallback((subTypeId: string) => subCategoryNames[subTypeId] || subTypeId, []);
+  const getSubCategoryName = useCallback((id: string) => subCategoryNames[id] ?? id, []);
+  const getCategoryCount   = useCallback((catId: string) => { const cat = categories.find(c => c.id === catId); return cat ? documents.filter(d => cat.types.includes(d.category_detail ?? d.document_type)).length : 0; }, [documents]);
+  const handleCategoryClick = (catId: string) => { setFilterType(prev => prev === catId ? 'all' : catId); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
-  const getCategoryCount = useCallback((categoryId: string) => {
-    const category = categories.find(c => c.id === categoryId);
-    if (!category) return 0;
-    return documents.filter(doc => category.types.includes(doc.category_detail || doc.document_type)).length;
-  }, [documents]);
-
-  const handleCategoryClick = (categoryId: string) => {
-    setFilterType(prev => prev === categoryId ? "all" : categoryId);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // OPTIMISTIC DELETE: Remove from UI immediately, then delete on server
   const handleDeleteDocument = useCallback(async (documentId: string) => {
-    // Optimistic: remove from local state instantly
+    if (!user) return;
     setDocuments(prev => prev.filter(d => d.id !== documentId));
-    
-    toast({ title: "Document deleted", description: "Document removed successfully." });
-
+    toast({ title: 'Document deleted', description: 'Document removed successfully.' });
     try {
-      const { error } = await supabase.from('documents').delete().eq('id', documentId);
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error deleting document:', error);
-      // Rollback: re-fetch on error
-      fetchDocuments();
-      toast({ title: "Error", description: "Failed to delete document. Restored.", variant: "destructive" });
+      await deleteDoc(doc(firebaseDb, `users/${user.uid}/documents/${documentId}`));
+    } catch (err) {
+      console.error('[Documents] delete error:', err);
+      toast({ title: 'Error', description: 'Failed to delete document. Restored.', variant: 'destructive' });
     }
-  }, [toast]);
+  }, [user, toast]);
 
-  const showCategories = !searchQuery && filterStatus === "all" && sortBy === "expiry" && filterType === "all";
-  const showFilteredList = filterType !== "all" || searchQuery || filterStatus !== "all" || sortBy !== "expiry";
+  const showCategories   = !searchQuery && filterStatus === 'all' && sortBy === 'expiry' && filterType === 'all';
+  const showFilteredList = filterType !== 'all' || searchQuery || filterStatus !== 'all' || sortBy !== 'expiry';
+  const addAction = (<Link to="/scan"><Button size="sm"><Plus className="h-4 w-4 mr-2" />Add Document</Button></Link>);
 
-  const addAction = (
-    <Link to="/scan">
-      <Button size="sm"><Plus className="h-4 w-4 mr-2" />Add Document</Button>
-    </Link>
+  if (loading) return (
+    <AppShell>
+      <PageHeader title={<Skeleton className="h-8 w-40" />} variant="sticky" />
+      <div className="space-y-4 pb-6"><Skeleton className="h-10 rounded-[12px]" />{[1,2,3,4].map(i=><Skeleton key={i} className="h-20 rounded-[14px]"/>)}</div>
+    </AppShell>
   );
-
-  if (loading) {
-    return (
-      <AppShell>
-        <PageHeader
-          title={<Skeleton className="h-8 w-40" />}
-          variant="sticky"
-        />
-        <div className="space-y-4 pb-6">
-          <Skeleton className="h-10 rounded-[12px]" />
-          <div className="grid grid-cols-2 gap-3">
-            <Skeleton className="h-10 rounded-[12px]" />
-            <Skeleton className="h-10 rounded-[12px]" />
-          </div>
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-20 rounded-[14px]" />)}
-        </div>
-      </AppShell>
-    );
-  }
 
   return (
     <AppShell contentWidth="full">
-      <PageHeader
-        title="Documents"
-        description={`${documents.length} total document${documents.length !== 1 ? 's' : ''}`}
-        action={addAction}
-        variant="sticky"
-      />
-
+      <PageHeader title="Documents" description={`${documents.length} total document${documents.length!==1?'s':''}`} action={addAction} variant="sticky" />
       <div className="space-y-6 pb-6 w-full">
         <div className="space-y-4">
           <div className="relative min-w-0 w-full">
-            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground shrink-0 pointer-events-none" />
-            <Input
-              placeholder={isMobile ? "Search documents..." : "Search documents by name, type, or authority"}
-              aria-label="Search documents by name, type, or authority"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 h-11 rounded-[12px] bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary w-full min-w-0"
-            />
-            {/* Visually hidden or responsive desktop override via CSS / media query helper */}
-            <span className="sr-only">Search documents by name, type, or authority</span>
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input placeholder={isMobile?'Search documents...':'Search documents by name, type, or authority'} value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} className="pl-10 pr-4 h-11 rounded-[12px] w-full" />
           </div>
-
-          {/* Status Filter Pills / Tabs (All, Valid, Expiring, Expired) */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {[
-              { id: "all", label: "All" },
-              { id: "valid", label: "Valid" },
-              { id: "expiring", label: "Expiring Soon" },
-              { id: "expired", label: "Expired" },
-            ].map((tab) => {
-              const isActive = filterStatus === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setFilterStatus(tab.id as any)}
-                  className={`h-10 px-4 rounded-[12px] text-sm font-medium transition-colors shrink-0 flex items-center justify-center ${
-                    isActive
-                      ? "bg-primary-soft text-primary font-semibold border border-primary/20"
-                      : "bg-secondary text-secondary-foreground hover:bg-muted border border-border/40"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
+            {[{id:'all',label:'All'},{id:'valid',label:'Valid'},{id:'expiring',label:'Expiring Soon'},{id:'expired',label:'Expired'}].map(tab=>(
+              <button key={tab.id} onClick={()=>setFilterStatus(tab.id as any)} className={`h-10 px-4 rounded-[12px] text-sm font-medium transition-colors shrink-0 flex items-center justify-center ${filterStatus===tab.id?'bg-primary-soft text-primary font-semibold border border-primary/20':'bg-secondary text-secondary-foreground hover:bg-muted border border-border/40'}`}>{tab.label}</button>
+            ))}
           </div>
-
-          {/* Secondary Filter & Sort Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-              <SelectTrigger className="h-11 rounded-[12px] border-border bg-background">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="expiry">Sort by Expiry Date</SelectItem>
-                <SelectItem value="name">Sort by Name</SelectItem>
-                <SelectItem value="recent">Sort by Recently Added</SelectItem>
-              </SelectContent>
+            <Select value={sortBy} onValueChange={(v:any)=>setSortBy(v)}>
+              <SelectTrigger className="h-11 rounded-[12px] border-border bg-background"><SelectValue placeholder="Sort by"/></SelectTrigger>
+              <SelectContent><SelectItem value="expiry">Sort by Expiry Date</SelectItem><SelectItem value="name">Sort by Name</SelectItem><SelectItem value="recent">Sort by Recently Added</SelectItem></SelectContent>
             </Select>
-
-            <Select value={filterType} onValueChange={(v: string) => setFilterType(v)}>
-              <SelectTrigger className="h-11 rounded-[12px] border-border bg-background">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="h-11 rounded-[12px] border-border bg-background"><SelectValue placeholder="All Categories"/></SelectTrigger>
+              <SelectContent><SelectItem value="all">All Categories</SelectItem>{categories.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-
-          {(searchQuery || filterStatus !== "all" || sortBy !== "expiry" || filterType !== "all") && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { setSearchQuery(""); setFilterStatus("all"); setSortBy("expiry"); setFilterType("all"); }}
-              className="w-full h-11 rounded-[12px]"
-            >
-              Clear Filters
-            </Button>
+          {(searchQuery||filterStatus!=='all'||sortBy!=='expiry'||filterType!=='all')&&(
+            <Button variant="outline" size="sm" onClick={()=>{setSearchQuery('');setFilterStatus('all');setSortBy('expiry');setFilterType('all');}} className="w-full h-11 rounded-[12px]">Clear Filters</Button>
           )}
         </div>
 
-        {/* Categories */}
-        {documents.length > 0 && showCategories && (
+        {documents.length>0&&showCategories&&(
           <div>
             <h2 className="text-lg font-semibold text-foreground mb-4">Browse by Category</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {categories.map((category) => {
-                const count = getCategoryCount(category.id);
-                const isActive = filterType === category.id;
-                return (
-                  <Card key={category.id} className={`w-full rounded-[16px] cursor-pointer transition-all duration-200 hover:scale-[1.01] ${isActive ? 'ring-2 ring-primary shadow-lg' : 'hover:shadow-md'}`} onClick={() => handleCategoryClick(category.id)}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <category.icon className="w-10 h-10 text-primary stroke-[1.5] shrink-0" />
-                          <h3 className="text-sm font-medium text-foreground truncate">{category.name}</h3>
-                        </div>
-                        <Badge variant="secondary" className="font-semibold shrink-0 ml-2">{count}</Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+              {categories.map(cat=>{const count=getCategoryCount(cat.id);const isActive=filterType===cat.id;return(
+                <Card key={cat.id} className={`w-full rounded-[16px] cursor-pointer transition-all duration-200 hover:scale-[1.01] ${isActive?'ring-2 ring-primary shadow-lg':'hover:shadow-md'}`} onClick={()=>handleCategoryClick(cat.id)}>
+                  <CardContent className="p-4"><div className="flex items-center justify-between"><div className="flex items-center gap-3 min-w-0"><cat.icon className="w-10 h-10 text-primary stroke-[1.5] shrink-0"/><h3 className="text-sm font-medium text-foreground truncate">{cat.name}</h3></div><Badge variant="secondary" className="font-semibold shrink-0 ml-2">{count}</Badge></div></CardContent>
+                </Card>
+              );})}
             </div>
           </div>
         )}
 
-        {/* Filtered Documents */}
-        {showFilteredList && (
+        {showFilteredList&&(
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">{filteredDocuments.length} Document{filteredDocuments.length !== 1 ? 's' : ''}</h2>
-              {documents.length > 0 && <Button variant="outline" size="sm" onClick={handleExport}>Export CSV</Button>}
+              <h2 className="text-lg font-semibold text-foreground">{filteredDocuments.length} Document{filteredDocuments.length!==1?'s':''}</h2>
+              {documents.length>0&&<Button variant="outline" size="sm" onClick={handleExport}>Export CSV</Button>}
             </div>
-            {filteredDocuments.length === 0 ? (
+            {filteredDocuments.length===0?(
               <div className="text-center py-16">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4"/>
                 <h3 className="text-lg font-semibold text-foreground">No matching documents</h3>
                 <p className="text-sm text-muted-foreground mt-1">Try a different search or filter</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => { setSearchQuery(""); setFilterStatus("all"); setSortBy("expiry"); setFilterType("all"); }}
-                  className="mt-4 rounded-[12px]"
-                >
-                  Clear filters
-                </Button>
+                <Button variant="outline" size="sm" onClick={()=>{setSearchQuery('');setFilterStatus('all');setSortBy('expiry');setFilterType('all');}} className="mt-4 rounded-[12px]">Clear filters</Button>
               </div>
-            ) : (
+            ):(
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredDocuments.map(doc => {
-                  const statusInfo = getDocumentStatus(doc.expiry_date);
-                  return (
-                    <SwipeableDocumentCard
-                      key={doc.id}
-                      doc={doc}
-                      statusInfo={statusInfo}
-                      onDelete={handleDeleteDocument}
-                      getSubCategoryName={getSubCategoryName}
-                    />
-                  );
-                })}
+                {filteredDocuments.map(d=>{const statusInfo=getDocumentStatus(d.expiry_date);return(<SwipeableDocumentCard key={d.id} doc={d} statusInfo={statusInfo} onDelete={handleDeleteDocument} getSubCategoryName={getSubCategoryName}/>);})}
               </div>
             )}
           </div>
         )}
 
-        {/* Empty State */}
-        {documents.length === 0 && (
+        {documents.length===0&&(
           <div className="text-center py-16">
-            <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+            <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4"/>
             <h3 className="text-xl font-semibold text-foreground mb-2">No documents yet</h3>
             <p className="text-muted-foreground mb-6">Start by adding your first document</p>
-            <Link to="/scan"><Button><Plus className="h-5 w-5 mr-2" />Add Document</Button></Link>
+            <Link to="/scan"><Button><Plus className="h-5 w-5 mr-2"/>Add Document</Button></Link>
           </div>
         )}
       </div>

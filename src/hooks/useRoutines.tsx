@@ -1,17 +1,39 @@
-import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { useToast } from "@/hooks/use-toast";
+/**
+ * src/hooks/useRoutines.tsx — Firestore routines hook
+ *
+ * Drop-in replacement for the Supabase version.
+ * Public API and exported types are identical so all consumers compile unchanged.
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  query,
+  orderBy,
+  writeBatch,
+} from 'firebase/firestore';
+import { firebaseDb, firebaseAuth } from '@/integrations/firebase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import {
   getOfflineRoutines,
   saveRoutinesOffline,
   type OfflineRoutineBundle,
-} from "@/utils/offlineStorage";
+} from '@/utils/offlineStorage';
+
+// ---------------------------------------------------------------------------
+// Public types (unchanged)
+// ---------------------------------------------------------------------------
 
 export interface RoutineTaskSlot {
   id: string;
   task_id: string;
-  time: string; // "HH:mm:ss"
+  time: string;
   days_of_week: number[];
 }
 
@@ -33,21 +55,25 @@ export interface Routine {
   tasks: RoutineTask[];
 }
 
-const DAYS_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// ---------------------------------------------------------------------------
+// Helpers (unchanged public API)
+// ---------------------------------------------------------------------------
+
+const DAYS_LABELS = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export function formatTime12(time24: string): string {
-  const [h, m] = time24.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+  const [h, m] = time24.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12  = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
 export function formatDaysShort(days: number[]): string {
-  if (!days || days.length === 0) return "";
-  if (days.length === 7) return "Daily";
-  if (arraysEqual(days, [1, 2, 3, 4, 5])) return "Mon–Fri";
-  if (arraysEqual(days, [6, 7])) return "Sat–Sun";
-  return days.map((d) => DAYS_LABELS[d]).join(", ");
+  if (!days || days.length === 0) return '';
+  if (days.length === 7) return 'Daily';
+  if (arraysEqual(days, [1, 2, 3, 4, 5])) return 'Mon–Fri';
+  if (arraysEqual(days, [6, 7])) return 'Sat–Sun';
+  return days.map((d) => DAYS_LABELS[d]).join(', ');
 }
 
 function arraysEqual(a: number[], b: number[]): boolean {
@@ -56,235 +82,266 @@ function arraysEqual(a: number[], b: number[]): boolean {
   return sa.length === sb.length && sa.every((v, i) => v === sb[i]);
 }
 
+// ---------------------------------------------------------------------------
+// Firestore field mappers
+// ---------------------------------------------------------------------------
+
+function docToSlot(id: string, data: Record<string, unknown>): RoutineTaskSlot {
+  return {
+    id,
+    task_id:      data.taskId as string,
+    time:         data.time   as string,
+    days_of_week: (data.daysOfWeek as number[]) ?? [],
+  };
+}
+
+function docToTask(
+  id: string,
+  data: Record<string, unknown>,
+  slots: RoutineTaskSlot[],
+): RoutineTask {
+  return {
+    id,
+    routine_id: data.routineId as string,
+    name:       data.name      as string,
+    created_at: data.createdAt as string,
+    slots,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
 export function useRoutines() {
-  const { user } = useAuth();
+  const { user }  = useAuth();
   const { toast } = useToast();
   const [routines, setRoutines] = useState<Routine[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading,  setLoading]  = useState(true);
 
   const fetchRoutines = useCallback(async () => {
-    if (!user) return;
-    try {
-      const { data: routineRows, error } = await supabase
-        .from("routines" as any)
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+    const uid = firebaseAuth.currentUser?.uid ?? user?.uid;
+    if (!uid) return;
 
-      if (error) throw error;
-      if (!routineRows || routineRows.length === 0) {
+    try {
+      const routinesSnap = await getDocs(
+        query(collection(firebaseDb, `users/${uid}/routines`), orderBy('createdAt', 'desc')),
+      );
+
+      if (routinesSnap.empty) {
         setRoutines([]);
         setLoading(false);
-        // Persist empty state too
         saveRoutinesOffline([]).catch(() => {});
         return;
       }
 
-      const routineIds = (routineRows as any[]).map((r) => r.id);
+      const result: Routine[] = [];
 
-      // Fetch tasks and slots in parallel
-      const { data: taskRows } = await supabase
-        .from("routine_tasks" as any)
-        .select("*")
-        .in("routine_id", routineIds)
-        .order("created_at", { ascending: true });
+      for (const routineDoc of routinesSnap.docs) {
+        const r          = routineDoc.data();
+        const tasksSnap  = await getDocs(
+          query(collection(firebaseDb, `users/${uid}/routines/${routineDoc.id}/tasks`), orderBy('createdAt', 'asc')),
+        );
 
-      const taskIds = (taskRows as any[] || []).map((t: any) => t.id);
-      let slotRows: any[] = [];
-      if (taskIds.length > 0) {
-        const { data } = await supabase
-          .from("routine_task_slots" as any)
-          .select("*")
-          .in("task_id", taskIds);
-        slotRows = (data as any[]) || [];
+        const tasks: RoutineTask[] = [];
+        for (const taskDoc of tasksSnap.docs) {
+          const t         = taskDoc.data();
+          const slotsSnap = await getDocs(
+            collection(firebaseDb, `users/${uid}/routines/${routineDoc.id}/tasks/${taskDoc.id}/slots`),
+          );
+          const slots = slotsSnap.docs.map((s) => docToSlot(s.id, s.data() as Record<string, unknown>));
+          tasks.push(docToTask(taskDoc.id, t as Record<string, unknown>, slots));
+        }
+
+        result.push({
+          id:         routineDoc.id,
+          user_id:    uid,
+          name:       r.name   as string,
+          icon:       (r.icon  as string) ?? '☀️',
+          is_active:  (r.isActive as boolean) !== false,
+          created_at: r.createdAt as string,
+          tasks,
+        });
       }
-
-      // Build slot map by task_id
-      const slotMap: Record<string, RoutineTaskSlot[]> = {};
-      for (const s of slotRows) {
-        if (!slotMap[s.task_id]) slotMap[s.task_id] = [];
-        slotMap[s.task_id].push(s as RoutineTaskSlot);
-      }
-
-      // Build task map by routine_id
-      const taskMap: Record<string, RoutineTask[]> = {};
-      for (const t of (taskRows as any[] || [])) {
-        if (!taskMap[t.routine_id]) taskMap[t.routine_id] = [];
-        taskMap[t.routine_id].push({
-          ...t,
-          slots: slotMap[t.id] || [],
-        } as RoutineTask);
-      }
-
-      const result: Routine[] = (routineRows as any[]).map((r) => ({
-        id: r.id,
-        user_id: r.user_id,
-        name: r.name,
-        icon: r.icon || "☀️",
-        is_active: r.is_active !== false,
-        created_at: r.created_at,
-        tasks: taskMap[r.id] || [],
-      }));
 
       setRoutines(result);
-      // Persist for offline use (best-effort)
       saveRoutinesOffline(result as unknown as OfflineRoutineBundle[]).catch(() => {});
     } catch (error) {
-      console.error("Error fetching routines:", error);
-      // Offline / network failure → fall back to IndexedDB
+      console.error('[useRoutines] Fetch error:', error);
+      // Offline fallback
       try {
-        const cached = await getOfflineRoutines(user.id);
-        if (cached.length > 0) {
-          setRoutines(cached as unknown as Routine[]);
-        }
+        const uid2   = user?.uid;
+        const cached = await getOfflineRoutines(uid2);
+        if (cached.length > 0) setRoutines(cached as unknown as Routine[]);
       } catch { /* noop */ }
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  useEffect(() => {
-    fetchRoutines();
-  }, [fetchRoutines]);
+  useEffect(() => { fetchRoutines(); }, [fetchRoutines]);
 
-  const createRoutine = async (name: string, icon: string) => {
-    if (!user) return null;
+  // ── Create routine ─────────────────────────────────────────────────────────
+  const createRoutine = async (name: string, icon: string): Promise<string | null> => {
+    const uid = firebaseAuth.currentUser?.uid ?? user?.uid;
+    if (!uid) return null;
     try {
-      const { data, error } = await supabase
-        .from("routines" as any)
-        .insert({ user_id: user.id, name, icon } as any)
-        .select()
-        .single();
-      if (error) throw error;
-      toast({ title: "Routine created! 🎯" });
+      const now    = new Date().toISOString();
+      const docRef = await addDoc(collection(firebaseDb, `users/${uid}/routines`), {
+        userId:    uid,
+        name,
+        icon,
+        isActive:  true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      toast({ title: 'Routine created! 🎯' });
       await fetchRoutines();
-      return (data as any).id;
+      return docRef.id;
     } catch (error) {
-      console.error("Error creating routine:", error);
-      toast({ title: "Failed to create routine", variant: "destructive" });
+      console.error('[useRoutines] createRoutine error:', error);
+      toast({ title: 'Failed to create routine', variant: 'destructive' });
       return null;
     }
   };
 
+  // ── Delete routine ─────────────────────────────────────────────────────────
   const deleteRoutine = async (id: string) => {
+    const uid = firebaseAuth.currentUser?.uid ?? user?.uid;
+    if (!uid) return;
     try {
-      const { error } = await supabase.from("routines" as any).delete().eq("id", id);
-      if (error) throw error;
-      toast({ title: "Routine deleted" });
+      // Firestore doesn't cascade-delete sub-collections automatically —
+      // delete tasks + slots first.
+      const tasksSnap = await getDocs(collection(firebaseDb, `users/${uid}/routines/${id}/tasks`));
+      const batch     = writeBatch(firebaseDb);
+      for (const taskDoc of tasksSnap.docs) {
+        const slotsSnap = await getDocs(collection(firebaseDb, `users/${uid}/routines/${id}/tasks/${taskDoc.id}/slots`));
+        slotsSnap.docs.forEach((s) => batch.delete(s.ref));
+        batch.delete(taskDoc.ref);
+      }
+      batch.delete(doc(firebaseDb, `users/${uid}/routines/${id}`));
+      await batch.commit();
+      toast({ title: 'Routine deleted' });
       await fetchRoutines();
     } catch (error) {
-      console.error("Error deleting routine:", error);
-      toast({ title: "Failed to delete routine", variant: "destructive" });
+      console.error('[useRoutines] deleteRoutine error:', error);
+      toast({ title: 'Failed to delete routine', variant: 'destructive' });
     }
   };
 
+  // ── Toggle active ──────────────────────────────────────────────────────────
   const toggleRoutineActive = async (id: string, isActive: boolean) => {
+    const uid = firebaseAuth.currentUser?.uid ?? user?.uid;
+    if (!uid) return;
     try {
-      const { error } = await supabase
-        .from("routines" as any)
-        .update({ is_active: isActive } as any)
-        .eq("id", id);
-      if (error) throw error;
-
-      setRoutines((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, is_active: isActive } : r))
-      );
-      toast({ title: isActive ? "Routine activated ✅" : "Routine paused ⏸️" });
+      await updateDoc(doc(firebaseDb, `users/${uid}/routines/${id}`), {
+        isActive,
+        updatedAt: new Date().toISOString(),
+      });
+      setRoutines((prev) => prev.map((r) => (r.id === id ? { ...r, is_active: isActive } : r)));
+      toast({ title: isActive ? 'Routine activated ✅' : 'Routine paused ⏸️' });
     } catch (error) {
-      console.error("Error toggling routine:", error);
-      toast({ title: "Failed to update routine", variant: "destructive" });
+      console.error('[useRoutines] toggleRoutineActive error:', error);
+      toast({ title: 'Failed to update routine', variant: 'destructive' });
     }
   };
 
+  // ── Add task ───────────────────────────────────────────────────────────────
   const addTask = async (
     routineId: string,
     name: string,
-    slots: { time: string; days_of_week: number[] }[]
-  ) => {
-    if (!user) return null;
+    slots: { time: string; days_of_week: number[] }[],
+  ): Promise<string | null> => {
+    const uid = firebaseAuth.currentUser?.uid ?? user?.uid;
+    if (!uid) return null;
     try {
-      const { data: task, error } = await supabase
-        .from("routine_tasks" as any)
-        .insert({ routine_id: routineId, name } as any)
-        .select()
-        .single();
-      if (error) throw error;
-
-      const taskId = (task as any).id;
+      const now     = new Date().toISOString();
+      const taskRef = await addDoc(
+        collection(firebaseDb, `users/${uid}/routines/${routineId}/tasks`),
+        { routineId, name, createdAt: now },
+      );
       if (slots.length > 0) {
-        const slotData = slots.map((s) => ({
-          task_id: taskId,
-          time: s.time,
-          days_of_week: s.days_of_week,
-        }));
-        const { error: slotError } = await supabase
-          .from("routine_task_slots" as any)
-          .insert(slotData as any);
-        if (slotError) throw slotError;
+        const batch = writeBatch(firebaseDb);
+        slots.forEach((s) => {
+          const slotRef = doc(collection(firebaseDb, `users/${uid}/routines/${routineId}/tasks/${taskRef.id}/slots`));
+          batch.set(slotRef, {
+            taskId:     taskRef.id,
+            time:       s.time,
+            daysOfWeek: s.days_of_week,
+            createdAt:  now,
+          });
+        });
+        await batch.commit();
       }
-
-      toast({ title: "Task added! ✅" });
+      toast({ title: 'Task added! ✅' });
       await fetchRoutines();
-      return taskId;
+      return taskRef.id;
     } catch (error) {
-      console.error("Error adding task:", error);
-      toast({ title: "Failed to add task", variant: "destructive" });
+      console.error('[useRoutines] addTask error:', error);
+      toast({ title: 'Failed to add task', variant: 'destructive' });
       return null;
     }
   };
 
+  // ── Delete task ────────────────────────────────────────────────────────────
   const deleteTask = async (taskId: string) => {
+    const uid = firebaseAuth.currentUser?.uid ?? user?.uid;
+    if (!uid) return;
+    // Find the routine containing this task
+    const routine = routines.find((r) => r.tasks.some((t) => t.id === taskId));
+    if (!routine) return;
     try {
-      const { error } = await supabase
-        .from("routine_tasks" as any)
-        .delete()
-        .eq("id", taskId);
-      if (error) throw error;
-      toast({ title: "Task removed" });
+      const slotsSnap = await getDocs(
+        collection(firebaseDb, `users/${uid}/routines/${routine.id}/tasks/${taskId}/slots`),
+      );
+      const batch = writeBatch(firebaseDb);
+      slotsSnap.docs.forEach((s) => batch.delete(s.ref));
+      batch.delete(doc(firebaseDb, `users/${uid}/routines/${routine.id}/tasks/${taskId}`));
+      await batch.commit();
+      toast({ title: 'Task removed' });
       await fetchRoutines();
     } catch (error) {
-      console.error("Error deleting task:", error);
-      toast({ title: "Failed to delete task", variant: "destructive" });
+      console.error('[useRoutines] deleteTask error:', error);
+      toast({ title: 'Failed to delete task', variant: 'destructive' });
     }
   };
 
+  // ── Update task ────────────────────────────────────────────────────────────
   const updateTask = async (
     taskId: string,
     name: string,
-    slots: { id?: string; time: string; days_of_week: number[] }[]
+    slots: { id?: string; time: string; days_of_week: number[] }[],
   ) => {
+    const uid = firebaseAuth.currentUser?.uid ?? user?.uid;
+    if (!uid) return;
+    const routine = routines.find((r) => r.tasks.some((t) => t.id === taskId));
+    if (!routine) return;
     try {
+      const now = new Date().toISOString();
       // Update task name
-      const { error: nameError } = await supabase
-        .from("routine_tasks" as any)
-        .update({ name } as any)
-        .eq("id", taskId);
-      if (nameError) throw nameError;
+      await updateDoc(doc(firebaseDb, `users/${uid}/routines/${routine.id}/tasks/${taskId}`), { name });
 
-      // Delete old slots and insert new ones
-      const { error: delError } = await supabase
-        .from("routine_task_slots" as any)
-        .delete()
-        .eq("task_id", taskId);
-      if (delError) throw delError;
-
-      if (slots.length > 0) {
-        const slotData = slots.map((s) => ({
-          task_id: taskId,
-          time: s.time,
-          days_of_week: s.days_of_week,
-        }));
-        const { error: slotError } = await supabase
-          .from("routine_task_slots" as any)
-          .insert(slotData as any);
-        if (slotError) throw slotError;
-      }
-
-      toast({ title: "Task updated! ✅" });
+      // Replace all slots
+      const slotsSnap = await getDocs(
+        collection(firebaseDb, `users/${uid}/routines/${routine.id}/tasks/${taskId}/slots`),
+      );
+      const batch = writeBatch(firebaseDb);
+      slotsSnap.docs.forEach((s) => batch.delete(s.ref));
+      slots.forEach((s) => {
+        const slotRef = doc(collection(firebaseDb, `users/${uid}/routines/${routine.id}/tasks/${taskId}/slots`));
+        batch.set(slotRef, {
+          taskId,
+          time:       s.time,
+          daysOfWeek: s.days_of_week,
+          createdAt:  now,
+        });
+      });
+      await batch.commit();
+      toast({ title: 'Task updated! ✅' });
       await fetchRoutines();
     } catch (error) {
-      console.error("Error updating task:", error);
-      toast({ title: "Failed to update task", variant: "destructive" });
+      console.error('[useRoutines] updateTask error:', error);
+      toast({ title: 'Failed to update task', variant: 'destructive' });
     }
   };
 

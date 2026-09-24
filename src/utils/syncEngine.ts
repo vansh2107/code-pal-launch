@@ -1,4 +1,42 @@
-import { supabase } from "@/integrations/supabase/client";
+/**
+ * src/utils/syncEngine.ts — Firestore offline sync engine
+ *
+ * Replaces the Supabase push/pull sync with Firestore equivalents.
+ * Public API is identical so App.tsx and useOfflineSync.tsx compile unchanged:
+ *   onSyncStatus(listener)
+ *   pushPendingChanges()
+ *   pullLatestData()
+ *   fullSync()
+ *   registerAutoSync()
+ *
+ * Strategy
+ * ─────────
+ * Firestore SDK has built-in offline persistence (IndexedDB cache managed by
+ * the SDK itself).  This engine therefore focuses on:
+ *   1. Flushing the app's own pendingSync queue (writes queued while offline)
+ *      directly to Firestore using the Admin-free client SDK.
+ *   2. Pulling a fresh snapshot of all user collections into the app's own
+ *      IndexedDB store (offlineStorage.ts) for legacy offline read paths.
+ *   3. Registering online / visibility reconnect triggers.
+ *
+ * The pendingSync queue entries still use the same table-name strings
+ * ("tasks", "documents", etc.) — they are mapped to Firestore collection
+ * paths inside pushPendingChanges().
+ */
+
+import {
+  collection,
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  query,
+  orderBy,
+  limit,
+  where,
+} from 'firebase/firestore';
+import { firebaseDb, firebaseAuth } from '@/integrations/firebase/client';
 import {
   getPendingSyncItems,
   removePendingSync,
@@ -11,13 +49,17 @@ import {
   type OfflineDocument,
   type OfflineRoutineBundle,
   type OfflineDocVaultCategory,
-} from "./offlineStorage";
+} from './offlineStorage';
 
-type SyncStatus = "idle" | "syncing" | "error" | "success";
+// ---------------------------------------------------------------------------
+// Status bus (unchanged public API)
+// ---------------------------------------------------------------------------
+
+type SyncStatus = 'idle' | 'syncing' | 'error' | 'success';
 type SyncListener = (status: SyncStatus, message?: string) => void;
 
 const listeners = new Set<SyncListener>();
-let currentStatus: SyncStatus = "idle";
+let currentStatus: SyncStatus = 'idle';
 
 function notify(status: SyncStatus, message?: string) {
   currentStatus = status;
@@ -26,48 +68,86 @@ function notify(status: SyncStatus, message?: string) {
 
 export function onSyncStatus(listener: SyncListener): () => void {
   listeners.add(listener);
-  // Send current status immediately
   listener(currentStatus);
   return () => listeners.delete(listener);
 }
 
-// ── Push pending offline changes to server ──
+// ---------------------------------------------------------------------------
+// Firestore path helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a pendingSync table name to a Firestore collection path under the user.
+ * Nested collections (routine_tasks, routine_task_slots) are handled
+ * individually using the data payload for parent IDs.
+ */
+function firestoreCollectionPath(
+  uid: string,
+  table: string,
+  data: Record<string, unknown>,
+): string | null {
+  switch (table) {
+    case 'tasks':
+      return `users/${uid}/tasks`;
+    case 'documents':
+      return `users/${uid}/documents`;
+    case 'routines':
+      return `users/${uid}/routines`;
+    case 'docvault_categories':
+      return `users/${uid}/docvault_categories`;
+    case 'routine_tasks': {
+      const routineId = data.routine_id as string | undefined;
+      if (!routineId) return null;
+      return `users/${uid}/routines/${routineId}/tasks`;
+    }
+    case 'routine_task_slots': {
+      // Need both routine_id and task_id from data
+      const routineId = data.routine_id as string | undefined;
+      const taskId    = data.task_id    as string | undefined;
+      if (!routineId || !taskId) return null;
+      return `users/${uid}/routines/${routineId}/tasks/${taskId}/slots`;
+    }
+    default:
+      return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Push pending offline changes to Firestore
+// ---------------------------------------------------------------------------
+
 export async function pushPendingChanges(): Promise<number> {
   const items = await getPendingSyncItems();
   if (items.length === 0) return 0;
+
+  const uid = firebaseAuth.currentUser?.uid;
+  if (!uid) return 0;
 
   let synced = 0;
 
   for (const item of items) {
     try {
-      const table = item.table as
-        | "tasks"
-        | "documents"
-        | "routines"
-        | "routine_tasks"
-        | "routine_task_slots"
-        | "docvault_categories";
+      const collPath = firestoreCollectionPath(uid, item.table, item.data);
+      if (!collPath) {
+        // Cannot resolve path — skip but keep in queue
+        console.warn(`[syncEngine] Cannot resolve path for table "${item.table}" — skipping`);
+        continue;
+      }
 
-      if (item.action === "insert") {
-        const { error } = await (supabase.from(table as any) as any)
-          .insert(item.data as Record<string, unknown>);
-        if (error) throw error;
-      } else if (item.action === "update") {
-        const { error } = await (supabase.from(table as any) as any)
-          .update(item.data as Record<string, unknown>)
-          .eq("id", item.record_id);
-        if (error) throw error;
-      } else if (item.action === "delete") {
-        const { error } = await (supabase.from(table as any) as any)
-          .delete()
-          .eq("id", item.record_id);
-        if (error) throw error;
+      const docRef = doc(firebaseDb, collPath, item.record_id);
+
+      if (item.action === 'insert') {
+        await setDoc(docRef, { ...item.data, id: item.record_id }, { merge: false });
+      } else if (item.action === 'update') {
+        await updateDoc(docRef, item.data as Record<string, unknown>);
+      } else if (item.action === 'delete') {
+        await deleteDoc(docRef);
       }
 
       await removePendingSync(item.id);
       synced++;
     } catch (err) {
-      console.error(`Sync failed for ${item.id}:`, err);
+      console.error(`[syncEngine] Sync failed for ${item.id}:`, err);
       // Keep in queue for retry
     }
   }
@@ -75,128 +155,195 @@ export async function pushPendingChanges(): Promise<number> {
   return synced;
 }
 
-// ── Pull latest data from server into IndexedDB ──
+// ---------------------------------------------------------------------------
+// Pull latest data from Firestore into IndexedDB
+// ---------------------------------------------------------------------------
+
 export async function pullLatestData(): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  const uid = firebaseAuth.currentUser?.uid;
+  if (!uid) return;
 
-  const [tasksResult, docsResult, routinesResult, categoriesResult] = await Promise.all([
-    supabase
-      .from("tasks")
-      .select("id, title, description, start_time, end_time, total_time_minutes, status, image_path, consecutive_missed_days, task_date, original_date, local_date, user_id, updated_at")
-      .eq("user_id", user.id)
-      .order("task_date", { ascending: false })
-      .limit(500),
-    supabase
-      .from("documents")
-      .select("id, name, document_type, expiry_date, issuing_authority, category_detail, notes, image_path, user_id, updated_at, created_at, docvault_category_id, access_count, last_accessed_at")
-      .eq("user_id", user.id)
-      .limit(500),
-    supabase
-      .from("routines" as any)
-      .select("*")
-      .eq("user_id", user.id)
-      .limit(200),
-    supabase
-      .from("docvault_categories")
-      .select("*")
-      .eq("user_id", user.id)
-      .limit(200),
-  ]);
+  const userBase = `users/${uid}`;
 
-  if (tasksResult.data) {
-    await saveTasksOffline(tasksResult.data as OfflineTask[]);
+  // Tasks
+  const tasksSnap = await getDocs(
+    query(
+      collection(firebaseDb, `${userBase}/tasks`),
+      orderBy('taskDate', 'desc'),
+      limit(500),
+    ),
+  );
+  if (!tasksSnap.empty) {
+    const tasks = tasksSnap.docs.map((d) => {
+      const data = d.data();
+      // Map camelCase Firestore fields back to snake_case for IndexedDB / legacy UI
+      return {
+        id:                      d.id,
+        title:                   data.title,
+        description:             data.description ?? null,
+        start_time:              data.startTime,
+        end_time:                data.endTime ?? null,
+        total_time_minutes:      data.totalTimeMinutes ?? null,
+        status:                  data.status,
+        image_path:              data.imagePath ?? null,
+        consecutive_missed_days: data.consecutiveMissedDays ?? 0,
+        task_date:               data.taskDate,
+        original_date:           data.originalDate,
+        local_date:              data.localDate ?? data.taskDate,
+        user_id:                 uid,
+        updated_at:              data.updatedAt ?? new Date().toISOString(),
+      } as OfflineTask;
+    });
+    await saveTasksOffline(tasks);
   }
-  if (docsResult.data) {
-    await saveDocumentsOffline(docsResult.data as OfflineDocument[]);
+
+  // Documents
+  const docsSnap = await getDocs(
+    query(collection(firebaseDb, `${userBase}/documents`), limit(500)),
+  );
+  if (!docsSnap.empty) {
+    const docs = docsSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id:                  d.id,
+        name:                data.name,
+        document_type:       data.documentType,
+        expiry_date:         data.expiryDate ?? '',
+        issuing_authority:   data.issuingAuthority ?? null,
+        category_detail:     data.categoryDetail ?? null,
+        notes:               data.notes ?? null,
+        image_path:          data.imagePath ?? null,
+        user_id:             uid,
+        updated_at:          data.updatedAt ?? new Date().toISOString(),
+        created_at:          data.createdAt,
+        docvault_category_id: data.docvaultCategoryId ?? null,
+        access_count:        data.accessCount ?? 0,
+        last_accessed_at:    data.lastAccessedAt ?? null,
+      } as OfflineDocument;
+    });
+    await saveDocumentsOffline(docs);
   }
-  if (categoriesResult.data) {
-    await saveDocVaultCategoriesOffline(categoriesResult.data as OfflineDocVaultCategory[]);
+
+  // DocVault categories
+  const catsSnap = await getDocs(
+    query(collection(firebaseDb, `${userBase}/docvault_categories`), limit(200)),
+  );
+  if (!catsSnap.empty) {
+    const cats = catsSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id:         d.id,
+        user_id:    uid,
+        name:       data.name,
+        created_at: data.createdAt,
+        updated_at: data.updatedAt,
+      } as OfflineDocVaultCategory;
+    });
+    await saveDocVaultCategoriesOffline(cats);
   }
 
-  // Pull routines bundle (routines + tasks + slots)
-  if (routinesResult.data && (routinesResult.data as any[]).length > 0) {
-    const routineRows = routinesResult.data as any[];
-    const routineIds = routineRows.map((r) => r.id);
+  // Routines (with nested tasks + slots)
+  const routinesSnap = await getDocs(
+    query(collection(firebaseDb, `${userBase}/routines`), limit(200)),
+  );
 
-    const { data: taskRows } = await supabase
-      .from("routine_tasks" as any)
-      .select("*")
-      .in("routine_id", routineIds);
+  if (!routinesSnap.empty) {
+    const bundles: OfflineRoutineBundle[] = [];
 
-    const taskIds = ((taskRows as any[]) || []).map((t: any) => t.id);
-    let slotRows: any[] = [];
-    if (taskIds.length > 0) {
-      const { data } = await supabase
-        .from("routine_task_slots" as any)
-        .select("*")
-        .in("task_id", taskIds);
-      slotRows = (data as any[]) || [];
+    for (const routineDoc of routinesSnap.docs) {
+      const r = routineDoc.data();
+
+      const tasksSnap2 = await getDocs(
+        collection(firebaseDb, `${userBase}/routines/${routineDoc.id}/tasks`),
+      );
+
+      const tasks: OfflineRoutineBundle['tasks'] = [];
+      for (const taskDoc of tasksSnap2.docs) {
+        const t = taskDoc.data();
+        const slotsSnap = await getDocs(
+          collection(firebaseDb, `${userBase}/routines/${routineDoc.id}/tasks/${taskDoc.id}/slots`),
+        );
+        const slots = slotsSnap.docs.map((s) => {
+          const sd = s.data();
+          return {
+            id:           s.id,
+            task_id:      taskDoc.id,
+            time:         sd.time,
+            days_of_week: sd.daysOfWeek ?? [],
+          };
+        });
+        tasks.push({
+          id:         taskDoc.id,
+          routine_id: routineDoc.id,
+          name:       t.name,
+          created_at: t.createdAt,
+          slots,
+        });
+      }
+
+      bundles.push({
+        id:         routineDoc.id,
+        user_id:    uid,
+        name:       r.name,
+        icon:       r.icon ?? '☀️',
+        is_active:  r.isActive !== false,
+        created_at: r.createdAt,
+        updated_at: r.updatedAt,
+        tasks,
+      });
     }
 
-    const slotMap: Record<string, any[]> = {};
-    for (const s of slotRows) {
-      (slotMap[s.task_id] ||= []).push(s);
-    }
-    const taskMap: Record<string, any[]> = {};
-    for (const t of (taskRows as any[]) || []) {
-      (taskMap[t.routine_id] ||= []).push({ ...t, slots: slotMap[t.id] || [] });
-    }
-
-    const bundles: OfflineRoutineBundle[] = routineRows.map((r) => ({
-      id: r.id,
-      user_id: r.user_id,
-      name: r.name,
-      icon: r.icon || "☀️",
-      is_active: r.is_active !== false,
-      created_at: r.created_at,
-      updated_at: r.updated_at,
-      tasks: taskMap[r.id] || [],
-    }));
     await saveRoutinesOffline(bundles);
-  } else if (routinesResult.data) {
+  } else {
     await saveRoutinesOffline([]);
   }
 
-  await setMeta("lastSync", new Date().toISOString());
+  await setMeta('lastSync', new Date().toISOString());
 }
 
-// ── Full sync: push then pull ──
+// ---------------------------------------------------------------------------
+// Full sync: push then pull
+// ---------------------------------------------------------------------------
+
 export async function fullSync(): Promise<{ pushed: number }> {
   if (!navigator.onLine) {
-    notify("error", "No internet connection");
+    notify('error', 'No internet connection');
     return { pushed: 0 };
   }
 
-  notify("syncing");
+  notify('syncing');
 
   try {
     const pushed = await pushPendingChanges();
     await pullLatestData();
-    notify("success", pushed > 0 ? `Synced ${pushed} offline change${pushed > 1 ? "s" : ""}` : "Data up to date");
+    notify(
+      'success',
+      pushed > 0 ? `Synced ${pushed} offline change${pushed > 1 ? 's' : ''}` : 'Data up to date',
+    );
     return { pushed };
   } catch (err) {
-    console.error("Full sync error:", err);
-    notify("error", "Sync failed");
+    console.error('[syncEngine] Full sync error:', err);
+    notify('error', 'Sync failed');
     return { pushed: 0 };
   }
 }
 
-// ── Auto-sync on reconnect ──
+// ---------------------------------------------------------------------------
+// Auto-sync on reconnect / foreground
+// ---------------------------------------------------------------------------
+
 let autoSyncRegistered = false;
 
 export function registerAutoSync(): void {
   if (autoSyncRegistered) return;
   autoSyncRegistered = true;
 
-  window.addEventListener("online", () => {
-    // Small delay to let network stabilize
+  window.addEventListener('online', () => {
     setTimeout(() => fullSync(), 2000);
   });
 
-  // Also sync on visibility change (app foregrounded)
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && navigator.onLine) {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && navigator.onLine) {
       fullSync();
     }
   });

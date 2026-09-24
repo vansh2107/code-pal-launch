@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { collection, addDoc, getDocs, doc, updateDoc, getDoc, query, where } from "firebase/firestore";
+import { ref as storageRef, uploadBytes } from "firebase/storage";
+import { httpsCallable } from "firebase/functions";
+import { firebaseDb, firebaseStorage, firebaseAuth, firebaseFunctions } from "@/integrations/firebase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -240,13 +243,13 @@ export default function Scan() {
 
 
   const fetchOrganizations = async () => {
-    const { data } = await supabase
-      .from('organizations')
-      .select('*')
-      .order('name');
-    
-    if (data) {
-      setOrganizations(data);
+    const uid = firebaseAuth.currentUser?.uid;
+    if (!uid) return;
+    try {
+      const snap = await getDocs(collection(firebaseDb, "organizations"));
+      setOrganizations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error("[Scan] fetchOrganizations:", err);
     }
   };
 
@@ -415,11 +418,11 @@ export default function Scan() {
             if (imagePath) {
               const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
               const processedPath = `${basePath}/processed.${processedFileExt}`;
-              await supabase.storage.from("document-images").upload(processedPath, processedBlob, {
-                cacheControl: "3600",
-                upsert: true,
-                contentType: processedBlob.type
-              });
+              await uploadBytes(
+                storageRef(firebaseStorage, processedPath),
+                processedBlob,
+                { contentType: processedBlob.type }
+              );
             }
           } catch (e) {
             console.warn("Failed to upload companion processed image:", e);
@@ -437,32 +440,31 @@ export default function Scan() {
       };
       const mappedType = documentTypeMap[extractedFields.document_type] || 'other';
       const selectedOrgId = selectedOrg === "personal" ? null : selectedOrg;
+      const uid = firebaseAuth.currentUser?.uid ?? user?.uid;
+      if (!uid) throw new Error("Not authenticated");
+      const now = new Date().toISOString();
 
-      const { data, error } = await supabase
-        .from('documents')
-        .insert({
-          name: extractedFields.name || "Unnamed Document",
-          document_type: mappedType as any,
-          category_detail: extractedFields.document_type,
-          issuing_authority: extractedFields.issuing_authority || "DocVault",
-          expiry_date: null,
-          expiry_date_label: null,
-          renewal_period_days: extractedFields.renewal_period_days || 30,
-          notes: extractedFields.notes || "Saved automatically (no expiry date).",
-          user_id: user.id,
-          image_path: imagePath,
-          organization_id: selectedOrgId
-        } as any)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const docRef = await addDoc(collection(firebaseDb, `users/${uid}/documents`), {
+        userId: uid,
+        name: extractedFields.name || "Unnamed Document",
+        documentType: mappedType,
+        categoryDetail: extractedFields.document_type,
+        issuingAuthority: extractedFields.issuing_authority || "DocVault",
+        expiryDate: null,
+        expiryDateLabel: null,
+        renewalPeriodDays: extractedFields.renewal_period_days || 30,
+        notes: extractedFields.notes || "Saved automatically (no expiry date).",
+        imagePath: imagePath,
+        organizationId: selectedOrgId,
+        createdAt: now,
+        updatedAt: now,
+      });
 
       toast({
         title: "Saved to DocVault",
         description: "This document does not have an expiry date, so it has been saved to DocVault.",
       });
-      navigate(`/documents/${data.id}`);
+      navigate(`/documents/${docRef.id}`);
     } catch (err) {
       console.error(err);
       toast({
@@ -489,15 +491,12 @@ export default function Scan() {
         country: documentCountry || null,
       });
 
-      const { data, error } = await supabase.functions.invoke("scan-document", {
-        body: { 
-          imageBase64: payloadImage,
-          country: documentCountry || null
-        },
+      const scanFn = httpsCallable(firebaseFunctions, "scanDocument");
+      const result: any = await scanFn({
+        images: [payloadImage],
+        country: documentCountry || null,
       });
-
-      console.log("[SCAN DEBUG] extract response", { error, data });
-      if (error) throw error;
+      const data = result.data;
 
       if (data.success && data.data) {
         // Run decision engine
@@ -569,14 +568,12 @@ export default function Scan() {
     setError("");
 
     try {
-      const { data, error } = await supabase.functions.invoke("scan-document", {
-        body: {
-          pages: pages.map((p) => ({ pageNumber: p.pageNumber, content: p.content })),
-          country: documentCountry || null,
-        },
+      const scanFn2 = httpsCallable(firebaseFunctions, "scanDocument");
+      const result2: any = await scanFn2({
+        pages: pages.map((p) => ({ pageNumber: p.pageNumber, content: p.content })),
+        country: documentCountry || null,
       });
-
-      if (error) throw error;
+      const data = result2.data;
 
       if (data?.success && data.data) {
         // Run decision engine
@@ -713,8 +710,8 @@ export default function Scan() {
     setError("");
 
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
+      const uid2 = firebaseAuth.currentUser?.uid ?? user?.uid;
+      if (!uid2) {
         throw new Error("Authentication session expired. Please sign in again.");
       }
 
@@ -807,11 +804,11 @@ export default function Scan() {
               if (imagePath) {
                 const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
                 const processedPath = `${basePath}/processed.${processedFileExt}`;
-                await supabase.storage.from("document-images").upload(processedPath, processedBlob, {
-                  cacheControl: "3600",
-                  upsert: true,
-                  contentType: processedBlob.type
-                });
+                await uploadBytes(
+                  storageRef(firebaseStorage, processedPath),
+                  processedBlob,
+                  { contentType: processedBlob.type }
+                );
               }
             } catch (e) {
               console.warn("Failed to upload companion processed image:", e);
@@ -830,101 +827,79 @@ export default function Scan() {
       const selectedOrgId = selectedOrg === "personal" ? null : selectedOrg;
 
       if (replaceMode && replaceDocId) {
-        const { data: existingDoc, error: fetchError } = await supabase
-          .from('documents')
-          .select('image_path')
-          .eq('id', replaceDocId)
-          .single();
+        const existingSnap = await getDoc(doc(firebaseDb, `users/${uid2}/documents/${replaceDocId}`));
+        if (!existingSnap.exists()) throw new Error("Document not found");
+        const existingImagePath = existingSnap.data()?.imagePath as string | null;
 
-        if (fetchError) throw fetchError;
-
-        if (existingDoc?.image_path && imagePath) {
-          await supabase.storage
-            .from('document-images')
-            .remove([existingDoc.image_path]);
+        if (existingImagePath && imagePath) {
+          try {
+            const { deleteObject: delObj } = await import("firebase/storage");
+            await delObj(storageRef(firebaseStorage, existingImagePath));
+          } catch { /* ok */ }
         }
 
-        const { data, error } = await supabase
-          .from('documents')
-          .update({
-            name: validatedData.name,
-            document_type: validatedData.document_type as any,
-            category_detail: formData.document_type,
-            issuing_authority: validatedData.issuing_authority,
-            expiry_date: validatedData.expiry_date || null,
-            expiry_date_label: (formData.expiry_date_label as string) || null,
-            renewal_period_days: validatedData.renewal_period_days,
-            notes: safeNotes,
-            image_path: imagePath || existingDoc?.image_path,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', replaceDocId)
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        toast({
-          title: "Document updated successfully",
+        const now2 = new Date().toISOString();
+        await updateDoc(doc(firebaseDb, `users/${uid2}/documents/${replaceDocId}`), {
+          name:               validatedData.name,
+          documentType:       validatedData.document_type,
+          categoryDetail:     formData.document_type,
+          issuingAuthority:   validatedData.issuing_authority ?? null,
+          expiryDate:         validatedData.expiry_date         ?? null,
+          expiryDateLabel:    (formData.expiry_date_label as string) || null,
+          renewalPeriodDays:  validatedData.renewal_period_days,
+          notes:              safeNotes,
+          imagePath:          imagePath ?? existingImagePath,
+          updatedAt:          now2,
         });
 
-        navigate(`/documents/${data.id}`);
+        toast({ title: "Document updated successfully" });
+        navigate(`/documents/${replaceDocId}`);
         return;
       }
 
-      const { data, error } = await supabase
-        .from('documents')
-        .insert({
-          name: validatedData.name,
-          document_type: validatedData.document_type as any,
-          category_detail: formData.document_type,
-          issuing_authority: validatedData.issuing_authority,
-          expiry_date: validatedData.expiry_date || null,
-          expiry_date_label: (formData.expiry_date_label as string) || null,
-          renewal_period_days: validatedData.renewal_period_days,
-          notes: safeNotes,
-          user_id: user.id,
-          organization_id: selectedOrgId,
-          image_path: imagePath,
-        } as any)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const now3 = new Date().toISOString();
+      const newDocRef = await addDoc(collection(firebaseDb, `users/${uid2}/documents`), {
+        userId:             uid2,
+        name:               validatedData.name,
+        documentType:       validatedData.document_type,
+        categoryDetail:     formData.document_type,
+        issuingAuthority:   validatedData.issuing_authority ?? null,
+        expiryDate:         validatedData.expiry_date         ?? null,
+        expiryDateLabel:    (formData.expiry_date_label as string) || null,
+        renewalPeriodDays:  validatedData.renewal_period_days,
+        notes:              safeNotes,
+        organizationId:     selectedOrgId,
+        imagePath:          imagePath,
+        createdAt:          now3,
+        updatedAt:          now3,
+      });
 
       if (formData.custom_reminder_date) {
-        await supabase
-          .from('reminders')
-          .insert({
-            document_id: data.id,
-            user_id: user.id,
-            reminder_date: formData.custom_reminder_date,
-            is_custom: true,
-          });
+        await addDoc(collection(firebaseDb, `users/${uid2}/reminders`), {
+          documentId:   newDocRef.id,
+          userId:       uid2,
+          reminderDate: formData.custom_reminder_date,
+          isSent:       false,
+          isCustom:     true,
+          createdAt:    now3,
+        });
       }
 
-      const { data: allReminders } = await supabase
-        .from('reminders')
-        .select('*')
-        .eq('document_id', data.id);
-
-      if (allReminders && allReminders.length > 0) {
-        for (const reminder of allReminders) {
-          try {
-            await supabase.functions.invoke('send-immediate-reminder', {
-              body: { reminder_id: reminder.id }
-            });
-          } catch (emailError) {
-            console.error('Error sending confirmation email:', emailError);
-          }
+      // Fetch all reminders just created (by onDocumentWrite trigger or manual above)
+      // and send confirmation emails
+      const remSnap = await getDocs(
+        query(collection(firebaseDb, `users/${uid2}/reminders`), where("documentId", "==", newDocRef.id))
+      );
+      for (const remDoc of remSnap.docs) {
+        try {
+          await httpsCallable(firebaseFunctions, "sendImmediateReminder")({ reminderId: remDoc.id });
+        } catch (emailError) {
+          console.error('Error sending confirmation email:', emailError);
         }
       }
 
-      toast({
-        title: "Document added successfully",
-      });
-
-      navigate(`/documents/${data.id}`);
+      toast({ title: "Document added successfully" });
+      navigate(`/documents/${newDocRef.id}`);
     } catch (err) {
       if (err instanceof z.ZodError) {
         setError(err.errors[0].message);
