@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { db } from "@/integrations/firebase/client";
+import { firebaseDb } from "@/integrations/firebase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,8 +32,8 @@ export function AuditLogs() {
     if (!user) return;
     try {
       const q = query(
-        collection(db, "audit_logs"),
-        where("userId", "==", user.id),
+        collection(firebaseDb, "audit_logs"),
+        where("userId", "==", user.uid),
         limit(50)
       );
       const querySnap = await getDocs(q);

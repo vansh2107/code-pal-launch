@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTheme as useNextTheme } from "next-themes";
-import { db } from "@/integrations/firebase/client";
+import { firebaseDb } from "@/integrations/firebase/client";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -69,7 +69,7 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
     hydratedRef.current = true;
     (async () => {
       try {
-        const profileRef = doc(db, "users", user.id, "profile", "data");
+        const profileRef = doc(firebaseDb, "users", user.uid, "profile", "data");
         const snap = await getDoc(profileRef);
         if (!snap.exists()) return;
         const data = snap.data();
@@ -96,7 +96,7 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
       localStorage.setItem(STORAGE_KEY, next.palette);
       if (!user) return;
       try {
-        const profileRef = doc(db, "users", user.id, "profile", "data");
+        const profileRef = doc(firebaseDb, "users", user.uid, "profile", "data");
         await setDoc(
           profileRef,
           { themePreference: { theme: next.palette, mode: next.mode } },

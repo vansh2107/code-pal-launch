@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Clock, CheckCircle2, Image as ImageIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
-import { auth, db, storage } from "@/integrations/firebase/client";
+import { firebaseAuth, firebaseDb, firebaseStorage } from "@/integrations/firebase/client";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
@@ -65,7 +65,7 @@ function OptimizedTaskCardComponent({
 
   const handleComplete = useCallback(async () => {
     try {
-      const user = auth.currentUser;
+      const user = firebaseAuth.currentUser;
       if (!user) return;
 
       let imagePath = task.image_path;
@@ -75,7 +75,7 @@ function OptimizedTaskCardComponent({
         const fileExt = completionImage.name.split(".").pop();
         const fileName = `${user.uid}/${task.id}_${Date.now()}.${fileExt}`;
 
-        const storageRef = ref(storage, fileName);
+        const storageRef = ref(firebaseStorage, fileName);
         await uploadBytes(storageRef, completionImage);
         imagePath = fileName;
       }
@@ -97,7 +97,7 @@ function OptimizedTaskCardComponent({
       });
       onRefresh();
 
-      const taskRef = doc(db, "users", user.uid, "tasks", task.id);
+      const taskRef = doc(firebaseDb, "users", user.uid, "tasks", task.id);
       await updateDoc(taskRef, {
         status: "completed",
         endTime: endTime.toISOString(),

@@ -74,10 +74,10 @@ export interface SignUpMetadata {
 /** Action code settings for email verification links. */
 const emailVerificationSettings: ActionCodeSettings = {
   // After clicking the verification link, Firebase redirects here.
-  // The app reads the oobCode param and calls applyActionCode().
+  // Falls back to the authDomain from env if window is unavailable (SSR/tests).
   url: typeof window !== 'undefined'
     ? `${window.location.origin}/`
-    : 'https://remonk-da3ae.firebaseapp.com/',
+    : `https://${import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? ''}/`,
   handleCodeInApp: false,
 };
 
@@ -85,7 +85,7 @@ const emailVerificationSettings: ActionCodeSettings = {
 const passwordResetSettings: ActionCodeSettings = {
   url: typeof window !== 'undefined'
     ? `${window.location.origin}/reset-password`
-    : 'https://remonk-da3ae.firebaseapp.com/reset-password',
+    : `https://${import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? ''}/reset-password`,
   handleCodeInApp: false,
 };
 

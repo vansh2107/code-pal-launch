@@ -35,7 +35,21 @@ import {
 } from "firebase/firestore";
 import { firebaseAuth, firebaseDb, firebaseFunctions } from "@/integrations/firebase/client";
 
-export const ONESIGNAL_APP_ID = "8cced195-0fd2-487f-9f10-2a8bc898ff4e";
+/**
+ * OneSignal App ID — read from the VITE_ONESIGNAL_APP_ID environment variable.
+ * The value is the public app identifier (safe in the client bundle).
+ * The OneSignal REST API key is server-side only (Cloud Functions env).
+ */
+export const ONESIGNAL_APP_ID: string = (() => {
+  const id = import.meta.env.VITE_ONESIGNAL_APP_ID as string | undefined;
+  if (!id) {
+    console.error(
+      "[onesignal] VITE_ONESIGNAL_APP_ID is not set. " +
+      "Add it to .env — OneSignal push notifications will not work."
+    );
+  }
+  return id ?? "";
+})();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

@@ -16,7 +16,7 @@ import { DocVaultDocumentCard, type DocVaultDocument } from "@/components/docvau
 import { useDocVaultCategories } from "@/hooks/useDocVaultCategories";
 import { useDocVaultDocuments } from "@/hooks/useDocVaultDocuments";
 import { cn } from "@/lib/utils";
-import { db } from "@/integrations/firebase/client";
+import { firebaseDb } from "@/integrations/firebase/client";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { uploadDocumentOriginal } from "@/utils/documentStorage";
 import { shareDocument } from "@/utils/shareDocument";
@@ -107,7 +107,7 @@ export default function DocVault() {
         throw new Error("The document upload was not completed.");
       }
 
-      await addDoc(collection(db, "users", user.id, "documents"), {
+      await addDoc(collection(firebaseDb, "users", user.id, "documents"), {
         userId: user.id,
         name: (documentName || file.name).trim() || file.name,
         documentType: "other",

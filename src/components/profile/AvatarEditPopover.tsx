@@ -3,7 +3,7 @@ import { Camera, Upload, User } from "lucide-react";
 import { useCamera } from "@/hooks/useCamera";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
-import { db, storage } from "@/integrations/firebase/client";
+import { firebaseDb, firebaseStorage } from "@/integrations/firebase/client";
 import { ref, uploadBytes, deleteObject } from "firebase/storage";
 import { doc, setDoc } from "firebase/firestore";
 import { Capacitor } from "@capacitor/core";
@@ -67,17 +67,17 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
 
       // Remove old avatar if exists in storage
       try {
-        const storageRef = ref(storage, storagePath);
+        const storageRef = ref(firebaseStorage, storagePath);
         await deleteObject(storageRef);
       } catch (delErr) {
         // Ignored if doesn't exist
       }
 
-      const storageRef = ref(storage, storagePath);
+      const storageRef = ref(firebaseStorage, storagePath);
       await uploadBytes(storageRef, croppedFile);
 
       // Update profile in Firestore: users/{userId}/profile/data
-      const profileRef = doc(db, "users", userId, "profile", "data");
+      const profileRef = doc(firebaseDb, "users", userId, "profile", "data");
       await setDoc(profileRef, { avatarUrl: storagePath }, { merge: true });
 
       toast({

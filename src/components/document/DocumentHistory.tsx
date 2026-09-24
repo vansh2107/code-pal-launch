@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { db } from "@/integrations/firebase/client";
+import { firebaseDb } from "@/integrations/firebase/client";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,7 @@ export function DocumentHistory({ documentId }: DocumentHistoryProps) {
   const fetchHistory = async () => {
     try {
       const q = query(
-        collection(db, "document_history"),
+        collection(firebaseDb, "document_history"),
         where("documentId", "==", documentId)
       );
       const querySnap = await getDocs(q);

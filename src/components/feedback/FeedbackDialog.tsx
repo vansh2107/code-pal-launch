@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { db } from "@/integrations/firebase/client";
+import { firebaseDb } from "@/integrations/firebase/client";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -30,7 +30,7 @@ export function FeedbackDialog() {
 
     setSubmitting(true);
     try {
-      await addDoc(collection(db, "audit_logs"), {
+      await addDoc(collection(firebaseDb, "audit_logs"), {
         userId: user?.id || "anonymous",
         action: 'user_feedback',
         entityType: 'feedback',

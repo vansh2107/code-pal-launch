@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
-import { auth, db, storage } from "@/integrations/firebase/client";
+import { firebaseAuth, firebaseDb, firebaseStorage } from "@/integrations/firebase/client";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
@@ -94,21 +94,21 @@ const TaskCardComponent = ({ task, statusInfo, funnyMessage, onRefresh, userTime
         }
         
         setUploadingImage(true);
-        const user = auth.currentUser;
+        const user = firebaseAuth.currentUser;
         if (!user) throw new Error("Not authenticated");
 
         const fileExt = completionImage.name.split(".").pop();
         const fileName = `${user.uid}/${task.id}-completion-${Date.now()}.${fileExt}`;
 
-        const storageRef = ref(storage, fileName);
+        const storageRef = ref(firebaseStorage, fileName);
         await uploadBytes(storageRef, completionImage);
         imagePath = fileName;
       }
 
-      const user = auth.currentUser;
+      const user = firebaseAuth.currentUser;
       if (!user) throw new Error("Not authenticated");
 
-      const taskRef = doc(db, "users", user.uid, "tasks", task.id);
+      const taskRef = doc(firebaseDb, "users", user.uid, "tasks", task.id);
       await updateDoc(taskRef, {
         status: "completed",
         endTime: completionUtc,
