@@ -4,7 +4,6 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Upload, Camera as CameraIcon, Search, Menu, X, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -48,8 +47,8 @@ export default function DocVault() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const { categories, createCategory, renameCategory, deleteCategory, isCreating, isRenaming } = useDocVaultCategories(user?.uid);
-  const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, refetch, isMoving } = useDocVaultDocuments(user?.uid);
+  const { categories, createCategory, renameCategory, deleteCategory, isCreating, isRenaming } = useDocVaultCategories(user?.id);
+  const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, refetch, isMoving } = useDocVaultDocuments(user?.id);
 
   const displayedDocuments = useMemo(() => {
     const docs = getDocumentsByCategory(selectedCategory);
@@ -90,7 +89,7 @@ export default function DocVault() {
   };
 
   const handleFileUpload = async (file: File, categoryId: string | null, documentName: string) => {
-    if (!user?.uid) {
+    if (!user?.id) {
       toast.error("You must be signed in to upload documents.");
       return;
     }
@@ -102,14 +101,14 @@ export default function DocVault() {
 
     try {
       setIsUploading(true);
-      const storagePath = await uploadDocumentOriginal(file, user.uid);
+      const storagePath = await uploadDocumentOriginal(file, user.id);
 
       if (!storagePath) {
         throw new Error("The document upload was not completed.");
       }
 
-      await addDoc(collection(firebaseDb, "users", user.uid, "documents"), {
-        userId: user.uid,
+      await addDoc(collection(firebaseDb, "users", user.id, "documents"), {
+        userId: user.id,
         name: (documentName || file.name).trim() || file.name,
         documentType: "other",
         imagePath: storagePath,

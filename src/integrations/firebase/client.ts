@@ -35,7 +35,6 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, type Auth } from 'firebase/auth';
 import { getStorage, connectStorageEmulator, type FirebaseStorage } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator, type Functions } from 'firebase/functions';
-import androidFirebaseConfig from '../../../android/app/google-services.json';
 
 // ---------------------------------------------------------------------------
 // Required environment variable keys
@@ -57,22 +56,9 @@ const REQUIRED_VARS = [
 // Never prints the actual values — only the missing key names.
 // ---------------------------------------------------------------------------
 
-const androidClient = androidFirebaseConfig.client?.[0];
-const androidProject = androidFirebaseConfig.project_info;
-const nativeFallback: Record<(typeof REQUIRED_VARS)[number], string | undefined> = {
-  VITE_FIREBASE_API_KEY: androidClient?.api_key?.[0]?.current_key,
-  VITE_FIREBASE_AUTH_DOMAIN: androidProject?.project_id
-    ? `${androidProject.project_id}.firebaseapp.com`
-    : undefined,
-  VITE_FIREBASE_PROJECT_ID: androidProject?.project_id,
-  VITE_FIREBASE_STORAGE_BUCKET: androidProject?.storage_bucket,
-  VITE_FIREBASE_MESSAGING_SENDER_ID: androidProject?.project_info?.project_number,
-  VITE_FIREBASE_APP_ID: androidClient?.client_info?.mobilesdk_app_id,
-};
-const resolvedConfig = Object.fromEntries(
-  REQUIRED_VARS.map((key) => [key, import.meta.env[key] || nativeFallback[key]]),
-) as Record<(typeof REQUIRED_VARS)[number], string | undefined>;
-const missing: string[] = REQUIRED_VARS.filter((key) => !resolvedConfig[key]);
+const missing: string[] = REQUIRED_VARS.filter(
+  (key) => !import.meta.env[key],
+);
 
 if (missing.length > 0) {
   const msg =
@@ -94,17 +80,16 @@ if (missing.length > 0) {
 }
 
 // ---------------------------------------------------------------------------
-// Prefer the web environment values. If they are absent in a preview, reuse
-// the public Firebase project configuration already bundled for the Android app.
+// Config — sourced exclusively from environment variables.
 // ---------------------------------------------------------------------------
 
 const firebaseConfig = {
-  apiKey:            resolvedConfig.VITE_FIREBASE_API_KEY as string,
-  authDomain:        resolvedConfig.VITE_FIREBASE_AUTH_DOMAIN as string,
-  projectId:         resolvedConfig.VITE_FIREBASE_PROJECT_ID as string,
-  storageBucket:     resolvedConfig.VITE_FIREBASE_STORAGE_BUCKET as string,
-  messagingSenderId: resolvedConfig.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
-  appId:             resolvedConfig.VITE_FIREBASE_APP_ID as string,
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY             as string,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN         as string,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID          as string,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET      as string,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID              as string,
 };
 
 // ---------------------------------------------------------------------------
