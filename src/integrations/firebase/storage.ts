@@ -83,7 +83,7 @@ export type StorageValidationError =
   | { ok: false; error: 'invalid_mime';  message: string }
   | { ok: false; error: 'file_too_large'; message: string };
 
-export type StorageValidationResult = { ok: boolean; message?: string } & Partial<StorageValidationError>;
+export type StorageValidationResult = { ok: boolean; error?: 'invalid_mime' | 'file_too_large'; message?: string };
 
 export function validateDocumentFile(file: File): StorageValidationResult {
   if (!ALLOWED_DOCUMENT_MIMES.has(file.type)) {

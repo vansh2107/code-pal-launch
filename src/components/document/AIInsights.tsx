@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Brain, TrendingUp, AlertTriangle, Lightbulb, Loader2, DollarSign, FileCheck, Sparkles } from "lucide-react";
 import { RenewalChecklist } from "./RenewalChecklist";
 import { useAuth } from "@/hooks/useAuth";
+import type { DocumentStatusInfo } from "@/utils/documentStatus";
 import { getDoc } from "firebase/firestore";
 import { userProfileDoc } from "@/integrations/firebase/firestore";
 import { callAiDocumentAnalysis } from "@/integrations/firebase/functions";
