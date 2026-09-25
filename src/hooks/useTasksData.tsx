@@ -280,23 +280,23 @@ export function useTasksData() {
 
       // Persist to IndexedDB
       try {
-        const allForOffline = [...tasks, ...futureTasks].map((t): OfflineTask => ({
+        const allForOffline = [...tasks, ...futureTasks].map((t) => ({
           id:                      t.id,
           title:                   t.title,
           description:             t.description ?? null,
           start_time:              t.start_time,
-          end_time: (('end_time' in t ? t.end_time : null) ?? null) as any,
-          total_time_minutes: (('total_time_minutes' in t ? t.total_time_minutes : null) ?? null) as any,
+          end_time:                ('end_time' in t ? t.end_time : null) ?? null,
+          total_time_minutes:      ('total_time_minutes' in t ? t.total_time_minutes : null) ?? null,
           status:                  t.status,
           image_path:              t.image_path ?? null,
-          consecutive_missed_days: (('consecutive_missed_days' in t ? t.consecutive_missed_days : 0) ?? 0) as any,
+          consecutive_missed_days: ('consecutive_missed_days' in t ? t.consecutive_missed_days : 0) ?? 0,
           task_date:               t.task_date,
           original_date:           t.original_date,
-          local_date: (('local_date' in t ? t.local_date : t.task_date) ?? t.task_date) as any,
+          local_date:              ('local_date' in t ? t.local_date : t.task_date) ?? t.task_date,
           user_id:                 uid,
           updated_at:              new Date().toISOString(),
         }));
-        await saveTasksOffline(allForOffline);
+        await saveTasksOffline(allForOffline as OfflineTask[]);
       } catch { /* IndexedDB unavailable */ }
 
       if (isMounted.current) {

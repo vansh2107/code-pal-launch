@@ -228,7 +228,7 @@ export async function uploadDocumentImage(
   file: File,
 ): Promise<UploadResult> {
   const validation = validateDocumentFile(file);
-  if (!validation.ok) throw new Error((validation as { message?: string }).message);
+  if (!validation.ok) throw new Error((validation as { message?: string; error?: string }).message ?? (validation as { error?: string }).error);
 
   const ext       = extFromMime(file.type);
   const storageRef = documentImageRef(userId, docId, ext);
@@ -258,7 +258,7 @@ export function uploadDocumentImageResumable(
   file: File,
 ): UploadTask {
   const validation = validateDocumentFile(file);
-  if (!validation.ok) throw new Error((validation as { message?: string }).message);
+  if (!validation.ok) throw new Error((validation as { message?: string; error?: string }).message ?? (validation as { error?: string }).error);
 
   const ext        = extFromMime(file.type);
   const storageRef = documentImageRef(userId, docId, ext);
@@ -286,7 +286,7 @@ export async function uploadTaskImage(
   file: File,
 ): Promise<UploadResult> {
   const validation = validateTaskImageFile(file);
-  if (!validation.ok) throw new Error((validation as { message?: string }).message);
+  if (!validation.ok) throw new Error((validation as { message?: string; error?: string }).message ?? (validation as { error?: string }).error);
 
   const ext        = extFromMime(file.type);
   const storageRef = taskImageRef(userId, taskId, ext);
@@ -316,7 +316,7 @@ export async function uploadAvatar(
   file: File,
 ): Promise<UploadResult> {
   const validation = validateAvatarFile(file);
-  if (!validation.ok) throw new Error((validation as { message?: string }).message);
+  if (!validation.ok) throw new Error((validation as { message?: string; error?: string }).message ?? (validation as { error?: string }).error);
 
   const ext        = extFromMime(file.type);
   const storageRef = avatarRef(userId, ext);

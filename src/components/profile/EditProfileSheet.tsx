@@ -57,7 +57,7 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
     setLoading(true);
     
     try {
-      const profileRef = doc(db, "users", user.uid, "profile", "data");
+      const profileRef = doc(db, "users", user.id, "profile", "data");
       const snap = await getDoc(profileRef);
 
       if (snap.exists()) {
@@ -90,7 +90,7 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
     setSaving(true);
     
     try {
-      const profileRef = doc(db, "users", user.uid, "profile", "data");
+      const profileRef = doc(db, "users", user.id, "profile", "data");
       await setDoc(profileRef, {
         displayName: displayName || null,
         country: country || null,
@@ -119,7 +119,7 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
     if (!user) return;
     
     try {
-      const profileRef = doc(db, "users", user.uid, "profile", "data");
+      const profileRef = doc(db, "users", user.id, "profile", "data");
       const snap = await getDoc(profileRef);
       const profile = snap.data();
       const avatarUrl = profile?.avatarUrl || profile?.avatar_url;
@@ -179,7 +179,7 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
                   </h3>
                   <div className="flex flex-col items-center gap-3">
                     <AvatarEditPopover 
-                      userId={user.uid}
+                      userId={user.id}
                       avatarUrl={avatarSignedUrl}
                       onAvatarUpdate={loadProfile}
                       size="lg"

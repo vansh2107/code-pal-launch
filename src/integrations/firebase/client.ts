@@ -83,15 +83,13 @@ if (missing.length > 0) {
 // Config — sourced exclusively from environment variables.
 // ---------------------------------------------------------------------------
 
-// Public fallbacks (from android/app/google-services.json, project "remonk-f").
-// These are not secrets; they let the app boot when .env lacks VITE_FIREBASE_*.
 const firebaseConfig = {
-  apiKey:            (import.meta.env.VITE_FIREBASE_API_KEY             as string) || 'AIzaSyBud3Jpt8qYICdGtXK92nVx_I8Ahu0XbFQ',
-  authDomain:        (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN         as string) || 'remonk-f.firebaseapp.com',
-  projectId:         (import.meta.env.VITE_FIREBASE_PROJECT_ID          as string) || 'remonk-f',
-  storageBucket:     (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET      as string) || 'remonk-f.firebasestorage.app',
-  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || '1004750699800',
-  appId:             (import.meta.env.VITE_FIREBASE_APP_ID              as string) || '1:1004750699800:android:9a1fb6ccd85076f3b2b26d',
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY             as string,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN         as string,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID          as string,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET      as string,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID              as string,
 };
 
 // ---------------------------------------------------------------------------

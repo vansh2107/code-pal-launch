@@ -32,8 +32,8 @@ export default function TestEmails() {
     setLoading(true);
     try {
       // Create a test document in Firestore
-      const docRef = await addDoc(collection(db, "users", user.uid, "documents"), {
-        userId: user.uid,
+      const docRef = await addDoc(collection(db, "users", user.id, "documents"), {
+        userId: user.id,
         name: 'Test Document for Email',
         documentType: 'passport',
         expiryDate: testDate,
@@ -46,8 +46,8 @@ export default function TestEmails() {
       const reminderDate = new Date(testDate);
       reminderDate.setDate(reminderDate.getDate() - 30); // 30 days before expiry
 
-      const remRef = await addDoc(collection(db, "users", user.uid, "reminders"), {
-        userId: user.uid,
+      const remRef = await addDoc(collection(db, "users", user.id, "reminders"), {
+        userId: user.id,
         documentId: docRef.id,
         reminderDate: reminderDate.toISOString().split('T')[0],
         isCustom: true,

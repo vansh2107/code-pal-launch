@@ -69,10 +69,10 @@ export function AIRenewalSuggestions({ documents }: AIRenewalSuggestionsProps) {
         analysisType: 'renewal_suggestions'
       } as any);
 
-      setSuggestions(((data as any).suggestions as AISuggestion[]) || []);
+      setSuggestions((data.suggestions as AISuggestion[]) || []);
       toast({
         title: "AI Analysis Complete",
-        description: `Generated renewal suggestions for ${((data as any).suggestions as any[])?.length || 0} documents.`,
+        description: `Generated renewal suggestions for ${(data.suggestions as any[])?.length || 0} documents.`,
       });
     } catch (error: any) {
       console.error('Error generating AI suggestions:', error);

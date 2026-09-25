@@ -65,7 +65,7 @@ export default function Teams() {
     setLoading(true);
     try {
       // Query organizations owned by user
-      const ownedQuery = query(collection(db, "organizations"), where("ownerId", "==", user.uid));
+      const ownedQuery = query(collection(db, "organizations"), where("ownerId", "==", user.id));
       const ownedSnap = await getDocs(ownedQuery);
       const orgsList: Organization[] = ownedSnap.docs.map(docSnap => ({
         id: docSnap.id,
@@ -143,13 +143,13 @@ export default function Teams() {
       await setDoc(orgRef, {
         id: orgId,
         name: newOrgName.trim(),
-        ownerId: user.uid,
+        ownerId: user.id,
         createdAt: serverTimestamp()
       });
 
       // Add creator as member doc in /organizations/{orgId}/members/{user.id}
-      await setDoc(doc(db, "organizations", orgId, "members", user.uid), {
-        userId: user.uid,
+      await setDoc(doc(db, "organizations", orgId, "members", user.id), {
+        userId: user.id,
         organizationId: orgId,
         role: "admin",
         createdAt: serverTimestamp()
@@ -247,7 +247,7 @@ export default function Teams() {
   };
 
   const selectedOrgData = organizations.find(org => org.id === selectedOrg);
-  const isOwner = selectedOrgData?.owner_id === user?.uid;
+  const isOwner = selectedOrgData?.owner_id === user?.id;
 
   if (!user) {
     return null;
@@ -332,11 +332,11 @@ export default function Teams() {
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle className="text-base">{org.name}</CardTitle>
-                        {org.owner_id === user?.uid && (
+                        {org.owner_id === user?.id && (
                           <Badge variant="secondary" className="mt-1">Owner</Badge>
                         )}
                       </div>
-                      {org.owner_id === user?.uid && (
+                      {org.owner_id === user?.id && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -454,7 +454,7 @@ export default function Teams() {
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => removeMember(member.id)}
-                                  disabled={member.user_id === user?.uid}
+                                  disabled={member.user_id === user?.id}
                                 >
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>

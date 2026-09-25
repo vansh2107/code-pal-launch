@@ -403,13 +403,13 @@ export default function Scan() {
     try {
       let imagePath = null;
       if (pdfFile) {
-        imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
+        imagePath = await uploadDocumentOriginal(pdfFile, user.id);
       } else if (rawImg || croppedImg) {
         const originalSrc = rawImg || croppedImg;
         const originalBlob = await fetch(originalSrc).then(r => r.blob());
         const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
         const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
-        imagePath = await uploadDocumentOriginal(imageFile, user.uid);
+        imagePath = await uploadDocumentOriginal(imageFile, user.id);
         
         if (rawImg && croppedImg && rawImg !== croppedImg) {
           try {
@@ -785,7 +785,7 @@ export default function Scan() {
           if (pdfFile.size > maxSize) {
             throw new Error("PDF file size exceeds 20MB limit");
           }
-          imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
+          imagePath = await uploadDocumentOriginal(pdfFile, user.id);
         } else if (rawCapturedImage || capturedImage) {
           const originalSrc = rawCapturedImage || capturedImage;
           const originalBlob = await fetch(originalSrc).then(r => r.blob());
@@ -795,7 +795,7 @@ export default function Scan() {
           }
           const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
           const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
-          imagePath = await uploadDocumentOriginal(imageFile, user.uid);
+          imagePath = await uploadDocumentOriginal(imageFile, user.id);
           
           if (rawCapturedImage && capturedImage && rawCapturedImage !== capturedImage) {
             try {
