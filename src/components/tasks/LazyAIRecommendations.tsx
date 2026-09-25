@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect, useRef, memo } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";

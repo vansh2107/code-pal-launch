@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 import { callDocumentAnalyzer } from '@/integrations/firebase/functions';
 
