@@ -24,9 +24,9 @@ export class OcrEngine {
     // to OcrResult:
     // { text: string, fields: Record<string, any>, confidence: number }
     return {
-      text: data.documentType || '',
-      fields: data.fields || {},
-      confidence: data.confidence || 0
+      text: (data as any).documentType || '',
+      fields: (data as any).fields || {},
+      confidence: (data as any).confidence || 0
     };
   }
 }
