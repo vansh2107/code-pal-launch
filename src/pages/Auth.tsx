@@ -168,15 +168,36 @@ export default function Auth() {
         name, email, password, phone_number: cleanedPhone,
       });
 
-      // Request server-side OTP email send
-      const response = await callSendOtp({ phoneNumber: cleanedPhone, email });
-      if (!response.success) {
-        setError(response.message || 'Failed to send OTP email.');
+      // Create the Firebase account directly (Firebase sends a verification email)
+      const result = await signUp(email.trim(), password, {
+        displayName: name.trim(),
+        country,
+        phoneNumber: cleanedPhone,
+      });
+      if (!result.ok) {
+        setError(result.error);
         return;
       }
 
-      setOtpStep(true);
-      setSuccess(`A 6-digit OTP has been sent to ${email}. Please enter it below to complete signup.`);
+      try {
+        const uid = result.data.uid;
+        await setDoc(
+          doc(firebaseDb, `users/${uid}/profile/data`),
+          {
+            userId: uid,
+            displayName: name.trim(),
+            email: email.trim(),
+            phoneNumber: cleanedPhone,
+            country,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true },
+        );
+      } catch (profileErr) {
+        console.warn('[Auth] Profile save failed (non-critical):', profileErr);
+      }
+
+      setSuccess(`Account created! We sent a verification link to ${email}.`);
     } catch (err: any) {
       if (err instanceof z.ZodError) setError(err.errors[0].message);
       else if (err?.message) setError(err.message);
