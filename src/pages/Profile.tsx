@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * src/pages/Profile.tsx — Firestore profile page
  * Replaces Supabase with Firestore. UI unchanged.

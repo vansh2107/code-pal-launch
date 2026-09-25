@@ -31,7 +31,7 @@ export function FeedbackDialog() {
     setSubmitting(true);
     try {
       await addDoc(collection(firebaseDb, "audit_logs"), {
-        userId: user?.id || "anonymous",
+        userId: user?.uid || "anonymous",
         action: 'user_feedback',
         entityType: 'feedback',
         changes: {
