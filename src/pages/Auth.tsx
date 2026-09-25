@@ -87,6 +87,13 @@ export default function Auth() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  // Redirect to dashboard if user is authenticated
+  useEffect(() => {
+    if (user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
+
   // ── Forgot password ──────────────────────────────────────────────────────
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,9 +177,10 @@ export default function Auth() {
 
       setOtpStep(true);
       setSuccess(`A 6-digit OTP has been sent to ${email}. Please enter it below to complete signup.`);
-    } catch (err) {
+    } catch (err: any) {
       if (err instanceof z.ZodError) setError(err.errors[0].message);
-      else setError('An unexpected error occurred');
+      else if (err?.message) setError(err.message);
+      else setError('An unexpected error occurred while requesting OTP.');
     } finally {
       setLoading(false);
     }
@@ -234,8 +242,9 @@ export default function Auth() {
 
       setSuccess('Account created and verified successfully!');
       // AuthProvider listener will redirect to '/'
-    } catch (err) {
-      setError('Failed to finalize signup.');
+    } catch (err: any) {
+      if (err?.message) setError(err.message);
+      else setError('Failed to finalize signup.');
     } finally {
       setLoading(false);
     }
