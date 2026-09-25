@@ -47,12 +47,13 @@
  * adminDb.doc('users/{uid}/profile/data') — never a 3-segment path.
  */
 
-import * as functionsV1 from 'firebase-functions/v1';
+import { beforeUserCreated } from 'firebase-functions/v2/identity';
 import { adminDb } from '../shared/admin';
 import { profilePath } from '../shared/database';
 import type { UserProfile } from '../shared/types';
 
-export const onUserCreate = functionsV1.auth.user().onCreate(async (user) => {
+export const onUserCreate = beforeUserCreated(async (event) => {
+  const user = event.data;
   const now = new Date().toISOString();
 
   const profile: UserProfile = {
