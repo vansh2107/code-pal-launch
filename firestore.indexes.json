@@ -423,13 +423,6 @@
         { "fieldPath": "preferredNotificationTime", "order": "ASCENDING" },
         { "fieldPath": "timezone",                  "order": "ASCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "profile",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "timezone",  "order": "ASCENDING" }
-      ]
     }
 
   ],
