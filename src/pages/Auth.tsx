@@ -201,7 +201,7 @@ export default function Auth() {
     } catch (err: any) {
       if (err instanceof z.ZodError) setError(err.errors[0].message);
       else if (err?.message) setError(err.message);
-      else setError('An unexpected error occurred while requesting OTP.');
+      else setError('An unexpected error occurred during sign up.');
     } finally {
       setLoading(false);
     }
@@ -373,7 +373,7 @@ export default function Auth() {
                   {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                   {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
                   <Button type="submit" className="w-full" disabled={loading || !agreedToTerms}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Send OTP Code
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create Account
                   </Button>
                 </form>
               ) : (
