@@ -119,7 +119,7 @@ function SoundPicker({
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const playTimeout = useRef<NodeJS.Timeout>();
+  const playTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   const stopPlaying = useCallback(() => {
     if (audioRef.current) {

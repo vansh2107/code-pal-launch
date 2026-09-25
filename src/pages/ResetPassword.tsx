@@ -99,7 +99,7 @@ export default function ResetPassword() {
 
       const result = await confirmPasswordReset(oobCode, validation.password);
       if (!result.ok) {
-        setError(result.error);
+        setError((result as { error?: string }).error ?? "Something went wrong");
       } else {
         setSuccess(true);
         setTimeout(() => navigate('/', { replace: true }), 2000);

@@ -1,5 +1,5 @@
 
-import { callDocumentAnalyzer } from '@/integrations/firebase/functions';
+import { callAiDocumentAnalysis } from '@/integrations/firebase/functions';
 
 export interface OcrResult {
   text: string;
@@ -11,7 +11,7 @@ export class OcrEngine {
   static async extract(imageBase64: string): Promise<OcrResult> {
     console.log('Sending image to document analyzer...');
     
-    const data = await callDocumentAnalyzer({ 
+    const data = await callAiDocumentAnalysis({ 
       image: imageBase64 
     } as any);
 
