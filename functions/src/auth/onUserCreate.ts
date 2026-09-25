@@ -47,50 +47,49 @@
  * adminDb.doc('users/{uid}/profile/data') — never a 3-segment path.
  */
 
-import { beforeUserCreated } from 'firebase-functions/v2/identity';
+import * as functionsV1 from 'firebase-functions/v1';
 import { adminDb } from '../shared/admin';
 import { profilePath } from '../shared/database';
 import type { UserProfile } from '../shared/types';
 
-export const onUserCreate = beforeUserCreated(async (event) => {
-  const user = event.data;
+export const onUserCreate = functionsV1.auth.user().onCreate(async (user) => {
   const now = new Date().toISOString();
-
-  const profile: UserProfile = {
-    userId:                    user.uid,
-    // Firebase Auth may not populate displayName immediately on social sign-in,
-    // but for email/password it is set via updateProfile() before this fires.
-    displayName:               user.displayName ?? null,
-    email:                     user.email ?? null,
-    phoneNumber:               user.phoneNumber ?? null,
-    country:                   null,
-    timezone:                  null,
-    preferredNotificationTime: null,
-    avatarUrl:                 null,
-    // Default notification preferences — match the Supabase defaults.
-    emailNotificationsEnabled: true,
-    pushNotificationsEnabled:  null,   // set to true on first token registration
-    expiryRemindersEnabled:    true,
-    renewalRemindersEnabled:   true,
-    weeklyDigestEnabled:       false,
-    notificationSounds:        null,
-    onboardingCompleted:       false,
-    onboardingPreferences:     {},
-    themePreference:           {},
-    createdAt:                 now,
-    updatedAt:                 now,
-  };
 
   // Canonical path: users/{uid}/profile/data  (via profilePath helper)
   const profileRef = adminDb.doc(profilePath(user.uid));
 
   try {
-    await profileRef.set(profile);
+    const docSnap = await profileRef.get();
+    if (docSnap.exists) {
+      console.log(`[onUserCreate] Profile already exists for ${user.uid}, skipping.`);
+      return;
+    }
+
+    const profile: UserProfile = {
+      userId:                    user.uid,
+      displayName:               user.displayName ?? null,
+      email:                     user.email ?? null,
+      phoneNumber:               user.phoneNumber ?? null,
+      country:                   null,
+      timezone:                  null,
+      preferredNotificationTime: null,
+      avatarUrl:                 null,
+      emailNotificationsEnabled: true,
+      pushNotificationsEnabled:  null,
+      expiryRemindersEnabled:    true,
+      renewalRemindersEnabled:   true,
+      weeklyDigestEnabled:       false,
+      notificationSounds:        null,
+      onboardingCompleted:       false,
+      onboardingPreferences:     {},
+      themePreference:           {},
+      createdAt:                 now,
+      updatedAt:                 now,
+    };
+
+    await profileRef.set(profile, { merge: true });
     console.log(`[onUserCreate] Profile created for ${user.uid}`);
   } catch (err) {
-    // Do not throw — a failed profile creation must not block Firebase Auth
-    // from completing the user creation.  The frontend useFirebaseAuth hook
-    // will repair the profile on first authenticated load if it is missing.
     console.error(`[onUserCreate] Failed to create profile for ${user.uid}:`, err);
   }
 });

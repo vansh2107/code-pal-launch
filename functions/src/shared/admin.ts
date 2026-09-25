@@ -12,6 +12,10 @@
 
 import * as admin from 'firebase-admin';
 
+if (!process.env.GCLOUD_PROJECT && !process.env.FIREBASE_CONFIG) {
+  process.env.GCLOUD_PROJECT = 'remonk-f';
+}
+
 if (!admin.apps.length) {
   admin.initializeApp();
 }
