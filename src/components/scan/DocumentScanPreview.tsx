@@ -68,7 +68,7 @@ async function detectBoundsWithAI(imageDataUrl: string): Promise<CropBounds | nu
       return null;
     }
 
-    const b = (data.bounds || data) as any;
+    const b = ((data as any).bounds || data) as any;
     // Scale coordinates back to original image size
     const invScale = 1 / scale;
     return {
