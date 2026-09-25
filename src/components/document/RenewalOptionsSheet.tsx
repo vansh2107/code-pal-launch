@@ -51,6 +51,7 @@ export function RenewalOptionsSheet({
   const { toast } = useToast();
   const { openCamera, openGallery } = useCamera();
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   const showGenZToast = () => {
     toast({
