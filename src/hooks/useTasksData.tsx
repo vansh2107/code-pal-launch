@@ -296,7 +296,7 @@ export function useTasksData() {
           user_id:                 uid,
           updated_at:              new Date().toISOString(),
         }));
-        await saveTasksOffline(allForOffline);
+        await saveTasksOffline(allForOffline as OfflineTask[]);
       } catch { /* IndexedDB unavailable */ }
 
       if (isMounted.current) {
