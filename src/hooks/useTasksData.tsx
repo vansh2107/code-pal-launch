@@ -280,7 +280,7 @@ export function useTasksData() {
 
       // Persist to IndexedDB
       try {
-        const allForOffline = [...tasks, ...futureTasks].map((t) => ({
+        const allForOffline: OfflineTask[] = [...tasks, ...futureTasks].map((t) => ({
           id:                      t.id,
           title:                   t.title,
           description:             t.description ?? null,
@@ -296,7 +296,7 @@ export function useTasksData() {
           user_id:                 uid,
           updated_at:              new Date().toISOString(),
         }));
-        await saveTasksOffline(allForOffline as OfflineTask[]);
+        await saveTasksOffline(allForOffline);
       } catch { /* IndexedDB unavailable */ }
 
       if (isMounted.current) {

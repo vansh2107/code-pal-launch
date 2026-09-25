@@ -196,8 +196,6 @@ export interface AiDocumentAnalysisRequest {
 export interface AiDocumentAnalysisResponse {
   success: boolean;
   result?: Record<string, unknown>;
-  suggestions?: any;
-  analysis?: any;
 }
 export const callAiDocumentAnalysis =
   callable<AiDocumentAnalysisRequest, AiDocumentAnalysisResponse>('aiDocumentAnalysis');
@@ -215,7 +213,6 @@ export interface DetectDocumentBoundsResponse {
   topRight?: { x: number; y: number };
   bottomLeft?: { x: number; y: number };
   bottomRight?: { x: number; y: number };
-  bounds?: any;
 }
 export const callDetectDocumentBounds =
   callable<DetectDocumentBoundsRequest, DetectDocumentBoundsResponse>('detectDocumentBounds');
@@ -245,11 +242,7 @@ export interface TaskAiRecommendationsRequest {
 export interface TaskAiRecommendationsResponse {
   success: boolean;
   tip?: string;
-  recommendation?: any;
 }
-
-/** Alias used by the OCR engine. */
-export const callDocumentAnalyzer = callable<Record<string, unknown>, any>('documentAnalyzer');
 export const callTaskAiRecommendations =
   callable<TaskAiRecommendationsRequest, TaskAiRecommendationsResponse>('taskAiRecommendations');
 

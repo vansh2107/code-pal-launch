@@ -56,7 +56,7 @@ import { firebaseAuth, firebaseFunctions } from './client';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type AuthResult<T = void> =
-  | { ok: true;  data: T; error?: undefined; code?: undefined }
+  | { ok: true;  data: T }
   | { ok: false; error: string; code?: string };
 
 /** Metadata passed during sign-up to pre-populate the Firestore profile. */

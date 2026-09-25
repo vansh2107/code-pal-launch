@@ -56,18 +56,8 @@ const REQUIRED_VARS = [
 // Never prints the actual values — only the missing key names.
 // ---------------------------------------------------------------------------
 
-// Public Firebase web config (not secret) used when env vars are absent.
-const FIREBASE_DEFAULTS: Record<string, string> = {
-  VITE_FIREBASE_API_KEY: 'AIzaSyBud3Jpt8qYICdGtXK92nVx_I8Ahu0XbFQ',
-  VITE_FIREBASE_AUTH_DOMAIN: 'remonk-f.firebaseapp.com',
-  VITE_FIREBASE_PROJECT_ID: 'remonk-f',
-  VITE_FIREBASE_STORAGE_BUCKET: 'remonk-f.firebasestorage.app',
-  VITE_FIREBASE_MESSAGING_SENDER_ID: '247879242920',
-  VITE_FIREBASE_APP_ID: '1:247879242920:web:600c59de8b9c08af5a1e9d',
-};
-
 const missing: string[] = REQUIRED_VARS.filter(
-  (key) => !import.meta.env[key] && !FIREBASE_DEFAULTS[key],
+  (key) => !import.meta.env[key],
 );
 
 if (missing.length > 0) {
@@ -94,12 +84,12 @@ if (missing.length > 0) {
 // ---------------------------------------------------------------------------
 
 const firebaseConfig = {
-  apiKey:            (import.meta.env.VITE_FIREBASE_API_KEY || FIREBASE_DEFAULTS.VITE_FIREBASE_API_KEY)             as string,
-  authDomain:        (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || FIREBASE_DEFAULTS.VITE_FIREBASE_AUTH_DOMAIN)         as string,
-  projectId:         (import.meta.env.VITE_FIREBASE_PROJECT_ID || FIREBASE_DEFAULTS.VITE_FIREBASE_PROJECT_ID)          as string,
-  storageBucket:     (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || FIREBASE_DEFAULTS.VITE_FIREBASE_STORAGE_BUCKET)      as string,
-  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || FIREBASE_DEFAULTS.VITE_FIREBASE_MESSAGING_SENDER_ID) as string,
-  appId:             (import.meta.env.VITE_FIREBASE_APP_ID || FIREBASE_DEFAULTS.VITE_FIREBASE_APP_ID)              as string,
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY             as string,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN         as string,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID          as string,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET      as string,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID              as string,
 };
 
 // ---------------------------------------------------------------------------
