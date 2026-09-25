@@ -82,6 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setUserEmail(firebaseUser.email);
             }
           }, 3000);
+        } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          // Web: silently re-link this browser's push subscription to the account
+          setTimeout(() => { ensurePushRegistration(firebaseUser.uid, { silent: true }); }, 2000);
         }
       } else {
         setSession(null);

@@ -56,8 +56,9 @@ const REQUIRED_VARS = [
 // Never prints the actual values — only the missing key names.
 // ---------------------------------------------------------------------------
 
-const missing: string[] = [];
-void REQUIRED_VARS;
+const missing: string[] = REQUIRED_VARS.filter(
+  (key) => !import.meta.env[key],
+);
 
 if (missing.length > 0) {
   const msg =
@@ -82,15 +83,13 @@ if (missing.length > 0) {
 // Config — sourced exclusively from environment variables.
 // ---------------------------------------------------------------------------
 
-// Public web config (not secret) used as fallback when env vars are absent.
 const firebaseConfig = {
-  apiKey:            (import.meta.env.VITE_FIREBASE_API_KEY             as string) || 'AIzaSyA3IZw8t33eG1YuxBJLH5hSghion9PUOMY',
-  authDomain:        (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN         as string) || 'remonk-f.firebaseapp.com',
-  projectId:         (import.meta.env.VITE_FIREBASE_PROJECT_ID          as string) || 'remonk-f',
-  storageBucket:     (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET      as string) || 'remonk-f.firebasestorage.app',
-  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || '247879242920',
-  appId:             (import.meta.env.VITE_FIREBASE_APP_ID              as string) || '1:247879242920:web:600c59de8b9c08af5a1e9d',
-  measurementId:     'G-83SJDF89QN',
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY             as string,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN         as string,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID          as string,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET      as string,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID              as string,
 };
 
 // ---------------------------------------------------------------------------

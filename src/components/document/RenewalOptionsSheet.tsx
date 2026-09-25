@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { db, storage } from "@/integrations/firebase/client";
@@ -48,10 +47,10 @@ export function RenewalOptionsSheet({
   onSuccess,
 }: RenewalOptionsSheetProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { toast } = useToast();
   const { openCamera, openGallery } = useCamera();
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
 
   const showGenZToast = () => {
     toast({

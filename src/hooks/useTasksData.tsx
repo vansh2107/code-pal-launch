@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * src/hooks/useTasksData.tsx — Firestore task data hook
  *
@@ -281,7 +280,7 @@ export function useTasksData() {
 
       // Persist to IndexedDB
       try {
-        const allForOffline: OfflineTask[] = [...tasks, ...futureTasks].map((t) => ({
+        const allForOffline = [...tasks, ...futureTasks].map((t) => ({
           id:                      t.id,
           title:                   t.title,
           description:             t.description ?? null,
@@ -297,7 +296,7 @@ export function useTasksData() {
           user_id:                 uid,
           updated_at:              new Date().toISOString(),
         }));
-        await saveTasksOffline(allForOffline);
+        await saveTasksOffline(allForOffline as unknown as OfflineTask[]);
       } catch { /* IndexedDB unavailable */ }
 
       if (isMounted.current) {

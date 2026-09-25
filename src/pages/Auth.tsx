@@ -168,40 +168,19 @@ export default function Auth() {
         name, email, password, phone_number: cleanedPhone,
       });
 
-      // Create the Firebase account directly (Firebase sends a verification email)
-      const result = await signUp(email.trim(), password, {
-        displayName: name.trim(),
-        country,
-        phoneNumber: cleanedPhone,
-      });
-      if (!result.ok) {
-        setError(result.error);
+      // Request server-side OTP email send
+      const response = await callSendOtp({ phoneNumber: cleanedPhone, email });
+      if (!response.success) {
+        setError(response.message || 'Failed to send OTP email.');
         return;
       }
 
-      try {
-        const uid = result.data.uid;
-        await setDoc(
-          doc(firebaseDb, `users/${uid}/profile/data`),
-          {
-            userId: uid,
-            displayName: name.trim(),
-            email: email.trim(),
-            phoneNumber: cleanedPhone,
-            country,
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true },
-        );
-      } catch (profileErr) {
-        console.warn('[Auth] Profile save failed (non-critical):', profileErr);
-      }
-
-      setSuccess(`Account created! We sent a verification link to ${email}.`);
+      setOtpStep(true);
+      setSuccess(`A 6-digit OTP has been sent to ${email}. Please enter it below to complete signup.`);
     } catch (err: any) {
       if (err instanceof z.ZodError) setError(err.errors[0].message);
       else if (err?.message) setError(err.message);
-      else setError('An unexpected error occurred during sign up.');
+      else setError('An unexpected error occurred while requesting OTP.');
     } finally {
       setLoading(false);
     }
@@ -373,7 +352,7 @@ export default function Auth() {
                   {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                   {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
                   <Button type="submit" className="w-full" disabled={loading || !agreedToTerms}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create Account
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Send OTP Code
                   </Button>
                 </form>
               ) : (

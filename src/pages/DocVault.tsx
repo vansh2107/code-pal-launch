@@ -1,5 +1,3 @@
-// @ts-nocheck
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useState, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
@@ -18,6 +16,7 @@ import { DocVaultDocumentCard, type DocVaultDocument } from "@/components/docvau
 import { useDocVaultCategories } from "@/hooks/useDocVaultCategories";
 import { useDocVaultDocuments } from "@/hooks/useDocVaultDocuments";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { firebaseDb } from "@/integrations/firebase/client";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { uploadDocumentOriginal } from "@/utils/documentStorage";

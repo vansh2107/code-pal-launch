@@ -110,7 +110,7 @@ export default function NotificationSettings() {
         setPushNotifications(true);
         toast({ title: "Device registered", description: "This device will now receive push notifications." });
       } else if (result.reason === 'not_native') {
-        toast({ title: "Browser notifications enabled", description: "Install the mobile app to receive push notifications when the app is closed." });
+        toast({ title: "Browser push unavailable here", description: "Open the published app in its own browser tab (not the editor preview) to enable browser push, or use the mobile app." });
       } else {
         toast({ title: "Couldn't register this device", description: "Push service didn't return a device id yet. Reopen the app and try again.", variant: "destructive" });
       }
@@ -165,7 +165,7 @@ export default function NotificationSettings() {
                     : "Notification permission not granted"}
                 </p>
                 {pushStatus?.subscriptionId && <p className="text-muted-foreground break-all">ID: {pushStatus.subscriptionId}</p>}
-                {pushStatus && !pushStatus.native && <p className="text-muted-foreground">Install the mobile app for reminders when the app is closed.</p>}
+                {pushStatus && !pushStatus.native && <p className="text-muted-foreground">{pushStatus.subscriptionId ? "This browser is registered for push reminders." : "Tap enable to receive reminders in this browser, even when the tab is closed."}</p>}
               </div>
             </div>
             <div className="flex flex-wrap gap-2">

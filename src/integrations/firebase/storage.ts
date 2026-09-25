@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * src/integrations/firebase/storage.ts
  *
@@ -84,7 +83,7 @@ export type StorageValidationError =
   | { ok: false; error: 'invalid_mime';  message: string }
   | { ok: false; error: 'file_too_large'; message: string };
 
-export type StorageValidationResult = { ok: true } | StorageValidationError;
+export type StorageValidationResult = { ok: boolean; error?: 'invalid_mime' | 'file_too_large'; message?: string };
 
 export function validateDocumentFile(file: File): StorageValidationResult {
   if (!ALLOWED_DOCUMENT_MIMES.has(file.type)) {
@@ -234,7 +233,7 @@ export async function uploadDocumentImage(
   const ext       = extFromMime(file.type);
   const storageRef = documentImageRef(userId, docId, ext);
 
-  const snapshot: UploadTaskSnapshot = await uploadBytes(storageRef, file, {
+  const snapshot = await uploadBytes(storageRef, file, {
     contentType: file.type,
     customMetadata: { uploadedBy: userId, docId },
   });
@@ -292,7 +291,7 @@ export async function uploadTaskImage(
   const ext        = extFromMime(file.type);
   const storageRef = taskImageRef(userId, taskId, ext);
 
-  const snapshot: UploadTaskSnapshot = await uploadBytes(storageRef, file, {
+  const snapshot = await uploadBytes(storageRef, file, {
     contentType: file.type,
     customMetadata: { uploadedBy: userId, taskId },
   });
@@ -322,7 +321,7 @@ export async function uploadAvatar(
   const ext        = extFromMime(file.type);
   const storageRef = avatarRef(userId, ext);
 
-  const snapshot: UploadTaskSnapshot = await uploadBytes(storageRef, file, {
+  const snapshot = await uploadBytes(storageRef, file, {
     contentType: file.type,
     customMetadata: { uploadedBy: userId },
   });

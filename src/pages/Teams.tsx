@@ -147,7 +147,7 @@ export default function Teams() {
         createdAt: serverTimestamp()
       });
 
-      // Add creator as member doc in /organizations/{orgId}/members/{user.uid}
+      // Add creator as member doc in /organizations/{orgId}/members/{user.id}
       await setDoc(doc(db, "organizations", orgId, "members", user.uid), {
         userId: user.uid,
         organizationId: orgId,
