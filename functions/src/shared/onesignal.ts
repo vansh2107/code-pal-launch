@@ -15,6 +15,7 @@
 
 import { adminDb } from './admin';
 import type { OneSignalResult, NotificationPayload } from './types';
+import { onesignalAppId, onesignalRestApiKey } from './secrets';
 
 const ONESIGNAL_API_URL = 'https://api.onesignal.com/notifications';
 const ONESIGNAL_TIMEOUT_MS = 10_000;
@@ -90,14 +91,24 @@ async function postToOneSignal(
 export async function sendOneSignalNotificationDetailed(
   payload: NotificationPayload
 ): Promise<OneSignalResult> {
-  const appId =
-    process.env.ONESIGNAL_APP_ID ?? process.env.ONE_SIGNAL_APP_ID;
-  const apiKey =
-    process.env.ONESIGNAL_REST_API_KEY ?? process.env.ONE_SIGNAL_REST_API_KEY;
+  let appId = '';
+  let apiKey = '';
+
+  try {
+    appId = onesignalAppId.value() || process.env.ONESIGNAL_APP_ID || process.env.ONE_SIGNAL_APP_ID || '';
+  } catch {
+    appId = process.env.ONESIGNAL_APP_ID || process.env.ONE_SIGNAL_APP_ID || '';
+  }
+
+  try {
+    apiKey = onesignalRestApiKey.value() || process.env.ONESIGNAL_REST_API_KEY || process.env.ONE_SIGNAL_REST_API_KEY || '';
+  } catch {
+    apiKey = process.env.ONESIGNAL_REST_API_KEY || process.env.ONE_SIGNAL_REST_API_KEY || '';
+  }
 
   if (!appId || !apiKey) {
-    console.error('[OneSignal] Credentials not configured');
-    return { success: false, reason: 'no_credentials' };
+    console.error('[OneSignal] Credentials missing from Secret Manager (ONESIGNAL_APP_ID / ONESIGNAL_REST_API_KEY)');
+    return { success: false, reason: 'no_credentials', detail: 'OneSignal secret credentials missing from Secret Manager' };
   }
 
   const base: Record<string, unknown> = {

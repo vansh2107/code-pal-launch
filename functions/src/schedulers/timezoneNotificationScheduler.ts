@@ -11,13 +11,14 @@
 import { scheduler, logger } from 'firebase-functions/v2';
 import { adminDb } from '../shared/admin';
 import { sendOneSignalNotification } from '../shared/onesignal';
+import { onesignalSecrets } from '../shared/secrets';
 import { sendEmail } from '../shared/sendgrid';
 import { getFunnyNotification } from '../shared/funnyNotifications';
 import { getDateInTimezone, isTimeMatching } from '../shared/timezone';
 import { addMinutesToDate } from '../shared/timezone';
 
 export const timezoneNotificationScheduler = scheduler.onSchedule(
-  { schedule: '0 * * * *', timeZone: 'UTC' },
+  { schedule: '0 * * * *', timeZone: 'UTC', secrets: onesignalSecrets },
   async () => {
     logger.info('[timezoneNotificationScheduler] Starting run');
 

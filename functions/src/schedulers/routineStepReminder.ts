@@ -11,6 +11,7 @@
 import { scheduler, logger } from 'firebase-functions/v2';
 import { adminDb } from '../shared/admin';
 import { sendOneSignalNotification } from '../shared/onesignal';
+import { onesignalSecrets } from '../shared/secrets';
 import { getFunnyNotification } from '../shared/funnyNotifications';
 import { getReminderButtons } from '../shared/notificationActions';
 import { getCurrentLocalTimeString, isTimeMatching } from '../shared/timezone';
@@ -20,7 +21,7 @@ const WINDOW_MINUTES = 5;
 const LOG_TTL_DAYS   = 2;
 
 export const routineStepReminder = scheduler.onSchedule(
-  { schedule: '*/5 * * * *', timeZone: 'UTC' },
+  { schedule: '*/5 * * * *', timeZone: 'UTC', secrets: onesignalSecrets },
   async () => {
     const profilesSnap = await adminDb
       .collectionGroup('profile')

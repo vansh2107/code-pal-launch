@@ -10,6 +10,7 @@
 import { scheduler, logger } from 'firebase-functions/v2';
 import { adminDb } from '../shared/admin';
 import { sendOneSignalNotification } from '../shared/onesignal';
+import { onesignalSecrets } from '../shared/secrets';
 import { getFunnyNotification } from '../shared/funnyNotifications';
 import { getReminderButtons } from '../shared/notificationActions';
 import { getDateInTimezone } from '../shared/timezone';
@@ -17,7 +18,7 @@ import { getDateInTimezone } from '../shared/timezone';
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
 export const taskTwoHourReminder = scheduler.onSchedule(
-  { schedule: '*/5 * * * *', timeZone: 'UTC' },
+  { schedule: '*/5 * * * *', timeZone: 'UTC', secrets: onesignalSecrets },
   async () => {
     logger.info('[taskTwoHourReminder] Starting run');
 

@@ -10,12 +10,13 @@
 import { scheduler, logger } from 'firebase-functions/v2';
 import { adminDb } from '../shared/admin';
 import { sendOneSignalNotification } from '../shared/onesignal';
+import { onesignalSecrets } from '../shared/secrets';
 import { getFunnyNotification } from '../shared/funnyNotifications';
 import { getReminderButtons } from '../shared/notificationActions';
 import { isTimeMatching, getDateInTimezone } from '../shared/timezone';
 
 export const taskIncompleteReminder = scheduler.onSchedule(
-  { schedule: '0 * * * *', timeZone: 'UTC' },
+  { schedule: '0 * * * *', timeZone: 'UTC', secrets: onesignalSecrets },
   async () => {
     logger.info('[taskIncompleteReminder] Starting run');
 

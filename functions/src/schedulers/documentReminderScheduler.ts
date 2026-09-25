@@ -10,13 +10,14 @@
 import { scheduler, logger } from 'firebase-functions/v2';
 import { adminDb } from '../shared/admin';
 import { sendOneSignalNotification } from '../shared/onesignal';
+import { onesignalSecrets } from '../shared/secrets';
 import { sendEmail } from '../shared/sendgrid';
 import { getFunnyNotification } from '../shared/funnyNotifications';
 import { getReminderButtons } from '../shared/notificationActions';
 import { getDateInTimezone, getCurrentLocalTimeString } from '../shared/timezone';
 
 export const documentReminderScheduler = scheduler.onSchedule(
-  { schedule: '* * * * *', timeZone: 'UTC' },
+  { schedule: '* * * * *', timeZone: 'UTC', secrets: onesignalSecrets },
   async () => {
     const profilesSnap = await adminDb
       .collectionGroup('profile')

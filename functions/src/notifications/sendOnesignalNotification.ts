@@ -9,10 +9,11 @@
 
 import { https, logger } from 'firebase-functions/v2';
 import { sendOneSignalNotificationDetailed } from '../shared/onesignal';
+import { onesignalSecrets } from '../shared/secrets';
 import type { NotificationPayload } from '../shared/types';
 
 export const sendOnesignalNotification = https.onCall(
-  { enforceAppCheck: false },
+  { enforceAppCheck: false, secrets: onesignalSecrets },
   async (request) => {
     if (!request.auth) {
       throw new https.HttpsError('unauthenticated', 'Authentication required.');
