@@ -14,7 +14,10 @@
  */
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import type { User } from 'firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth';
+
+/** Firebase user with a Supabase-style `id` alias for `uid`. */
+export type User = FirebaseUser & { id: string };
 import {
   collection,
   writeBatch,
@@ -64,7 +67,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }, 3000);
 
-    const unsubscribe = onAuthChange(async (firebaseUser) => {
+    const unsubscribe = onAuthChange(async (fbUser) => {
+      let firebaseUser: User | null = null;
+      if (fbUser) {
+        if (!('id' in fbUser)) {
+          Object.defineProperty(fbUser, 'id', { get() { return (this as FirebaseUser).uid; }, configurable: true });
+        }
+        firebaseUser = fbUser as User;
+      }
       setUser(firebaseUser);
       setLoading(false);
       clearTimeout(failSafe);
