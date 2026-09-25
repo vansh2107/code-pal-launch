@@ -7,7 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Brain, TrendingUp, AlertTriangle, Lightbulb, Loader2, DollarSign, FileCheck, Sparkles } from "lucide-react";
 import { RenewalChecklist } from "./RenewalChecklist";
 import { useAuth } from "@/hooks/useAuth";
-import type { DocumentStatusInfo } from "@/utils/documentStatus";
 import { getDoc } from "firebase/firestore";
 import { userProfileDoc } from "@/integrations/firebase/firestore";
 import { callAiDocumentAnalysis } from "@/integrations/firebase/functions";
@@ -22,7 +21,7 @@ type Document = {
   renewal_period_days: number | null;
 };
 
-export function AIInsights({ document, statusInfo }: { document: Document; statusInfo: DocumentStatusInfo | null }) {
+export function AIInsights({ document, statusInfo }: { document: Document; statusInfo: any }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [loadingType, setLoadingType] = useState<string | null>(null);
@@ -62,7 +61,7 @@ export function AIInsights({ document, statusInfo }: { document: Document; statu
         userCountry
       } as any);
 
-      setInsights({ type, data: (data.analysis || data.result) });
+      setInsights({ type, data: ((data as any).analysis || data.result) });
       toast({
         title: "Analysis Complete",
         description: "AI insights generated successfully",

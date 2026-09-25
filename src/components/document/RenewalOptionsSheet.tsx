@@ -47,8 +47,8 @@ export function RenewalOptionsSheet({
   onSuccess,
 }: RenewalOptionsSheetProps) {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { toast } = useToast();
+  const { user } = useAuth();
   const { openCamera, openGallery } = useCamera();
   const [loading, setLoading] = useState(false);
 

@@ -37,7 +37,7 @@ export function AIRecommendations({ task }: AIRecommendationsProps) {
         status: task.status,
       } as any);
 
-      setRecommendation(data.recommendation || data.tip || '');
+      setRecommendation((data as any).recommendation || data.tip || '');
     } catch (error) {
       console.error("Error fetching AI recommendation:", error);
     } finally {

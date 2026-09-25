@@ -60,7 +60,7 @@ export const updateNotificationToken = https.onCall(
       // Ensure push preference is enabled on profile
       await adminDb
         .doc(profilePath(uid))
-        .set({ userId: uid, pushNotificationsEnabled: true, updatedAt: now }, { merge: true });
+        .set({ pushNotificationsEnabled: true, updatedAt: now }, { merge: true });
 
       logger.info(`[updateNotificationToken] Upserted token for ${uid}`);
       return { success: true };

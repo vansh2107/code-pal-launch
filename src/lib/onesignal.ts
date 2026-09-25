@@ -40,95 +40,16 @@ import { firebaseAuth, firebaseDb, firebaseFunctions } from "@/integrations/fire
  * The value is the public app identifier (safe in the client bundle).
  * The OneSignal REST API key is server-side only (Cloud Functions env).
  */
-// Public OneSignal App ID (same one baked into the Android ApplicationClass).
-const DEFAULT_ONESIGNAL_APP_ID = "8cced195-0fd2-487f-9f10-2a8bc898ff4e";
-export const ONESIGNAL_APP_ID: string =
-  (import.meta.env.VITE_ONESIGNAL_APP_ID as string | undefined) || DEFAULT_ONESIGNAL_APP_ID;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Web SDK (browser push) — loaded lazily, only outside the native app
-// ─────────────────────────────────────────────────────────────────────────────
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type WebOneSignal = any;
-let webSdkPromise: Promise<WebOneSignal | null> | null = null;
-
-/** Web push can't run inside an iframe (editor preview) or on insecure origins. */
-export function isWebPushSupported(): boolean {
-  if (typeof window === "undefined") return false;
-  if (!("serviceWorker" in navigator) || !("PushManager" in window) || typeof Notification === "undefined") return false;
-  try { if (window.self !== window.top) return false; } catch { return false; }
-  return window.isSecureContext;
-}
-
-function loadWebOneSignal(): Promise<WebOneSignal | null> {
-  if (webSdkPromise) return webSdkPromise;
-  webSdkPromise = new Promise<WebOneSignal | null>((resolve) => {
-    if (!isWebPushSupported()) return resolve(null);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any;
-    w.OneSignalDeferred = w.OneSignalDeferred || [];
-    const timeout = setTimeout(() => resolve(null), 15000);
-    w.OneSignalDeferred.push(async (os: WebOneSignal) => {
-      try {
-        await os.init({
-          appId: ONESIGNAL_APP_ID,
-          allowLocalhostAsSecureOrigin: true,
-          serviceWorkerPath: "/OneSignalSDKWorker.js",
-          serviceWorkerParam: { scope: "/" },
-        });
-        os.Notifications.addEventListener("click", (event: WebOneSignal) => {
-          const data: NotifData = (event?.notification?.additionalData ?? {}) as NotifData;
-          window.location.href = deepLinkForEntity(resolveEntity(data)?.entity_type, data);
-        });
-        os.User.PushSubscription.addEventListener("change", async () => {
-          const uid = firebaseAuth.currentUser?.uid;
-          if (uid) await ensurePushRegistration(uid, { silent: true });
-        });
-        clearTimeout(timeout);
-        resolve(os);
-      } catch (e) {
-        console.error("[onesignal-web] init failed:", e);
-        clearTimeout(timeout);
-        resolve(null);
-      }
-    });
-    if (!document.getElementById("onesignal-web-sdk")) {
-      const script = document.createElement("script");
-      script.id = "onesignal-web-sdk";
-      script.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
-      script.defer = true;
-      script.onerror = () => { clearTimeout(timeout); resolve(null); };
-      document.head.appendChild(script);
-    }
-  });
-  return webSdkPromise;
-}
-
-async function ensureWebRegistration(userId: string, silent: boolean): Promise<PushRegistrationResult> {
-  const os = await loadWebOneSignal();
-  if (!os) return { ok: false, reason: "not_native" };
-  try { await os.login(userId); } catch (e) { console.warn("[onesignal-web] login failed:", e); }
-
-  let permission = !!os.Notifications.permission;
-  if (!permission && !silent) {
-    try { await os.Notifications.requestPermission(); } catch { /* ignore */ }
-    permission = !!os.Notifications.permission;
+export const ONESIGNAL_APP_ID: string = (() => {
+  const id = import.meta.env.VITE_ONESIGNAL_APP_ID as string | undefined;
+  if (!id) {
+    console.error(
+      "[onesignal] VITE_ONESIGNAL_APP_ID is not set. " +
+      "Add it to .env — OneSignal push notifications will not work."
+    );
   }
-  if (!permission) return { ok: false, reason: "permission_denied" };
-
-  try { await os.User.PushSubscription.optIn(); } catch { /* ignore */ }
-
-  let subscriptionId: string | null = null;
-  for (let i = 0; i < 30 && !subscriptionId; i++) {
-    subscriptionId = os.User.PushSubscription.id ?? null;
-    if (!subscriptionId) await new Promise((r) => setTimeout(r, 500));
-  }
-  if (!subscriptionId) return { ok: false, reason: "no_subscription" };
-
-  const saved = await persistSubscription(userId, subscriptionId);
-  return saved ? { ok: true, subscriptionId } : { ok: false, reason: "save_failed", subscriptionId };
-}
+  return id ?? "";
+})();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -214,12 +135,7 @@ export const initOneSignal = () => {
   initialized = true;
 
   try {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const os: any = OneSignal;
-      if (typeof os.initialize === "function") os.initialize(ONESIGNAL_APP_ID);
-      else if (typeof os.setAppId === "function") os.setAppId(ONESIGNAL_APP_ID);
-    }
+    try { (OneSignal as any).initialize?.(ONESIGNAL_APP_ID); }
     catch (e) { console.warn("[onesignal] initialize skipped:", e); }
 
     // Notification click handler — unchanged
@@ -292,10 +208,7 @@ async function getPermission(): Promise<boolean> {
 export async function getPushStatus(): Promise<PushStatus> {
   if (!isNative()) {
     const webPerm = typeof Notification !== "undefined" && Notification.permission === "granted";
-    const os = webPerm ? await loadWebOneSignal() : null;
-    const subscriptionId: string | null = os?.User?.PushSubscription?.id ?? null;
-    const optedIn = !!os?.User?.PushSubscription?.optedIn;
-    return { native: false, permission: webPerm, subscriptionId, optedIn };
+    return { native: false, permission: webPerm, subscriptionId: null, optedIn: false };
   }
   const [permission, subscriptionId, optedIn] = await Promise.all([
     getPermission(), getSubscriptionId(), getOptedIn(),
@@ -332,13 +245,8 @@ export async function ensurePushRegistration(
   userId: string,
   opts: { silent?: boolean } = {},
 ): Promise<PushRegistrationResult> {
+  if (!isNative()) return { ok: false, reason: "not_native" };
   if (registrationInFlight) return registrationInFlight;
-  if (!isNative()) {
-    registrationInFlight = ensureWebRegistration(userId, !!opts.silent)
-      .catch((e) => { console.error("[onesignal-web] registration error:", e); return { ok: false, reason: "save_failed" } as PushRegistrationResult; })
-      .finally(() => { setTimeout(() => (registrationInFlight = null), 0); });
-    return registrationInFlight;
-  }
 
   registrationInFlight = (async (): Promise<PushRegistrationResult> => {
     try {
@@ -394,7 +302,7 @@ export async function ensurePushRegistration(
  *   - supabase.from("profiles").update({ push_notifications_enabled: true })
  */
 async function persistSubscription(userId: string, subscriptionId: string): Promise<boolean> {
-  const deviceInfo = `${isNative() ? Capacitor.getPlatform() : "web"} | ${navigator.userAgent}`.substring(0, 400);
+  const deviceInfo = `${Capacitor.getPlatform()} | ${navigator.userAgent}`.substring(0, 400);
   let ok = false;
 
   // ── Primary: Cloud Function ───────────────────────────────────────────────
@@ -432,18 +340,11 @@ async function persistSubscription(userId: string, subscriptionId: string): Prom
   // ── Enable push preference ────────────────────────────────────────────────
   if (ok) {
     try {
-      const profileRef = doc(firebaseDb, `users/${userId}/profile/data`);
-      const profileSnap = await getDoc(profileRef);
-      const update: Record<string, unknown> = {
-        userId,
-        pushNotificationsEnabled: true,
-        updatedAt: new Date().toISOString(),
-      };
-      // Schedulers skip profiles without a timezone — fill in the device zone if missing.
-      if (!profileSnap.exists() || !profileSnap.data()?.timezone) {
-        update.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-      }
-      await setDoc(profileRef, update, { merge: true });
+      await setDoc(
+        doc(firebaseDb, `users/${userId}/profile/data`),
+        { pushNotificationsEnabled: true, updatedAt: new Date().toISOString() },
+        { merge: true },
+      );
     } catch (e) {
       console.warn("[onesignal] Could not enable push preference:", e);
     }
@@ -463,11 +364,7 @@ export const savePlayerIdToSupabase = async (userId: string) => {
 };
 
 export const getPlayerId = async (): Promise<string | null> => {
-  if (!isNative()) {
-    if (typeof Notification === "undefined" || Notification.permission !== "granted") return null;
-    const os = await loadWebOneSignal();
-    return os?.User?.PushSubscription?.id ?? null;
-  }
+  if (!isNative()) return null;
   for (let i = 0; i < 30; i++) {
     const id = await getSubscriptionId();
     if (id) return id;
@@ -483,11 +380,7 @@ export const setUserEmail = async (email: string) => {
 };
 
 export const logoutOneSignal = async () => {
-  if (!isNative()) {
-    if (!webSdkPromise) return;
-    try { const os = await webSdkPromise; await os?.logout?.(); } catch { /* ignore */ }
-    return;
-  }
+  if (!isNative()) return;
   try { await (OneSignal as any).logout?.(); }
   catch (error) { console.warn("[onesignal] logout failed:", error); }
 };

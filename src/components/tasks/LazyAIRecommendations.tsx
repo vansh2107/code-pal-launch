@@ -63,7 +63,7 @@ function LazyAIRecommendationsComponent({ task }: LazyAIRecommendationsProps) {
           status: task.status,
         } as any);
 
-        const rec = data.recommendation || data.tip || "";
+        const rec = (data as any).recommendation || data.tip || "";
         recommendationCache.set(task.id, rec);
         setRecommendation(rec);
       } catch (error) {

@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Upload, Camera as CameraIcon, Search, Menu, X, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,7 +17,6 @@ import { DocVaultDocumentCard, type DocVaultDocument } from "@/components/docvau
 import { useDocVaultCategories } from "@/hooks/useDocVaultCategories";
 import { useDocVaultDocuments } from "@/hooks/useDocVaultDocuments";
 import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { firebaseDb } from "@/integrations/firebase/client";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { uploadDocumentOriginal } from "@/utils/documentStorage";

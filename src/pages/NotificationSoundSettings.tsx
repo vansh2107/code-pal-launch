@@ -119,7 +119,7 @@ export default function NotificationSoundSettings() {
     try {
       await setDoc(
         userProfileDoc(user.uid),
-        { notificationSounds: updated as unknown as Record<string, string>, updatedAt: new Date().toISOString() },
+        { notificationSounds: updated as any, updatedAt: new Date().toISOString() },
         { merge: true },
       );
     } catch {

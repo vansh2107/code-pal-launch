@@ -194,14 +194,9 @@ export interface AiDocumentAnalysisRequest {
     | 'compliance_check';
 }
 export interface AiDocumentAnalysisResponse {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
   success: boolean;
   result?: Record<string, unknown>;
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const callDocumentAnalyzer = callable<Record<string, any>, Record<string, any>>('documentAnalyzer');
-
 export const callAiDocumentAnalysis =
   callable<AiDocumentAnalysisRequest, AiDocumentAnalysisResponse>('aiDocumentAnalysis');
 
@@ -213,8 +208,6 @@ export interface DetectDocumentBoundsRequest {
   height: number;
 }
 export interface DetectDocumentBoundsResponse {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
   found: boolean;
   topLeft?: { x: number; y: number };
   topRight?: { x: number; y: number };
@@ -231,8 +224,6 @@ export interface DocumentRenewalAdvisorRequest {
   question: string;
 }
 export interface DocumentRenewalAdvisorResponse {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
   success: boolean;
   advice?: string;
 }
@@ -249,8 +240,6 @@ export interface TaskAiRecommendationsRequest {
   taskDescription?: string;
 }
 export interface TaskAiRecommendationsResponse {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
   success: boolean;
   tip?: string;
 }

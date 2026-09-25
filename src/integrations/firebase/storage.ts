@@ -83,7 +83,7 @@ export type StorageValidationError =
   | { ok: false; error: 'invalid_mime';  message: string }
   | { ok: false; error: 'file_too_large'; message: string };
 
-export type StorageValidationResult = { ok: boolean; error?: 'invalid_mime' | 'file_too_large'; message?: string };
+export type StorageValidationResult = { ok: true } | StorageValidationError;
 
 export function validateDocumentFile(file: File): StorageValidationResult {
   if (!ALLOWED_DOCUMENT_MIMES.has(file.type)) {
@@ -228,7 +228,7 @@ export async function uploadDocumentImage(
   file: File,
 ): Promise<UploadResult> {
   const validation = validateDocumentFile(file);
-  if (!validation.ok) throw new Error(validation.message);
+  if (!validation.ok) throw new Error((validation as { message?: string }).message);
 
   const ext       = extFromMime(file.type);
   const storageRef = documentImageRef(userId, docId, ext);
@@ -258,7 +258,7 @@ export function uploadDocumentImageResumable(
   file: File,
 ): UploadTask {
   const validation = validateDocumentFile(file);
-  if (!validation.ok) throw new Error(validation.message);
+  if (!validation.ok) throw new Error((validation as { message?: string }).message);
 
   const ext        = extFromMime(file.type);
   const storageRef = documentImageRef(userId, docId, ext);
@@ -286,7 +286,7 @@ export async function uploadTaskImage(
   file: File,
 ): Promise<UploadResult> {
   const validation = validateTaskImageFile(file);
-  if (!validation.ok) throw new Error(validation.message);
+  if (!validation.ok) throw new Error((validation as { message?: string }).message);
 
   const ext        = extFromMime(file.type);
   const storageRef = taskImageRef(userId, taskId, ext);
@@ -316,7 +316,7 @@ export async function uploadAvatar(
   file: File,
 ): Promise<UploadResult> {
   const validation = validateAvatarFile(file);
-  if (!validation.ok) throw new Error(validation.message);
+  if (!validation.ok) throw new Error((validation as { message?: string }).message);
 
   const ext        = extFromMime(file.type);
   const storageRef = avatarRef(userId, ext);
