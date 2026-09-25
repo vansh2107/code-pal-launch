@@ -21,7 +21,7 @@ type Document = {
   renewal_period_days: number | null;
 };
 
-export function AIInsights({ document, statusInfo }: { document: Document; statusInfo: DocumentStatusInfo | null }) {
+export function AIInsights({ document, statusInfo }: { document: Document; statusInfo: import("@/utils/documentStatus").DocumentStatusInfo | null }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [loadingType, setLoadingType] = useState<string | null>(null);
