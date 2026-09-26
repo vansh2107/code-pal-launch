@@ -280,7 +280,7 @@ export function useTasksData() {
 
       // Persist to IndexedDB
       try {
-        const allForOffline: OfflineTask[] = [...tasks, ...futureTasks].map((t) => ({
+        const allForOffline: OfflineTask[] = [...tasks, ...futureTasks].map((t): OfflineTask => ({
           id:                      t.id,
           title:                   t.title,
           description:             t.description ?? null,
