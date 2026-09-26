@@ -101,7 +101,7 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
       const reminderDateStr = reminderDate.toISOString().split('T')[0];
       
       // Check if a similar reminder already exists
-      const remCol = collection(db, "users", user.id, "reminders");
+      const remCol = collection(db, "users", user.uid, "reminders");
       const existingQuery = query(
         remCol,
         where("documentId", "==", documentId),
@@ -119,7 +119,7 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
       
       // Insert the AI-recommended reminder
       const remRef = await addDoc(remCol, {
-        userId: user.id,
+        userId: user.uid,
         documentId: documentId,
         reminderDate: reminderDateStr,
         isCustom: false,
