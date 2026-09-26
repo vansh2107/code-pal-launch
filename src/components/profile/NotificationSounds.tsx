@@ -119,7 +119,7 @@ function SoundPicker({
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const playTimeout = useRef<NodeJS.Timeout>();
+  const playTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   const stopPlaying = useCallback(() => {
     if (audioRef.current) {
@@ -304,7 +304,7 @@ export function NotificationSounds() {
   const fetchPreferences = async () => {
     if (!user) return;
     try {
-      const profileRef = doc(db, "users", user.id, "profile", "data");
+      const profileRef = doc(db, "users", user.uid, "profile", "data");
       const snap = await getDoc(profileRef);
       if (snap.exists()) {
         const data = snap.data();
@@ -327,7 +327,7 @@ export function NotificationSounds() {
       setPreferences(updated);
       setSaving(true);
       try {
-        const profileRef = doc(db, "users", user.id, "profile", "data");
+        const profileRef = doc(db, "users", user.uid, "profile", "data");
         await setDoc(profileRef, { notificationSounds: updated }, { merge: true });
       } catch {
         toast({ title: "Error", description: "Failed to save preference", variant: "destructive" });
@@ -355,7 +355,7 @@ export function NotificationSounds() {
     NOTIFICATION_TYPES.forEach((t) => (defaults[t.key] = "default"));
     setPreferences(defaults);
     try {
-      const profileRef = doc(db, "users", user.id, "profile", "data");
+      const profileRef = doc(db, "users", user.uid, "profile", "data");
       await setDoc(profileRef, { notificationSounds: defaults }, { merge: true });
       toast({ title: "Reset complete", description: "All sounds set to default." });
     } catch {

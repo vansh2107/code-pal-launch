@@ -103,7 +103,7 @@ export default function Auth() {
     try {
       const result = await sendPasswordReset(resetEmail);
       if (!result.ok) {
-        setError(result.error);
+        setError((result as { error: string }).error);
       } else {
         setSuccess('A password reset link has been sent to your email!');
         setTimeout(() => {
@@ -128,7 +128,7 @@ export default function Auth() {
       const validation = signInSchema.parse({ email, password });
       const result     = await signIn(validation.email, validation.password);
       if (!result.ok) {
-        setError(result.error);
+        setError((result as { error: string }).error);
       }
     } catch (err) {
       if (err instanceof z.ZodError) setError(err.errors[0].message);
@@ -218,7 +218,7 @@ export default function Auth() {
 
       const result = await signUp(email, password, metadata);
       if (!result.ok) {
-        setError(result.error);
+        setError((result as { error: string }).error);
         return;
       }
 
