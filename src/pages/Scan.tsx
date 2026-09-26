@@ -23,7 +23,7 @@ import { processAllPages, type ProcessedPdfPage } from "@/utils/pdfPageProcessor
 import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
 import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
-import { uploadDocumentOriginal, getPDFPageCount } from "@/utils/documentStorage";
+import { uploadDocumentOriginal, getPDFPageCount, srcToImageBlob } from "@/utils/documentStorage";
 import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstraints, setupVideoElement, requestCamera } from "@/utils/cameraManager";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
@@ -406,14 +406,14 @@ export default function Scan() {
         imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
       } else if (rawImg || croppedImg) {
         const originalSrc = rawImg || croppedImg;
-        const originalBlob = await fetch(originalSrc).then(r => r.blob());
+        const originalBlob = await srcToImageBlob(originalSrc);
         const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
         const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
         imagePath = await uploadDocumentOriginal(imageFile, user.uid);
         
         if (rawImg && croppedImg && rawImg !== croppedImg) {
           try {
-            const processedBlob = await fetch(croppedImg).then(r => r.blob());
+            const processedBlob = await srcToImageBlob(croppedImg);
             const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
             if (imagePath) {
               const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
@@ -788,7 +788,7 @@ export default function Scan() {
           imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
         } else if (rawCapturedImage || capturedImage) {
           const originalSrc = rawCapturedImage || capturedImage;
-          const originalBlob = await fetch(originalSrc).then(r => r.blob());
+          const originalBlob = await srcToImageBlob(originalSrc);
           const maxSize = 20 * 1024 * 1024;
           if (originalBlob.size > maxSize) {
             throw new Error("Image file size exceeds 20MB limit");
@@ -799,7 +799,7 @@ export default function Scan() {
           
           if (rawCapturedImage && capturedImage && rawCapturedImage !== capturedImage) {
             try {
-              const processedBlob = await fetch(capturedImage).then(r => r.blob());
+              const processedBlob = await srcToImageBlob(capturedImage);
               const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
               if (imagePath) {
                 const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
