@@ -285,7 +285,7 @@ export function useTasksData() {
           title:                   t.title,
           description:             t.description ?? null,
           start_time:              t.start_time,
-          end_time:                ('end_time' in t ? t.end_time : null) ?? null,
+          end_time:                ('end_time' in t ? t.end_time : null) ?? null) as string | null,
           total_time_minutes:      ('total_time_minutes' in t ? t.total_time_minutes : null) ?? null,
           status:                  t.status,
           image_path:              t.image_path ?? null,
