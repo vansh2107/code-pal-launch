@@ -194,7 +194,6 @@ export interface AiDocumentAnalysisRequest {
     | 'compliance_check';
 }
 export interface AiDocumentAnalysisResponse {
-  [key: string]: any;
   success: boolean;
   result?: Record<string, unknown>;
 }
@@ -209,7 +208,6 @@ export interface DetectDocumentBoundsRequest {
   height: number;
 }
 export interface DetectDocumentBoundsResponse {
-  [key: string]: any;
   found: boolean;
   topLeft?: { x: number; y: number };
   topRight?: { x: number; y: number };
@@ -242,7 +240,6 @@ export interface TaskAiRecommendationsRequest {
   taskDescription?: string;
 }
 export interface TaskAiRecommendationsResponse {
-  [key: string]: any;
   success: boolean;
   tip?: string;
 }
@@ -257,6 +254,3 @@ export const callTaskAiRecommendations =
 // ---------------------------------------------------------------------------
 export const CHATBOT_FUNCTION_URL =
   import.meta.env.VITE_FIREBASE_CHATBOT_URL as string | undefined;
-
-/** Legacy alias used by the OCR engine. */
-export const callDocumentAnalyzer = callable<Record<string, unknown>, any>('documentAnalyzer');

@@ -103,7 +103,7 @@ export default function Auth() {
     try {
       const result = await sendPasswordReset(resetEmail);
       if (!result.ok) {
-        setError((result as { error: string }).error);
+        setError(result.error);
       } else {
         setSuccess('A password reset link has been sent to your email!');
         setTimeout(() => {
@@ -128,7 +128,7 @@ export default function Auth() {
       const validation = signInSchema.parse({ email, password });
       const result     = await signIn(validation.email, validation.password);
       if (!result.ok) {
-        setError((result as { error: string }).error);
+        setError(result.error);
       }
     } catch (err) {
       if (err instanceof z.ZodError) setError(err.errors[0].message);
@@ -168,19 +168,40 @@ export default function Auth() {
         name, email, password, phone_number: cleanedPhone,
       });
 
-      // Request server-side OTP email send
-      const response = await callSendOtp({ phoneNumber: cleanedPhone, email });
-      if (!response.success) {
-        setError(response.message || 'Failed to send OTP email.');
+      // Create the Firebase account directly (Firebase sends a verification email)
+      const result = await signUp(email.trim(), password, {
+        displayName: name.trim(),
+        country,
+        phoneNumber: cleanedPhone,
+      });
+      if (!result.ok) {
+        setError(result.error);
         return;
       }
 
-      setOtpStep(true);
-      setSuccess(`A 6-digit OTP has been sent to ${email}. Please enter it below to complete signup.`);
+      try {
+        const uid = result.data.uid;
+        await setDoc(
+          doc(firebaseDb, `users/${uid}/profile/data`),
+          {
+            userId: uid,
+            displayName: name.trim(),
+            email: email.trim(),
+            phoneNumber: cleanedPhone,
+            country,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true },
+        );
+      } catch (profileErr) {
+        console.warn('[Auth] Profile save failed (non-critical):', profileErr);
+      }
+
+      setSuccess(`Account created! We sent a verification link to ${email}.`);
     } catch (err: any) {
       if (err instanceof z.ZodError) setError(err.errors[0].message);
       else if (err?.message) setError(err.message);
-      else setError('An unexpected error occurred while requesting OTP.');
+      else setError('An unexpected error occurred during sign up.');
     } finally {
       setLoading(false);
     }
@@ -218,7 +239,7 @@ export default function Auth() {
 
       const result = await signUp(email, password, metadata);
       if (!result.ok) {
-        setError((result as { error: string }).error);
+        setError(result.error);
         return;
       }
 
@@ -352,7 +373,7 @@ export default function Auth() {
                   {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                   {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
                   <Button type="submit" className="w-full" disabled={loading || !agreedToTerms}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Send OTP Code
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create Account
                   </Button>
                 </form>
               ) : (

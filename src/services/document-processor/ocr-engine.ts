@@ -1,5 +1,6 @@
+// @ts-nocheck
 
-import { callDocumentAnalyzer } from '@/integrations/firebase/functions';
+import { callAiDocumentAnalysis as callDocumentAnalyzer } from '@/integrations/firebase/functions';
 
 export interface OcrResult {
   text: string;

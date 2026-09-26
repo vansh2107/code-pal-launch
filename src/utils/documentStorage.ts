@@ -48,6 +48,31 @@ export async function uploadDocumentOriginal(
 }
 
 /**
+ * Convert any image source (data URL, blob URL, http URL) into a real image blob.
+ * Guards against sources that resolve to an HTML page (which Storage rejects).
+ */
+export async function srcToImageBlob(src: string): Promise<Blob> {
+  try {
+    const blob = await fetch(src).then((r) => r.blob());
+    if (blob.type.startsWith('image/') && blob.size > 0) return blob;
+  } catch { /* fall through to canvas */ }
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.crossOrigin = 'anonymous';
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('Could not read the image. Please capture it again.'));
+    i.src = src;
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  canvas.getContext('2d')!.drawImage(img, 0, 0);
+  return new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Image conversion failed'))), 'image/jpeg', 0.92),
+  );
+}
+
+/**
  * Get a time-limited signed URL for a document image.
  * Wrapper around getSignedUrl for backwards compatibility.
  */
