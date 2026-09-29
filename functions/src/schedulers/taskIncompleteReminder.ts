@@ -23,7 +23,6 @@ export const taskIncompleteReminder = scheduler.onSchedule(
     const profilesSnap = await adminDb
       .collectionGroup('profile')
       .where('pushNotificationsEnabled', '==', true)
-      .where('preferredNotificationTime', '!=', null)
       .where('timezone', '!=', null)
       .get();
 

@@ -21,7 +21,6 @@ export const documentReminderScheduler = scheduler.onSchedule(
   async () => {
     const profilesSnap = await adminDb
       .collectionGroup('profile')
-      .where('preferredNotificationTime', '!=', null)
       .where('timezone', '!=', null)
       .get();
 

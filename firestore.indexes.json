@@ -79,13 +79,7 @@
         { "fieldPath": "expiryDate", "order": "ASCENDING" }
       ]
     },
-    {
-      "collectionGroup": "documents",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "expiryDate", "order": "ASCENDING" }
-      ]
-    },
+
     {
       "collectionGroup": "documents",
       "queryScope": "COLLECTION",
@@ -370,20 +364,7 @@
     // routine_notification_log (top-level COLLECTION — service-only)
     // =========================================================================
 
-    {
-      "collectionGroup": "routine_notification_log",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "notificationKey", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "routine_notification_log",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "sentAt",  "order": "ASCENDING" }
-      ]
-    },
+
     {
       "collectionGroup": "routine_notification_log",
       "queryScope": "COLLECTION",
@@ -423,15 +404,18 @@
         { "fieldPath": "preferredNotificationTime", "order": "ASCENDING" },
         { "fieldPath": "timezone",                  "order": "ASCENDING" }
       ]
-    },
+    }
+  ],
+  "fieldOverrides": [
     {
       "collectionGroup": "profile",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "timezone",  "order": "ASCENDING" }
+      "fieldPath": "timezone",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
       ]
     }
-
-  ],
-  "fieldOverrides": []
+  ]
 }
