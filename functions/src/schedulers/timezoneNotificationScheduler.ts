@@ -24,7 +24,6 @@ export const timezoneNotificationScheduler = scheduler.onSchedule(
 
     const profilesSnap = await adminDb
       .collectionGroup('profile')
-      .where('preferredNotificationTime', '!=', null)
       .where('timezone', '!=', null)
       .get();
 
