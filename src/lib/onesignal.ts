@@ -251,10 +251,14 @@ export async function ensurePushRegistration(
   registrationInFlight = (async (): Promise<PushRegistrationResult> => {
     try {
       initOneSignal();
+      // Give the native SDK a moment to finish initializing before login.
+      await new Promise((r) => setTimeout(r, 300));
 
-      // Link device to the Firebase UID (sets OneSignal external_id = Firebase UID)
-      try { await (OneSignal as any).login?.(userId); }
-      catch (e) { console.warn("[onesignal] login failed:", e); }
+      const doLogin = async () => {
+        try { await (OneSignal as any).login?.(userId); }
+        catch (e) { console.warn("[onesignal] login failed:", e); }
+      };
+      await doLogin();
 
       let permission = await getPermission();
       if (!permission && !opts.silent) {
@@ -271,6 +275,18 @@ export async function ensurePushRegistration(
         if (!subscriptionId) await new Promise((r) => setTimeout(r, 500));
       }
       if (!subscriptionId) return { ok: false, reason: "no_subscription" };
+
+      // Verify the device is linked to this account; retry login once if not.
+      try {
+        const getExt = (OneSignal.User as any).getExternalId;
+        if (typeof getExt === "function") {
+          const ext = await getExt.call(OneSignal.User);
+          if (ext !== userId) {
+            await doLogin();
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        }
+      } catch { /* older SDKs lack getExternalId */ }
 
       const saved = await persistSubscription(userId, subscriptionId);
       return saved

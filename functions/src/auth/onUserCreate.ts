@@ -75,7 +75,7 @@ export const onUserCreate = functionsV1.auth.user().onCreate(async (user) => {
       preferredNotificationTime: null,
       avatarUrl:                 null,
       emailNotificationsEnabled: true,
-      pushNotificationsEnabled:  null,
+      pushNotificationsEnabled:  true,
       expiryRemindersEnabled:    true,
       renewalRemindersEnabled:   true,
       weeklyDigestEnabled:       false,

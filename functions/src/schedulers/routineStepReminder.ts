@@ -10,6 +10,7 @@
 
 import { scheduler, logger } from 'firebase-functions/v2';
 import { adminDb } from '../shared/admin';
+import { Timestamp } from 'firebase-admin/firestore';
 import { sendOneSignalNotification } from '../shared/onesignal';
 import { onesignalSecrets } from '../shared/secrets';
 import { getFunnyNotification } from '../shared/funnyNotifications';
@@ -32,7 +33,7 @@ export const routineStepReminder = scheduler.onSchedule(
     let sent = 0;
 
     // Cleanup stale log entries older than 2 days
-    const cutoff = new Date(Date.now() - LOG_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const cutoff = Timestamp.fromMillis(Date.now() - LOG_TTL_DAYS * 24 * 60 * 60 * 1000);
     const staleLogsSnap = await adminDb
       .collection('routine_notification_log')
       .where('sentAt', '<', cutoff)
