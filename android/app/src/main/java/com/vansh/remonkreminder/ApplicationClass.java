@@ -1,23 +1,16 @@
-package com.vansh.remonkreminder; // Replace with your package name
+package com.vansh.remonkreminder;
 
 import android.app.Application;
 
-import com.onesignal.Continue;
-import com.onesignal.OneSignal;
-import com.onesignal.debug.LogLevel;
-
+/**
+ * OneSignal is initialized once from JavaScript (src/lib/onesignal.ts) so that
+ * init, login(userId) and the permission prompt happen in one ordered flow.
+ * Do NOT initialize OneSignal here — a second init resets the SDK and drops
+ * the account link, which stops pushes from reaching the device.
+ */
 public class ApplicationClass extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-
-        // Enable verbose logging for debugging (remove in production)
-        OneSignal.getDebug().setLogLevel(LogLevel.VERBOSE);
-        // Initialize with your OneSignal App ID
-        OneSignal.initWithContext(this, "8cced195-0fd2-487f-9f10-2a8bc898ff4e");
-        // Use this method to prompt for push notifications.
-        // We recommend removing this method after testing and instead use In-App Messages to prompt for notification permission.
-        OneSignal.getNotifications().requestPermission(false, Continue.none());
-
     }
 }
