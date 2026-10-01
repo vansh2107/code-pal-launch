@@ -66,15 +66,17 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
         setCountry(data.country || "");
         setPhoneNumber(data.phoneNumber || "");
         
+        setDisplayName(data.displayName || data.display_name || "");
+        setPhoneNumber(data.phoneNumber || data.phone_number || "");
+        // Resolve avatar independently so a slow/failed request never blocks editing
         const avatarUrl = data.avatarUrl || data.avatar_url;
         if (avatarUrl) {
           if (avatarUrl.startsWith('http')) {
             setAvatarSignedUrl(avatarUrl);
           } else {
-            const signedUrl = await getSignedUrl('document-images', avatarUrl);
-            if (signedUrl) {
-              setAvatarSignedUrl(signedUrl);
-            }
+            getSignedUrl('document-images', avatarUrl)
+              .then((signedUrl) => { if (signedUrl) setAvatarSignedUrl(signedUrl); })
+              .catch((e) => console.warn("Avatar URL failed:", e));
           }
         }
       }
@@ -86,7 +88,7 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || saving) return;
     setSaving(true);
     
     try {

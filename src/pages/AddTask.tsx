@@ -26,7 +26,7 @@ export default function AddTask() {
   const navigate      = useNavigate();
   const { toast }     = useToast();
   const [loading,     setLoading]     = useState(false);
-  const [timezone,    setTimezone]    = useState('UTC');
+  const [timezone,    setTimezone]    = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   const [imageFile,   setImageFile]   = useState<File | null>(null);
   const [formData,    setFormData]    = useState(() => {
     const now = new Date();
@@ -41,7 +41,7 @@ export default function AddTask() {
       if (!uid) return;
       const snap = await getDoc(userProfileDoc(uid));
       const tz   = snap.data()?.timezone as string | undefined;
-      if (tz) setTimezone(tz);
+      if (tz) { try { Intl.DateTimeFormat(undefined, { timeZone: tz }); setTimezone(tz); } catch { /* invalid tz, keep device zone */ } }
     } catch (err) {
       console.error('[AddTask] fetchUserTimezone:', err);
     }
@@ -49,16 +49,17 @@ export default function AddTask() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     try {
       const uid = firebaseAuth.currentUser?.uid;
       if (!uid) throw new Error('Not authenticated');
 
       const [dateStr, timeStr] = formData.startTime.split('T');
-      const [hours, minutes]   = timeStr.split(':');
-      const [year, month, day] = dateStr.split('-').map(Number);
-      const localDateTime      = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes));
-      const utcTime            = fromZonedTime(localDateTime, timezone);
+      if (!dateStr || !timeStr) throw new Error('Please pick a valid date and time');
+      // Interpret the picked wall-clock time in the user's timezone (string form avoids browser-zone reinterpretation)
+      const utcTime            = fromZonedTime(`${dateStr}T${timeStr.slice(0, 5)}:00`, timezone);
+      if (isNaN(utcTime.getTime())) throw new Error('Please pick a valid date and time');
       const localDate          = dateStr;
 
       let imagePath: string | null = null;
