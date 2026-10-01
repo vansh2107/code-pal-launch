@@ -22,8 +22,6 @@ export const taskOverdueAlert = scheduler.onSchedule(
 
     const profilesSnap = await adminDb
       .collectionGroup('profile')
-      .where('pushNotificationsEnabled', '==', true)
-      .where('timezone', '!=', null)
       .get();
 
     let sent = 0;
@@ -31,8 +29,8 @@ export const taskOverdueAlert = scheduler.onSchedule(
     for (const profileDoc of profilesSnap.docs) {
       const profile = profileDoc.data();
       const userId: string   = profile.userId;
-      const timezone: string = profile.timezone;
-      if (!userId || !timezone) continue;
+      const timezone: string = profile.timezone || 'UTC';
+      if (!userId || profile.pushNotificationsEnabled === false) continue;
 
       const todayLocal = getDateInTimezone(timezone);
 

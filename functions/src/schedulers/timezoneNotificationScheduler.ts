@@ -24,7 +24,6 @@ export const timezoneNotificationScheduler = scheduler.onSchedule(
 
     const profilesSnap = await adminDb
       .collectionGroup('profile')
-      .where('timezone', '!=', null)
       .get();
 
     let sent = 0;
@@ -32,9 +31,9 @@ export const timezoneNotificationScheduler = scheduler.onSchedule(
     for (const profileDoc of profilesSnap.docs) {
       const profile = profileDoc.data();
       const userId: string   = profile.userId;
-      const timezone: string = profile.timezone;
-      const prefTime: string = profile.preferredNotificationTime;
-      if (!userId || !timezone || !prefTime) continue;
+      const timezone: string = profile.timezone || 'UTC';
+      const prefTime: string = profile.preferredNotificationTime || '09:00';
+      if (!userId) continue;
 
       if (!isTimeMatching(prefTime, timezone, 30)) continue;
 

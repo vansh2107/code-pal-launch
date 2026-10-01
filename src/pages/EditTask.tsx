@@ -32,8 +32,8 @@ export default function EditTask() {
   const { toast }   = useToast();
   const [loading,   setLoading]   = useState(false);
   const [deleting,  setDeleting]  = useState(false);
-  const [timezone,  setTimezone]  = useState('UTC');
-  const [taskTz,    setTaskTz]    = useState('UTC');
+  const [timezone,  setTimezone]  = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+  const [taskTz,    setTaskTz]    = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [existingImagePath, setExistingImagePath] = useState<string | null>(null);
   const [formData,  setFormData]  = useState({ title: '', description: '', startTime: '' });
@@ -47,9 +47,14 @@ export default function EditTask() {
     const uid = firebaseAuth.currentUser?.uid;
     if (!uid) return;
     try {
+      const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       const snap = await getDoc(userProfileDoc(uid));
       const tz = snap.data()?.timezone as string | undefined;
-      if (tz) setTimezone(tz);
+      if (tz && tz !== 'UTC') {
+        setTimezone(tz);
+      } else {
+        setTimezone(deviceTz);
+      }
     } catch (err) { console.error('[EditTask] fetchUserTimezone:', err); }
   };
 

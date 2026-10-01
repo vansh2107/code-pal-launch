@@ -31,7 +31,8 @@ export default function NotificationSettings() {
   const [expiryReminders,     setExpiryReminders]     = useState(true);
   const [renewalReminders,    setRenewalReminders]    = useState(true);
   const [weeklyDigest,        setWeeklyDigest]        = useState(false);
-  const [timezone,            setTimezone]            = useState("UTC");
+  const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const [timezone,            setTimezone]            = useState(deviceTimezone);
   const [notificationTime,    setNotificationTime]    = useState("09:00");
   const [pushStatus,          setPushStatus]          = useState<PushStatus | null>(null);
   const [deviceBusy,          setDeviceBusy]          = useState(false);
@@ -57,7 +58,8 @@ export default function NotificationSettings() {
         setExpiryReminders(    (data.expiryRemindersEnabled     as boolean) ?? true);
         setRenewalReminders(   (data.renewalRemindersEnabled    as boolean) ?? true);
         setWeeklyDigest(       (data.weeklyDigestEnabled        as boolean) ?? false);
-        setTimezone(           (data.timezone                   as string)  ?? "UTC");
+        const storedTz = data.timezone as string | undefined;
+        setTimezone(storedTz && storedTz !== 'UTC' ? storedTz : deviceTimezone);
         const prefTime = data.preferredNotificationTime as string | undefined;
         setNotificationTime(prefTime ? prefTime.substring(0, 5) : "09:00");
       }

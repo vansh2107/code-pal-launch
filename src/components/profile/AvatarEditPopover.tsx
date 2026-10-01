@@ -25,22 +25,22 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
 
   const validateAndUploadFile = async (file: File | Blob, fileName?: string) => {
     // Validate file type
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
-    if (!validTypes.includes(file.type)) {
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (file.type && !validTypes.includes(file.type)) {
       toast({
         title: "Invalid file type",
-        description: "Please select a JPG or PNG image",
+        description: "Please select a JPG, PNG, or WEBP image",
         variant: "destructive",
       });
       return;
     }
 
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024;
+    // Validate file size (max 2MB to match storage rules)
+    const maxSize = 2 * 1024 * 1024;
     if (file.size > maxSize) {
       toast({
         title: "File too large",
-        description: "Please select an image under 5MB",
+        description: "Please select an image under 2MB",
         variant: "destructive",
       });
       return;
@@ -53,16 +53,10 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
       // Auto-crop the image to remove background edges
       const croppedFile = await autoCropImage(file, { tolerance: 30, minCropPercent: 5 });
 
-      // Create preview from cropped image
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setPreview(event.target?.result as string);
-      };
-      reader.readAsDataURL(croppedFile);
-
-      // Determine file extension
+      // Determine file MIME type and extension
+      const fileMime = croppedFile.type || file.type || 'image/jpeg';
       const ext = fileName?.split('.').pop()?.toLowerCase() || 
-                  file.type.split('/')[1] || 'jpg';
+                  fileMime.split('/')[1] || 'jpg';
       const storagePath = `avatars/${userId}/profile.${ext}`;
 
       // Remove old avatar if exists in storage
@@ -74,11 +68,18 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
       }
 
       const storageRef = ref(firebaseStorage, storagePath);
-      await uploadBytes(storageRef, croppedFile);
+      await uploadBytes(storageRef, croppedFile, { contentType: fileMime });
 
       // Update profile in Firestore: users/{userId}/profile/data
       const profileRef = doc(firebaseDb, "users", userId, "profile", "data");
       await setDoc(profileRef, { avatarUrl: storagePath }, { merge: true });
+
+      // Create local preview from cropped image
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setPreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(croppedFile);
 
       toast({
         title: "Profile photo updated",
@@ -163,6 +164,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
+            type="button"
             disabled={uploading}
             className={`relative ${sizeClasses} rounded-full overflow-hidden bg-primary/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all group`}
             aria-label="Edit profile photo"
@@ -199,6 +201,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
           sideOffset={8}
         >
           <button
+            type="button"
             onClick={handleUploadClick}
             className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
           >
@@ -206,6 +209,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
             Upload Photo
           </button>
           <button
+            type="button"
             onClick={handleCameraClick}
             className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
           >
@@ -219,7 +223,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/png"
+        accept="image/jpeg,image/jpg,image/png,image/webp"
         onChange={handleFileSelect}
         className="hidden"
       />

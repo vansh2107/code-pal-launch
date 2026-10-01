@@ -120,11 +120,14 @@ export default function Profile() {
       <div className="w-full flex flex-col">
         <header className="bg-card border-b border-border/50 -mx-4 md:-mx-6 px-4 md:px-6 py-4 sticky top-0 z-10">
           <div className="w-full flex items-center gap-3">
-            <div className="relative shrink-0 w-14 h-14 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-              {avatarSignedUrl
-                ? <img src={avatarSignedUrl} alt="Profile" className="w-full h-full object-cover" />
-                : <User className="h-7 w-7 text-primary" />}
-            </div>
+            {user && (
+              <AvatarEditPopover
+                userId={user.uid}
+                avatarUrl={avatarSignedUrl}
+                onAvatarUpdate={fetchProfile}
+                size="sm"
+              />
+            )}
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-semibold text-foreground truncate">
                 {profile?.display_name ?? user?.email?.split('@')[0] ?? 'User'}

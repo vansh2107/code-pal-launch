@@ -113,7 +113,13 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 
+import { setPersistence, browserLocalPersistence } from 'firebase/auth';
+
 export const firebaseAuth: Auth                = getAuth(firebaseApp);
+setPersistence(firebaseAuth, browserLocalPersistence).catch((err) => {
+  console.warn('[Firebase] Failed to set auth persistence:', err);
+});
+
 export const firebaseDb: Firestore             = initializeFirestore(firebaseApp, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager(),

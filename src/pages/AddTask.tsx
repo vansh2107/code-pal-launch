@@ -19,7 +19,7 @@ import { clearTasksCache } from '@/hooks/useTasksData';
 import { collection, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes } from 'firebase/storage';
 import { firebaseDb, firebaseStorage, firebaseAuth } from '@/integrations/firebase/client';
-import { getDoc } from 'firebase/firestore';
+import { getDoc, setDoc } from 'firebase/firestore';
 import { userProfileDoc } from '@/integrations/firebase/firestore';
 
 export default function AddTask() {
@@ -39,9 +39,17 @@ export default function AddTask() {
     try {
       const uid = firebaseAuth.currentUser?.uid;
       if (!uid) return;
-      const snap = await getDoc(userProfileDoc(uid));
+      const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const profileRef = userProfileDoc(uid);
+      const snap = await getDoc(profileRef);
       const tz   = snap.data()?.timezone as string | undefined;
-      if (tz) { try { Intl.DateTimeFormat(undefined, { timeZone: tz }); setTimezone(tz); } catch { /* invalid tz, keep device zone */ } }
+      if (tz && tz !== 'UTC') {
+        try { Intl.DateTimeFormat(undefined, { timeZone: tz }); setTimezone(tz); }
+        catch { setTimezone(deviceTz); }
+      } else {
+        setTimezone(deviceTz);
+        await setDoc(profileRef, { timezone: deviceTz }, { merge: true }).catch(() => {});
+      }
     } catch (err) {
       console.error('[AddTask] fetchUserTimezone:', err);
     }

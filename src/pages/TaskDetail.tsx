@@ -33,7 +33,8 @@ export default function TaskDetail() {
   const [task,     setTask]     = useState<Record<string, unknown> | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [imageUrl, setImageUrl] = useState('');
-  const [timezone, setTimezone] = useState('UTC');
+  const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const [timezone, setTimezone] = useState(deviceTimezone);
 
   useEffect(() => { if (id) fetchAll(); }, [id]);
 
@@ -46,7 +47,10 @@ export default function TaskDetail() {
         getDoc(userProfileDoc(uid)),
       ]);
 
-      if (profileSnap.exists()) setTimezone((profileSnap.data().timezone as string) ?? 'UTC');
+      if (profileSnap.exists()) {
+        const storedTz = profileSnap.data().timezone as string | undefined;
+        setTimezone(storedTz && storedTz !== 'UTC' ? storedTz : deviceTimezone);
+      }
 
       if (!taskSnap.exists()) {
         toast({ title: 'Task not found', variant: 'destructive' });

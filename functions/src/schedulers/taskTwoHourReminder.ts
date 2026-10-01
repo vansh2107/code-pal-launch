@@ -24,8 +24,6 @@ export const taskTwoHourReminder = scheduler.onSchedule(
 
     const profilesSnap = await adminDb
       .collectionGroup('profile')
-      .where('pushNotificationsEnabled', '==', true)
-      .where('timezone', '!=', null)
       .get();
 
     const now = Date.now();
@@ -34,8 +32,8 @@ export const taskTwoHourReminder = scheduler.onSchedule(
     for (const profileDoc of profilesSnap.docs) {
       const profile = profileDoc.data();
       const userId: string   = profile.userId;
-      const timezone: string = profile.timezone;
-      if (!userId || !timezone) continue;
+      const timezone: string = profile.timezone || 'UTC';
+      if (!userId || profile.pushNotificationsEnabled === false) continue;
 
       // Eligibility is based on UTC instants, not the local calendar date, so
       // overdue / carried-forward / midnight-crossing tasks are not dropped.

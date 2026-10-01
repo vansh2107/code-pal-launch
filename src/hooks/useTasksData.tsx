@@ -243,9 +243,10 @@ export function useTasksData() {
       }
 
       // Fetch profile for timezone
-      const profileSnap = await getDoc(userProfileDoc(uid));
-      const timezone     = (profileSnap.data()?.timezone as string | undefined) ?? 'UTC';
-      const today        = getTodayInTimezone(timezone);
+      const deviceTz    = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const storedTz    = profileSnap.data()?.timezone as string | undefined;
+      const timezone    = (storedTz && storedTz !== 'UTC') ? storedTz : deviceTz;
+      const today       = getTodayInTimezone(timezone);
 
       if (isMounted.current) setState((prev) => ({ ...prev, userTimezone: timezone }));
 

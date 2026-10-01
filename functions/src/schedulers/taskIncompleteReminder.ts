@@ -22,8 +22,6 @@ export const taskIncompleteReminder = scheduler.onSchedule(
 
     const profilesSnap = await adminDb
       .collectionGroup('profile')
-      .where('pushNotificationsEnabled', '==', true)
-      .where('timezone', '!=', null)
       .get();
 
     let sent = 0;
@@ -31,9 +29,9 @@ export const taskIncompleteReminder = scheduler.onSchedule(
     for (const profileDoc of profilesSnap.docs) {
       const profile = profileDoc.data();
       const userId: string   = profile.userId;
-      const timezone: string = profile.timezone;
-      const prefTime: string = profile.preferredNotificationTime;
-      if (!userId || !timezone || !prefTime) continue;
+      const timezone: string = profile.timezone || 'UTC';
+      const prefTime: string = profile.preferredNotificationTime || '09:00';
+      if (!userId || profile.pushNotificationsEnabled === false) continue;
 
       if (!isTimeMatching(prefTime, timezone, 30)) continue;
 

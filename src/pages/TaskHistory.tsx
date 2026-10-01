@@ -40,7 +40,7 @@ export default function TaskHistory() {
   const { toast }     = useToast();
   const [tasks,       setTasks]       = useState<Task[]>([]);
   const [loading,     setLoading]     = useState(true);
-  const [userTimezone, setUserTimezone] = useState('UTC');
+  const [userTimezone, setUserTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
 
   useEffect(() => {
     fetchUserTimezone();
@@ -51,9 +51,11 @@ export default function TaskHistory() {
     const uid = firebaseAuth.currentUser?.uid;
     if (!uid) return;
     try {
+      const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       const snap = await getDoc(userProfileDoc(uid));
       const tz   = snap.data()?.timezone as string | undefined;
-      if (tz) setUserTimezone(tz);
+      if (tz && tz !== 'UTC') setUserTimezone(tz);
+      else setUserTimezone(deviceTz);
     } catch (err) { console.error('[TaskHistory] fetchUserTimezone:', err); }
   };
 
