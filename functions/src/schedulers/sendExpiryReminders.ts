@@ -52,6 +52,18 @@ export const sendExpiryReminders = scheduler.onSchedule(
       for (const reminderDoc of remindersSnap.docs) {
         const reminder = reminderDoc.data();
 
+        // Atomic claim prevents duplicates from overlapping/retried runs.
+        const nowMs = Date.now();
+        const claimed = await adminDb.runTransaction(async (tx) => {
+          const fresh = (await tx.get(reminderDoc.ref)).data();
+          if (!fresh || fresh.isSent) return false;
+          const c = fresh.sendClaimAt ? Date.parse(fresh.sendClaimAt) : NaN;
+          if (Number.isFinite(c) && nowMs - c < 10 * 60 * 1000) return false;
+          tx.update(reminderDoc.ref, { sendClaimAt: new Date(nowMs).toISOString() });
+          return true;
+        });
+        if (!claimed) continue;
+
         const docSnap = await adminDb
           .collection('users').doc(userId)
           .collection('documents').doc(reminder.documentId).get();
@@ -61,8 +73,13 @@ export const sendExpiryReminders = scheduler.onSchedule(
 
         const notif = getFunnyNotification('document_expiring');
 
-        if (profile.pushNotificationsEnabled) {
-          await sendOneSignalNotification({
+        let pushOk = false;
+        let emailOk = false;
+        const wantPush = !!profile.pushNotificationsEnabled;
+        const wantEmail = profile.emailNotificationsEnabled !== false && !!profile.email;
+
+        if (wantPush) {
+          pushOk = await sendOneSignalNotification({
             userId,
             title:   notif.title,
             message: `${docName} expires ${expiryDate}`,
@@ -76,8 +93,8 @@ export const sendExpiryReminders = scheduler.onSchedule(
           });
         }
 
-        if (profile.emailNotificationsEnabled !== false && profile.email) {
-          await sendEmail({
+        if (wantEmail) {
+          emailOk = await sendEmail({
             to:      profile.email as string,
             subject: `📄 Expiry reminder: ${docName}`,
             html: `
@@ -89,8 +106,14 @@ export const sendExpiryReminders = scheduler.onSchedule(
           });
         }
 
-        await reminderDoc.ref.update({ isSent: true });
-        sent++;
+        // Mark sent only if at least one requested channel was accepted; otherwise release for retry.
+        if (pushOk || emailOk || (!wantPush && !wantEmail)) {
+          await reminderDoc.ref.update({ isSent: true, sendClaimAt: null, sentAt: new Date().toISOString() });
+          sent++;
+        } else {
+          await reminderDoc.ref.update({ sendClaimAt: null });
+          logger.warn(`[sendExpiryReminders] Delivery failed for reminder ${reminderDoc.id}; will retry`);
+        }
       }
     }
 
