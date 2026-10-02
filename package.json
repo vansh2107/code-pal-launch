@@ -59,6 +59,7 @@
     "date-fns-tz": "^3.2.0",
     "embla-carousel-react": "^8.6.0",
     "firebase": "11.10.0",
+    "firebase-functions": "^7.4.0",
     "framer-motion": "^12.39.0",
     "idb": "8.0.1",
     "input-otp": "^1.4.2",
