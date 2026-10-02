@@ -10,8 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
+import { formatInTimeZone } from 'date-fns-tz';
 import { formatDuration } from '@/utils/taskDuration';
 import { BottomNavigation } from '@/components/layout/BottomNavigation';
 import { getSignedUrl } from '@/utils/signedUrl';
@@ -20,6 +19,7 @@ import { ref, deleteObject } from 'firebase/storage';
 import { firebaseDb, firebaseStorage, firebaseAuth } from '@/integrations/firebase/client';
 import { userProfileDoc } from '@/integrations/firebase/firestore';
 import { clearTasksCache } from '@/hooks/useTasksData';
+import { deleteOfflineTask } from '@/utils/offlineStorage';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
@@ -90,21 +90,23 @@ export default function TaskDetail() {
   const handleDelete = async () => {
     const uid = firebaseAuth.currentUser?.uid;
     if (!uid || !id) return;
-    toast({ title: 'Task deleted', description: 'Your task has been removed.' });
-    clearTasksCache();
-    navigate('/tasks');
     try {
+      await deleteOfflineTask(id);
       if (task?.image_path) {
         try { await deleteObject(ref(firebaseStorage, task.image_path as string)); } catch { /* ok */ }
       }
       await deleteDoc(doc(firebaseDb, `users/${uid}/tasks/${id}`));
     } catch (err) {
       console.error('[TaskDetail] delete error:', err);
+    } finally {
+      clearTasksCache();
+      toast({ title: 'Task deleted', description: 'Your task has been removed.' });
+      navigate('/tasks');
     }
   };
 
   const formatTimeInTimezone = (utcTime: string) =>
-    format(toZonedTime(new Date(utcTime), timezone), 'h:mm a');
+    formatInTimeZone(new Date(utcTime), timezone || 'UTC', 'h:mm a');
 
   if (loading || !task) {
     return (

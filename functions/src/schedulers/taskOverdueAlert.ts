@@ -28,7 +28,7 @@ export const taskOverdueAlert = scheduler.onSchedule(
 
     for (const profileDoc of profilesSnap.docs) {
       const profile = profileDoc.data();
-      const userId: string   = profile.userId;
+      const userId: string = profile.userId || profileDoc.ref.parent?.parent?.id || '';
       const timezone: string = profile.timezone || 'UTC';
       if (!userId || profile.pushNotificationsEnabled === false) continue;
 

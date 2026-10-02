@@ -12,8 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
-import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { formatInTimeZone } from 'date-fns-tz';
+import { parseLocalInputToUtc } from '@/utils/dateUtils';
+import { deleteOfflineTask } from '@/utils/offlineStorage';
 import { BottomNavigation } from '@/components/layout/BottomNavigation';
 import { clearTasksCache } from '@/hooks/useTasksData';
 import { getDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -69,10 +70,9 @@ export default function EditTask() {
         return;
       }
       const data = snap.data();
-      const tz   = (data.timezone as string | undefined) ?? 'UTC';
+      const tz   = (data.timezone as string | undefined) ?? timezone;
       setTaskTz(tz);
-      const local    = toZonedTime(new Date(data.startTime as string), tz);
-      const formatted = format(local, "yyyy-MM-dd'T'HH:mm");
+      const formatted = formatInTimeZone(new Date(data.startTime as string), tz || 'UTC', "yyyy-MM-dd'T'HH:mm");
       setFormData({ title: data.title as string, description: (data.description as string) ?? '', startTime: formatted });
       setExistingImagePath((data.imagePath as string | null) ?? null);
     } catch (err: unknown) {
@@ -91,12 +91,9 @@ export default function EditTask() {
       const taskSnap = await getDoc(taskRef);
       const current  = taskSnap.data();
 
-      const [dateStr, timeStr] = formData.startTime.split('T');
-      const [hours, minutes]   = timeStr.split(':');
-      const [year, month, day] = dateStr.split('-').map(Number);
-      const localDateTime      = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes));
-      const utcTime            = fromZonedTime(localDateTime, timezone);
-      const localDate          = dateStr;
+      const [dateStr]   = formData.startTime.split('T');
+      const utcTime     = parseLocalInputToUtc(formData.startTime, timezone);
+      const localDate   = dateStr;
 
       const startTimeChanged   = current && current.startTime !== utcTime.toISOString();
       const newTimeInFuture    = utcTime.getTime() > Date.now();
@@ -149,6 +146,7 @@ export default function EditTask() {
     const uid = firebaseAuth.currentUser?.uid;
     if (!uid || !id) { setDeleting(false); return; }
     try {
+      await deleteOfflineTask(id);
       if (existingImagePath) {
         try { await deleteObject(ref(firebaseStorage, existingImagePath)); } catch { /* ok */ }
       }

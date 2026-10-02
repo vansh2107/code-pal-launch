@@ -7,8 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Clock, CheckCircle2, Image as ImageIcon, Loader2 } from "lucide-react";
-import { format } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { formatInTimeZone } from "date-fns-tz";
 import { firebaseAuth, firebaseDb, firebaseStorage } from "@/integrations/firebase/client";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
@@ -61,8 +60,7 @@ function OptimizedTaskCardComponent({
   const [completionImage, setCompletionImage] = useState<File | null>(null);
 
   // Pre-compute display values
-  const startTimeLocal = toZonedTime(new Date(task.start_time), userTimezone);
-  const displayStartTime = format(startTimeLocal, "h:mm a");
+  const displayStartTime = formatInTimeZone(new Date(task.start_time), userTimezone || "UTC", "h:mm a");
 
   const handleComplete = useCallback(async () => {
     try {

@@ -30,7 +30,7 @@ export const timezoneNotificationScheduler = scheduler.onSchedule(
 
     for (const profileDoc of profilesSnap.docs) {
       const profile = profileDoc.data();
-      const userId: string   = profile.userId;
+      const userId: string = profile.userId || profileDoc.ref.parent?.parent?.id || '';
       const timezone: string = profile.timezone || 'UTC';
       const prefTime: string = profile.preferredNotificationTime || '09:00';
       if (!userId) continue;

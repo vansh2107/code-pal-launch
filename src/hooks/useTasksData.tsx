@@ -244,6 +244,7 @@ export function useTasksData() {
 
       // Fetch profile for timezone
       const deviceTz    = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const profileSnap = await getDoc(userProfileDoc(uid));
       const storedTz    = profileSnap.data()?.timezone as string | undefined;
       const timezone    = (storedTz && storedTz !== 'UTC') ? storedTz : deviceTz;
       const today       = getTodayInTimezone(timezone);

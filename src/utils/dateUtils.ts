@@ -3,8 +3,8 @@
  * All date/time conversions should use these functions.
  */
 
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
-import { format, addHours, addMinutes, differenceInMinutes } from "date-fns";
+import { toZonedTime, fromZonedTime, formatInTimeZone } from "date-fns-tz";
+import { addHours, addMinutes, differenceInMinutes } from "date-fns";
 
 /**
  * Convert UTC timestamp to user's local timezone
@@ -29,8 +29,9 @@ export function formatInTimezone(
   timezone: string,
   formatStr: string = "yyyy-MM-dd HH:mm"
 ): string {
-  const localDate = convertUtcToLocal(date, timezone);
-  return format(localDate, formatStr);
+  if (!date) return "";
+  const d = typeof date === "string" ? new Date(date) : date;
+  return formatInTimeZone(d, timezone || "UTC", formatStr);
 }
 
 /**
@@ -74,7 +75,7 @@ export function parseLocalInputToUtc(
   const cleanTime = timeStr ? timeStr.trim().slice(0, 5) : "00:00";
   
   // Directly interpret ISO wall-clock string in the given user timezone
-  return fromZonedTime(`${cleanDate}T${cleanTime}:00`, timezone);
+  return fromZonedTime(`${cleanDate}T${cleanTime}:00`, timezone || "UTC");
 }
 
 /**
@@ -84,8 +85,9 @@ export function formatUtcForLocalInput(
   utcDate: Date | string,
   timezone: string
 ): string {
-  const localDate = convertUtcToLocal(utcDate, timezone);
-  return format(localDate, "yyyy-MM-dd'T'HH:mm");
+  if (!utcDate) return "";
+  const d = typeof utcDate === "string" ? new Date(utcDate) : utcDate;
+  return formatInTimeZone(d, timezone || "UTC", "yyyy-MM-dd'T'HH:mm");
 }
 
 /**

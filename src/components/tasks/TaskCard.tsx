@@ -4,15 +4,14 @@ import { Clock, CheckCircle2, Image as ImageIcon, Sparkles } from "lucide-react"
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { format } from "date-fns";
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { formatInTimeZone } from "date-fns-tz";
 import { firebaseAuth, firebaseDb, firebaseStorage } from "@/integrations/firebase/client";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import { AIRecommendations } from "./AIRecommendations";
 import { calculateTaskDuration, formatDuration } from "@/utils/taskDuration";
-import { parseLocalInputToUtc } from "@/utils/dateUtils";
+import { parseLocalInputToUtc, formatUtcForLocalInput } from "@/utils/dateUtils";
 import {
   Dialog,
   DialogContent,
@@ -50,22 +49,17 @@ const TaskCardComponent = ({ task, statusInfo, funnyMessage, onRefresh, userTime
   const { toast } = useToast();
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [completionTime, setCompletionTime] = useState(() => {
-    const now = new Date();
-    const zoned = toZonedTime(now, userTimezone);
-    return format(zoned, "yyyy-MM-dd'T'HH:mm");
+    return formatUtcForLocalInput(new Date(), userTimezone);
   });
 
   const maxCompletionTime = (() => {
-    const now = new Date();
-    const zoned = toZonedTime(now, userTimezone);
-    return format(zoned, "yyyy-MM-dd'T'HH:mm");
+    return formatUtcForLocalInput(new Date(), userTimezone);
   })();
   const [uploadingImage, setUploadingImage] = useState(false);
   const [completionImage, setCompletionImage] = useState<File | null>(null);
 
-  // Convert UTC start time to user's timezone for display
-  const startTimeInUserTz = toZonedTime(new Date(task.start_time), userTimezone);
-  const displayStartTime = format(startTimeInUserTz, "h:mm a");
+  // Format UTC start time directly in user's timezone
+  const displayStartTime = formatInTimeZone(new Date(task.start_time), userTimezone || "UTC", "h:mm a");
 
   const handleComplete = async () => {
     try {
