@@ -17,7 +17,7 @@ import { InternationalPhoneInput } from "@/components/ui/international-phone-inp
 import { getCountryCode } from "@/utils/countryMapping";
 import { TwoFactorAuth } from "./TwoFactorAuth";
 import { AvatarEditPopover } from "./AvatarEditPopover";
-import { getSignedUrl } from "@/utils/signedUrl";
+import { getAvatarImageUrl } from "@/utils/signedUrl";
 import { DeleteAccountDialog } from "./DeleteAccountDialog";
 
 interface EditProfileSheetProps {
@@ -71,13 +71,9 @@ export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) 
         // Resolve avatar independently so a slow/failed request never blocks editing
         const avatarUrl = data.avatarUrl || data.avatar_url;
         if (avatarUrl) {
-          if (avatarUrl.startsWith('http')) {
-            setAvatarSignedUrl(avatarUrl);
-          } else {
-            getSignedUrl('document-images', avatarUrl)
-              .then((signedUrl) => { if (signedUrl) setAvatarSignedUrl(signedUrl); })
-              .catch((e) => console.warn("Avatar URL failed:", e));
-          }
+          getAvatarImageUrl(avatarUrl)
+            .then((url) => { if (url) setAvatarSignedUrl(url); })
+            .catch((e) => console.warn("Avatar URL failed:", e));
         }
       }
     } catch (error) {

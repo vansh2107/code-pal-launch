@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { FeedbackDialog } from '@/components/feedback/FeedbackDialog';
 import { exportToCSV, exportToJSON } from '@/utils/exportData';
-import { getSignedUrl } from '@/utils/signedUrl';
+import { getAvatarImageUrl } from '@/utils/signedUrl';
 import { AvatarEditPopover } from '@/components/profile/AvatarEditPopover';
 import { EditProfileSheet } from '@/components/profile/EditProfileSheet';
 import { AppearanceSettings } from '@/components/theme/AppearanceSettings';
@@ -72,12 +72,8 @@ export default function Profile() {
         };
         setProfile(p);
         if (p.avatar_url) {
-          if (p.avatar_url.startsWith('http')) {
-            setAvatarSignedUrl(p.avatar_url);
-          } else {
-            const url = await getSignedUrl('document-images', p.avatar_url);
-            if (url) setAvatarSignedUrl(url);
-          }
+          const url = await getAvatarImageUrl(p.avatar_url);
+          setAvatarSignedUrl(url);
         } else {
           setAvatarSignedUrl(null);
         }

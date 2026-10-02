@@ -139,9 +139,21 @@ export function invalidateSignedUrl(bucket: string, path: string): void {
   signedUrlCache.delete(`${bucket}:${path}`);
 }
 
-// ---------------------------------------------------------------------------
-// Convenience wrappers (unchanged API)
-// ---------------------------------------------------------------------------
+import { getDownloadURL, ref } from 'firebase/storage';
+import { firebaseStorage } from '@/integrations/firebase/client';
+
+export async function getAvatarImageUrl(avatarPath: string | null): Promise<string | null> {
+  if (!avatarPath) return null;
+  if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://') || avatarPath.startsWith('data:')) {
+    return avatarPath;
+  }
+  try {
+    const storageRef = ref(firebaseStorage, avatarPath);
+    return await getDownloadURL(storageRef);
+  } catch (err) {
+    return getSignedUrl('avatars', avatarPath);
+  }
+}
 
 export async function getDocumentImageUrl(imagePath: string | null): Promise<string | null> {
   if (!imagePath) return null;

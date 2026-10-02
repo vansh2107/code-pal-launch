@@ -51,21 +51,30 @@ export function getCurrentLocalTimeString(
 }
 
 /**
- * Parse datetime-local input (YYYY-MM-DDTHH:mm) and convert to UTC
+ * Parse datetime-local input (YYYY-MM-DDTHH:mm or YYYY-MM-DD + HH:mm) and convert to UTC
  */
 export function parseLocalInputToUtc(
   datetimeLocalInput: string,
   timezone: string
 ): Date {
-  const [dateStr, timeStr] = datetimeLocalInput.split("T");
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const [hours, minutes] = timeStr.split(":").map(Number);
+  if (!datetimeLocalInput) return new Date();
+  let dateStr = "";
+  let timeStr = "";
+
+  if (datetimeLocalInput.includes("T")) {
+    [dateStr, timeStr] = datetimeLocalInput.split("T");
+  } else if (datetimeLocalInput.includes(" ")) {
+    [dateStr, timeStr] = datetimeLocalInput.split(" ");
+  } else {
+    dateStr = datetimeLocalInput;
+    timeStr = "00:00";
+  }
+
+  const cleanDate = dateStr.trim();
+  const cleanTime = timeStr ? timeStr.trim().slice(0, 5) : "00:00";
   
-  // Create date in user's local timezone
-  const localDateTime = new Date(year, month - 1, day, hours, minutes);
-  
-  // Convert to UTC
-  return convertLocalToUtc(localDateTime, timezone);
+  // Directly interpret ISO wall-clock string in the given user timezone
+  return fromZonedTime(`${cleanDate}T${cleanTime}:00`, timezone);
 }
 
 /**

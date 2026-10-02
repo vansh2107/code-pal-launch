@@ -12,6 +12,7 @@ import { ref, uploadBytes } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import { AIRecommendations } from "./AIRecommendations";
 import { calculateTaskDuration, formatDuration } from "@/utils/taskDuration";
+import { parseLocalInputToUtc } from "@/utils/dateUtils";
 import {
   Dialog,
   DialogContent,
@@ -68,14 +69,9 @@ const TaskCardComponent = ({ task, statusInfo, funnyMessage, onRefresh, userTime
 
   const handleComplete = async () => {
     try {
-      // Parse the datetime-local input and convert from user's timezone to UTC
-      const [dateStr, timeStr] = completionTime.split("T");
-      const [hours, minutes] = timeStr.split(":");
-      const [year, month, day] = dateStr.split("-").map(Number);
-      const localDateTime = new Date(year, month - 1, day, parseInt(hours), parseInt(minutes));
-      
-      // Convert from user's local timezone to UTC for storage
-      const completionUtc = fromZonedTime(localDateTime, userTimezone).toISOString();
+      // Parse datetime-local input and convert from user's timezone to UTC
+      const completionUtcDate = parseLocalInputToUtc(completionTime, userTimezone);
+      const completionUtc = completionUtcDate.toISOString();
 
       // Calculate duration using UTC timestamps
       const durationMinutes = calculateTaskDuration(

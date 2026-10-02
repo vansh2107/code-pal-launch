@@ -14,6 +14,7 @@ import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 import { LazyAIRecommendations } from "./LazyAIRecommendations";
+import { parseLocalInputToUtc } from "@/utils/dateUtils";
 
 interface Task {
   id: string;
@@ -82,7 +83,7 @@ function OptimizedTaskCardComponent({
 
       const now = new Date();
       const endTime = completionTime
-        ? new Date(`${task.task_date}T${completionTime}`)
+        ? parseLocalInputToUtc(`${task.task_date}T${completionTime}`, userTimezone)
         : now;
 
       const startTime = new Date(task.start_time);

@@ -1,4 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
+import { firebaseAuth } from "@/integrations/firebase/client";
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 
@@ -17,15 +18,17 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return () => clearTimeout(timer);
   }, [loading]);
 
-  if (loading && !showAnyway) {
+  const activeUser = user || firebaseAuth.currentUser;
+
+  if ((loading || (!user && firebaseAuth.currentUser)) && !showAnyway) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  if (!user) {
+  if (!activeUser) {
     return <Navigate to="/auth" replace />;
   }
 
