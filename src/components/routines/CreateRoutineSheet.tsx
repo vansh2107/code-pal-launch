@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { Plus, Trash2, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, Clock, ChevronDown } from "lucide-react";
 
 const ROUTINE_PRESETS = [
   { icon: "☀️", name: "Morning Routine" },
@@ -210,18 +210,6 @@ export function CreateRoutineSheet({
 
           {/* Add task section */}
           <div className="space-y-2">
-            <button
-              onClick={() => setShowAddTask(!showAddTask)}
-              className="flex items-center gap-2 text-sm font-semibold text-primary"
-            >
-              {showAddTask ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              {showAddTask ? "Cancel adding task" : "Add a task"}
-            </button>
-
             {showAddTask && (
               <div className="bg-muted/30 rounded-2xl p-4 border border-border/50 space-y-4">
                 <div className="space-y-1.5">
