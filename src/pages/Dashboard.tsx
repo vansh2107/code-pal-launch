@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { FileText, Camera, Bell, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { getSignedUrl } from '@/utils/signedUrl';
+import { getAvatarImageUrl } from '@/utils/signedUrl';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DocumentStats } from '@/components/dashboard/DocumentStats';
@@ -93,13 +93,7 @@ export default function Dashboard() {
     try {
       const snap = await getDoc(userProfileDoc(user.uid));
       const avatarPath = snap.data()?.avatarUrl as string | null | undefined;
-      if (!avatarPath) return;
-      if (avatarPath.startsWith('http')) {
-        setAvatarUrl(avatarPath);
-      } else {
-        const signed = await getSignedUrl('document-images', avatarPath);
-        if (signed) setAvatarUrl(signed);
-      }
+      setAvatarUrl(await getAvatarImageUrl(avatarPath ?? null));
     } catch (err) { console.error('[Dashboard] fetchAvatar:', err); }
   };
 
