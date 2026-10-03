@@ -29,6 +29,7 @@ const BACKGROUND_GRACE_MS = 30_000;
 
 // ── In-memory state (reset on every cold boot / sign-out) ──────────────────
 let _unlocked = false;
+let _pausedUntil = 0;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -36,13 +37,22 @@ function isNative(): boolean {
   return Capacitor.isNativePlatform();
 }
 
-/** Persist the timestamp of the last successful auth. */
-function stampLastAuth(): void {
+/** Persist the timestamp of the last successful auth or user activity. */
+export function stampLastAuth(): void {
   try {
     localStorage.setItem(LAST_AUTH_KEY, String(Date.now()));
   } catch {
     /* storage unavailable — not fatal */
   }
+}
+
+/**
+ * Pause app lock temporarily (e.g. while opening native camera, photo gallery,
+ * or system file choosers) so returning from background does not lock the screen.
+ */
+export function pauseAppLock(durationMs = 60000): void {
+  _pausedUntil = Date.now() + durationMs;
+  stampLastAuth();
 }
 
 /** Return true if the last auth was recent enough that we should skip re-prompting. */
@@ -81,6 +91,7 @@ export function isUnlocked(): boolean {
  */
 export function shouldLockOnResume(): boolean {
   if (!isNative()) return false;
+  if (Date.now() < _pausedUntil) return false;
   if (!_unlocked) return true; // already locked
   // If the user returns from background quickly we don't re-lock
   return !withinGracePeriod();

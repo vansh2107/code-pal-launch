@@ -20,8 +20,11 @@ import {
   writeBatch,
   getDocs,
   doc,
+  getDoc,
+  setDoc,
 } from 'firebase/firestore';
 import { firebaseAuth, firebaseDb, firebaseFunctions } from '@/integrations/firebase/client';
+import { userProfileDoc } from '@/integrations/firebase/firestore';
 import { onAuthChange, signOut as fbSignOut, getIdToken } from '@/integrations/firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { Capacitor } from '@capacitor/core';
@@ -73,6 +76,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Get and cache the ID token as the "session"
         const token = await getIdToken();
         setSession(token);
+
+        // Ensure user's device local timezone is saved in profile
+        try {
+          const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+          const pRef = userProfileDoc(firebaseUser.uid);
+          const pSnap = await getDoc(pRef);
+          if (pSnap.exists()) {
+            const data = pSnap.data();
+            if (!data?.timezone || data?.timezone === 'UTC' || data?.pushNotificationsEnabled !== true) {
+              await setDoc(pRef, {
+                timezone: data?.timezone && data?.timezone !== 'UTC' ? data.timezone : deviceTz,
+                pushNotificationsEnabled: true,
+              }, { merge: true });
+            }
+          } else {
+            await setDoc(pRef, {
+              userId: firebaseUser.uid,
+              email: firebaseUser.email ?? null,
+              displayName: firebaseUser.displayName ?? null,
+              timezone: deviceTz,
+              pushNotificationsEnabled: true,
+              emailNotificationsEnabled: true,
+            }, { merge: true });
+          }
+        } catch (tzErr) {
+          console.warn('[AuthProvider] Timezone sync warning:', tzErr);
+        }
 
         // Register OneSignal on native platforms (deferred, non-blocking)
         if (Capacitor.isNativePlatform()) {

@@ -123,53 +123,55 @@ export function AppLockGate({ children }: Props) {
     }
   }, [isExcludedRoute]);
 
-  // Web or already unlocked
-  if (!isAppLockEnabled() || lockState === "unlocked" || isExcludedRoute) {
+  // Web or excluded route
+  if (!isAppLockEnabled() || isExcludedRoute) {
     return <>{children}</>;
   }
 
   // ── Lock screen overlay ───────────────────────────────────────────────────
   return (
     <>
-      {/* Children intentionally NOT rendered while locked */}
-      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background gap-6 px-6">
-        {/* Branding */}
-        <div className="flex flex-col items-center gap-3 mb-4">
-          <div className="h-20 w-20 rounded-3xl bg-primary/10 flex items-center justify-center">
-            <LockKeyhole className="h-10 w-10 text-primary" />
+      {children}
+      {lockState !== "unlocked" && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background gap-6 px-6">
+          {/* Branding */}
+          <div className="flex flex-col items-center gap-3 mb-4">
+            <div className="h-20 w-20 rounded-3xl bg-primary/10 flex items-center justify-center">
+              <LockKeyhole className="h-10 w-10 text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">Remonk Reminder</h1>
+            <p className="text-muted-foreground text-sm text-center">
+              Authenticate to access your documents and tasks
+            </p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Remonk Reminder</h1>
-          <p className="text-muted-foreground text-sm text-center">
-            Authenticate to access your documents and tasks
-          </p>
+
+          {/* Status */}
+          {lockState === "checking" && (
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 text-primary animate-spin" />
+              <p className="text-sm text-muted-foreground">Verifying identity…</p>
+            </div>
+          )}
+
+          {lockState === "locked" && (
+            <div className="flex flex-col items-center gap-4 w-full max-w-xs">
+              {authError && (
+                <p className="text-sm text-destructive text-center">
+                  Authentication failed or was cancelled. Tap below to try again.
+                </p>
+              )}
+              <Button
+                size="lg"
+                className="w-full gap-2"
+                onClick={triggerAuth}
+              >
+                <Fingerprint className="h-5 w-5" />
+                Unlock with Device Security
+              </Button>
+            </div>
+          )}
         </div>
-
-        {/* Status */}
-        {lockState === "checking" && (
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-8 w-8 text-primary animate-spin" />
-            <p className="text-sm text-muted-foreground">Verifying identity…</p>
-          </div>
-        )}
-
-        {lockState === "locked" && (
-          <div className="flex flex-col items-center gap-4 w-full max-w-xs">
-            {authError && (
-              <p className="text-sm text-destructive text-center">
-                Authentication failed or was cancelled. Tap below to try again.
-              </p>
-            )}
-            <Button
-              size="lg"
-              className="w-full gap-2"
-              onClick={triggerAuth}
-            >
-              <Fingerprint className="h-5 w-5" />
-              Unlock with Device Security
-            </Button>
-          </div>
-        )}
-      </div>
+      )}
     </>
   );
 }

@@ -77,11 +77,26 @@ export function isTimeMatching(
   const [targetHour, targetMin] = target.split(':').map(Number);
   if (isNaN(targetHour) || isNaN(targetMin)) return false;
 
-  const now = toZonedTime(new Date(), timezone);
+  const now = toZonedTime(new Date(), timezone || 'UTC');
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const targetMinutes = targetHour * 60 + targetMin;
 
-  return Math.abs(nowMinutes - targetMinutes) <= windowMinutes;
+  let diff = Math.abs(nowMinutes - targetMinutes);
+  if (diff > 1440 / 2) diff = 1440 - diff; // Handle midnight wrap-around
+
+  return diff <= windowMinutes;
+}
+
+/**
+ * Get current local date ("YYYY-MM-DD") and 1-indexed day of week (1=Mon ... 7=Sun)
+ * in the given IANA timezone.
+ */
+export function getLocalDayInfo(timezone: string): { todayLocal: string; dayOfWeek: number } {
+  const tz = timezone || 'UTC';
+  const localNow = toZonedTime(new Date(), tz);
+  const todayLocal = format(localNow, 'yyyy-MM-dd', { timeZone: tz });
+  const dayOfWeek = localNow.getDay() || 7; // 0 (Sun) -> 7, 1 (Mon) -> 1 ... 6 (Sat) -> 6
+  return { todayLocal, dayOfWeek };
 }
 
 /**

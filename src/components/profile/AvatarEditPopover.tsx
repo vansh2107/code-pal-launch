@@ -8,6 +8,7 @@ import { ref, uploadBytes, deleteObject } from "firebase/storage";
 import { doc, setDoc } from "firebase/firestore";
 import { Capacitor } from "@capacitor/core";
 import { autoCropImage } from "@/utils/imageCrop";
+import { pauseAppLock } from "@/lib/appLock";
 
 interface AvatarEditPopoverProps {
   userId: string;
@@ -110,12 +111,34 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
     }
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
+  const handleUploadClick = async () => {
+    setOpen(false);
+    pauseAppLock(60000);
+    
+    if (Capacitor.isNativePlatform()) {
+      const photo = await openGallery();
+      if (photo?.webPath) {
+        try {
+          const response = await fetch(photo.webPath);
+          const blob = await response.blob();
+          await validateAndUploadFile(blob, 'gallery-photo.jpg');
+        } catch (error) {
+          console.error('Error processing gallery photo:', error);
+          toast({
+            title: "Gallery error",
+            description: "Failed to process photo",
+            variant: "destructive",
+          });
+        }
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
   };
 
   const handleCameraClick = async () => {
     setOpen(false);
+    pauseAppLock(60000);
     
     if (Capacitor.isNativePlatform()) {
       // Use native camera on mobile

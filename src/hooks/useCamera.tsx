@@ -1,5 +1,6 @@
 import { Camera, CameraResultType, CameraSource, Photo } from '@capacitor/camera';
 import { toast } from '@/hooks/use-toast';
+import { pauseAppLock } from '@/lib/appLock';
 
 export const useCamera = () => {
   const requestCameraPermission = async (): Promise<boolean> => {
@@ -19,6 +20,7 @@ export const useCamera = () => {
   };
 
   const openCamera = async (): Promise<Photo | null> => {
+    pauseAppLock(60000);
     try {
       const hasPermission = await requestCameraPermission();
       
@@ -51,6 +53,7 @@ export const useCamera = () => {
   };
 
   const openGallery = async (): Promise<Photo | null> => {
+    pauseAppLock(60000);
     try {
       const permissions = await Camera.checkPermissions();
       
