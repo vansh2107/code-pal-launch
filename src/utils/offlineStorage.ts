@@ -178,6 +178,19 @@ export async function saveTasksOffline(tasks: OfflineTask[]): Promise<void> {
   await tx.done;
 }
 
+/** Reconcile a complete day's server result; never prune from an offline Firestore snapshot. */
+export async function reconcileOfflineTasksForDate(userId: string, date: string, tasks: OfflineTask[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction("tasks", "readwrite");
+  const existing = await tx.store.index("by-date").getAll(date);
+  const ids = new Set(tasks.map((task) => task.id));
+  for (const task of existing) {
+    if (task.user_id === userId && !ids.has(task.id)) await tx.store.delete(task.id);
+  }
+  for (const task of tasks) await tx.store.put(task);
+  await tx.done;
+}
+
 export async function getOfflineTasks(taskDate?: string): Promise<OfflineTask[]> {
   const db = await getDB();
   if (taskDate) {
