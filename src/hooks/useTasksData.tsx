@@ -35,6 +35,7 @@ import {
   getOfflineTasks,
   getOfflineFutureTasks,
   saveTasksOffline,
+  reconcileOfflineTasksForDate,
   type OfflineTask,
 } from '@/utils/offlineStorage';
 
@@ -299,6 +300,9 @@ export function useTasksData() {
           user_id:                 uid,
           updated_at:              new Date().toISOString(),
         }));
+        if (!todaySnap.metadata.fromCache && todaySnap.size < 100) {
+          await reconcileOfflineTasksForDate(uid, today, allForOffline.filter((t) => t.task_date === today));
+        }
         await saveTasksOffline(allForOffline);
       } catch { /* IndexedDB unavailable */ }
 

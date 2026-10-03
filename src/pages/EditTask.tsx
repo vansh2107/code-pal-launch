@@ -146,11 +146,11 @@ export default function EditTask() {
     const uid = firebaseAuth.currentUser?.uid;
     if (!uid || !id) { setDeleting(false); return; }
     try {
-      await deleteOfflineTask(id);
       if (existingImagePath) {
         try { await deleteObject(ref(firebaseStorage, existingImagePath)); } catch { /* ok */ }
       }
       await deleteDoc(doc(firebaseDb, `users/${uid}/tasks/${id}`));
+      await deleteOfflineTask(id);
       clearTasksCache();
       toast({ title: 'Task deleted', description: 'Your task has been removed.' });
       navigate('/tasks');

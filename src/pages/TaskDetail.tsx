@@ -53,6 +53,8 @@ export default function TaskDetail() {
       }
 
       if (!taskSnap.exists()) {
+        await deleteOfflineTask(id);
+        clearTasksCache();
         toast({ title: 'Task not found', variant: 'destructive' });
         navigate('/tasks');
         return;
@@ -91,17 +93,17 @@ export default function TaskDetail() {
     const uid = firebaseAuth.currentUser?.uid;
     if (!uid || !id) return;
     try {
-      await deleteOfflineTask(id);
       if (task?.image_path) {
         try { await deleteObject(ref(firebaseStorage, task.image_path as string)); } catch { /* ok */ }
       }
       await deleteDoc(doc(firebaseDb, `users/${uid}/tasks/${id}`));
-    } catch (err) {
-      console.error('[TaskDetail] delete error:', err);
-    } finally {
+      await deleteOfflineTask(id);
       clearTasksCache();
       toast({ title: 'Task deleted', description: 'Your task has been removed.' });
       navigate('/tasks');
+    } catch (err) {
+      console.error('[TaskDetail] delete error:', err);
+      toast({ title: 'Could not delete task', description: 'Please try again.', variant: 'destructive' });
     }
   };
 
