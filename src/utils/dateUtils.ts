@@ -163,7 +163,7 @@ export function isTimeMatching(
 export function getDateInTimezone(timezone: string, date?: Date): string {
   const targetDate = date || new Date();
   const localDate = convertUtcToLocal(targetDate, timezone);
-  return format(localDate, "yyyy-MM-dd");
+  return formatInTimeZone(targetDate, timezone || "UTC", "yyyy-MM-dd");
 }
 
 /**

@@ -174,7 +174,7 @@ export default function TaskDetail() {
               <div>
                 <p className="text-sm font-medium">Task Date</p>
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(task.task_date as string), 'EEEE, MMM d, yyyy')}
+                  {formatInTimeZone(new Date(task.task_date as string), 'UTC', 'EEEE, MMM d, yyyy')}
                 </p>
               </div>
             </div>
