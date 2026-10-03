@@ -53,8 +53,10 @@ export default function TaskDetail() {
       }
 
       if (!taskSnap.exists()) {
-        await deleteOfflineTask(id);
-        clearTasksCache();
+        if (!taskSnap.metadata.fromCache) {
+          await deleteOfflineTask(id);
+          clearTasksCache();
+        }
         toast({ title: 'Task not found', variant: 'destructive' });
         navigate('/tasks');
         return;
