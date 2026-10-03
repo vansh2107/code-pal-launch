@@ -46,6 +46,7 @@ export default function TaskDetail() {
         getDoc(doc(firebaseDb, `users/${uid}/tasks/${id}`)),
         getDoc(userProfileDoc(uid)),
       ]);
+      const taskFromCache = taskSnap.metadata.fromCache;
 
       if (profileSnap.exists()) {
         const storedTz = profileSnap.data().timezone as string | undefined;
@@ -53,7 +54,7 @@ export default function TaskDetail() {
       }
 
       if (!taskSnap.exists()) {
-        if (!taskSnap.metadata.fromCache) {
+        if (!taskFromCache) {
           await deleteOfflineTask(id);
           clearTasksCache();
         }
