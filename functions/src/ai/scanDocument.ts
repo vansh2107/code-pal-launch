@@ -7,6 +7,7 @@
  * Replaces: supabase/functions/scan-document
  */
 
+import { aiSecrets } from '../shared/secrets';
 import { https, logger } from 'firebase-functions/v2';
 import { getAiCompletion } from '../shared/aiProviders';
 
@@ -40,7 +41,7 @@ Date Selection Rules:
 Respond ONLY with valid JSON structure.`;
 
 export const scanDocument = https.onCall(
-  { enforceAppCheck: false, timeoutSeconds: 60 },
+  { enforceAppCheck: false, timeoutSeconds: 60, secrets: aiSecrets },
   async (request) => {
     if (!request.auth) {
       throw new https.HttpsError('unauthenticated', 'Authentication required.');

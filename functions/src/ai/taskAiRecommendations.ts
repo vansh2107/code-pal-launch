@@ -7,6 +7,7 @@
  * Replaces: supabase/functions/task-ai-recommendations
  */
 
+import { aiSecrets } from '../shared/secrets';
 import { https, logger } from 'firebase-functions/v2';
 import { getAiCompletion } from '../shared/aiProviders';
 
@@ -29,7 +30,7 @@ const FALLBACK_TIPS = [
 ];
 
 export const taskAiRecommendations = https.onCall(
-  { enforceAppCheck: false, timeoutSeconds: 30 },
+  { enforceAppCheck: false, timeoutSeconds: 30, secrets: aiSecrets },
   async (request) => {
     if (!request.auth) {
       throw new https.HttpsError('unauthenticated', 'Authentication required.');

@@ -41,7 +41,10 @@ export async function getAiCompletion(options: AiCompletionOptions): Promise<str
     modelName = 'google/gemini-2.5-flash';
   }
 
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.error('[AI Provider] No AI key configured (GEMINI_API_KEY secret missing or not bound).');
+    return null;
+  }
 
   try {
     const formattedMessages = [...options.messages];
@@ -65,7 +68,10 @@ export async function getAiCompletion(options: AiCompletionOptions): Promise<str
       body: JSON.stringify(body),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.error('[AI Provider] Provider error', response.status, (await response.text()).slice(0, 300));
+      return null;
+    }
 
     const data = (await response.json()) as any;
     if (data.choices?.[0]?.message?.tool_calls?.[0]) {
