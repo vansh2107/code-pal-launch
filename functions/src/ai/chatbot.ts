@@ -12,13 +12,14 @@
  * Replaces: supabase/functions/chatbot
  */
 
+import { aiSecrets } from '../shared/secrets';
 import { https, logger } from 'firebase-functions/v2';
 import * as express from 'express';
 import { adminAuth, adminDb } from '../shared/admin';
 import { getCorsHeaders } from '../shared/cors';
 
 export const chatbot = https.onRequest(
-  { timeoutSeconds: 120, cors: false },
+  { timeoutSeconds: 120, cors: false, secrets: aiSecrets },
   async (req: express.Request, res: express.Response) => {
     // CORS
     const origin = req.headers.origin as string | undefined;

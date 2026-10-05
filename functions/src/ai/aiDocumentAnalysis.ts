@@ -7,6 +7,7 @@
  * Replaces: supabase/functions/ai-document-analysis
  */
 
+import { aiSecrets } from '../shared/secrets';
 import { https, logger } from 'firebase-functions/v2';
 import { adminDb } from '../shared/admin';
 import { getAiCompletion } from '../shared/aiProviders';
@@ -30,7 +31,7 @@ interface AnalysisRequest {
 }
 
 export const aiDocumentAnalysis = https.onCall(
-  { enforceAppCheck: false, timeoutSeconds: 60 },
+  { enforceAppCheck: false, timeoutSeconds: 60, secrets: aiSecrets },
   async (request) => {
     if (!request.auth) {
       throw new https.HttpsError('unauthenticated', 'Authentication required.');
