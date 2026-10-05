@@ -162,7 +162,7 @@ function OptimizedTaskCardComponent({
             )}
           </div>
 
-          {task.status === "pending" && (
+          {!["completed", "cancelled", "rejected"].includes(task.status) && (
             <Button
               size="sm"
               variant="outline"

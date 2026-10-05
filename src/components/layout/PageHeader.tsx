@@ -74,7 +74,8 @@ export function PageHeader({
       "sticky top-0 z-30",
       "bg-background/75 backdrop-blur-xl backdrop-saturate-150",
       "border-b border-border/55",
-      "md:-mx-6 md:px-6 -mx-4 px-4 py-3 md:py-4",
+      "md:-mx-6 md:px-6 -mx-4 px-4 pb-3 md:pb-4",
+      "pt-[calc(0.75rem+env(safe-area-inset-top,0px))]",
     ],
     variant === "static" && [
       "w-full",

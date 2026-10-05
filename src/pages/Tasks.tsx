@@ -1,6 +1,6 @@
 import { useMemo, useCallback, useState, useRef } from "react";
 import { useSwipeable } from "react-swipeable";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OptimizedTaskCard } from "@/components/tasks/OptimizedTaskCard";
@@ -9,6 +9,7 @@ import { TaskListSkeleton } from "@/components/ui/loading-skeleton";
 import { AppShell, PageHeader } from "@/components/layout";
 import { useTasksData } from "@/hooks/useTasksData";
 import { RoutinesSection } from "@/components/routines/RoutinesSection";
+import { isTaskOverdue } from "@/utils/dateUtils";
 
 interface Task {
   id: string;
@@ -36,6 +37,9 @@ const FUNNY_MESSAGES = [
 
 export default function Tasks() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const filterParam = searchParams.get("filter") || searchParams.get("status");
+
   const { tasks, futureTasks, loading, userTimezone, refreshTasks } = useTasksData();
   const [activeTab, setActiveTab] = useState<"tasks" | "routines">("tasks");
   const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
@@ -60,6 +64,7 @@ export default function Tasks() {
     trackMouse: false,
     swipeDuration: 500,
   });
+
   // Memoize status calculation
   const getTaskStatusInfo = useCallback((task: Task) => {
     if (task.status === "completed") {
@@ -69,19 +74,34 @@ export default function Tasks() {
         badgeVariant: "default" as const,
         label: "Completed",
       };
-    } else if (task.consecutive_missed_days >= 3) {
+    } else if (task.status === "cancelled") {
+      return {
+        bgClass: "bg-muted border-border/50",
+        textClass: "text-muted-foreground",
+        badgeVariant: "outline" as const,
+        label: "Cancelled",
+      };
+    } else if (task.status === "rejected") {
+      return {
+        bgClass: "bg-destructive/10 border-destructive/20",
+        textClass: "text-destructive",
+        badgeVariant: "outline" as const,
+        label: "Rejected",
+      };
+    } else if (isTaskOverdue(task)) {
+      const days = task.consecutive_missed_days;
       return {
         bgClass: "bg-expired-bg border-expired/30",
         textClass: "text-expired-foreground",
         badgeVariant: "destructive" as const,
-        label: `Overdue ${task.consecutive_missed_days} days`,
+        label: days > 0 ? `Overdue ${days} day${days > 1 ? 's' : ''}` : "Overdue",
       };
-    } else if (task.consecutive_missed_days > 0) {
+    } else if (task.status === "in_progress") {
       return {
-        bgClass: "bg-expiring-bg border-expiring/30",
-        textClass: "text-expiring-foreground",
+        bgClass: "bg-primary/10 border-primary/30",
+        textClass: "text-primary",
         badgeVariant: "secondary" as const,
-        label: `Carried ${task.consecutive_missed_days} day${task.consecutive_missed_days > 1 ? 's' : ''}`,
+        label: "In Progress",
       };
     }
     return {
@@ -98,11 +118,28 @@ export default function Tasks() {
     return FUNNY_MESSAGES[days % FUNNY_MESSAGES.length];
   }, []);
 
-  // Memoize computed values
-  const { completedTasks, pendingTasks, todayFormatted } = useMemo(() => {
+  // Memoize computed values & status filters
+  const { completedTasks, pendingTasks, displayedTasks, todayFormatted } = useMemo(() => {
     const completed = tasks.filter(t => t.status === "completed");
-    const pending = tasks.filter(t => t.status === "pending");
-    
+    const activeIncomplete = tasks.filter(t => !["completed", "cancelled", "rejected"].includes(t.status));
+
+    let filtered = tasks;
+    if (filterParam && filterParam !== "all") {
+      if (filterParam === "overdue") {
+        filtered = tasks.filter(t => isTaskOverdue(t));
+      } else if (filterParam === "pending") {
+        filtered = tasks.filter(t => t.status === "pending" && !isTaskOverdue(t));
+      } else if (filterParam === "in_progress") {
+        filtered = tasks.filter(t => t.status === "in_progress");
+      } else if (filterParam === "completed") {
+        filtered = tasks.filter(t => t.status === "completed");
+      } else if (filterParam === "cancelled") {
+        filtered = tasks.filter(t => t.status === "cancelled");
+      } else if (filterParam === "rejected") {
+        filtered = tasks.filter(t => t.status === "rejected");
+      }
+    }
+
     const todayFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: userTimezone,
       weekday: 'long',
@@ -110,13 +147,14 @@ export default function Tasks() {
       month: 'long',
       day: 'numeric'
     });
-    
+
     return {
       completedTasks: completed,
-      pendingTasks: pending,
+      pendingTasks: activeIncomplete,
+      displayedTasks: filtered,
       todayFormatted: todayFormatter.format(new Date()),
     };
-  }, [tasks, userTimezone]);
+  }, [tasks, userTimezone, filterParam]);
 
   // Loading state with skeleton
   if (loading) {
@@ -136,7 +174,7 @@ export default function Tasks() {
   return (
     <AppShell contentWidth="full" className="animate-fade-in">
       <div {...swipeHandlers} className="w-full">
-        <div className="bg-background/80 backdrop-blur-xl p-4 -mx-4 md:-mx-6 sticky top-0 z-10 backdrop-blur-xl border-b border-border/50">
+        <div className="bg-background/80 backdrop-blur-xl p-4 -mx-4 md:-mx-6 sticky top-0 z-10 border-b border-border/50 pt-[calc(1rem+env(safe-area-inset-top,0px))]">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Daily Tasks</h1>
@@ -206,7 +244,7 @@ export default function Tasks() {
             <>
               {/* Today's Tasks */}
               <div className="space-y-4">
-              {tasks.length === 0 ? (
+              {displayedTasks.length === 0 ? (
                 <div className="text-center py-16 animate-fade-in">
                   <div className="text-6xl mb-4">📋</div>
                   <h3 className="text-lg font-semibold text-foreground">No tasks for today</h3>
@@ -216,7 +254,7 @@ export default function Tasks() {
                 </div>
                 ) : (
                   <>
-                    {tasks.map((task) => {
+                    {displayedTasks.map((task) => {
                       const statusInfo = getTaskStatusInfo(task);
                       const funnyMessage = getFunnyMessage(task.consecutive_missed_days);
                       

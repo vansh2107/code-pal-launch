@@ -17,20 +17,9 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { InternationalPhoneInput } from '@/components/ui/international-phone-input';
-import { getCountryCode } from '@/utils/countryMapping';
-import { getDoc, setDoc } from 'firebase/firestore';
-import { firebaseDb } from '@/integrations/firebase/client';
-import { userProfileDoc } from '@/integrations/firebase/firestore';
+import { getCountryCode, ALLOWED_COUNTRIES } from '@/utils/countryMapping';
 
-const COUNTRIES = [
-  'United States','United Kingdom','Canada','Australia','Germany','France','Spain','Italy',
-  'Netherlands','Belgium','Switzerland','Austria','Sweden','Norway','Denmark','Finland',
-  'Ireland','Portugal','Greece','Poland','Czech Republic','Hungary','Romania','Japan',
-  'South Korea','China','India','Singapore','Malaysia','Thailand','Vietnam','Indonesia',
-  'Philippines','New Zealand','Mexico','Brazil','Argentina','Chile','Colombia','Peru',
-  'South Africa','Egypt','Nigeria','Kenya','UAE','Saudi Arabia','Israel','Turkey',
-  'Russia','Ukraine','Other',
-];
+const COUNTRIES = ALLOWED_COUNTRIES;
 
 export default function Settings() {
   const { user }   = useAuth();

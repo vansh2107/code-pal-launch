@@ -71,23 +71,25 @@ export default function TaskHistory() {
           orderBy('createdAt', 'desc'),
         ),
       );
-      const mapped: Task[] = snap.docs.map((d) => {
-        const data = d.data();
-        return {
-          id:                      d.id,
-          title:                   data.title as string,
-          description:             (data.description as string | null) ?? null,
-          start_time:              data.startTime as string,
-          end_time:                (data.endTime as string | null) ?? null,
-          total_time_minutes:      (data.totalTimeMinutes as number | null) ?? null,
-          status:                  data.status as string,
-          image_path:              (data.imagePath as string | null) ?? null,
-          consecutive_missed_days: (data.consecutiveMissedDays as number) ?? 0,
-          task_date:               data.taskDate as string,
-          original_date:           data.originalDate as string,
-          local_date:              (data.localDate as string) ?? (data.taskDate as string),
-        };
-      });
+      const mapped: Task[] = snap.docs
+        .map((d) => {
+          const data = d.data();
+          return {
+            id:                      d.id,
+            title:                   data.title as string,
+            description:             (data.description as string | null) ?? null,
+            start_time:              data.startTime as string,
+            end_time:                (data.endTime as string | null) ?? null,
+            total_time_minutes:      (data.totalTimeMinutes as number | null) ?? null,
+            status:                  data.status as string,
+            image_path:              (data.imagePath as string | null) ?? null,
+            consecutive_missed_days: (data.consecutiveMissedDays as number) ?? 0,
+            task_date:               data.taskDate as string,
+            original_date:           data.originalDate as string,
+            local_date:              (data.localDate as string) ?? (data.taskDate as string),
+          };
+        })
+        .filter((t) => ['completed', 'cancelled', 'rejected'].includes(t.status));
       setTasks(mapped);
     } catch (err: unknown) {
       toast({ title: 'Error', description: (err as Error).message ?? 'Failed to fetch task history', variant: 'destructive' });
@@ -97,10 +99,10 @@ export default function TaskHistory() {
   };
 
   const getStatusBadge = (task: Task) => {
-    if (task.status === 'completed')           return <Badge variant="default">Completed</Badge>;
-    if (task.consecutive_missed_days >= 3)     return <Badge variant="destructive">Overdue {task.consecutive_missed_days}d</Badge>;
-    if (task.consecutive_missed_days > 0)      return <Badge variant="secondary">Carried {task.consecutive_missed_days}d</Badge>;
-    return <Badge variant="outline">Pending</Badge>;
+    if (task.status === 'completed') return <Badge variant="default">Completed</Badge>;
+    if (task.status === 'cancelled') return <Badge variant="outline">Cancelled</Badge>;
+    if (task.status === 'rejected')  return <Badge variant="destructive">Rejected</Badge>;
+    return <Badge variant="secondary">{task.status}</Badge>;
   };
 
   const groupedTasks = tasks.reduce((acc, task) => {
@@ -113,7 +115,7 @@ export default function TaskHistory() {
   if (loading) {
     return (
       <div className="min-h-screen page-bg pb-20">
-        <div className="bg-background/80 backdrop-blur-xl p-6"><Skeleton className="h-8 w-48" /></div>
+        <div className="bg-background/80 backdrop-blur-xl p-6 pt-[calc(1.5rem+env(safe-area-inset-top,0px))]"><Skeleton className="h-8 w-48" /></div>
         <div className="p-4 space-y-4">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32 w-full rounded-[14px]" />)}
         </div>
@@ -123,7 +125,7 @@ export default function TaskHistory() {
 
   return (
     <div className="min-h-screen page-bg px-4" style={{ paddingBottom: 'calc(var(--nav-height) + var(--safe-area-bottom) + var(--fab-gap) + 32px)' }}>
-      <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 border-b border-border/50">
+      <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 border-b border-border/50 pt-[calc(1.5rem+env(safe-area-inset-top,0px))]">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate('/tasks')}><ArrowLeft className="h-5 w-5" /></Button>
           <div>

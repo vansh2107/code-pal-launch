@@ -25,16 +25,9 @@ interface EditProfileSheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const COUNTRIES = [
-  "United States", "United Kingdom", "Canada", "Australia", "Germany", "France", 
-  "Spain", "Italy", "Netherlands", "Belgium", "Switzerland", "Austria", "Sweden",
-  "Norway", "Denmark", "Finland", "Ireland", "Portugal", "Greece", "Poland",
-  "Czech Republic", "Hungary", "Romania", "Japan", "South Korea", "China",
-  "India", "Singapore", "Malaysia", "Thailand", "Vietnam", "Indonesia",
-  "Philippines", "New Zealand", "Mexico", "Brazil", "Argentina", "Chile",
-  "Colombia", "Peru", "South Africa", "Egypt", "Nigeria", "Kenya", "UAE",
-  "Saudi Arabia", "Israel", "Turkey", "Russia", "Ukraine", "Other"
-];
+import { ALLOWED_COUNTRIES } from "@/utils/countryMapping";
+
+const COUNTRIES = ALLOWED_COUNTRIES;
 
 export function EditProfileSheet({ open, onOpenChange }: EditProfileSheetProps) {
   const { user } = useAuth();

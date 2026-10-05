@@ -149,27 +149,33 @@ async function carryForwardTasks(uid: string, today: string): Promise<boolean> {
   try {
     const q = query(
       collection(firebaseDb, `users/${uid}/tasks`),
-      where('status', '==', 'pending'),
       where('taskDate', '<', today),
     );
     const snap = await getDocs(q);
     if (snap.empty) return false;
 
+    const activeDocs = snap.docs.filter((d) => {
+      const status = d.data().status as string;
+      return status !== 'completed' && status !== 'cancelled' && status !== 'rejected';
+    });
+
+    if (activeDocs.length === 0) return false;
+
     const todayMs = new Date(today + 'T00:00:00').getTime();
     const batch   = writeBatch(firebaseDb);
     const now     = new Date().toISOString();
 
-    snap.docs.forEach((d) => {
-      const data         = d.data();
-      const origDate     = data.originalDate as string;
-      const origMs       = new Date(origDate + 'T00:00:00').getTime();
-      const daysDiff     = Math.max(0, Math.floor((todayMs - origMs) / 86_400_000));
-      const nowIso       = now;
+    activeDocs.forEach((d) => {
+      const data     = d.data();
+      const origDate = (data.originalDate as string) || (data.taskDate as string);
+      const origMs   = new Date(origDate + 'T00:00:00').getTime();
+      const daysDiff = Math.max(1, Math.floor((todayMs - origMs) / 86_400_000));
       batch.update(d.ref, {
         taskDate:              today,
         localDate:             today,
+        status:                'overdue',
         consecutiveMissedDays: daysDiff,
-        updatedAt:             nowIso,
+        updatedAt:             now,
       });
     });
 
@@ -251,6 +257,9 @@ export function useTasksData() {
       const today       = getTodayInTimezone(timezone);
 
       if (isMounted.current) setState((prev) => ({ ...prev, userTimezone: timezone }));
+
+      // Run carry-forward first so past active tasks move to today before fetching
+      await carryForwardTasks(uid, today);
 
       // Fetch today's tasks + future tasks in parallel
       const [todaySnap, futureSnap] = await Promise.all([

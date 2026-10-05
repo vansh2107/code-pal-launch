@@ -60,11 +60,9 @@ const signUpSchema = z.object({
     .regex(/^\+?[0-9]+$/, 'Phone number must contain only digits and optional + prefix'),
 });
 
-import { countryNameToCode } from '@/utils/countryMapping';
+import { countryNameToCode, ALLOWED_COUNTRIES } from '@/utils/countryMapping';
 
-const COUNTRIES = Object.keys(countryNameToCode)
-  .concat(['Other'])
-  .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+const COUNTRIES = ALLOWED_COUNTRIES;
 
 export default function Auth() {
   const [email,       setEmail]       = useState('');

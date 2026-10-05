@@ -31,6 +31,7 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import { sanitizeDocumentNote } from "@/utils/documentNotes";
 import { evaluateDocumentDecision, parseAndNormalizeDate } from "@/utils/documentDecisionEngine";
+import { ALLOWED_COUNTRIES } from "@/utils/countryMapping";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1123,7 +1124,7 @@ export default function Scan() {
                 <div className="absolute bottom-6 right-6 w-10 h-10 border-b-2 border-r-2 border-primary/80 rounded-br-lg pointer-events-none" />
               </div>
               {stream && (
-                <div className="p-4 bg-card flex justify-center items-center">
+                <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] bg-card flex justify-center items-center">
                   <Button 
                     onClick={captureImage} 
                     className="h-14 px-8 rounded-full text-base font-semibold shadow-lg hover:shadow-xl transition-all"
@@ -1320,21 +1321,9 @@ export default function Scan() {
                         <SelectValue placeholder="Select country" />
                       </SelectTrigger>
                       <SelectContent className="max-h-60">
-                        <SelectItem value="India">India</SelectItem>
-                        <SelectItem value="Canada">Canada</SelectItem>
-                        <SelectItem value="United States">United States</SelectItem>
-                        <SelectItem value="United Kingdom">United Kingdom</SelectItem>
-                        <SelectItem value="Australia">Australia</SelectItem>
-                        <SelectItem value="Germany">Germany</SelectItem>
-                        <SelectItem value="France">France</SelectItem>
-                        <SelectItem value="Japan">Japan</SelectItem>
-                        <SelectItem value="China">China</SelectItem>
-                        <SelectItem value="Brazil">Brazil</SelectItem>
-                        <SelectItem value="Mexico">Mexico</SelectItem>
-                        <SelectItem value="South Africa">South Africa</SelectItem>
-                        <SelectItem value="Singapore">Singapore</SelectItem>
-                        <SelectItem value="UAE">UAE</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
+                        {ALLOWED_COUNTRIES.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">

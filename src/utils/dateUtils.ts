@@ -194,3 +194,38 @@ export function shouldSendRecurringNotification(
   
   return nowUtc >= nextReminderUtc;
 }
+
+/**
+ * Determine if a task is overdue according to Remonk Reminder rules:
+ * - Status is NOT completed, cancelled, or rejected
+ * - AND (status is 'overdue' OR consecutive_missed_days > 0 OR start_time has passed OR task_date < today)
+ */
+export function isTaskOverdue(
+  task: {
+    status: string;
+    start_time?: string;
+    task_date?: string;
+    consecutive_missed_days?: number;
+  },
+  todayDateStr?: string
+): boolean {
+  if (['completed', 'cancelled', 'rejected'].includes(task.status)) {
+    return false;
+  }
+  if (task.status === 'overdue') {
+    return true;
+  }
+  if ((task.consecutive_missed_days ?? 0) > 0) {
+    return true;
+  }
+  if (task.start_time) {
+    const startTimeMs = new Date(task.start_time).getTime();
+    if (!isNaN(startTimeMs) && startTimeMs < Date.now()) {
+      return true;
+    }
+  }
+  if (todayDateStr && task.task_date && task.task_date < todayDateStr) {
+    return true;
+  }
+  return false;
+}
