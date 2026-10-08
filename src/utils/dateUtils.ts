@@ -204,6 +204,9 @@ export function isTaskOverdue(
   task: {
     status: string;
     start_time?: string;
+    startTime?: string;
+    due_date?: string | null;
+    dueDate?: string | null;
     task_date?: string;
     consecutive_missed_days?: number;
   },
@@ -218,9 +221,17 @@ export function isTaskOverdue(
   if ((task.consecutive_missed_days ?? 0) > 0) {
     return true;
   }
-  if (task.start_time) {
-    const startTimeMs = new Date(task.start_time).getTime();
-    if (!isNaN(startTimeMs) && startTimeMs < Date.now()) {
+  const dueDateStr = task.due_date ?? task.dueDate;
+  if (dueDateStr) {
+    const dueMs = new Date(dueDateStr).getTime();
+    if (!isNaN(dueMs) && dueMs < Date.now()) {
+      return true;
+    }
+  }
+  const startTimeStr = task.start_time ?? task.startTime;
+  if (startTimeStr) {
+    const startMs = new Date(startTimeStr).getTime();
+    if (!isNaN(startMs) && startMs < Date.now()) {
       return true;
     }
   }

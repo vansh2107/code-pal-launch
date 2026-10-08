@@ -19,6 +19,7 @@ import {
 } from 'firebase/firestore';
 import { firebaseDb } from '@/integrations/firebase/client';
 import { deleteStorageFile } from '@/integrations/firebase/storage';
+import { deleteOfflineDocument } from '@/utils/offlineStorage';
 import { getSignedUrls } from '@/utils/signedUrl';
 import { toast } from 'sonner';
 
@@ -168,6 +169,12 @@ export function useDocVaultDocuments(userId: string | undefined) {
         }
 
         await deleteDoc(doc(firebaseDb, `users/${userId}/documents/${docId}`));
+        try { await deleteOfflineDocument(docId); } catch { /* ok */ }
+        queryClient.setQueryData(['docvault-documents', userId], (old: DocVaultDocument[] = []) =>
+          old.filter((d) => d.id !== docId)
+        );
+        queryClient.invalidateQueries({ queryKey: ['docvault-documents', userId] });
+        queryClient.invalidateQueries({ queryKey: ['documents', userId] });
         toast.success('Document deleted');
         refetch();
       } catch (error: unknown) {

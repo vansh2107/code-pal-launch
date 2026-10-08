@@ -19,9 +19,9 @@ import { exportToCSV } from '@/utils/exportData';
 import { getDocumentStatus } from '@/utils/documentStatus';
 import { SwipeableDocumentCard } from '@/components/document/SwipeableDocumentCard';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getOfflineDocuments } from '@/utils/offlineStorage';
+import { getOfflineDocuments, deleteOfflineDocument } from '@/utils/offlineStorage';
 import { isValidCalendarDate } from '@/utils/documentDecisionEngine';
-import { collection, query, where, orderBy, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
 import { firebaseDb } from '@/integrations/firebase/client';
 
 interface Document { id: string; name: string; document_type: string; category_detail?: string; issuing_authority: string; expiry_date: string; created_at: string; }
@@ -64,25 +64,25 @@ export default function Documents() {
   useEffect(() => {
     if (!user) return;
     const uid = user.uid;
-    const q = query(
-      collection(firebaseDb, `users/${uid}/documents`),
-      where('issuingAuthority', '!=', 'DocVault'),
-      orderBy('issuingAuthority'),
-      orderBy('createdAt', 'desc'),
-    );
+    const q = collection(firebaseDb, `users/${uid}/documents`);
     const unsub = onSnapshot(q, (snap) => {
-      setDocuments(snap.docs.map((d) => {
+      const docsList: Document[] = [];
+      snap.docs.forEach((d) => {
         const data = d.data();
-        return {
-          id:                d.id,
-          name:              data.name             as string,
-          document_type:     data.documentType     as string,
-          category_detail:   (data.categoryDetail  as string | undefined),
-          issuing_authority: (data.issuingAuthority as string) ?? '',
-          expiry_date:       (data.expiryDate       as string) ?? '',
-          created_at:        data.createdAt         as string,
-        };
-      }));
+        if (data.issuingAuthority !== 'DocVault') {
+          docsList.push({
+            id:                d.id,
+            name:              data.name             as string,
+            document_type:     data.documentType     as string,
+            category_detail:   (data.categoryDetail  as string | undefined),
+            issuing_authority: (data.issuingAuthority as string) ?? '',
+            expiry_date:       (data.expiryDate       as string) ?? '',
+            created_at:        data.createdAt         as string,
+          });
+        }
+      });
+      docsList.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      setDocuments(docsList);
       setLoading(false);
     }, async (err) => {
       console.error('[Documents] onSnapshot error:', err);
@@ -135,6 +135,7 @@ export default function Documents() {
     toast({ title: 'Document deleted', description: 'Document removed successfully.' });
     try {
       await deleteDoc(doc(firebaseDb, `users/${user.uid}/documents/${documentId}`));
+      try { await deleteOfflineDocument(documentId); } catch { /* ok */ }
     } catch (err) {
       console.error('[Documents] delete error:', err);
       toast({ title: 'Error', description: 'Failed to delete document. Restored.', variant: 'destructive' });

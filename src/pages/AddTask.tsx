@@ -30,7 +30,15 @@ export default function AddTask() {
   const [imageFile,   setImageFile]   = useState<File | null>(null);
   const [formData,    setFormData]    = useState(() => {
     const now = new Date();
-    return { title: '', description: '', startTime: format(now, "yyyy-MM-dd'T'HH:mm") };
+    const inOneHour = new Date(now.getTime() + 60 * 60 * 1000);
+    return {
+      title: '',
+      description: '',
+      startDate: format(now, 'yyyy-MM-dd'),
+      startTime: format(now, 'HH:mm'),
+      dueDate: format(now, 'yyyy-MM-dd'),
+      dueTime: format(inOneHour, 'HH:mm'),
+    };
   });
 
   useEffect(() => { fetchUserTimezone(); }, []);
@@ -63,12 +71,18 @@ export default function AddTask() {
       const uid = firebaseAuth.currentUser?.uid;
       if (!uid) throw new Error('Not authenticated');
 
-      const [dateStr, timeStr] = formData.startTime.split('T');
-      if (!dateStr || !timeStr) throw new Error('Please pick a valid date and time');
-      // Interpret the picked wall-clock time in the user's timezone (string form avoids browser-zone reinterpretation)
-      const utcTime            = fromZonedTime(`${dateStr}T${timeStr.slice(0, 5)}:00`, timezone);
-      if (isNaN(utcTime.getTime())) throw new Error('Please pick a valid date and time');
-      const localDate          = dateStr;
+      if (!formData.startDate || !formData.startTime) throw new Error('Please enter a valid start date and time');
+      if (!formData.dueDate || !formData.dueTime) throw new Error('Please enter a valid due date and time');
+
+      const startUtc = fromZonedTime(`${formData.startDate}T${formData.startTime.slice(0, 5)}:00`, timezone);
+      const dueUtc   = fromZonedTime(`${formData.dueDate}T${formData.dueTime.slice(0, 5)}:00`, timezone);
+
+      if (isNaN(startUtc.getTime())) throw new Error('Invalid start date/time');
+      if (isNaN(dueUtc.getTime())) throw new Error('Invalid due date/time');
+
+      if (dueUtc.getTime() < startUtc.getTime()) {
+        throw new Error('Due date and time cannot be earlier than start date and time');
+      }
 
       let imagePath: string | null = null;
       if (imageFile) {
@@ -84,14 +98,15 @@ export default function AddTask() {
         userId:                 uid,
         title:                  formData.title,
         description:            formData.description || null,
-        startTime:              utcTime.toISOString(),
+        startTime:              startUtc.toISOString(),
+        dueDate:                dueUtc.toISOString(),
         endTime:                null,
         totalTimeMinutes:       null,
         timezone,
         imagePath,
-        localDate,
-        taskDate:               localDate,
-        originalDate:           localDate,
+        localDate:              formData.startDate,
+        taskDate:               formData.startDate,
+        originalDate:           formData.startDate,
         status:                 'pending',
         consecutiveMissedDays:  0,
         reminderActive:         true,
@@ -132,15 +147,37 @@ export default function AddTask() {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Add details about your task..." rows={3} />
           </div>
-          <div>
-            <Label htmlFor="start-time">Start Time *</Label>
-            <Input id="start-time" type="datetime-local" value={formData.startTime}
-              onChange={(e) => setFormData({ ...formData, startTime: e.target.value })} required />
-            <p className="text-xs text-muted-foreground mt-1">Your timezone: {timezone}</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="start-date">Start Date *</Label>
+              <Input id="start-date" type="date" value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })} required />
+            </div>
+            <div>
+              <Label htmlFor="start-time">Start Time *</Label>
+              <Input id="start-time" type="time" value={formData.startTime}
+                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })} required />
+            </div>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="due-date">Due Date *</Label>
+              <Input id="due-date" type="date" value={formData.dueDate}
+                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} required />
+            </div>
+            <div>
+              <Label htmlFor="due-time">Due Time *</Label>
+              <Input id="due-time" type="time" value={formData.dueTime}
+                onChange={(e) => setFormData({ ...formData, dueTime: e.target.value })} required />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Timezone: {timezone}</p>
+
           <div>
             <Label htmlFor="image">Attach Image (Optional)</Label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mt-1">
               <Input id="image" type="file" accept="image/*"
                 onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} />
               {imageFile && <Upload className="h-5 w-5 text-primary" />}

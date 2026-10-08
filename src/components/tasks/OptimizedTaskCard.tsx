@@ -61,6 +61,9 @@ function OptimizedTaskCardComponent({
 
   // Pre-compute display values
   const displayStartTime = formatInTimeZone(new Date(task.start_time), userTimezone || "UTC", "h:mm a");
+  const displayDueTime = task.due_date
+    ? formatInTimeZone(new Date(task.due_date), userTimezone || "UTC", "MMM d, h:mm a")
+    : null;
 
   const handleComplete = useCallback(async () => {
     try {
@@ -146,14 +149,19 @@ function OptimizedTaskCardComponent({
           </p>
         )}
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
             <div className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              <span>{displayStartTime}</span>
+              <Clock className="h-3.5 w-3.5" />
+              <span>Start: {displayStartTime}</span>
             </div>
+            {displayDueTime && (
+              <div className="flex items-center gap-1">
+                <span className="font-medium text-foreground">Due: {displayDueTime}</span>
+              </div>
+            )}
             {task.total_time_minutes && task.status === "completed" && (
-              <span className="text-valid">
+              <span className="text-valid font-medium">
                 {Math.floor(task.total_time_minutes / 60)}h {task.total_time_minutes % 60}m
               </span>
             )}

@@ -37,7 +37,14 @@ export default function EditTask() {
   const [taskTz,    setTaskTz]    = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [existingImagePath, setExistingImagePath] = useState<string | null>(null);
-  const [formData,  setFormData]  = useState({ title: '', description: '', startTime: '' });
+  const [formData,  setFormData]  = useState({
+    title: '',
+    description: '',
+    startDate: '',
+    startTime: '',
+    dueDate: '',
+    dueTime: '',
+  });
 
   useEffect(() => {
     fetchUserTimezone();
@@ -72,8 +79,18 @@ export default function EditTask() {
       const data = snap.data();
       const tz   = (data.timezone as string | undefined) ?? timezone;
       setTaskTz(tz);
-      const formatted = formatInTimeZone(new Date(data.startTime as string), tz || 'UTC', "yyyy-MM-dd'T'HH:mm");
-      setFormData({ title: data.title as string, description: (data.description as string) ?? '', startTime: formatted });
+
+      const startUtc = new Date((data.startTime as string) || Date.now());
+      const dueUtc   = data.dueDate ? new Date(data.dueDate as string) : startUtc;
+
+      setFormData({
+        title:       data.title as string,
+        description: (data.description as string) ?? '',
+        startDate:   formatInTimeZone(startUtc, tz || 'UTC', 'yyyy-MM-dd'),
+        startTime:   formatInTimeZone(startUtc, tz || 'UTC', 'HH:mm'),
+        dueDate:     formatInTimeZone(dueUtc,   tz || 'UTC', 'yyyy-MM-dd'),
+        dueTime:     formatInTimeZone(dueUtc,   tz || 'UTC', 'HH:mm'),
+      });
       setExistingImagePath((data.imagePath as string | null) ?? null);
     } catch (err: unknown) {
       toast({ title: 'Error', description: (err as Error).message ?? 'Failed to fetch task', variant: 'destructive' });
@@ -87,16 +104,26 @@ export default function EditTask() {
     const uid = firebaseAuth.currentUser?.uid;
     if (!uid || !id) { setLoading(false); return; }
     try {
+      if (!formData.startDate || !formData.startTime) throw new Error('Please enter a valid start date and time');
+      if (!formData.dueDate || !formData.dueTime) throw new Error('Please enter a valid due date and time');
+
+      const startUtc = parseLocalInputToUtc(`${formData.startDate}T${formData.startTime.slice(0, 5)}`, timezone);
+      const dueUtc   = parseLocalInputToUtc(`${formData.dueDate}T${formData.dueTime.slice(0, 5)}`, timezone);
+
+      if (isNaN(startUtc.getTime())) throw new Error('Invalid start date/time');
+      if (isNaN(dueUtc.getTime())) throw new Error('Invalid due date/time');
+
+      if (dueUtc.getTime() < startUtc.getTime()) {
+        throw new Error('Due date and time cannot be earlier than start date and time');
+      }
+
       const taskRef  = doc(firebaseDb, `users/${uid}/tasks/${id}`);
       const taskSnap = await getDoc(taskRef);
       const current  = taskSnap.data();
 
-      const [dateStr]   = formData.startTime.split('T');
-      const utcTime     = parseLocalInputToUtc(formData.startTime, timezone);
-      const localDate   = dateStr;
-
-      const startTimeChanged   = current && current.startTime !== utcTime.toISOString();
-      const newTimeInFuture    = utcTime.getTime() > Date.now();
+      const localDate          = formData.startDate;
+      const startTimeChanged   = current && current.startTime !== startUtc.toISOString();
+      const newTimeInFuture    = startUtc.getTime() > Date.now();
       const shouldResetNotifs  = startTimeChanged && newTimeInFuture;
 
       let imagePath = existingImagePath;
@@ -112,19 +139,18 @@ export default function EditTask() {
       }
 
       const updateData: Record<string, unknown> = {
-        title:         formData.title,
-        description:   formData.description || null,
+        title:          formData.title,
+        description:    formData.description || null,
+        startTime:      startUtc.toISOString(),
+        dueDate:        dueUtc.toISOString(),
+        timezone,
+        localDate,
+        taskDate:       localDate,
+        originalDate:   localDate,
         imagePath,
         reminderActive: true,
-        updatedAt:     new Date().toISOString(),
+        updatedAt:      new Date().toISOString(),
       };
-      if (startTimeChanged) {
-        updateData.startTime    = utcTime.toISOString();
-        updateData.timezone     = timezone;
-        updateData.localDate    = localDate;
-        updateData.taskDate     = localDate;
-        updateData.originalDate = localDate;
-      }
       if (shouldResetNotifs) {
         updateData.lastReminderSentAt = null;
         updateData.startNotified      = false;
@@ -163,7 +189,7 @@ export default function EditTask() {
 
   return (
     <div className="min-h-screen page-bg px-4" style={{ paddingBottom: 'calc(var(--nav-height) + var(--safe-area-bottom) + var(--fab-gap) + 32px)' }}>
-      <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 border-b border-border/50">
+      <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 border-b border-border/50 pt-[calc(1.5rem+env(safe-area-inset-top,0px))]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate(`/task/${id}`)}>
@@ -207,15 +233,37 @@ export default function EditTask() {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3} placeholder="Add details..." />
           </div>
-          <div>
-            <Label htmlFor="start-time">Start Time *</Label>
-            <Input id="start-time" type="datetime-local" value={formData.startTime}
-              onChange={(e) => setFormData({ ...formData, startTime: e.target.value })} required />
-            <p className="text-xs text-muted-foreground mt-1">Your timezone: {timezone}</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="start-date">Start Date *</Label>
+              <Input id="start-date" type="date" value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })} required />
+            </div>
+            <div>
+              <Label htmlFor="start-time">Start Time *</Label>
+              <Input id="start-time" type="time" value={formData.startTime}
+                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })} required />
+            </div>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="due-date">Due Date *</Label>
+              <Input id="due-date" type="date" value={formData.dueDate}
+                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} required />
+            </div>
+            <div>
+              <Label htmlFor="due-time">Due Time *</Label>
+              <Input id="due-time" type="time" value={formData.dueTime}
+                onChange={(e) => setFormData({ ...formData, dueTime: e.target.value })} required />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Timezone: {timezone}</p>
+
           <div>
             <Label htmlFor="image">Update Image (Optional)</Label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mt-1">
               <Input id="image" type="file" accept="image/*"
                 onChange={(e) => setImageFile(e.target.files?.[0] ?? null)} />
               {(imageFile || existingImagePath) && <Upload className="h-5 w-5 text-primary" />}

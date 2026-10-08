@@ -23,6 +23,7 @@ import { getDocumentStatus } from '@/utils/documentStatus';
 import { sanitizeDocumentNote } from '@/utils/documentNotes';
 import { getDoc, doc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
+import { deleteOfflineDocument } from '@/utils/offlineStorage';
 import { firebaseDb, firebaseStorage } from '@/integrations/firebase/client';
 import { getDocumentSignedUrl } from '@/utils/documentStorage';
 import { httpsCallable } from 'firebase/functions';
@@ -154,6 +155,7 @@ export default function DocumentDetail() {
         }
       }
       await deleteDoc(doc(firebaseDb, `users/${user.uid}/documents/${id}`));
+      try { await deleteOfflineDocument(id); } catch { /* ok */ }
       toast({ title: 'Document deleted', description: 'The document has been permanently deleted.' });
       navigate('/documents');
     } catch (err: any) {

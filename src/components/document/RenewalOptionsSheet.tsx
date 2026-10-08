@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { db, storage } from "@/integrations/firebase/client";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
+import { deleteOfflineDocument } from "@/utils/offlineStorage";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useCamera } from "@/hooks/useCamera";
@@ -81,8 +82,9 @@ export function RenewalOptionsSheet({
         }
       }
 
-      // Delete document from Firestore
+      // Delete document from Firestore and offline storage
       await deleteDoc(docRef);
+      try { await deleteOfflineDocument(documentId); } catch { /* ok */ }
 
       onOpenChange(false);
       showGenZToast();

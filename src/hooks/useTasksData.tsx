@@ -49,6 +49,7 @@ interface Task {
   description: string | null;
   start_time: string;
   end_time: string | null;
+  due_date: string | null;
   total_time_minutes: number | null;
   status: string;
   image_path: string | null;
@@ -56,6 +57,7 @@ interface Task {
   task_date: string;
   original_date: string;
   local_date: string;
+  last_overdue_alert_sent: string | null;
 }
 
 interface FutureTask {
@@ -63,6 +65,7 @@ interface FutureTask {
   title: string;
   description: string | null;
   start_time: string;
+  due_date: string | null;
   task_date: string;
   original_date: string;
   status: string;
@@ -103,29 +106,32 @@ export function clearTasksCache() {
 function fsDocToTask(id: string, data: Record<string, unknown>): Task {
   return {
     id,
-    title:                   data.title as string,
+    title:                   (data.title as string) ?? '',
     description:             (data.description as string | null) ?? null,
-    start_time:              data.startTime as string,
-    end_time:                (data.endTime as string | null) ?? null,
+    start_time:              (data.startTime as string) ?? (data.start_time as string) ?? new Date().toISOString(),
+    end_time:                (data.endTime as string | null) ?? (data.end_time as string | null) ?? null,
+    due_date:                (data.dueDate as string | null) ?? (data.due_date as string | null) ?? null,
     total_time_minutes:      (data.totalTimeMinutes as number | null) ?? null,
-    status:                  data.status as string,
-    image_path:              (data.imagePath as string | null) ?? null,
+    status:                  (data.status as string) ?? 'pending',
+    image_path:              (data.imagePath as string | null) ?? (data.image_path as string | null) ?? null,
     consecutive_missed_days: (data.consecutiveMissedDays as number) ?? 0,
-    task_date:               data.taskDate as string,
-    original_date:           data.originalDate as string,
-    local_date:              (data.localDate as string) ?? (data.taskDate as string),
+    task_date:               (data.taskDate as string) ?? (data.task_date as string) ?? '',
+    original_date:           (data.originalDate as string) ?? (data.original_date as string) ?? (data.taskDate as string) ?? '',
+    local_date:              (data.localDate as string) ?? (data.taskDate as string) ?? '',
+    last_overdue_alert_sent: (data.lastOverdueAlertSent as string | null) ?? null,
   };
 }
 
 function fsDocToFutureTask(id: string, data: Record<string, unknown>): FutureTask {
   return {
     id,
-    title:         data.title as string,
+    title:         (data.title as string) ?? '',
     description:   (data.description as string | null) ?? null,
-    start_time:    data.startTime as string,
-    task_date:     data.taskDate as string,
-    original_date: data.originalDate as string,
-    status:        data.status as string,
+    start_time:    (data.startTime as string) ?? (data.start_time as string) ?? new Date().toISOString(),
+    due_date:      (data.dueDate as string | null) ?? (data.due_date as string | null) ?? null,
+    task_date:     (data.taskDate as string) ?? (data.task_date as string) ?? '',
+    original_date: (data.originalDate as string) ?? (data.original_date as string) ?? '',
+    status:        (data.status as string) ?? 'pending',
     image_path:    (data.imagePath as string | null) ?? null,
   };
 }
@@ -182,7 +188,7 @@ async function carryForwardTasks(uid: string, today: string): Promise<boolean> {
     await batch.commit();
     return true;
   } catch (err) {
-    console.error('[useTasksData] Carry-forward error:', err);
+    console.warn('[useTasksData] Carry-forward warning:', err);
     return false;
   }
 }
@@ -227,22 +233,6 @@ export function useTasksData() {
     isInitializing.current = true;
 
     try {
-      // ── Show cached IndexedDB data immediately ──
-      if (!sessionCache.tasks) {
-        try {
-          const cached = await getOfflineTasks();
-          if (cached.length > 0 && isMounted.current) {
-            const tz = sessionCache.userTimezone ?? 'UTC';
-            const today = getTodayInTimezone(tz);
-            setState((prev) => ({
-              ...prev,
-              tasks:   cached.filter((t) => t.task_date === today) as unknown as Task[],
-              loading: false,
-            }));
-          }
-        } catch { /* IndexedDB unavailable */ }
-      }
-
       const uid = firebaseAuth.currentUser?.uid;
       if (!uid) {
         if (isMounted.current) setState((prev) => ({ ...prev, loading: false, error: 'Not authenticated' }));
@@ -258,42 +248,33 @@ export function useTasksData() {
 
       if (isMounted.current) setState((prev) => ({ ...prev, userTimezone: timezone }));
 
-      // Run carry-forward first so past active tasks move to today before fetching
-      await carryForwardTasks(uid, today);
+      // Safely run carry-forward
+      try {
+        await carryForwardTasks(uid, today);
+      } catch (cfErr) {
+        console.warn('[useTasksData] carryForwardTasks non-fatal:', cfErr);
+      }
 
-      // Fetch today's tasks + future tasks in parallel
-      const [todaySnap, futureSnap] = await Promise.all([
-        getDocs(
-          query(
-            collection(firebaseDb, `users/${uid}/tasks`),
-            where('taskDate', '==', today),
-            orderBy('startTime', 'asc'),
-            limit(100),
-          ),
-        ),
-        getDocs(
-          query(
-            collection(firebaseDb, `users/${uid}/tasks`),
-            where('taskDate', '>', today),
-            orderBy('taskDate', 'asc'),
-            orderBy('startTime', 'asc'),
-            limit(50),
-          ),
-        ),
-      ]);
+      // Fetch all tasks for user cleanly without fragile composite index requirement
+      const allSnap = await getDocs(collection(firebaseDb, `users/${uid}/tasks`));
+      const allTasks = allSnap.docs.map((d) => fsDocToTask(d.id, d.data() as Record<string, unknown>));
 
-      const tasks       = todaySnap.docs.map((d) => fsDocToTask(d.id, d.data() as Record<string, unknown>));
-      const futureTasks = futureSnap.docs.map((d) => fsDocToFutureTask(d.id, d.data() as Record<string, unknown>));
+      const activeTasks = allTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'rejected');
+      const todayTasks  = activeTasks.filter((t) => !t.task_date || t.task_date <= today);
+      const futureTasks = activeTasks.filter((t) => t.task_date && t.task_date > today) as unknown as FutureTask[];
+
+      todayTasks.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+      futureTasks.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
       // Update session cache
-      sessionCache.tasks        = tasks;
+      sessionCache.tasks        = todayTasks;
       sessionCache.futureTasks  = futureTasks;
       sessionCache.userTimezone = timezone;
       sessionCache.lastFetch    = now;
 
       // Persist to IndexedDB
       try {
-        const allForOffline: OfflineTask[] = [...tasks, ...futureTasks].map((t) => ({
+        const allForOffline: OfflineTask[] = [...todayTasks, ...futureTasks].map((t) => ({
           id:                      t.id,
           title:                   t.title,
           description:             t.description ?? null,
@@ -309,32 +290,12 @@ export function useTasksData() {
           user_id:                 uid,
           updated_at:              new Date().toISOString(),
         }));
-        if (!todaySnap.metadata.fromCache && todaySnap.size < 100) {
-          await reconcileOfflineTasksForDate(uid, today, allForOffline.filter((t) => t.task_date === today));
-        }
         await saveTasksOffline(allForOffline);
       } catch { /* IndexedDB unavailable */ }
 
       if (isMounted.current) {
-        setState({ tasks, futureTasks, userTimezone: timezone, loading: false, error: null });
+        setState({ tasks: todayTasks, futureTasks, userTimezone: timezone, loading: false, error: null });
       }
-
-      // Run carry-forward after UI update (non-blocking)
-      carryForwardTasks(uid, today).then(async (didCarry) => {
-        if (!didCarry || !isMounted.current) return;
-        const refreshSnap = await getDocs(
-          query(
-            collection(firebaseDb, `users/${uid}/tasks`),
-            where('taskDate', '==', today),
-            orderBy('startTime', 'asc'),
-            limit(100),
-          ),
-        );
-        const refreshed = refreshSnap.docs.map((d) => fsDocToTask(d.id, d.data() as Record<string, unknown>));
-        sessionCache.tasks     = refreshed;
-        sessionCache.lastFetch = Date.now();
-        if (isMounted.current) setState((prev) => ({ ...prev, tasks: refreshed }));
-      });
 
     } catch (error) {
       console.error('[useTasksData] Fetch error:', error);
@@ -380,19 +341,16 @@ export function useTasksData() {
     try {
       const uid = firebaseAuth.currentUser?.uid;
       if (!uid) return;
-      const today   = getTodayInTimezone(state.userTimezone);
-      const snap    = await getDocs(
-        query(
-          collection(firebaseDb, `users/${uid}/tasks`),
-          where('taskDate', '==', today),
-          orderBy('startTime', 'asc'),
-          limit(100),
-        ),
-      );
-      const tasks   = snap.docs.map((d) => fsDocToTask(d.id, d.data() as Record<string, unknown>));
-      sessionCache.tasks     = tasks;
+      const today = getTodayInTimezone(state.userTimezone);
+      const snap  = await getDocs(collection(firebaseDb, `users/${uid}/tasks`));
+      const allTasks = snap.docs.map((d) => fsDocToTask(d.id, d.data() as Record<string, unknown>));
+      const activeTasks = allTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'rejected');
+      const todayTasks  = activeTasks.filter((t) => !t.task_date || t.task_date <= today);
+      todayTasks.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+
+      sessionCache.tasks     = todayTasks;
       sessionCache.lastFetch = Date.now();
-      if (isMounted.current) setState((prev) => ({ ...prev, tasks }));
+      if (isMounted.current) setState((prev) => ({ ...prev, tasks: todayTasks }));
     } catch (err) {
       console.error('[useTasksData] refreshTasks error:', err);
     }
