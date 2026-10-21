@@ -69,15 +69,27 @@ export default function Documents() {
       const docsList: Document[] = [];
       snap.docs.forEach((d) => {
         const data = d.data();
-        if (data.issuingAuthority !== 'DocVault') {
+        const authority = (data.issuingAuthority ?? data.issuing_authority ?? '') as string;
+        if (authority !== 'DocVault') {
+          let createdAtStr = '';
+          if (data.createdAt) {
+            createdAtStr = typeof data.createdAt?.toDate === 'function'
+              ? data.createdAt.toDate().toISOString()
+              : String(data.createdAt);
+          } else if (data.created_at) {
+            createdAtStr = typeof data.created_at?.toDate === 'function'
+              ? data.created_at.toDate().toISOString()
+              : String(data.created_at);
+          }
+
           docsList.push({
             id:                d.id,
-            name:              data.name             as string,
-            document_type:     data.documentType     as string,
-            category_detail:   (data.categoryDetail  as string | undefined),
-            issuing_authority: (data.issuingAuthority as string) ?? '',
-            expiry_date:       (data.expiryDate       as string) ?? '',
-            created_at:        data.createdAt         as string,
+            name:              (data.name || data.title || 'Untitled Document') as string,
+            document_type:     (data.documentType || data.document_type || 'other') as string,
+            category_detail:   (data.categoryDetail || data.category_detail || undefined) as string | undefined,
+            issuing_authority: authority,
+            expiry_date:       (data.expiryDate || data.expiry_date || '') as string,
+            created_at:        createdAtStr,
           });
         }
       });
@@ -195,11 +207,13 @@ export default function Documents() {
           </div>
         )}
 
-        {showFilteredList&&(
+        {documents.length>0&&(
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">{filteredDocuments.length} Document{filteredDocuments.length!==1?'s':''}</h2>
-              {documents.length>0&&<Button variant="outline" size="sm" onClick={handleExport}>Export CSV</Button>}
+              <h2 className="text-lg font-semibold text-foreground">
+                {showCategories ? 'All Documents' : `${filteredDocuments.length} Document${filteredDocuments.length!==1?'s':''}`}
+              </h2>
+              <Button variant="outline" size="sm" onClick={handleExport}>Export CSV</Button>
             </div>
             {filteredDocuments.length===0?(
               <div className="text-center py-16">

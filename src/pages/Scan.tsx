@@ -25,12 +25,13 @@ import { Camera } from "@capacitor/camera";
 import { CameraResultType, CameraSource } from "@capacitor/camera";
 import { uploadDocumentOriginal, getPDFPageCount, srcToImageBlob } from "@/utils/documentStorage";
 import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstraints, setupVideoElement, requestCamera } from "@/utils/cameraManager";
+import { pauseAppLock, stampLastAuth } from "@/lib/appLock";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import { sanitizeDocumentNote } from "@/utils/documentNotes";
-import { evaluateDocumentDecision, parseAndNormalizeDate } from "@/utils/documentDecisionEngine";
+import { evaluateDocumentDecision, parseAndNormalizeDate, formatToIsoDate } from "@/utils/documentDecisionEngine";
 import { ALLOWED_COUNTRIES } from "@/utils/countryMapping";
 import {
   AlertDialog,
@@ -127,6 +128,8 @@ export default function Scan() {
   const [decision, setDecision] = useState<any>(null);
   const [showExpiredConfirm, setShowExpiredConfirm] = useState(false);
   const [expiredConfirmAction, setExpiredConfirmAction] = useState<(() => void) | null>(null);
+  
+  const [candidateDates, setCandidateDates] = useState<Array<{ label: string; date: string; type?: string; reason?: string }>>([]);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -260,15 +263,25 @@ export default function Scan() {
       const isNative = typeof (window as any).Capacitor !== 'undefined' && 
                        (window as any).Capacitor.isNativePlatform?.();
       
-      // Only request Capacitor permissions on native platforms
+      // Only request Capacitor permissions on native platforms if needed
       if (isNative) {
         try {
-          const permission = await Camera.requestPermissions();
-          if (permission.camera === 'denied') {
+          const status = await Camera.checkPermissions();
+          if (status.camera === 'prompt' || status.camera === 'prompt-with-rationale') {
+            // Pause app lock so the permission dialog overlay does not trigger AppLockGate on resume
+            pauseAppLock(60000);
+            const permission = await Camera.requestPermissions({ permissions: ['camera'] });
+            if (permission.camera === 'denied') {
+              throw new Error('Camera permission denied');
+            }
+          } else if (status.camera === 'denied') {
             throw new Error('Camera permission denied');
           }
-        } catch (permErr) {
-          console.warn("Capacitor permission request failed, trying browser API:", permErr);
+        } catch (permErr: any) {
+          if (permErr?.message === 'Camera permission denied') {
+            throw permErr;
+          }
+          console.warn("Capacitor permission check/request failed, trying browser API:", permErr);
         }
       }
 
@@ -514,11 +527,23 @@ export default function Scan() {
           return;
         }
 
+        // Normalize expiry_date to ISO YYYY-MM-DD if present
+        const rawExpiry = data.data.expiry_date;
+        const normalizedExpiry = rawExpiry ? (formatToIsoDate(rawExpiry, documentCountry) || rawExpiry) : "";
+        
+        // Extract and set candidate dates
+        if (Array.isArray(data.data.candidate_dates)) {
+          setCandidateDates(data.data.candidate_dates);
+        } else {
+          setCandidateDates([]);
+        }
+
         // Use detailed document type from AI as-is; we'll map it to enum on save
         const sanitizedNote = sanitizeDocumentNote(data.data.notes || "");
         setFormData(prev => ({
           ...prev,
           ...data.data,
+          expiry_date: normalizedExpiry,
           notes: sanitizedNote,
           document_type: data.data.document_type,
         }));
@@ -591,10 +616,22 @@ export default function Scan() {
           return;
         }
 
+        // Normalize expiry_date to ISO YYYY-MM-DD if present
+        const rawExpiry = data.data.expiry_date;
+        const normalizedExpiry = rawExpiry ? (formatToIsoDate(rawExpiry, documentCountry) || rawExpiry) : "";
+
+        // Extract and set candidate dates
+        if (Array.isArray(data.data.candidate_dates)) {
+          setCandidateDates(data.data.candidate_dates);
+        } else {
+          setCandidateDates([]);
+        }
+
         const sanitizedNote = sanitizeDocumentNote(data.data.notes || "");
         setFormData((prev) => ({
           ...prev,
           ...data.data,
+          expiry_date: normalizedExpiry,
           notes: sanitizedNote,
           document_type: data.data.document_type,
         }));
@@ -691,6 +728,7 @@ export default function Scan() {
     setProcessedImage(null);
     setShowScanPreview(false);
     setPdfFile(null);
+    setCandidateDates([]);
     setFormData({
       name: "",
       document_type: "",
@@ -1342,6 +1380,45 @@ export default function Scan() {
                   onChange={(e) => handleInputChange("expiry_date", e.target.value)}
                   required
                 />
+                {candidateDates.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Detected Dates (tap to apply):</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {candidateDates.map((cd, idx) => {
+                        const iso = formatToIsoDate(cd.date, documentCountry) || cd.date;
+                        const isSelected = formData.expiry_date === iso;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                expiry_date: iso,
+                                expiry_date_label: cd.label || prev.expiry_date_label
+                              }));
+                            }}
+                            className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1.5 ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-muted/50 hover:bg-muted text-foreground border-border"
+                            }`}
+                          >
+                            <span className="font-semibold">{cd.label || "Date"}:</span>
+                            <span>{iso}</span>
+                            {cd.type && (
+                              <span className={`text-[10px] px-1 rounded ${
+                                cd.type === 'expiry_or_due' ? 'bg-green-500/20 text-green-700 dark:text-green-300' : 'bg-muted text-muted-foreground'
+                              }`}>
+                                {cd.type === 'expiry_or_due' ? 'actionable' : cd.type}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

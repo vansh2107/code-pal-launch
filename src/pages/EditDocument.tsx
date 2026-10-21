@@ -82,12 +82,12 @@ export default function EditDocument() {
       if (!remSnap.empty) customReminderDate = remSnap.docs[0].data().reminderDate as string;
 
       setFormData({
-        name:                (data.name              as string) ?? '',
-        document_type:       (data.categoryDetail    as string) ?? (data.documentType as string) ?? '',
-        issuing_authority:   (data.issuingAuthority  as string) ?? '',
-        expiry_date:         (data.expiryDate        as string) ?? '',
-        expiry_date_label:   (data.expiryDateLabel   as string) ?? '',
-        renewal_period_days: (data.renewalPeriodDays as number) ?? 30,
+        name:                (data.name || data.title || '') as string,
+        document_type:       (data.categoryDetail || data.category_detail || data.documentType || data.document_type || '') as string,
+        issuing_authority:   ((data.issuingAuthority ?? data.issuing_authority) as string) ?? '',
+        expiry_date:         (data.expiryDate || data.expiry_date || '') as string,
+        expiry_date_label:   (data.expiryDateLabel || data.expiry_date_label || '') as string,
+        renewal_period_days: (data.renewalPeriodDays ?? data.renewal_period_days ?? 30) as number,
         notes:               sanitizeDocumentNote((data.notes as string) ?? ''),
         custom_reminder_date: customReminderDate,
       });

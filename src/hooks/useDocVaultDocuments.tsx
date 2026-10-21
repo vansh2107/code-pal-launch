@@ -44,25 +44,50 @@ export function useDocVaultDocuments(userId: string | undefined) {
     queryFn: async () => {
       if (!userId) return [];
       const snap = await getDocs(
-        query(
-          collection(firebaseDb, `users/${userId}/documents`),
-          where('issuingAuthority', '==', 'DocVault'),
-          orderBy('createdAt', 'desc'),
-        ),
+        collection(firebaseDb, `users/${userId}/documents`),
       );
-      return snap.docs.map((d) => {
+      const docs: DocVaultDocument[] = [];
+      snap.docs.forEach((d) => {
         const data = d.data();
-        return {
-          id:                   d.id,
-          name:                 data.name as string,
-          document_type:        data.documentType as string,
-          image_path:           (data.imagePath as string | null) ?? null,
-          created_at:           data.createdAt as string,
-          docvault_category_id: (data.docvaultCategoryId as string | null) ?? null,
-          access_count:         (data.accessCount as number) ?? 0,
-          last_accessed_at:     (data.lastAccessedAt as string | null) ?? null,
-        } as DocVaultDocument;
+        const authority = (data.issuingAuthority ?? data.issuing_authority ?? '') as string;
+        if (authority === 'DocVault') {
+          let createdAtStr = '';
+          if (data.createdAt) {
+            createdAtStr = typeof data.createdAt?.toDate === 'function'
+              ? data.createdAt.toDate().toISOString()
+              : String(data.createdAt);
+          } else if (data.created_at) {
+            createdAtStr = typeof data.created_at?.toDate === 'function'
+              ? data.created_at.toDate().toISOString()
+              : String(data.created_at);
+          }
+
+          let lastAccessedStr: string | null = null;
+          if (data.lastAccessedAt) {
+            lastAccessedStr = typeof data.lastAccessedAt?.toDate === 'function'
+              ? data.lastAccessedAt.toDate().toISOString()
+              : String(data.lastAccessedAt);
+          } else if (data.last_accessed_at) {
+            lastAccessedStr = typeof data.last_accessed_at?.toDate === 'function'
+              ? data.last_accessed_at.toDate().toISOString()
+              : String(data.last_accessed_at);
+          }
+
+          docs.push({
+            id:                   d.id,
+            name:                 (data.name || data.title || 'Untitled Document') as string,
+            document_type:        (data.documentType || data.document_type || 'other') as string,
+            image_path:           (data.imagePath || data.image_path || null) as string | null,
+            created_at:           createdAtStr,
+            docvault_category_id: (data.docvaultCategoryId || data.docvault_category_id || null) as string | null,
+            access_count:         (data.accessCount ?? data.access_count ?? 0) as number,
+            last_accessed_at:     lastAccessedStr,
+          });
+        }
       });
+
+      docs.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      return docs;
     },
     enabled: !!userId,
   });

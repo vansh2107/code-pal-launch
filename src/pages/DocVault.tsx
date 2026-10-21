@@ -258,7 +258,7 @@ export default function DocVault() {
                   <DocVaultDocumentCard
                     key={doc.id}
                     document={doc}
-                    signedUrl={signedUrls[doc.id] || null}
+                    signedUrl={(doc.image_path && signedUrls instanceof Map ? signedUrls.get(doc.image_path) : (signedUrls as any)?.[doc.id]) || null}
                     onView={() => navigate(`/documents/${doc.id}`)}
                     onDelete={handleDeleteDocument}
                     onMove={handleMoveDocument}

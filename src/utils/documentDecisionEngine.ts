@@ -29,7 +29,7 @@ export interface DecisionResult {
 export function doesDocumentTypeRequireExpiry(docType: string): boolean {
   const normalized = docType.toLowerCase();
   
-  // These document types typically NEVER have an expiry date
+  // These document types NEVER have an expiry date or renewal deadline
   const noExpiryTypes = [
     'aadhaar',
     'pan',
@@ -40,17 +40,14 @@ export function doesDocumentTypeRequireExpiry(docType: string): boolean {
     'diploma',
     'academic_transcript',
     'certificate_of_incorporation',
-    'voter_id',
-    'utility_bill',
-    'receipt',
-    'invoice'
+    'voter_id'
   ];
   
   if (noExpiryTypes.some(t => normalized.includes(t))) {
     return false;
   }
   
-  // Standard expiry document types
+  // Standard expiry / deadline document types
   const expiryRequiredTypes = [
     'passport',
     'license',
@@ -63,14 +60,16 @@ export function doesDocumentTypeRequireExpiry(docType: string): boolean {
     'contract',
     'lease',
     'subscription',
-    'warranty'
+    'warranty',
+    'vehicle_registration',
+    'registration'
   ];
   
   if (expiryRequiredTypes.some(t => normalized.includes(t))) {
     return true;
   }
   
-  // Default is optional/no expiry required for other generic documents
+  // Default is optional/no expiry required for other generic documents (like utility_bill, invoice, receipt, other)
   return false;
 }
 
@@ -102,7 +101,7 @@ export function isValidCalendarDate(date: any): boolean {
  * Parses and normalizes dates in multiple formats.
  * Returns a valid Date object or null.
  */
-export function parseAndNormalizeDate(dateStr: any): Date | null {
+export function parseAndNormalizeDate(dateStr: any, country?: string): Date | null {
   if (!dateStr) return null;
   if (dateStr instanceof Date) {
     if (isNaN(dateStr.getTime())) return null;
@@ -115,16 +114,50 @@ export function parseAndNormalizeDate(dateStr: any): Date | null {
   if (typeof dateStr === 'number' || !isNaN(Number(dateStr))) return null;
   if (typeof dateStr !== 'string') return null;
 
-  const trimmed = dateStr.trim();
+  let trimmed = dateStr.trim();
   if (!trimmed) return null;
   if (trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined' || trimmed === '0') {
     return null;
   }
 
+  // Pre-clean common OCR character confusions in date substrings
+  // e.g., '28-NOV-2O24' (letter O for 0) or 'I5-08-2025' (letter I for 1)
+  // Only replace if surrounding characters are digits or date separators
+  const sanitizeOcrDate = (str: string): string => {
+    return str
+      // Replace capital O or lowercase o surrounded by digits or separators with 0
+      .replace(/(?<=[0-9/\-.])([oO])(?=[0-9/\-.]|$)/g, '0')
+      .replace(/(^|(?<=[/\-.]))([oO])(?=[0-9/\-.])/g, '0')
+      // Replace capital I or lowercase l surrounded by digits with 1
+      .replace(/(?<=[0-9/\-.])([Il])(?=[0-9/\-.]|$)/g, '1')
+      .replace(/(^|(?<=[/\-.]))([Il])(?=[0-9/\-.])/g, '1')
+      // Replace multiple spaces or tabs
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  trimmed = sanitizeOcrDate(trimmed);
+
   let parsedDate: Date | null = null;
 
-  // Try standard YYYY-MM-DD
-  let match = trimmed.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
+  // Month lookup table for textual months
+  const MONTHS: Record<string, number> = {
+    jan: 0, january: 0,
+    feb: 1, february: 1,
+    mar: 2, march: 2,
+    apr: 3, april: 3,
+    may: 4,
+    jun: 5, june: 5,
+    jul: 6, july: 6,
+    aug: 7, august: 7,
+    sep: 8, sept: 8, september: 8,
+    oct: 9, october: 9,
+    nov: 10, november: 10,
+    dec: 11, december: 11
+  };
+
+  // 1. Try standard YYYY-MM-DD or YYYY/MM/DD
+  let match = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
   if (match) {
     const year = parseInt(match[1], 10);
     const month = parseInt(match[2], 10) - 1;
@@ -135,35 +168,96 @@ export function parseAndNormalizeDate(dateStr: any): Date | null {
     }
   }
 
-  // Try DD-MM-YYYY or DD/MM/YYYY
+  // 2. Try textual month formats:
+  // e.g. "20-JUL-2046", "20 July 2046", "20/Jul/2046", "20.Jul.2046"
   if (!parsedDate) {
-    match = trimmed.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+    match = trimmed.match(/^(\d{1,2})[-/\s.]([A-Za-z]{3,9})[-/\s.](\d{2,4})$/);
     if (match) {
       const day = parseInt(match[1], 10);
-      const month = parseInt(match[2], 10) - 1;
-      const year = parseInt(match[3], 10);
-      const date = new Date(year, month, day);
-      if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
-        parsedDate = date;
+      const mStr = match[2].toLowerCase();
+      let year = parseInt(match[3], 10);
+      if (year < 100) year += year > 70 ? 1900 : 2000;
+      if (mStr in MONTHS) {
+        const month = MONTHS[mStr];
+        const date = new Date(year, month, day);
+        if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
+          parsedDate = date;
+        }
       }
     }
   }
 
-  // Try MM-DD-YYYY or MM/DD/YYYY
+  // e.g. "Jul 20, 2046", "July 20 2046", "November 28, 2024"
   if (!parsedDate) {
-    match = trimmed.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+    match = trimmed.match(/^([A-Za-z]{3,9})[-/\s.](\d{1,2}),?[-/\s.](\d{2,4})$/);
     if (match) {
-      const month = parseInt(match[1], 10) - 1;
+      const mStr = match[1].toLowerCase();
       const day = parseInt(match[2], 10);
-      const year = parseInt(match[3], 10);
-      const date = new Date(year, month, day);
-      if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
-        parsedDate = date;
+      let year = parseInt(match[3], 10);
+      if (year < 100) year += year > 70 ? 1900 : 2000;
+      if (mStr in MONTHS) {
+        const month = MONTHS[mStr];
+        const date = new Date(year, month, day);
+        if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
+          parsedDate = date;
+        }
       }
     }
   }
 
-  // Try default JS parser
+  // 3. Try numeric 2-part format with 4-digit or 2-digit year: MM/YY or MM/YYYY (common on credit/debit cards or warranties)
+  // Normalized to the last day of that month
+  if (!parsedDate) {
+    match = trimmed.match(/^(\d{1,2})[-/](\d{2}|\d{4})$/);
+    if (match) {
+      const monthNum = parseInt(match[1], 10);
+      let yearNum = parseInt(match[2], 10);
+      if (yearNum < 100) yearNum += 2000;
+      if (monthNum >= 1 && monthNum <= 12 && yearNum >= 1990 && yearNum <= 2100) {
+        // Last day of month
+        const lastDay = new Date(yearNum, monthNum, 0).getDate();
+        parsedDate = new Date(yearNum, monthNum - 1, lastDay);
+      }
+    }
+  }
+
+  // 4. Try DD-MM-YYYY vs MM-DD-YYYY with unambiguous day check and country context
+  if (!parsedDate) {
+    match = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);
+    if (match) {
+      const p1 = parseInt(match[1], 10);
+      const p2 = parseInt(match[2], 10);
+      let year = parseInt(match[3], 10);
+      if (year < 100) year += year > 70 ? 1900 : 2000;
+
+      // Unambiguous cases:
+      if (p1 > 12 && p2 <= 12) {
+        // Must be DD/MM/YYYY
+        const date = new Date(year, p2 - 1, p1);
+        if (date.getFullYear() === year && date.getMonth() === p2 - 1 && date.getDate() === p1) {
+          parsedDate = date;
+        }
+      } else if (p2 > 12 && p1 <= 12) {
+        // Must be MM/DD/YYYY
+        const date = new Date(year, p1 - 1, p2);
+        if (date.getFullYear() === year && date.getMonth() === p1 - 1 && date.getDate() === p2) {
+          parsedDate = date;
+        }
+      } else if (p1 <= 12 && p2 <= 12) {
+        // Ambiguous: use country format preference
+        // US defaults to MM/DD/YYYY; India, UK, EU, Canada, Australia, etc. default to DD/MM/YYYY
+        const isUS = country && /^(united states|usa|us)$/i.test(country.trim());
+        const day = isUS ? p2 : p1;
+        const month = isUS ? p1 - 1 : p2 - 1;
+        const date = new Date(year, month, day);
+        if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
+          parsedDate = date;
+        }
+      }
+    }
+  }
+
+  // 5. Try default JS parser as last resort
   if (!parsedDate) {
     const parsed = new Date(trimmed);
     if (!isNaN(parsed.getTime())) {
@@ -180,6 +274,18 @@ export function parseAndNormalizeDate(dateStr: any): Date | null {
   }
 
   return null;
+}
+
+/**
+ * Normalizes any recognized date into YYYY-MM-DD string. Returns null if invalid.
+ */
+export function formatToIsoDate(dateStr: any, country?: string): string | null {
+  const d = parseAndNormalizeDate(dateStr, country);
+  if (!d) return null;
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 /**
@@ -287,7 +393,7 @@ export function evaluateDocumentDecision(
       };
     }
 
-    const parsedExpiry = parseAndNormalizeDate(expiryStatus.value);
+    const parsedExpiry = parseAndNormalizeDate(expiryStatus.value, fields.country);
     if (!parsedExpiry) {
       missingFields.push('expiry_date');
       expiryStatus.status = 'uncertain';
@@ -335,7 +441,7 @@ export function evaluateDocumentDecision(
     }
 
     // If an expiry/due date WAS found, even if not strictly required, validate it
-    const parsedExpiry = parseAndNormalizeDate(expiryStatus.value);
+    const parsedExpiry = parseAndNormalizeDate(expiryStatus.value, fields.country);
     if (parsedExpiry) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);

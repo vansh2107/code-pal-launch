@@ -91,17 +91,6 @@ async function initializeBackground() {
       const { initOneSignal } = await import("@/lib/onesignal");
       initOneSignal();
 
-      // Request permissions (non-blocking)
-      const { Camera } = await import("@capacitor/camera");
-      
-      Promise.allSettled([
-        Camera.checkPermissions().then(p => {
-          if (p.camera === 'prompt' || p.camera === 'prompt-with-rationale') {
-            return Camera.requestPermissions({ permissions: ['camera'] });
-          }
-        })
-      ]);
-
       // Listen for app resume to refresh data
       const { App: CapacitorApp } = await import("@capacitor/app");
       CapacitorApp.addListener('appStateChange', ({ isActive }) => {

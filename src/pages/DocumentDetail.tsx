@@ -117,19 +117,42 @@ export default function DocumentDetail() {
       const snap = await getDoc(doc(firebaseDb, `users/${user.uid}/documents/${id}`));
       if (!snap.exists()) { setNotFound(true); setLoading(false); return; }
       const data = snap.data();
+
+      let createdAtStr = '';
+      if (data.createdAt) {
+        createdAtStr = typeof data.createdAt?.toDate === 'function'
+          ? data.createdAt.toDate().toISOString()
+          : String(data.createdAt);
+      } else if (data.created_at) {
+        createdAtStr = typeof data.created_at?.toDate === 'function'
+          ? data.created_at.toDate().toISOString()
+          : String(data.created_at);
+      }
+
+      let updatedAtStr = '';
+      if (data.updatedAt) {
+        updatedAtStr = typeof data.updatedAt?.toDate === 'function'
+          ? data.updatedAt.toDate().toISOString()
+          : String(data.updatedAt);
+      } else if (data.updated_at) {
+        updatedAtStr = typeof data.updated_at?.toDate === 'function'
+          ? data.updated_at.toDate().toISOString()
+          : String(data.updated_at);
+      }
+
       const d: Document = {
         id:                  snap.id,
-        name:                data.name                    as string,
-        document_type:       data.documentType            as string,
-        category_detail:     (data.categoryDetail         as string | undefined),
-        issuing_authority:   (data.issuingAuthority       as string) ?? '',
-        expiry_date:         (data.expiryDate             as string | null) ?? null,
-        expiry_date_label:   (data.expiryDateLabel        as string | null) ?? null,
-        renewal_period_days: (data.renewalPeriodDays      as number | null) ?? null,
+        name:                (data.name || data.title || 'Untitled Document') as string,
+        document_type:       (data.documentType || data.document_type || 'other') as string,
+        category_detail:     (data.categoryDetail || data.category_detail || undefined) as string | undefined,
+        issuing_authority:   ((data.issuingAuthority ?? data.issuing_authority) as string) ?? '',
+        expiry_date:         (data.expiryDate || data.expiry_date || null) as string | null,
+        expiry_date_label:   (data.expiryDateLabel || data.expiry_date_label || null) as string | null,
+        renewal_period_days: (data.renewalPeriodDays ?? data.renewal_period_days ?? null) as number | null,
         notes:               sanitizeDocumentNote((data.notes as string) ?? ''),
-        created_at:          data.createdAt               as string,
-        updated_at:          data.updatedAt               as string,
-        image_path:          (data.imagePath              as string | null) ?? null,
+        created_at:          createdAtStr,
+        updated_at:          updatedAtStr,
+        image_path:          (data.imagePath || data.image_path || null) as string | null,
       };
       setNotFound(false);
       setDocument(d);

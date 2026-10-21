@@ -21,6 +21,7 @@ interface Task {
   description: string | null;
   start_time: string;
   end_time: string | null;
+  due_date?: string | null;
   total_time_minutes: number | null;
   status: string;
   image_path: string | null;

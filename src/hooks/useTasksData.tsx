@@ -38,6 +38,7 @@ import {
   reconcileOfflineTasksForDate,
   type OfflineTask,
 } from '@/utils/offlineStorage';
+import { combineDateAndTime } from '@/utils/dateUtils';
 
 // ---------------------------------------------------------------------------
 // Types (snake_case — matches what pages expect)
@@ -104,13 +105,27 @@ export function clearTasksCache() {
 // ---------------------------------------------------------------------------
 
 function fsDocToTask(id: string, data: Record<string, unknown>): Task {
+  const rawDue = (data.dueDate as string | null) ?? (data.due_date as string | null) ?? null;
+  const rawTime = (data.dueTime as string | null) ?? (data.due_time as string | null) ?? null;
+  const tz = (data.timezone as string | null) ?? 'UTC';
+
+  let combinedDueDate = rawDue;
+  if (rawDue && typeof rawDue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDue.trim()) && rawTime) {
+    const combined = combineDateAndTime(rawDue, rawTime, tz);
+    if (combined) {
+      combinedDueDate = combined.toISOString();
+    }
+  }
+
   return {
     id,
     title:                   (data.title as string) ?? '',
     description:             (data.description as string | null) ?? null,
     start_time:              (data.startTime as string) ?? (data.start_time as string) ?? new Date().toISOString(),
     end_time:                (data.endTime as string | null) ?? (data.end_time as string | null) ?? null,
-    due_date:                (data.dueDate as string | null) ?? (data.due_date as string | null) ?? null,
+    due_date:                combinedDueDate,
+    due_time:                rawTime,
+    timezone:                tz,
     total_time_minutes:      (data.totalTimeMinutes as number | null) ?? null,
     status:                  (data.status as string) ?? 'pending',
     image_path:              (data.imagePath as string | null) ?? (data.image_path as string | null) ?? null,
@@ -123,12 +138,24 @@ function fsDocToTask(id: string, data: Record<string, unknown>): Task {
 }
 
 function fsDocToFutureTask(id: string, data: Record<string, unknown>): FutureTask {
+  const rawDue = (data.dueDate as string | null) ?? (data.due_date as string | null) ?? null;
+  const rawTime = (data.dueTime as string | null) ?? (data.due_time as string | null) ?? null;
+  const tz = (data.timezone as string | null) ?? 'UTC';
+
+  let combinedDueDate = rawDue;
+  if (rawDue && typeof rawDue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDue.trim()) && rawTime) {
+    const combined = combineDateAndTime(rawDue, rawTime, tz);
+    if (combined) {
+      combinedDueDate = combined.toISOString();
+    }
+  }
+
   return {
     id,
     title:         (data.title as string) ?? '',
     description:   (data.description as string | null) ?? null,
     start_time:    (data.startTime as string) ?? (data.start_time as string) ?? new Date().toISOString(),
-    due_date:      (data.dueDate as string | null) ?? (data.due_date as string | null) ?? null,
+    due_date:      combinedDueDate,
     task_date:     (data.taskDate as string) ?? (data.task_date as string) ?? '',
     original_date: (data.originalDate as string) ?? (data.original_date as string) ?? '',
     status:        (data.status as string) ?? 'pending',
@@ -161,8 +188,18 @@ async function carryForwardTasks(uid: string, today: string): Promise<boolean> {
     if (snap.empty) return false;
 
     const activeDocs = snap.docs.filter((d) => {
-      const status = d.data().status as string;
-      return status !== 'completed' && status !== 'cancelled' && status !== 'rejected';
+      const data = d.data();
+      const status = data.status as string;
+      if (status === 'completed' || status === 'cancelled' || status === 'rejected') {
+        return false;
+      }
+      if (data.dueDate) {
+        const dueMs = new Date(data.dueDate as string).getTime();
+        if (!isNaN(dueMs) && dueMs > Date.now()) {
+          return false;
+        }
+      }
+      return true;
     });
 
     if (activeDocs.length === 0) return false;

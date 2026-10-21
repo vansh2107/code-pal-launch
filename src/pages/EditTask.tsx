@@ -151,6 +151,10 @@ export default function EditTask() {
         reminderActive: true,
         updatedAt:      new Date().toISOString(),
       };
+      if (current?.status === 'overdue' && dueUtc.getTime() > Date.now()) {
+        updateData.status = 'pending';
+        updateData.consecutiveMissedDays = 0;
+      }
       if (shouldResetNotifs) {
         updateData.lastReminderSentAt = null;
         updateData.startNotified      = false;

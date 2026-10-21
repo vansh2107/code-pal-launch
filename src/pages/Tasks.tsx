@@ -128,7 +128,7 @@ export default function Tasks() {
       if (filterParam === "overdue") {
         filtered = tasks.filter(t => isTaskOverdue(t));
       } else if (filterParam === "pending") {
-        filtered = tasks.filter(t => t.status === "pending" && !isTaskOverdue(t));
+        filtered = tasks.filter(t => !["completed", "cancelled", "rejected"].includes(t.status) && !isTaskOverdue(t));
       } else if (filterParam === "in_progress") {
         filtered = tasks.filter(t => t.status === "in_progress");
       } else if (filterParam === "completed") {

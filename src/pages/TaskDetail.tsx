@@ -20,6 +20,7 @@ import { firebaseDb, firebaseStorage, firebaseAuth } from '@/integrations/fireba
 import { userProfileDoc } from '@/integrations/firebase/firestore';
 import { clearTasksCache } from '@/hooks/useTasksData';
 import { deleteOfflineTask } from '@/utils/offlineStorage';
+import { isTaskOverdue } from '@/utils/dateUtils';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
@@ -70,6 +71,7 @@ export default function TaskDetail() {
         description:             data.description ?? null,
         start_time:              data.startTime,
         end_time:                data.endTime ?? null,
+        due_date:                data.dueDate ?? null,
         total_time_minutes:      data.totalTimeMinutes ?? null,
         status:                  data.status,
         image_path:              data.imagePath ?? null,
@@ -165,11 +167,12 @@ export default function TaskDetail() {
           <div className="flex items-center gap-2">
             <Badge variant={
               task.status === 'completed' ? 'default' :
-              (task.consecutive_missed_days as number) >= 3 ? 'destructive' :
+              isTaskOverdue(task as any) ? 'destructive' :
               (task.consecutive_missed_days as number) > 0  ? 'secondary' : 'outline'
             }>
               {task.status === 'completed' ? 'Completed' :
-               (task.consecutive_missed_days as number) >= 3 ? `Overdue ${task.consecutive_missed_days} days` :
+               isTaskOverdue(task as any) ?
+                 ((task.consecutive_missed_days as number) > 0 ? `Overdue ${task.consecutive_missed_days} days` : 'Overdue') :
                (task.consecutive_missed_days as number) > 0  ? `Carried ${task.consecutive_missed_days} days` : 'Pending'}
             </Badge>
           </div>
@@ -192,6 +195,17 @@ export default function TaskDetail() {
                 </p>
               </div>
             </div>
+            {task.due_date && (
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Due Time</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatInTimeZone(new Date(task.due_date as string), timezone || 'UTC', 'MMM d, yyyy, h:mm a')} ({timezone})
+                  </p>
+                </div>
+              </div>
+            )}
             {task.end_time && (
               <div className="flex items-center gap-3">
                 <Clock className="h-5 w-5 text-muted-foreground" />

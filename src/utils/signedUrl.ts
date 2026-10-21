@@ -23,6 +23,8 @@
  */
 
 import { callGetSignedUrl } from '@/integrations/firebase/functions';
+import { getDownloadURL, ref } from 'firebase/storage';
+import { firebaseStorage } from '@/integrations/firebase/client';
 import { cacheSignedUrl, getCachedSignedUrl } from './offlineStorage';
 
 const DEFAULT_EXPIRY_SECONDS = 3600;
@@ -62,6 +64,32 @@ export async function getSignedUrl(
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     const persisted = await getCachedSignedUrl(bucket, path).catch(() => null);
     if (persisted) return persisted;
+  }
+
+  // Try client-side getDownloadURL first for authorized owner access.
+  // This avoids Cloud Function IAM signing permission dependency (iam.serviceAccounts.signBlob)
+  // and returns a fast, token-based URL.
+  if (typeof navigator === 'undefined' || navigator.onLine) {
+    try {
+      const storageRef = ref(firebaseStorage, path);
+      const directUrl = await getDownloadURL(storageRef);
+      if (directUrl) {
+        // Cache in-memory for 24 hours (token URLs don't expire quickly)
+        const expiryTime = now + 24 * 3600 * 1000;
+        signedUrlCache.set(cacheKey, {
+          url: directUrl,
+          expiresAt: expiryTime,
+        });
+        cacheSignedUrl(bucket, path, directUrl, 86400).catch(() => {});
+        return directUrl;
+      }
+    } catch (directErr: any) {
+      // If object doesn't exist, don't bother asking the cloud function
+      if (directErr?.code === 'storage/object-not-found') {
+        return null;
+      }
+      // If unauthorized or other error, fallback to Cloud Function (e.g. org members accessing shared docs)
+    }
   }
 
   try {
@@ -138,9 +166,6 @@ export function clearSignedUrlCache(): void {
 export function invalidateSignedUrl(bucket: string, path: string): void {
   signedUrlCache.delete(`${bucket}:${path}`);
 }
-
-import { getDownloadURL, ref } from 'firebase/storage';
-import { firebaseStorage } from '@/integrations/firebase/client';
 
 export async function getAvatarImageUrl(avatarPath: string | null): Promise<string | null> {
   if (!avatarPath) return null;

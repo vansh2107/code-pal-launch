@@ -64,21 +64,32 @@ export default function Dashboard() {
     // Real-time listener on documents collection
     const uid  = user.uid;
     const colRef = collection(firebaseDb, `users/${uid}/documents`);
-    const q    = query(colRef, orderBy('createdAt', 'desc'), limit(200));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(colRef, (snap) => {
       const docs: Document[] = snap.docs.map((d) => {
         const data = d.data();
+        let createdAtStr = '';
+        if (data.createdAt) {
+          createdAtStr = typeof data.createdAt?.toDate === 'function'
+            ? data.createdAt.toDate().toISOString()
+            : String(data.createdAt);
+        } else if (data.created_at) {
+          createdAtStr = typeof data.created_at?.toDate === 'function'
+            ? data.created_at.toDate().toISOString()
+            : String(data.created_at);
+        }
+
         return {
           id:                d.id,
-          name:              data.name              as string,
-          document_type:     data.documentType      as string,
-          expiry_date:       (data.expiryDate        as string) ?? '',
-          created_at:        data.createdAt          as string,
-          issuing_authority: (data.issuingAuthority  as string | undefined),
+          name:              (data.name || data.title || 'Untitled Document') as string,
+          document_type:     (data.documentType || data.document_type || 'other') as string,
+          expiry_date:       (data.expiryDate || data.expiry_date || '') as string,
+          created_at:        createdAtStr,
+          issuing_authority: (data.issuingAuthority ?? data.issuing_authority) as string | undefined,
           user_id:           uid,
         };
       });
-      setDocuments(docs);
+      docs.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      setDocuments(docs.slice(0, 200));
       setLoading(false);
     }, (err) => {
       console.error('[Dashboard] onSnapshot error:', err);
