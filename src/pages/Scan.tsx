@@ -419,7 +419,7 @@ export default function Scan() {
       if (pdfFile) {
         imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
       } else if (rawImg || croppedImg) {
-        const originalSrc = croppedImg || rawImg;
+        const originalSrc = rawImg || croppedImg;
         const originalBlob = await srcToImageBlob(originalSrc);
         const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
         const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
@@ -427,11 +427,11 @@ export default function Scan() {
         
         if (rawImg && croppedImg && rawImg !== croppedImg) {
           try {
-            const processedBlob = await srcToImageBlob(rawImg);
+            const processedBlob = await srcToImageBlob(croppedImg);
             const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
             if (imagePath) {
               const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-              const processedPath = `${basePath}/raw.${processedFileExt}`;
+              const processedPath = `${basePath}/processed.${processedFileExt}`;
               await uploadBytes(
                 storageRef(firebaseStorage, processedPath),
                 processedBlob,
@@ -826,7 +826,7 @@ export default function Scan() {
           }
           imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
         } else if (rawCapturedImage || capturedImage) {
-          const originalSrc = capturedImage || rawCapturedImage;
+          const originalSrc = rawCapturedImage || capturedImage;
           const originalBlob = await srcToImageBlob(originalSrc);
           const maxSize = 20 * 1024 * 1024;
           if (originalBlob.size > maxSize) {
@@ -838,11 +838,11 @@ export default function Scan() {
           
           if (rawCapturedImage && capturedImage && rawCapturedImage !== capturedImage) {
             try {
-              const processedBlob = await srcToImageBlob(rawCapturedImage);
+              const processedBlob = await srcToImageBlob(capturedImage);
               const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
               if (imagePath) {
                 const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-                const processedPath = `${basePath}/raw.${processedFileExt}`;
+                const processedPath = `${basePath}/processed.${processedFileExt}`;
                 await uploadBytes(
                   storageRef(firebaseStorage, processedPath),
                   processedBlob,

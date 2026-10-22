@@ -60,7 +60,7 @@ export default function DocumentDetail() {
   const [viewerOpen,     setViewerOpen]     = useState(false);
   const [renewalSheetOpen, setRenewalSheetOpen] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
-  const [viewOriginal,   setViewOriginal]   = useState(false);
+  const [viewOriginal,   setViewOriginal]   = useState(true);
   const [notFound,       setNotFound]       = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewFailed,  setPreviewFailed]  = useState(false);
