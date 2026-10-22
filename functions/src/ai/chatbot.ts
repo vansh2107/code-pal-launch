@@ -294,7 +294,7 @@ ${userContext}
     if (geminiKey) {
       apiKey = geminiKey;
       apiEndpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-      modelName = 'gemini-3.8-flash';
+      modelName = 'gemini-3.5-flash';
     } else if (groqKey) {
       apiKey = groqKey;
       apiEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
@@ -302,7 +302,7 @@ ${userContext}
     } else if (lovableKey) {
       apiKey = lovableKey;
       apiEndpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
-      modelName = 'google/gemini-3.8-flash';
+      modelName = 'google/gemini-3.5-flash';
     }
 
     if (!apiKey) {
