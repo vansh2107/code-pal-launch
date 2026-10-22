@@ -114,6 +114,11 @@ export function detectDocumentQuad(
   masks.push({ name: 'otsu+', mask: otsu });
   masks.push({ name: 'otsu-', mask: invertMask(otsu) });
 
+  // Pass C — bridged / closed masks to prevent internal dividing lines or photo boxes
+  // from splitting documents into partial components.
+  masks.push({ name: 'otsu+closed', mask: morphCloseR(otsu, pw, ph, 4) });
+  masks.push({ name: 'adaptive+closed', mask: morphCloseR(adaptive, pw, ph, 4) });
+
   const imgArea = pw * ph;
   const candidates: QuadCandidate[] = [];
 
@@ -134,7 +139,7 @@ export function detectDocumentQuad(
 
       for (const q of quads) {
         if (!isValidQuad(q.quad, pw, ph)) continue;
-        const scored = scoreQuad(q.quad, q.source, pw, ph, grad.magnitude, hull);
+        const scored = scoreQuad(q.quad, q.source, pw, ph, grad.magnitude, hull, equalized);
         if (scored) candidates.push(scored);
       }
     }
@@ -402,6 +407,76 @@ function cannyFromGradient(
 
 function morphClose(mask: Uint8Array, w: number, h: number): Uint8Array {
   return erode3(dilate3(mask, w, h), w, h);
+}
+
+function morphCloseR(mask: Uint8Array, w: number, h: number, r: number): Uint8Array {
+  return erodeR(dilateR(mask, w, h, r), w, h, r);
+}
+
+function dilateR(mask: Uint8Array, w: number, h: number, r: number): Uint8Array {
+  const tmp = new Uint8Array(w * h);
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      let val = 0;
+      for (let dx = -r; dx <= r; dx++) {
+        const nx = x + dx;
+        if (nx >= 0 && nx < w && mask[row + nx]) {
+          val = 1;
+          break;
+        }
+      }
+      tmp[row + x] = val;
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      let val = 0;
+      for (let dy = -r; dy <= r; dy++) {
+        const ny = y + dy;
+        if (ny >= 0 && ny < h && tmp[ny * w + x]) {
+          val = 1;
+          break;
+        }
+      }
+      out[y * w + x] = val;
+    }
+  }
+  return out;
+}
+
+function erodeR(mask: Uint8Array, w: number, h: number, r: number): Uint8Array {
+  const tmp = new Uint8Array(w * h);
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      let val = 1;
+      for (let dx = -r; dx <= r; dx++) {
+        const nx = x + dx;
+        if (nx < 0 || nx >= w || !mask[row + nx]) {
+          val = 0;
+          break;
+        }
+      }
+      tmp[row + x] = val;
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      let val = 1;
+      for (let dy = -r; dy <= r; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h || !tmp[ny * w + x]) {
+          val = 0;
+          break;
+        }
+      }
+      out[y * w + x] = val;
+    }
+  }
+  return out;
 }
 
 function dilate3(mask: Uint8Array, w: number, h: number): Uint8Array {
@@ -779,7 +854,8 @@ function scoreQuad(
   w: number,
   h: number,
   magnitude: Float32Array,
-  hull: Point[]
+  hull: Point[],
+  gray?: Uint8Array
 ): QuadCandidate | null {
   const area = polygonArea(quad);
   if (area <= 0) return null;
@@ -810,26 +886,76 @@ function scoreQuad(
   const r2 = Math.min(sides[1], sides[3]) / Math.max(sides[1], sides[3]);
   const sideScore = (r1 + r2) / 2;
 
-  // Gradient support along the quad perimeter.
-  const edgeSupport = perimeterEdgeSupport(quad, w, h, magnitude);
+  // Gradient support along the quad perimeter (evaluates all 4 sides).
+  const { totalSupport, minSideSupport } = perimeterEdgeSupport(quad, w, h, magnitude);
+  // Heavy penalty if any side has virtually no edge support
+  const edgeSupport = totalSupport * (0.6 + 0.4 * minSideSupport);
 
   // Convexity vs. the source hull.
   const hullArea = polygonArea(hull) || area;
   const convexity = Math.min(1, Math.min(area, hullArea) / Math.max(area, hullArea));
 
-  // Prefer documents that fill a healthy portion of the frame.
+  // Area score: prefer quads covering a reasonable portion of the screen
   const areaScore =
     areaRatio < 0.15 ? areaRatio / 0.15 : areaRatio > 0.95 ? Math.max(0, (1 - areaRatio) / 0.05) : 1;
 
-  const score =
-    0.28 * angleScore + 0.2 * sideScore + 0.24 * edgeSupport + 0.18 * areaScore + 0.1 * convexity;
+  // Boundary separation score (document interior vs exterior contrast)
+  let separationScore = 0.5;
+  if (gray) {
+    const sep = computeBoundarySeparation(quad, w, h, gray);
+    // Real documents have contrast > 20 levels. Noise / flat backgrounds have < 12.
+    separationScore = Math.max(0, Math.min(1, (sep - 12) / 28));
+  }
+
+  // Combined score with separation factor
+  const baseScore =
+    0.22 * angleScore + 0.18 * sideScore + 0.22 * edgeSupport + 0.14 * areaScore + 0.09 * convexity + 0.15 * separationScore;
+
+  // If separation is negligible (e.g. noise texture without real document boundary),
+  // scale down the overall score so it safely falls back to manual crop.
+  const finalScore = separationScore < 0.15 ? baseScore * 0.4 : baseScore;
 
   return {
     quad,
     source,
-    score: Math.max(0, Math.min(1, score)),
+    score: Math.max(0, Math.min(1, finalScore)),
     metrics: { areaRatio, angleScore, sideScore, edgeSupport, convexity },
   };
+}
+
+function computeBoundarySeparation(quad: Quad, w: number, h: number, src: Uint8Array): number {
+  let diffSum = 0;
+  let sampleCount = 0;
+  const offset = 6;
+  const samplesPerSide = 10;
+
+  for (let e = 0; e < 4; e++) {
+    const a = quad[e];
+    const b = quad[(e + 1) % 4];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len === 0) continue;
+    // Inward normal for ordered quad (TL, TR, BR, BL)
+    const nx = -dy / len;
+    const ny = dx / len;
+
+    for (let s = 1; s <= samplesPerSide; s++) {
+      const t = s / (samplesPerSide + 1);
+      const edgeX = a.x + dx * t;
+      const edgeY = a.y + dy * t;
+      const inX = Math.max(0, Math.min(w - 1, Math.round(edgeX + nx * offset)));
+      const inY = Math.max(0, Math.min(h - 1, Math.round(edgeY + ny * offset)));
+      const outX = Math.max(0, Math.min(w - 1, Math.round(edgeX - nx * offset)));
+      const outY = Math.max(0, Math.min(h - 1, Math.round(edgeY - ny * offset)));
+
+      const inVal = src[inY * w + inX];
+      const outVal = src[outY * w + outX];
+      diffSum += Math.abs(inVal - outVal);
+      sampleCount++;
+    }
+  }
+  return sampleCount > 0 ? diffSum / sampleCount : 0;
 }
 
 function perimeterEdgeSupport(
@@ -837,23 +963,27 @@ function perimeterEdgeSupport(
   w: number,
   h: number,
   magnitude: Float32Array
-): number {
+): { totalSupport: number; minSideSupport: number } {
   let max = 0;
   for (let i = 0; i < magnitude.length; i++) if (magnitude[i] > max) max = magnitude[i];
-  if (max <= 0) return 0;
-  const threshold = max * 0.12;
+  if (max <= 0) return { totalSupport: 0, minSideSupport: 0 };
+  const threshold = Math.max(14, max * 0.12);
 
-  let hits = 0;
-  let samples = 0;
+  let totalHits = 0;
+  let totalSamples = 0;
+  let minSide = 1.0;
+
   for (let e = 0; e < 4; e++) {
     const a = quad[e];
     const b = quad[(e + 1) % 4];
-    const steps = Math.max(8, Math.round(dist(a, b)));
+    const sideLen = Math.hypot(a.x - b.x, a.y - b.y);
+    const steps = Math.max(8, Math.round(sideLen));
+    let sideHits = 0;
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
       const x = Math.round(a.x + (b.x - a.x) * t);
       const y = Math.round(a.y + (b.y - a.y) * t);
-      samples++;
+      totalSamples++;
       let best = 0;
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
@@ -863,10 +993,18 @@ function perimeterEdgeSupport(
           if (m > best) best = m;
         }
       }
-      if (best >= threshold) hits++;
+      if (best >= threshold) {
+        sideHits++;
+        totalHits++;
+      }
     }
+    const sideRatio = sideHits / (steps + 1);
+    if (sideRatio < minSide) minSide = sideRatio;
   }
-  return samples ? hits / samples : 0;
+  return {
+    totalSupport: totalSamples ? totalHits / totalSamples : 0,
+    minSideSupport: minSide,
+  };
 }
 
 function dedupeCandidates(candidates: QuadCandidate[], tolerance: number): QuadCandidate[] {
