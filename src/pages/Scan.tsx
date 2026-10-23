@@ -418,28 +418,28 @@ export default function Scan() {
       let imagePath = null;
       if (pdfFile) {
         imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
-      } else if (rawImg || croppedImg) {
-        const originalSrc = croppedImg || rawImg;
-        const originalBlob = await srcToImageBlob(originalSrc);
-        const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
-        const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
+      } else if (croppedImg || rawImg) {
+        const primaryCroppedSrc = croppedImg || rawImg;
+        const primaryBlob = await srcToImageBlob(primaryCroppedSrc);
+        const fileExt = (primaryBlob.type.split('/')[1]) || 'jpg';
+        const imageFile = new File([primaryBlob], `document.${fileExt}`, { type: primaryBlob.type });
         imagePath = await uploadDocumentOriginal(imageFile, user.uid);
         
         if (rawImg && croppedImg && rawImg !== croppedImg) {
           try {
-            const processedBlob = await srcToImageBlob(rawImg);
-            const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
+            const rawBlob = await srcToImageBlob(rawImg);
+            const rawFileExt = (rawBlob.type.split('/')[1]) || 'jpg';
             if (imagePath) {
               const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-              const processedPath = `${basePath}/raw.${processedFileExt}`;
+              const rawPath = `${basePath}/raw.${rawFileExt}`;
               await uploadBytes(
-                storageRef(firebaseStorage, processedPath),
-                processedBlob,
-                { contentType: processedBlob.type }
+                storageRef(firebaseStorage, rawPath),
+                rawBlob,
+                { contentType: rawBlob.type }
               );
             }
           } catch (e) {
-            console.warn("Failed to upload companion processed image:", e);
+            console.warn("Failed to upload companion raw image:", e);
           }
         }
       }
@@ -463,7 +463,9 @@ export default function Scan() {
         name: extractedFields.name || "Unnamed Document",
         documentType: mappedType,
         categoryDetail: extractedFields.document_type,
-        issuingAuthority: extractedFields.issuing_authority || "DocVault",
+        issuingAuthority: "DocVault",
+        originalAuthority: extractedFields.issuing_authority || null,
+        docvaultCategoryId: null,
         expiryDate: null,
         expiryDateLabel: null,
         renewalPeriodDays: extractedFields.renewal_period_days || 30,
@@ -478,7 +480,7 @@ export default function Scan() {
         title: "Saved to DocVault",
         description: "This document does not have an expiry date, so it has been saved to DocVault.",
       });
-      navigate(`/documents/${docRef.id}`);
+      navigate(`/docvault`);
     } catch (err) {
       console.error(err);
       toast({
@@ -825,32 +827,32 @@ export default function Scan() {
             throw new Error("PDF file size exceeds 20MB limit");
           }
           imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
-        } else if (rawCapturedImage || capturedImage) {
-          const originalSrc = capturedImage || rawCapturedImage;
-          const originalBlob = await srcToImageBlob(originalSrc);
+        } else if (capturedImage || rawCapturedImage) {
+          const primaryCroppedSrc = capturedImage || rawCapturedImage;
+          const primaryBlob = await srcToImageBlob(primaryCroppedSrc);
           const maxSize = 20 * 1024 * 1024;
-          if (originalBlob.size > maxSize) {
+          if (primaryBlob.size > maxSize) {
             throw new Error("Image file size exceeds 20MB limit");
           }
-          const fileExt = (originalBlob.type.split('/')[1]) || 'jpg';
-          const imageFile = new File([originalBlob], `document.${fileExt}`, { type: originalBlob.type });
+          const fileExt = (primaryBlob.type.split('/')[1]) || 'jpg';
+          const imageFile = new File([primaryBlob], `document.${fileExt}`, { type: primaryBlob.type });
           imagePath = await uploadDocumentOriginal(imageFile, user.uid);
           
           if (rawCapturedImage && capturedImage && rawCapturedImage !== capturedImage) {
             try {
-              const processedBlob = await srcToImageBlob(rawCapturedImage);
-              const processedFileExt = (processedBlob.type.split('/')[1]) || 'jpg';
+              const rawBlob = await srcToImageBlob(rawCapturedImage);
+              const rawFileExt = (rawBlob.type.split('/')[1]) || 'jpg';
               if (imagePath) {
                 const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-                const processedPath = `${basePath}/raw.${processedFileExt}`;
+                const rawPath = `${basePath}/raw.${rawFileExt}`;
                 await uploadBytes(
-                  storageRef(firebaseStorage, processedPath),
-                  processedBlob,
-                  { contentType: processedBlob.type }
+                  storageRef(firebaseStorage, rawPath),
+                  rawBlob,
+                  { contentType: rawBlob.type }
                 );
               }
             } catch (e) {
-              console.warn("Failed to upload companion processed image:", e);
+              console.warn("Failed to upload companion raw image:", e);
             }
           }
         }

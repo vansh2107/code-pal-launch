@@ -36,7 +36,7 @@ import {
 
 interface Document {
   id: string; name: string; document_type: string; category_detail?: string;
-  issuing_authority: string; expiry_date: string | null; expiry_date_label?: string | null;
+  issuing_authority: string; original_authority?: string | null; expiry_date: string | null; expiry_date_label?: string | null;
   renewal_period_days: number | null; notes: string; created_at: string; updated_at: string;
   image_path: string | null;
 }
@@ -59,7 +59,7 @@ export default function DocumentDetail() {
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [viewerOpen,     setViewerOpen]     = useState(false);
   const [renewalSheetOpen, setRenewalSheetOpen] = useState(false);
-  const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
+  const [rawImageUrl, setRawImageUrl] = useState<string | null>(null);
   const [viewOriginal,   setViewOriginal]   = useState(false);
   const [notFound,       setNotFound]       = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -69,18 +69,18 @@ export default function DocumentDetail() {
     setPreviewLoading(true);
     setPreviewFailed(false);
     setImageUrl(null);
-    setProcessedImageUrl(null);
+    setRawImageUrl(null);
     try {
       const url = await getDocumentSignedUrl(imagePath);
       if (url) {
         setImageUrl(url);
-        // Try companion processed image
+        // Try companion raw (uncropped) image if user wants to toggle
         try {
-          const basePath    = imagePath.substring(0, imagePath.lastIndexOf('/'));
-          const ext         = imagePath.split('.').pop() ?? 'jpg';
-          const processedPath = `${basePath}/processed.${ext}`;
-          const processedUrl  = await getDocumentSignedUrl(processedPath);
-          if (processedUrl) setProcessedImageUrl(processedUrl);
+          const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
+          const ext = imagePath.split('.').pop() ?? 'jpg';
+          const rawPath = `${basePath}/raw.${ext}`;
+          const rawUrl = await getDocumentSignedUrl(rawPath);
+          if (rawUrl) setRawImageUrl(rawUrl);
         } catch { /* ok */ }
       } else {
         setPreviewFailed(true);
@@ -146,6 +146,7 @@ export default function DocumentDetail() {
         document_type:       (data.documentType || data.document_type || 'other') as string,
         category_detail:     (data.categoryDetail || data.category_detail || undefined) as string | undefined,
         issuing_authority:   ((data.issuingAuthority ?? data.issuing_authority) as string) ?? '',
+        original_authority:  (data.originalAuthority || data.original_authority || null) as string | null,
         expiry_date:         (data.expiryDate || data.expiry_date || null) as string | null,
         expiry_date_label:   (data.expiryDateLabel || data.expiry_date_label || null) as string | null,
         renewal_period_days: (data.renewalPeriodDays ?? data.renewal_period_days ?? null) as number | null,
@@ -279,10 +280,10 @@ export default function DocumentDetail() {
         <div className="space-y-6">
           {document.image_path && (
             <>
-              {processedImageUrl && imageUrl && (
+              {rawImageUrl && imageUrl && (
                 <div className="flex justify-end gap-2 mb-2">
-                  <Button variant={viewOriginal ? 'default' : 'outline'} size="sm" onClick={() => setViewOriginal(true)} className="h-8 text-xs rounded-lg">Original Document</Button>
                   <Button variant={!viewOriginal ? 'default' : 'outline'} size="sm" onClick={() => setViewOriginal(false)} className="h-8 text-xs rounded-lg">Cropped &amp; Enhanced</Button>
+                  <Button variant={viewOriginal ? 'default' : 'outline'} size="sm" onClick={() => setViewOriginal(true)} className="h-8 text-xs rounded-lg">Original Document</Button>
                 </div>
               )}
               <Card className={imageUrl ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''} onClick={() => imageUrl && setViewerOpen(true)}>
@@ -308,13 +309,13 @@ export default function DocumentDetail() {
                     </div>
                   ) : (
                     <div className="relative">
-                      <img src={viewOriginal ? imageUrl : (processedImageUrl ?? imageUrl)} alt={document.name} className="w-full rounded-lg" onError={() => setPreviewFailed(true)} />
+                      <img src={viewOriginal ? (rawImageUrl ?? imageUrl) : imageUrl} alt={document.name} className="w-full rounded-lg" onError={() => setPreviewFailed(true)} />
                       <div className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full text-sm">Click to view full size</div>
                     </div>
                   )}
                 </CardContent>
               </Card>
-              {imageUrl && <DocumentViewer fileUrl={viewOriginal ? imageUrl : (processedImageUrl ?? imageUrl)} fileName={document.name} open={viewerOpen} onClose={() => setViewerOpen(false)} />}
+              {imageUrl && <DocumentViewer fileUrl={viewOriginal ? (rawImageUrl ?? imageUrl) : imageUrl} fileName={document.name} open={viewerOpen} onClose={() => setViewerOpen(false)} />}
             </>
           )}
 
@@ -326,8 +327,11 @@ export default function DocumentDetail() {
                   <Label className="text-sm font-medium text-muted-foreground">Document Type</Label>
                   <p className={statusInfo?.textClass ?? 'text-foreground'}>{getSubCategoryName(document.category_detail ?? document.document_type)}</p>
                 </div>
-                {document.issuing_authority && !isDocVault && (
-                  <div><Label className="text-sm font-medium text-muted-foreground">Issuing Authority</Label><p className={statusInfo?.textClass ?? 'text-foreground'}>{document.issuing_authority}</p></div>
+                {(document.original_authority || (document.issuing_authority && !isDocVault)) && (
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Issuing Authority</Label>
+                    <p className={statusInfo?.textClass ?? 'text-foreground'}>{document.original_authority || document.issuing_authority}</p>
+                  </div>
                 )}
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">{document.expiry_date_label ?? 'Expiry Date'}</Label>
