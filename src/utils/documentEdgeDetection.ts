@@ -821,8 +821,15 @@ function scoreQuad(
   const areaScore =
     areaRatio < 0.15 ? areaRatio / 0.15 : areaRatio > 0.95 ? Math.max(0, (1 - areaRatio) / 0.05) : 1;
 
-  const score =
+  // Real documents must have clear edge support along their perimeter.
+  // If edge support is weak (e.g. noise or arbitrary blobs), discount the score heavily
+  // so false positive rectangles on textured/uniform surfaces don't trigger auto-crop.
+  const edgeMultiplier = edgeSupport < 0.45 ? Math.pow(edgeSupport / 0.45, 1.5) : 1.0;
+
+  const baseScore =
     0.28 * angleScore + 0.2 * sideScore + 0.24 * edgeSupport + 0.18 * areaScore + 0.1 * convexity;
+
+  const score = baseScore * edgeMultiplier;
 
   return {
     quad,
@@ -839,9 +846,16 @@ function perimeterEdgeSupport(
   magnitude: Float32Array
 ): number {
   let max = 0;
-  for (let i = 0; i < magnitude.length; i++) if (magnitude[i] > max) max = magnitude[i];
+  let sum = 0;
+  for (let i = 0; i < magnitude.length; i++) {
+    const val = magnitude[i];
+    sum += val;
+    if (val > max) max = val;
+  }
   if (max <= 0) return 0;
-  const threshold = max * 0.12;
+  const mean = sum / magnitude.length;
+  // A true document boundary produces gradients substantially above the image background/noise mean.
+  const threshold = Math.max(mean * 2.0, max * 0.25);
 
   let hits = 0;
   let samples = 0;
@@ -853,6 +867,9 @@ function perimeterEdgeSupport(
       const t = s / steps;
       const x = Math.round(a.x + (b.x - a.x) * t);
       const y = Math.round(a.y + (b.y - a.y) * t);
+      if (x <= 1 || y <= 1 || x >= w - 2 || y >= h - 2) {
+        continue;
+      }
       samples++;
       let best = 0;
       for (let dy = -1; dy <= 1; dy++) {
