@@ -4,6 +4,9 @@
  */
 
 import { useState, useEffect } from 'react';
+import { getDoc, setDoc } from 'firebase/firestore';
+import { userProfileDoc } from '@/integrations/firebase/firestore';
+
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

@@ -23,6 +23,8 @@
     },
     "skipLibCheck": true,
     "strict": false,
+    "types": ["node"],
+
     "target": "ES2020",
     "useDefineForClassFields": true
   },
