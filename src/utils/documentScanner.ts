@@ -172,6 +172,34 @@ export async function scanDocument(
       outCanvas.height = corrected.height;
       outCtx = outCanvas.getContext('2d', { willReadFrequently: true })!;
       outCtx.putImageData(corrected.data, 0, 0);
+    } else {
+      // Perspective correction unavailable (e.g. degenerate bounds). Fall back
+      // to a plain bounding-box crop so we never return the uncropped original.
+      const clampX = (v: number) => Math.max(0, Math.min(origW - 1, Math.round(v)));
+      const clampY = (v: number) => Math.max(0, Math.min(origH - 1, Math.round(v)));
+      const xs = [
+        finalBounds.topLeft.x, finalBounds.topRight.x,
+        finalBounds.bottomLeft.x, finalBounds.bottomRight.x,
+      ].map(clampX);
+      const ys = [
+        finalBounds.topLeft.y, finalBounds.topRight.y,
+        finalBounds.bottomLeft.y, finalBounds.bottomRight.y,
+      ].map(clampY);
+      const x0 = Math.min(...xs);
+      const x1 = Math.max(...xs);
+      const y0 = Math.min(...ys);
+      const y1 = Math.max(...ys);
+      const bw = x1 - x0;
+      const bh = y1 - y0;
+      if (bw >= 100 && bh >= 100) {
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = bw;
+        cropCanvas.height = bh;
+        cropCanvas.getContext('2d', { willReadFrequently: true })!
+          .drawImage(outCanvas, x0, y0, bw, bh, 0, 0, bw, bh);
+        outCanvas = cropCanvas;
+        outCtx = cropCanvas.getContext('2d', { willReadFrequently: true })!;
+      }
     }
   } else {
     // No crop – just put the original on canvas
