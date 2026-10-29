@@ -899,6 +899,37 @@ export default function Scan() {
       }
 
       const now3 = new Date().toISOString();
+
+      // No expiry date → this is a DocVault document, not a reminder-tracked one.
+      if (!validatedData.expiry_date) {
+        await addDoc(collection(firebaseDb, `users/${uid2}/documents`), {
+          userId:             uid2,
+          name:               validatedData.name,
+          documentType:       mappedType,
+          categoryDetail:     formData.document_type,
+          issuingAuthority:   "DocVault",
+          originalAuthority:  validatedData.issuing_authority || null,
+          docvaultCategoryId: null,
+          expiryDate:         null,
+          expiryDateLabel:    null,
+          renewalPeriodDays:  validatedData.renewal_period_days,
+          notes:              safeNotes
+            ? `${safeNotes} (No expiry date — stored in DocVault.)`
+            : "Saved to DocVault (no expiry date).",
+          organizationId:     selectedOrgId,
+          imagePath:          imagePath,
+          createdAt:          now3,
+          updatedAt:          now3,
+        });
+
+        toast({
+          title: "Saved to DocVault",
+          description: "This document does not have an expiry date, so it has been saved to DocVault.",
+        });
+        navigate(`/docvault`);
+        return;
+      }
+
       const newDocRef = await addDoc(collection(firebaseDb, `users/${uid2}/documents`), {
         userId:             uid2,
         name:               validatedData.name,
@@ -914,6 +945,7 @@ export default function Scan() {
         createdAt:          now3,
         updatedAt:          now3,
       });
+
 
       if (formData.custom_reminder_date) {
         await addDoc(collection(firebaseDb, `users/${uid2}/reminders`), {
@@ -1374,14 +1406,14 @@ export default function Scan() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="expiry_date">{formData.expiry_date_label || "Expiry Date"} *</Label>
+                <Label htmlFor="expiry_date">{formData.expiry_date_label || "Expiry Date"}</Label>
                 <Input
                   id="expiry_date"
                   type="date"
                   value={formData.expiry_date}
                   onChange={(e) => handleInputChange("expiry_date", e.target.value)}
-                  required
                 />
+
                 {candidateDates.length > 0 && (
                   <div className="mt-2 space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">Detected Dates (tap to apply):</p>
