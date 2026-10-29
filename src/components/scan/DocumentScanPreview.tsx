@@ -99,6 +99,7 @@ export function DocumentScanPreview({
   const [showCropOverlay, setShowCropOverlay] = useState(false);
   const [cropBounds, setCropBounds] = useState<CropBounds | null>(null);
   const [processingTime, setProcessingTime] = useState<number>(0);
+  const [confirming, setConfirming] = useState(false);
   
   // Crop validation state - MANDATORY auto-crop or manual crop
   const [cropApplied, setCropApplied] = useState(false);
@@ -380,16 +381,62 @@ export function DocumentScanPreview({
     }
   }, [currentFilter]);
 
-  // Handle confirm - allows if crop is applied or falls back to original
-  const handleConfirm = useCallback(() => {
-    if (displayImage && scanResult) {
-      if (cropApplied) {
-        onConfirm(scanResult.processedImage);
-      } else {
-        onConfirm(originalImageRef.current);
-      }
+  // Handle confirm — never save the uncropped original. If the crop wasn't
+  // applied yet (auto-crop failed and the user skipped the manual overlay),
+  // apply the seeded crop bounds now so the saved image is always cropped.
+  const handleConfirm = useCallback(async () => {
+    if (!displayImage || !scanResult || confirming || applyingFilter) return;
+    if (cropApplied) {
+      onConfirm(scanResult.processedImage);
+      return;
     }
-  }, [displayImage, scanResult, cropApplied, onConfirm]);
+
+    setConfirming(true);
+    try {
+      let bounds = cropBounds;
+      if (!bounds) {
+        // No detection bounds at all (processing fell back to the raw image):
+        // crop with a centered document quad so we still save a cropped image.
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = reject;
+          i.src = originalImageRef.current;
+        });
+        const fb = centeredFallbackQuad(img.width, img.height);
+        bounds = {
+          topLeft:     { x: fb[0].x, y: fb[0].y },
+          topRight:    { x: fb[1].x, y: fb[1].y },
+          bottomRight: { x: fb[2].x, y: fb[2].y },
+          bottomLeft:  { x: fb[3].x, y: fb[3].y },
+        };
+      }
+
+      const result = await scanDocument(originalImageRef.current, {
+        filter: currentFilter,
+        enhanceContrast: true,
+        sharpen: true,
+        removeShadows: true,
+        autoCrop: false,
+        maxWidth: 1200,
+        cropBounds: bounds,
+      });
+
+      setDisplayImage(result.processedImage);
+      setScanResult(result);
+      setCropBounds(bounds);
+      setCropApplied(true);
+      setRequiresManualCrop(false);
+      setCropConfidence(1.0);
+      onConfirm(result.processedImage);
+    } catch (err) {
+      console.error('Confirm crop error:', err);
+      // Never save the original — surface the manual crop again instead.
+      setRequiresManualCrop(true);
+    } finally {
+      setConfirming(false);
+    }
+  }, [displayImage, scanResult, confirming, applyingFilter, cropApplied, cropBounds, currentFilter, onConfirm]);
 
   // Can save if a valid image is displayed and not applying filter
   const canSave = !applyingFilter && !!displayImage;
@@ -546,18 +593,22 @@ export function DocumentScanPreview({
               <Button
                 onClick={handleConfirm}
                 className="flex-1"
-                disabled={!canSave}
+                disabled={!canSave || confirming}
               >
-                <Check className="h-4 w-4 mr-2" />
+                {confirming ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-2" />
+                )}
                 Use This Scan
               </Button>
             </div>
           )}
 
-          {/* Cannot save warning */}
+          {/* Crop note */}
           {!processing && !cropApplied && (
             <p className="text-xs text-muted-foreground text-center">
-              ℹ️ Original image will be used without cropping
+              ℹ️ We'll crop to the document area before saving — the original photo is never stored
             </p>
           )}
 
