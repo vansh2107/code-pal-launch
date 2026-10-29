@@ -1,4 +1,15 @@
-import assert from 'node:assert';
+// Minimal assert shim — avoids a node-types dependency so the app typecheck stays clean.
+const assert = {
+  strictEqual(actual: unknown, expected: unknown, message?: string): void {
+    if (actual !== expected) {
+      throw new Error(
+        message
+          ? `${message} (expected ${String(expected)}, got ${String(actual)})`
+          : `Assertion failed: expected ${String(expected)}, got ${String(actual)}`,
+      );
+    }
+  },
+};
 import { isTaskOverdue } from './dateUtils.ts';
 
 console.log('--- Running Remonk Reminder isTaskOverdue Test Suite ---');
@@ -281,7 +292,7 @@ runTest('Legacy task without due_date: start_time alone NEVER marks active task 
 
 console.log(`\nTest results: ${passed} passed, ${failed} failed.`);
 if (failed > 0) {
-  process.exit(1);
+  throw new Error(`${failed} test(s) failed`);
 } else {
   console.log('ALL REQUIRED BOUNDARY AND REGRESSION TEST CASES PASSED!\n');
 }
