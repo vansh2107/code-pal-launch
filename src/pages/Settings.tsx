@@ -16,8 +16,6 @@ import { AppShell } from '@/components/layout/AppShell';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { getDoc, setDoc } from 'firebase/firestore';
-import { userProfileDoc } from '@/integrations/firebase/firestore';
 import { InternationalPhoneInput } from '@/components/ui/international-phone-input';
 import { getCountryCode, ALLOWED_COUNTRIES } from '@/utils/countryMapping';
 
