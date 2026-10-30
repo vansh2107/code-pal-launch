@@ -63,9 +63,9 @@ export default function DocVault() {
   // Camera logic
   const startCamera = async (_categoryId?: string | null) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setShowCamera(true);
+      navigate('/scan');
+      return;
+
     } catch (err) {
       toast.error("Could not access camera");
     }

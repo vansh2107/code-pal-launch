@@ -153,7 +153,7 @@ export default function DocumentDetail() {
         notes:               sanitizeDocumentNote((data.notes as string) ?? ''),
         created_at:          createdAtStr,
         updated_at:          updatedAtStr,
-        image_path:          (data.imagePath || data.image_path || null) as string | null,
+        image_path:          (data.imagePath || data.image_path || data.imageUrl || data.image_url || data.storagePath || data.storage_path || null) as string | null,
       };
       setNotFound(false);
       setDocument(d);

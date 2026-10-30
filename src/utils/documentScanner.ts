@@ -810,24 +810,30 @@ export function applyPerspectiveCorrection(
     }
   }
 
-  // 3. Validate strict convexity and clockwise ordering
-  // Edges: 0->1, 1->2, 2->3, 3->0
+  // 3. Validate strict convexity (all consecutive cross products have matching sign)
+  let positiveCross = 0;
+  let negativeCross = 0;
   for (let i = 0; i < 4; i++) {
     const p1 = pts[i];
     const p2 = pts[(i + 1) % 4];
     const p3 = pts[(i + 2) % 4];
     const cross = (p2.x - p1.x) * (p3.y - p2.y) - (p2.y - p1.y) * (p3.x - p2.x);
-    // In screen coordinates (y-down), clockwise polygon has positive cross product
-    if (cross <= 1e-4) {
-      return null; // Degenerate, collinear, concave, or self-intersecting
-    }
+    if (cross > 1e-4) positiveCross++;
+    else if (cross < -1e-4) negativeCross++;
+    else return null; // Collinear or degenerate
   }
+  if (positiveCross !== 4 && negativeCross !== 4) {
+    return null; // Concave, self-intersecting, or crossed
+  }
+  // If counter-clockwise, reverse pts to make clockwise [0, 3, 2, 1]
+  const orderedPts = negativeCross === 4 ? [pts[0], pts[3], pts[2], pts[1]] : pts;
+  const [tl, tr, br, bl] = orderedPts;
 
   // 4. Calculate output dimensions based on opposite sides
-  const topWidth = Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y);
-  const bottomWidth = Math.hypot(bottomRight.x - bottomLeft.x, bottomRight.y - bottomLeft.y);
-  const leftHeight = Math.hypot(bottomLeft.x - topLeft.x, bottomLeft.y - topLeft.y);
-  const rightHeight = Math.hypot(bottomRight.x - topRight.x, bottomRight.y - topRight.y);
+  const topWidth = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+  const bottomWidth = Math.hypot(br.x - bl.x, br.y - bl.y);
+  const leftHeight = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+  const rightHeight = Math.hypot(br.x - tr.x, br.y - tr.y);
 
   let dstWidth = Math.round(Math.max(topWidth, bottomWidth));
   let dstHeight = Math.round(Math.max(leftHeight, rightHeight));
@@ -861,7 +867,7 @@ export function applyPerspectiveCorrection(
 
   for (let i = 0; i < 4; i++) {
     const { u, v } = dstPts[i];
-    const { x, y } = pts[i];
+    const { x, y } = orderedPts[i];
     A.push([u, v, 1, 0, 0, 0, -u * x, -v * x]);
     b.push(x);
     A.push([0, 0, 0, u, v, 1, -u * y, -v * y]);

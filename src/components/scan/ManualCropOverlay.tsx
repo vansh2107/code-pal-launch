@@ -41,17 +41,21 @@ export function ManualCropOverlay({
     bottomRight: { x: 0.92, y: 0.92 },
   });
 
-  // Validate that the 4 corners form a strictly convex clockwise quadrilateral
+  // Validate that the 4 corners form a strictly convex quadrilateral
   const isValidQuad = useMemo(() => {
     const pts = [bounds.topLeft, bounds.topRight, bounds.bottomRight, bounds.bottomLeft];
+    let pos = 0;
+    let neg = 0;
     for (let i = 0; i < 4; i++) {
       const p1 = pts[i];
       const p2 = pts[(i + 1) % 4];
       const p3 = pts[(i + 2) % 4];
       const crossVal = (p2.x - p1.x) * (p3.y - p2.y) - (p2.y - p1.y) * (p3.x - p2.x);
-      if (crossVal <= 1e-4) return false;
+      if (crossVal > 1e-4) pos++;
+      else if (crossVal < -1e-4) neg++;
+      else return false;
     }
-    return true;
+    return pos === 4 || neg === 4;
   }, [bounds]);
 
   // Initialize bounds from detection

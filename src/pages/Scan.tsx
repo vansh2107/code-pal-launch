@@ -421,12 +421,15 @@ export default function Scan() {
       let imagePath = null;
       if (pdfFile) {
         imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
-      } else if (finalCroppedImg) {
-        const primaryBlob = await srcToImageBlob(finalCroppedImg);
-        const fileExt = primaryBlob.type === 'image/png' ? 'png' : 'jpg';
-        const baseName = originalFileName ? originalFileName.replace(/\.[^/.]+$/, "") : "document";
-        const imageFile = new File([primaryBlob], `${baseName}.${fileExt}`, { type: primaryBlob.type });
-        imagePath = await uploadDocumentOriginal(imageFile, user.uid);
+      } else {
+        const imageSrc = finalCroppedImg || processedImage || capturedImage || rawCapturedImage;
+        if (imageSrc) {
+          const primaryBlob = await srcToImageBlob(imageSrc);
+          const fileExt = primaryBlob.type === 'image/png' ? 'png' : 'jpg';
+          const baseName = originalFileName ? originalFileName.replace(/\.[^/.]+$/, "") : "document";
+          const imageFile = new File([primaryBlob], `${baseName}.${fileExt}`, { type: primaryBlob.type });
+          imagePath = await uploadDocumentOriginal(imageFile, user.uid);
+        }
       }
 
       // Map document type
@@ -815,7 +818,7 @@ export default function Scan() {
           imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
         } else {
           // Prioritize the processed/cropped image: NEVER upload original raw image when cropped is available
-          const finalCroppedSrc = processedImage || capturedImage;
+          const finalCroppedSrc = processedImage || capturedImage || rawCapturedImage;
           if (finalCroppedSrc) {
             const primaryBlob = await srcToImageBlob(finalCroppedSrc);
             const maxSize = 20 * 1024 * 1024;

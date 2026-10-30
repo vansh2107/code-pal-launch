@@ -59,8 +59,8 @@ export interface DetectionResult {
 /** Minimum score at which an automatic crop may be applied without review. */
 export const RELIABLE_SCORE = 0.62;
 
-/** Longest side of the internal processing copy (720px provides high corner accuracy while keeping execution <25ms). */
-const PROC_MAX_DIM = 720;
+/** Longest side of the internal processing copy. 512px balances speed (<20ms) and morphological filter window ratios. */
+const PROC_MAX_DIM = 512;
 const MIN_AREA_RATIO = 0.06;
 const MAX_AREA_RATIO = 0.985;
 
@@ -131,29 +131,24 @@ export function detectDocumentQuad(
       const quads: { quad: Quad; source: string }[] = [];
 
       // 1. Multi-scale approxPolyDP to find genuine 4-corner polygon
-      const epsilons = [0.012, 0.018, 0.024, 0.030, 0.038, 0.048, 0.060];
-      let foundPoly4 = false;
+      const epsilons = [0.015, 0.022, 0.030, 0.040, 0.052];
       for (const eps of epsilons) {
         const approx = approxPolyDP(hull, eps * perimeter);
         if (approx.length === 4) {
           const ordered = orderQuad(approx as Point[]);
           if (ordered) {
             quads.push({ quad: ordered, source: `${name}:poly4` });
-            foundPoly4 = true;
-            break;
           }
         }
       }
 
       // 2. Dominant corner extraction for rounded/curved corners (5 to 8 vertices)
-      if (!foundPoly4) {
-        const approx5_8 = approxPolyDP(hull, 0.022 * perimeter);
-        if (approx5_8.length >= 5 && approx5_8.length <= 8) {
-          const bestSub = findBestQuadFromPolygon(approx5_8 as Point[]);
-          if (bestSub) {
-            const ordered = orderQuad(bestSub);
-            if (ordered) quads.push({ quad: ordered, source: `${name}:sub${approx5_8.length}` });
-          }
+      const approx5_8 = approxPolyDP(hull, 0.022 * perimeter);
+      if (approx5_8.length >= 5 && approx5_8.length <= 8) {
+        const bestSub = findBestQuadFromPolygon(approx5_8 as Point[]);
+        if (bestSub) {
+          const ordered = orderQuad(bestSub);
+          if (ordered) quads.push({ quad: ordered, source: `${name}:sub${approx5_8.length}` });
         }
       }
 
@@ -440,7 +435,10 @@ function cannyFromGradient(
 }
 
 function morphClose(mask: Uint8Array, w: number, h: number): Uint8Array {
-  return erode3(dilate3(mask, w, h), w, h);
+  const d1 = dilate3(mask, w, h);
+  const d2 = dilate3(d1, w, h);
+  const e1 = erode3(d2, w, h);
+  return erode3(e1, w, h);
 }
 
 function dilate3(mask: Uint8Array, w: number, h: number): Uint8Array {
@@ -957,16 +955,15 @@ function scoreQuad(
   const areaScore =
     areaRatio < 0.12 ? areaRatio / 0.12 : areaRatio > 0.96 ? Math.max(0, (1 - areaRatio) / 0.04) : 1;
 
-  // Real documents must have clear edge support along their perimeter.
-  // If edge support is weak (e.g. noise or arbitrary blobs), discount the score heavily.
-  const edgeMultiplier = edgeSupport < 0.38 ? Math.pow(edgeSupport / 0.38, 1.8) : 1.0;
+  // Real documents must have visible edge gradients along their perimeter.
+  // Smoothly discount candidates with weak edge support rather than zeroing out.
+  const edgeMultiplier = edgeSupport < 0.15 ? Math.max(0.45, edgeSupport / 0.15) : 1.0;
 
-  // Axis-aligned bounding box (bbox) is ONLY an approximate fallback.
-  // Heavily penalize so it can NEVER claim high confidence or auto-crop!
-  const sourceMultiplier = source.includes('bbox') ? 0.38 : 1.0;
+  // Axis-aligned bounding box (bbox) is an approximate fallback compared to polygon/OBB.
+  const sourceMultiplier = source.includes('bbox') ? 0.72 : 1.0;
 
   const baseScore =
-    0.28 * angleScore + 0.18 * sideScore + 0.28 * edgeSupport + 0.16 * areaScore + 0.1 * convexity;
+    0.26 * angleScore + 0.20 * sideScore + 0.26 * edgeSupport + 0.18 * areaScore + 0.10 * convexity;
 
   const score = baseScore * edgeMultiplier * sourceMultiplier;
 
@@ -993,8 +990,10 @@ function perimeterEdgeSupport(
   }
   if (max <= 0) return 0;
   const mean = sum / magnitude.length;
-  // A true document boundary produces gradients substantially above the image background/noise mean.
-  const threshold = Math.max(mean * 2.0, max * 0.25);
+  // A true document boundary produces gradients above the background noise floor.
+  // Using Math.max(8, Math.min(mean * 1.3, max * 0.12)) ensures boundaries are detected reliably
+  // even under flash, shadows, or varied background contrast.
+  const threshold = Math.max(8, Math.min(mean * 1.3, max * 0.12));
 
   let hits = 0;
   let samples = 0;

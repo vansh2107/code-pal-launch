@@ -35,7 +35,7 @@ export async function uploadDocumentOriginal(
     const storageRef = ref(firebaseStorage, filePath);
 
     await uploadBytes(storageRef, file, {
-      contentType:    file.type,
+      contentType:    file.type || (fileExt === 'png' ? 'image/png' : fileExt === 'pdf' ? 'application/pdf' : 'image/jpeg'),
       cacheControl:   'private, max-age=3600',
       customMetadata: { uploadedBy: userId, docId: docUuid },
     });

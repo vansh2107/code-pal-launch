@@ -77,7 +77,7 @@ export function useDocVaultDocuments(userId: string | undefined) {
             id:                   d.id,
             name:                 (data.name || data.title || 'Untitled Document') as string,
             document_type:        (data.documentType || data.document_type || 'other') as string,
-            image_path:           (data.imagePath || data.image_path || null) as string | null,
+            image_path:           (data.imagePath || data.image_path || data.imageUrl || data.image_url || data.storagePath || data.storage_path || null) as string | null,
             created_at:           createdAtStr,
             docvault_category_id: (data.docvaultCategoryId || data.docvault_category_id || null) as string | null,
             access_count:         (data.accessCount ?? data.access_count ?? 0) as number,

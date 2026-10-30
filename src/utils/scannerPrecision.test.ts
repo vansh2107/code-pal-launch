@@ -282,6 +282,48 @@ function drawPolygon(
   console.log("✓ Test 7: Degenerate, self-intersecting, and invalid quads properly rejected");
 }
 
+// -------------------------------------------------------------
+// Test 8: Document with bold text, barcode/stripes, and flash glare
+// -------------------------------------------------------------
+{
+  const W = 800, H = 600;
+  const img = createBlankImage(W, H, 50);
+  const docCorners: Point[] = [
+    { x: 120, y: 80 },
+    { x: 680, y: 80 },
+    { x: 680, y: 520 },
+    { x: 120, y: 520 },
+  ];
+  drawPolygon(img, docCorners, 240);
+
+  // Add bold black text blocks / lines inside document
+  for (let y = 140; y < 460; y += 30) {
+    for (let x = 160; x < 640; x++) {
+      if ((x % 80) < 60) {
+        const idx = (y * W + x) * 4;
+        img.data[idx] = 10;
+        img.data[idx + 1] = 10;
+        img.data[idx + 2] = 10;
+      }
+    }
+  }
+
+  // Add specular flash glare (gradient up to 255)
+  for (let y = 80; y < 140; y++) {
+    for (let x = 600; x < 680; x++) {
+      const idx = (y * W + x) * 4;
+      img.data[idx] = 255;
+      img.data[idx + 1] = 255;
+      img.data[idx + 2] = 255;
+    }
+  }
+
+  const result = detectDocumentQuad(img.data, W, H);
+  assert.ok(result.quad !== null, "Scenario 8: Must detect document quad amidst text & glare");
+  assert.ok(result.score >= RELIABLE_SCORE, `Scenario 8: Score ${result.score.toFixed(3)} should be >= ${RELIABLE_SCORE}`);
+  console.log(`✓ Scenario 8: Document with bold text & specular glare detected with score ${result.score.toFixed(3)} (>= ${RELIABLE_SCORE})`);
+}
+
 console.log("=======================================================");
-console.log("ALL 7 VERIFICATION SCENARIOS PASSED WITH ZERO FAILURES!");
+console.log("ALL 8 VERIFICATION SCENARIOS PASSED WITH ZERO FAILURES!");
 console.log("=======================================================");

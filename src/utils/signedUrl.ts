@@ -50,6 +50,9 @@ export async function getSignedUrl(
   expiresIn: number = DEFAULT_EXPIRY_SECONDS,
 ): Promise<string | null> {
   if (!path) return null;
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('blob:')) {
+    return path;
+  }
 
   const cacheKey = `${bucket}:${path}`;
   const cached   = signedUrlCache.get(cacheKey);
