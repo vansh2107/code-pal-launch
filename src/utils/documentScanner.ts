@@ -3,7 +3,7 @@
  * Fast auto-crop with improved edge detection, perspective correction, and enhancement
  */
 
-import { detectDocumentQuad, RELIABLE_SCORE, type Quad } from './documentEdgeDetection';
+import { detectDocumentQuad, RELIABLE_SCORE, type Quad } from './documentEdgeDetection.ts';
 
 export type ScanFilter = 'color' | 'grayscale' | 'blackwhite';
 
@@ -172,6 +172,13 @@ export async function scanDocument(
       outCanvas.height = corrected.height;
       outCtx = outCanvas.getContext('2d', { willReadFrequently: true })!;
       outCtx.putImageData(corrected.data, 0, 0);
+    } else {
+      // Perspective correction failed — never report as cropped!
+      autoCropApplied = false;
+      confidence = 0;
+      if (scaledCropBounds) {
+        throw new Error('Perspective correction failed: invalid quadrilateral or degenerate corners');
+      }
     }
   } else {
     // No crop – just put the original on canvas
@@ -719,68 +726,205 @@ function detectByColorContrast(
 
 // ─── Perspective correction ───────────────────────────────────────────────────
 
-function applyPerspectiveCorrection(
+function solveGaussianElimination(A: number[][], b: number[]): number[] | null {
+  const n = b.length;
+  const M: number[][] = new Array(n);
+  for (let i = 0; i < n; i++) {
+    M[i] = new Array(n + 1);
+    for (let j = 0; j < n; j++) M[i][j] = A[i][j];
+    M[i][n] = b[i];
+  }
+
+  for (let p = 0; p < n; p++) {
+    let maxRow = p;
+    let maxVal = Math.abs(M[p][p]);
+    for (let i = p + 1; i < n; i++) {
+      const val = Math.abs(M[i][p]);
+      if (val > maxVal) {
+        maxVal = val;
+        maxRow = i;
+      }
+    }
+    if (maxVal < 1e-10) return null; // Singular or ill-conditioned
+
+    if (maxRow !== p) {
+      const tmp = M[p];
+      M[p] = M[maxRow];
+      M[maxRow] = tmp;
+    }
+
+    for (let i = p + 1; i < n; i++) {
+      const alpha = M[i][p] / M[p][p];
+      M[i][p] = 0;
+      for (let j = p + 1; j <= n; j++) {
+        M[i][j] -= alpha * M[p][j];
+      }
+    }
+  }
+
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    let sum = M[i][n];
+    for (let j = i + 1; j < n; j++) {
+      sum -= M[i][j] * x[j];
+    }
+    x[i] = sum / M[i][i];
+  }
+  return x;
+}
+
+function createBlankImageData(width: number, height: number): ImageData {
+  if (typeof ImageData !== 'undefined') {
+    return new ImageData(width, height);
+  }
+  return {
+    data: new Uint8ClampedArray(width * height * 4),
+    width,
+    height,
+    colorSpace: 'srgb',
+  } as ImageData;
+}
+
+export function applyPerspectiveCorrection(
   srcData: ImageData,
   srcWidth: number,
   srcHeight: number,
   bounds: CropBounds
 ): { data: ImageData; width: number; height: number } | null {
-  const src = bounds;
+  const { topLeft, topRight, bottomRight, bottomLeft } = bounds;
+  const pts = [topLeft, topRight, bottomRight, bottomLeft];
 
-  const topWidth = Math.sqrt(
-    Math.pow(src.topRight.x - src.topLeft.x, 2) + Math.pow(src.topRight.y - src.topLeft.y, 2)
-  );
-  const bottomWidth = Math.sqrt(
-    Math.pow(src.bottomRight.x - src.bottomLeft.x, 2) + Math.pow(src.bottomRight.y - src.bottomLeft.y, 2)
-  );
-  const leftHeight = Math.sqrt(
-    Math.pow(src.bottomLeft.x - src.topLeft.x, 2) + Math.pow(src.bottomLeft.y - src.topLeft.y, 2)
-  );
-  const rightHeight = Math.sqrt(
-    Math.pow(src.bottomRight.x - src.topRight.x, 2) + Math.pow(src.bottomRight.y - src.topRight.y, 2)
-  );
+  // 1. Validate finite coordinates
+  for (const p of pts) {
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+      return null;
+    }
+  }
 
-  // Use full detected size (no artificial cap) for maximum quality
-  const dstWidth = Math.round(Math.max(topWidth, bottomWidth));
-  const dstHeight = Math.round(Math.max(leftHeight, rightHeight));
+  // 2. Validate coordinates are within reasonable bounds of the image (with 15% margin)
+  const slackX = srcWidth * 0.15;
+  const slackY = srcHeight * 0.15;
+  for (const p of pts) {
+    if (p.x < -slackX || p.x > srcWidth + slackX || p.y < -slackY || p.y > srcHeight + slackY) {
+      return null;
+    }
+  }
 
-  if (dstWidth < 100 || dstHeight < 100) return null;
+  // 3. Validate strict convexity and clockwise ordering
+  // Edges: 0->1, 1->2, 2->3, 3->0
+  for (let i = 0; i < 4; i++) {
+    const p1 = pts[i];
+    const p2 = pts[(i + 1) % 4];
+    const p3 = pts[(i + 2) % 4];
+    const cross = (p2.x - p1.x) * (p3.y - p2.y) - (p2.y - p1.y) * (p3.x - p2.x);
+    // In screen coordinates (y-down), clockwise polygon has positive cross product
+    if (cross <= 1e-4) {
+      return null; // Degenerate, collinear, concave, or self-intersecting
+    }
+  }
 
-  const dstData = new ImageData(dstWidth, dstHeight);
+  // 4. Calculate output dimensions based on opposite sides
+  const topWidth = Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y);
+  const bottomWidth = Math.hypot(bottomRight.x - bottomLeft.x, bottomRight.y - bottomLeft.y);
+  const leftHeight = Math.hypot(bottomLeft.x - topLeft.x, bottomLeft.y - topLeft.y);
+  const rightHeight = Math.hypot(bottomRight.x - topRight.x, bottomRight.y - topRight.y);
+
+  let dstWidth = Math.round(Math.max(topWidth, bottomWidth));
+  let dstHeight = Math.round(Math.max(leftHeight, rightHeight));
+
+  // Minimum output dimensions
+  if (dstWidth < 60 || dstHeight < 60) return null;
+
+  // Maximum dimension cap to avoid out-of-memory on mobile WebViews
+  const MAX_OUTPUT_DIM = 3200;
+  if (dstWidth > MAX_OUTPUT_DIM || dstHeight > MAX_OUTPUT_DIM) {
+    const scale = MAX_OUTPUT_DIM / Math.max(dstWidth, dstHeight);
+    dstWidth = Math.max(60, Math.round(dstWidth * scale));
+    dstHeight = Math.max(60, Math.round(dstHeight * scale));
+  }
+
+  // 5. Destination corners:
+  // D0=(0, 0), D1=(dstWidth-1, 0), D2=(dstWidth-1, dstHeight-1), D3=(0, dstHeight-1)
+  const dstPts = [
+    { u: 0, v: 0 },
+    { u: dstWidth - 1, v: 0 },
+    { u: dstWidth - 1, v: dstHeight - 1 },
+    { u: 0, v: dstHeight - 1 },
+  ];
+
+  // 6. Formulate 8x8 linear system for inverse homography mapping (u, v) -> (x, y)
+  // For each i:
+  // u*h00 + v*h01 + h02 - u*x*h20 - v*x*h21 = x
+  // u*h10 + v*h11 + h12 - u*y*h20 - v*y*h21 = y
+  const A: number[][] = [];
+  const b: number[] = [];
+
+  for (let i = 0; i < 4; i++) {
+    const { u, v } = dstPts[i];
+    const { x, y } = pts[i];
+    A.push([u, v, 1, 0, 0, 0, -u * x, -v * x]);
+    b.push(x);
+    A.push([0, 0, 0, u, v, 1, -u * y, -v * y]);
+    b.push(y);
+  }
+
+  const sol = solveGaussianElimination(A, b);
+  if (!sol) return null;
+
+  // H matrix coefficients: [h00, h01, h02, h10, h11, h12, h20, h21, 1]
+  const H = [...sol, 1];
+
+  // 7. Inverse mapping and bilinear interpolation
+  const dstData = createBlankImageData(dstWidth, dstHeight);
+  const src = srcData.data;
 
   for (let dy = 0; dy < dstHeight; dy++) {
     for (let dx = 0; dx < dstWidth; dx++) {
-      const u = dx / dstWidth;
-      const v = dy / dstHeight;
+      const W = H[6] * dx + H[7] * dy + 1;
+      if (Math.abs(W) < 1e-10) continue;
 
-      const topX = src.topLeft.x + u * (src.topRight.x - src.topLeft.x);
-      const topY = src.topLeft.y + u * (src.topRight.y - src.topLeft.y);
-      const bottomX = src.bottomLeft.x + u * (src.bottomRight.x - src.bottomLeft.x);
-      const bottomY = src.bottomLeft.y + u * (src.bottomRight.y - src.bottomLeft.y);
-
-      const srcX = topX + v * (bottomX - topX);
-      const srcY = topY + v * (bottomY - topY);
+      const srcX = (H[0] * dx + H[1] * dy + H[2]) / W;
+      const srcY = (H[3] * dx + H[4] * dy + H[5]) / W;
 
       const x0 = Math.floor(srcX);
       const y0 = Math.floor(srcY);
-      const x1 = Math.min(x0 + 1, srcWidth - 1);
-      const y1 = Math.min(y0 + 1, srcHeight - 1);
       const fx = srcX - x0;
       const fy = srcY - y0;
 
-      if (x0 >= 0 && x0 < srcWidth && y0 >= 0 && y0 < srcHeight) {
-        const dstIdx = (dy * dstWidth + dx) * 4;
-        for (let c = 0; c < 3; c++) {
-          const v00 = srcData.data[(y0 * srcWidth + x0) * 4 + c];
-          const v10 = srcData.data[(y0 * srcWidth + x1) * 4 + c];
-          const v01 = srcData.data[(y1 * srcWidth + x0) * 4 + c];
-          const v11 = srcData.data[(y1 * srcWidth + x1) * 4 + c];
-          dstData.data[dstIdx + c] = Math.round(
-            v00 * (1 - fx) * (1 - fy) + v10 * fx * (1 - fy) + v01 * (1 - fx) * fy + v11 * fx * fy
-          );
-        }
+      const cx0 = Math.max(0, Math.min(srcWidth - 1, x0));
+      const cx1 = Math.max(0, Math.min(srcWidth - 1, x0 + 1));
+      const cy0 = Math.max(0, Math.min(srcHeight - 1, y0));
+      const cy1 = Math.max(0, Math.min(srcHeight - 1, y0 + 1));
+
+      const dstIdx = (dy * dstWidth + dx) * 4;
+
+      if (srcX < -2 || srcX > srcWidth + 1 || srcY < -2 || srcY > srcHeight + 1) {
+        dstData.data[dstIdx] = 255;
+        dstData.data[dstIdx + 1] = 255;
+        dstData.data[dstIdx + 2] = 255;
         dstData.data[dstIdx + 3] = 255;
+        continue;
       }
+
+      const w00 = (1 - fx) * (1 - fy);
+      const w10 = fx * (1 - fy);
+      const w01 = (1 - fx) * fy;
+      const w11 = fx * fy;
+
+      const idx00 = (cy0 * srcWidth + cx0) * 4;
+      const idx10 = (cy0 * srcWidth + cx1) * 4;
+      const idx01 = (cy1 * srcWidth + cx0) * 4;
+      const idx11 = (cy1 * srcWidth + cx1) * 4;
+
+      for (let c = 0; c < 3; c++) {
+        dstData.data[dstIdx + c] = Math.round(
+          src[idx00 + c] * w00 +
+          src[idx10 + c] * w10 +
+          src[idx01 + c] * w01 +
+          src[idx11 + c] * w11
+        );
+      }
+      dstData.data[dstIdx + 3] = 255;
     }
   }
 

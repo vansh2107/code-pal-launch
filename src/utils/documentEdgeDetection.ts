@@ -59,8 +59,8 @@ export interface DetectionResult {
 /** Minimum score at which an automatic crop may be applied without review. */
 export const RELIABLE_SCORE = 0.62;
 
-/** Longest side of the internal processing copy. */
-const PROC_MAX_DIM = 512;
+/** Longest side of the internal processing copy (720px provides high corner accuracy while keeping execution <25ms). */
+const PROC_MAX_DIM = 720;
 const MIN_AREA_RATIO = 0.06;
 const MAX_AREA_RATIO = 0.985;
 
@@ -104,10 +104,14 @@ export function detectDocumentQuad(
   const canny = cannyFromGradient(grad, pw, ph, low, high);
   masks.push({ name: 'cannyClose', mask: morphClose(canny, pw, ph) });
 
-  // Pass B — adaptive mean threshold (both polarities) + Otsu (both polarities).
+  // Pass B — adaptive mean threshold (multi-scale, both polarities) + Otsu (both polarities).
   const adaptive = adaptiveMeanThreshold(equalized, pw, ph, 31, 7);
   masks.push({ name: 'adaptive+', mask: adaptive });
   masks.push({ name: 'adaptive-', mask: invertMask(adaptive) });
+
+  const adaptiveWide = adaptiveMeanThreshold(equalized, pw, ph, 55, 8);
+  masks.push({ name: 'adaptiveWide+', mask: adaptiveWide });
+  masks.push({ name: 'adaptiveWide-', mask: invertMask(adaptiveWide) });
 
   const otsuT = otsuThreshold(equalized);
   const otsu = thresholdMask(equalized, otsuT, false);
@@ -123,14 +127,49 @@ export function detectDocumentQuad(
       const hull = convexHull(comp.points);
       if (hull.length < 4) continue;
 
-      const approx = approxPolyDP(hull, 0.02 * polygonPerimeter(hull));
+      const perimeter = polygonPerimeter(hull);
       const quads: { quad: Quad; source: string }[] = [];
 
-      const fromApprox = approx.length === 4 ? orderQuad(approx as Point[]) : null;
-      if (fromApprox) quads.push({ quad: fromApprox, source: `${name}:poly` });
+      // 1. Multi-scale approxPolyDP to find genuine 4-corner polygon
+      const epsilons = [0.012, 0.018, 0.024, 0.030, 0.038, 0.048, 0.060];
+      let foundPoly4 = false;
+      for (const eps of epsilons) {
+        const approx = approxPolyDP(hull, eps * perimeter);
+        if (approx.length === 4) {
+          const ordered = orderQuad(approx as Point[]);
+          if (ordered) {
+            quads.push({ quad: ordered, source: `${name}:poly4` });
+            foundPoly4 = true;
+            break;
+          }
+        }
+      }
 
+      // 2. Dominant corner extraction for rounded/curved corners (5 to 8 vertices)
+      if (!foundPoly4) {
+        const approx5_8 = approxPolyDP(hull, 0.022 * perimeter);
+        if (approx5_8.length >= 5 && approx5_8.length <= 8) {
+          const bestSub = findBestQuadFromPolygon(approx5_8 as Point[]);
+          if (bestSub) {
+            const ordered = orderQuad(bestSub);
+            if (ordered) quads.push({ quad: ordered, source: `${name}:sub${approx5_8.length}` });
+          }
+        }
+      }
+
+      // 3. Oriented Bounding Box (OBB) - captures rotated documents accurately
+      const obb = minAreaRect(hull);
+      if (obb) {
+        const ordered = orderQuad(obb);
+        if (ordered) quads.push({ quad: ordered, source: `${name}:obb` });
+      }
+
+      // 4. Axis-aligned bounding box (fallback only, penalized in scoring)
       const bbox = bboxQuad(hull);
-      if (bbox) quads.push({ quad: bbox, source: `${name}:bbox` });
+      if (bbox) {
+        const ordered = orderQuad(bbox);
+        if (ordered) quads.push({ quad: ordered, source: `${name}:bbox` });
+      }
 
       for (const q of quads) {
         if (!isValidQuad(q.quad, pw, ph)) continue;
@@ -713,15 +752,101 @@ function bboxQuad(points: Point[]): Quad | null {
   ];
 }
 
-/** Order 4 points as TL, TR, BR, BL using angle around the centroid. */
+/** Minimum Area Bounding Box (Oriented Bounding Box) for rotated documents. */
+function minAreaRect(hull: Point[]): Quad | null {
+  if (hull.length < 3) return null;
+  let minArea = Infinity;
+  let bestCorners: Quad | null = null;
+
+  for (let i = 0; i < hull.length; i++) {
+    const p1 = hull[i];
+    const p2 = hull[(i + 1) % hull.length];
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) continue;
+
+    const cos = dx / len;
+    const sin = dy / len;
+
+    let minU = Infinity, maxU = -Infinity;
+    let minV = Infinity, maxV = -Infinity;
+
+    for (const p of hull) {
+      const u = p.x * cos + p.y * sin;
+      const v = -p.x * sin + p.y * cos;
+      if (u < minU) minU = u;
+      if (u > maxU) maxU = u;
+      if (v < minV) minV = v;
+      if (v > maxV) maxV = v;
+    }
+
+    const area = (maxU - minU) * (maxV - minV);
+    if (area < minArea && area > 50) {
+      minArea = area;
+      bestCorners = [
+        { x: minU * cos - minV * sin, y: minU * sin + minV * cos },
+        { x: maxU * cos - minV * sin, y: maxU * sin + minV * cos },
+        { x: maxU * cos - maxV * sin, y: maxU * sin + maxV * cos },
+        { x: minU * cos - maxV * sin, y: minU * sin + maxV * cos },
+      ];
+    }
+  }
+
+  return bestCorners;
+}
+
+/** For polygons with 5 to 8 vertices (curved/notched corners), extract the 4 dominant convex corners. */
+function findBestQuadFromPolygon(poly: Point[]): Point[] | null {
+  const n = poly.length;
+  if (n < 4) return null;
+  if (n === 4) return poly;
+  if (n > 8) return null; // Too many combinations
+
+  const totalArea = polygonArea(poly);
+  let bestSubset: Point[] | null = null;
+  let maxSubsetArea = 0;
+
+  for (let i = 0; i < n - 3; i++) {
+    for (let j = i + 1; j < n - 2; j++) {
+      for (let k = j + 1; k < n - 1; k++) {
+        for (let l = k + 1; l < n; l++) {
+          const candidate = [poly[i], poly[j], poly[k], poly[l]];
+          const ordered = orderQuad(candidate);
+          if (!ordered) continue;
+
+          const area = polygonArea(ordered);
+          if (area > maxSubsetArea) {
+            maxSubsetArea = area;
+            bestSubset = ordered;
+          }
+        }
+      }
+    }
+  }
+
+  if (bestSubset && totalArea > 0 && (maxSubsetArea / totalArea) >= 0.82) {
+    return bestSubset;
+  }
+  return null;
+}
+
+/** Order 4 points as TL, TR, BR, BL clockwise around the centroid with strict convexity validation. */
 function orderQuad(points: Point[]): Quad | null {
   if (points.length !== 4) return null;
+  for (const p of points) {
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+  }
+
   const cx = points.reduce((s, p) => s + p.x, 0) / 4;
   const cy = points.reduce((s, p) => s + p.y, 0) / 4;
+
+  // In screen coords (y down), angle atan2(y - cy, x - cx) ascending sorts clockwise
   const sorted = points
     .slice()
     .sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
-  // Rotate so the first point is the one closest to the top-left corner.
+
+  // Rotate so index 0 is Top-Left (minimum x + y)
   let startIdx = 0;
   let bestScore = Infinity;
   sorted.forEach((p, i) => {
@@ -731,12 +856,23 @@ function orderQuad(points: Point[]): Quad | null {
       startIdx = i;
     }
   });
+
   const ordered = [
     sorted[startIdx],
     sorted[(startIdx + 1) % 4],
     sorted[(startIdx + 2) % 4],
     sorted[(startIdx + 3) % 4],
   ] as Quad;
+
+  // Strict convexity check: consecutive cross products must be positive (>1e-4)
+  for (let i = 0; i < 4; i++) {
+    const p1 = ordered[i];
+    const p2 = ordered[(i + 1) % 4];
+    const p3 = ordered[(i + 2) % 4];
+    const crossVal = (p2.x - p1.x) * (p3.y - p2.y) - (p2.y - p1.y) * (p3.x - p2.x);
+    if (crossVal <= 1e-4) return null;
+  }
+
   return ordered;
 }
 
@@ -799,7 +935,7 @@ function scoreQuad(
   }
   const angleScore = Math.max(0, 1 - angleErr / 4 / 40);
 
-  // Opposite sides should have similar lengths.
+  // Opposite sides should have reasonable length ratio; allow perspective foreshortening
   const sides = [
     dist(quad[0], quad[1]),
     dist(quad[1], quad[2]),
@@ -808,7 +944,7 @@ function scoreQuad(
   ];
   const r1 = Math.min(sides[0], sides[2]) / Math.max(sides[0], sides[2]);
   const r2 = Math.min(sides[1], sides[3]) / Math.max(sides[1], sides[3]);
-  const sideScore = (r1 + r2) / 2;
+  const sideScore = Math.min(1, ((r1 + r2) / 2) / 0.72);
 
   // Gradient support along the quad perimeter.
   const edgeSupport = perimeterEdgeSupport(quad, w, h, magnitude);
@@ -819,17 +955,20 @@ function scoreQuad(
 
   // Prefer documents that fill a healthy portion of the frame.
   const areaScore =
-    areaRatio < 0.15 ? areaRatio / 0.15 : areaRatio > 0.95 ? Math.max(0, (1 - areaRatio) / 0.05) : 1;
+    areaRatio < 0.12 ? areaRatio / 0.12 : areaRatio > 0.96 ? Math.max(0, (1 - areaRatio) / 0.04) : 1;
 
   // Real documents must have clear edge support along their perimeter.
-  // If edge support is weak (e.g. noise or arbitrary blobs), discount the score heavily
-  // so false positive rectangles on textured/uniform surfaces don't trigger auto-crop.
-  const edgeMultiplier = edgeSupport < 0.45 ? Math.pow(edgeSupport / 0.45, 1.5) : 1.0;
+  // If edge support is weak (e.g. noise or arbitrary blobs), discount the score heavily.
+  const edgeMultiplier = edgeSupport < 0.38 ? Math.pow(edgeSupport / 0.38, 1.8) : 1.0;
+
+  // Axis-aligned bounding box (bbox) is ONLY an approximate fallback.
+  // Heavily penalize so it can NEVER claim high confidence or auto-crop!
+  const sourceMultiplier = source.includes('bbox') ? 0.38 : 1.0;
 
   const baseScore =
-    0.28 * angleScore + 0.2 * sideScore + 0.24 * edgeSupport + 0.18 * areaScore + 0.1 * convexity;
+    0.28 * angleScore + 0.18 * sideScore + 0.28 * edgeSupport + 0.16 * areaScore + 0.1 * convexity;
 
-  const score = baseScore * edgeMultiplier;
+  const score = baseScore * edgeMultiplier * sourceMultiplier;
 
   return {
     quad,

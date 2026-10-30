@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Check, RotateCcw, Move } from "lucide-react";
+import { Check, RotateCcw, Move, AlertTriangle } from "lucide-react";
 
 interface CropPoint {
   x: number;
@@ -40,6 +40,19 @@ export function ManualCropOverlay({
     bottomLeft: { x: 0.08, y: 0.92 },
     bottomRight: { x: 0.92, y: 0.92 },
   });
+
+  // Validate that the 4 corners form a strictly convex clockwise quadrilateral
+  const isValidQuad = useMemo(() => {
+    const pts = [bounds.topLeft, bounds.topRight, bounds.bottomRight, bounds.bottomLeft];
+    for (let i = 0; i < 4; i++) {
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % 4];
+      const p3 = pts[(i + 2) % 4];
+      const crossVal = (p2.x - p1.x) * (p3.y - p2.y) - (p2.y - p1.y) * (p3.x - p2.x);
+      if (crossVal <= 1e-4) return false;
+    }
+    return true;
+  }, [bounds]);
 
   // Initialize bounds from detection
   useEffect(() => {
@@ -198,6 +211,12 @@ export function ManualCropOverlay({
           <Move className="h-4 w-4" />
           Drag corners to adjust
         </span>
+        {!isValidQuad && (
+          <div className="flex items-center gap-1.5 text-xs text-red-400 bg-red-950/60 px-2.5 py-1 rounded border border-red-800">
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+            <span>Corners cannot cross</span>
+          </div>
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -251,7 +270,7 @@ export function ManualCropOverlay({
               <path
                 d={buildPath()}
                 fill="none"
-                stroke="hsl(var(--primary))"
+                stroke={isValidQuad ? "hsl(var(--primary))" : "#ef4444"}
                 strokeWidth="2"
               />
 
@@ -330,6 +349,7 @@ export function ManualCropOverlay({
         <Button
           onClick={handleConfirm}
           className="flex-1"
+          disabled={!isValidQuad}
         >
           <Check className="h-4 w-4 mr-2" />
           Apply Crop

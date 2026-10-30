@@ -110,6 +110,7 @@ export default function Scan() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [rawCapturedImage, setRawCapturedImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [originalFileName, setOriginalFileName] = useState<string | null>(null);
   const [showScanPreview, setShowScanPreview] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -372,6 +373,7 @@ export default function Scan() {
     setRawCapturedImage(null);
     setProcessedImage(null);
     setCapturedImage(null);
+    setOriginalFileName(null);
     setShowScanPreview(false);
     if (scanMode === "camera") {
       startCamera();
@@ -383,6 +385,7 @@ export default function Scan() {
     if (!file) return;
 
     try {
+      setOriginalFileName(file.name);
       // Check if file is a PDF
       if (file.type === 'application/pdf') {
         // Store the ORIGINAL PDF file - NO conversion
@@ -411,37 +414,19 @@ export default function Scan() {
     }
   };
 
-  const autoSaveNoExpiry = async (extractedFields: any, rawImg: string | null, croppedImg: string | null) => {
+  const autoSaveNoExpiry = async (extractedFields: any, finalCroppedImg: string | null) => {
     if (!user) return;
     setLoading(true);
     try {
       let imagePath = null;
       if (pdfFile) {
         imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
-      } else if (croppedImg || rawImg) {
-        const primaryCroppedSrc = croppedImg || rawImg;
-        const primaryBlob = await srcToImageBlob(primaryCroppedSrc);
-        const fileExt = (primaryBlob.type.split('/')[1]) || 'jpg';
-        const imageFile = new File([primaryBlob], `document.${fileExt}`, { type: primaryBlob.type });
+      } else if (finalCroppedImg) {
+        const primaryBlob = await srcToImageBlob(finalCroppedImg);
+        const fileExt = primaryBlob.type === 'image/png' ? 'png' : 'jpg';
+        const baseName = originalFileName ? originalFileName.replace(/\.[^/.]+$/, "") : "document";
+        const imageFile = new File([primaryBlob], `${baseName}.${fileExt}`, { type: primaryBlob.type });
         imagePath = await uploadDocumentOriginal(imageFile, user.uid);
-        
-        if (rawImg && croppedImg && rawImg !== croppedImg) {
-          try {
-            const rawBlob = await srcToImageBlob(rawImg);
-            const rawFileExt = (rawBlob.type.split('/')[1]) || 'jpg';
-            if (imagePath) {
-              const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-              const rawPath = `${basePath}/raw.${rawFileExt}`;
-              await uploadBytes(
-                storageRef(firebaseStorage, rawPath),
-                rawBlob,
-                { contentType: rawBlob.type }
-              );
-            }
-          } catch (e) {
-            console.warn("Failed to upload companion raw image:", e);
-          }
-        }
       }
 
       // Map document type
@@ -525,7 +510,7 @@ export default function Scan() {
         setDecision(dec);
 
         if (dec.decision === 'NO_EXPIRY_AUTO_SAVE') {
-          await autoSaveNoExpiry(data.data, rawCapturedImage, capturedImage);
+          await autoSaveNoExpiry(data.data, imageBase64);
           return;
         }
 
@@ -614,7 +599,7 @@ export default function Scan() {
         setDecision(dec);
 
         if (dec.decision === 'NO_EXPIRY_AUTO_SAVE') {
-          await autoSaveNoExpiry(data.data, null, null);
+          await autoSaveNoExpiry(data.data, null);
           return;
         }
 
@@ -728,6 +713,7 @@ export default function Scan() {
     setCapturedImage(null);
     setRawCapturedImage(null);
     setProcessedImage(null);
+    setOriginalFileName(null);
     setShowScanPreview(false);
     setPdfFile(null);
     setCandidateDates([]);
@@ -827,33 +813,19 @@ export default function Scan() {
             throw new Error("PDF file size exceeds 20MB limit");
           }
           imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
-        } else if (capturedImage || rawCapturedImage) {
-          const primaryCroppedSrc = capturedImage || rawCapturedImage;
-          const primaryBlob = await srcToImageBlob(primaryCroppedSrc);
-          const maxSize = 20 * 1024 * 1024;
-          if (primaryBlob.size > maxSize) {
-            throw new Error("Image file size exceeds 20MB limit");
-          }
-          const fileExt = (primaryBlob.type.split('/')[1]) || 'jpg';
-          const imageFile = new File([primaryBlob], `document.${fileExt}`, { type: primaryBlob.type });
-          imagePath = await uploadDocumentOriginal(imageFile, user.uid);
-          
-          if (rawCapturedImage && capturedImage && rawCapturedImage !== capturedImage) {
-            try {
-              const rawBlob = await srcToImageBlob(rawCapturedImage);
-              const rawFileExt = (rawBlob.type.split('/')[1]) || 'jpg';
-              if (imagePath) {
-                const basePath = imagePath.substring(0, imagePath.lastIndexOf('/'));
-                const rawPath = `${basePath}/raw.${rawFileExt}`;
-                await uploadBytes(
-                  storageRef(firebaseStorage, rawPath),
-                  rawBlob,
-                  { contentType: rawBlob.type }
-                );
-              }
-            } catch (e) {
-              console.warn("Failed to upload companion raw image:", e);
+        } else {
+          // Prioritize the processed/cropped image: NEVER upload original raw image when cropped is available
+          const finalCroppedSrc = processedImage || capturedImage;
+          if (finalCroppedSrc) {
+            const primaryBlob = await srcToImageBlob(finalCroppedSrc);
+            const maxSize = 20 * 1024 * 1024;
+            if (primaryBlob.size > maxSize) {
+              throw new Error("Image file size exceeds 20MB limit");
             }
+            const fileExt = primaryBlob.type === 'image/png' ? 'png' : 'jpg';
+            const baseName = originalFileName ? originalFileName.replace(/\.[^/.]+$/, "") : "document";
+            const imageFile = new File([primaryBlob], `${baseName}.${fileExt}`, { type: primaryBlob.type });
+            imagePath = await uploadDocumentOriginal(imageFile, user.uid);
           }
         }
       } catch (uploadErr) {
@@ -876,6 +848,12 @@ export default function Scan() {
           try {
             const { deleteObject: delObj } = await import("firebase/storage");
             await delObj(storageRef(firebaseStorage, existingImagePath));
+            // Also clean up any legacy companion raw file if it existed
+            try {
+              const basePath = existingImagePath.substring(0, existingImagePath.lastIndexOf('/'));
+              const ext = existingImagePath.split('.').pop() ?? 'jpg';
+              await delObj(storageRef(firebaseStorage, `${basePath}/raw.${ext}`));
+            } catch { /* ok if no legacy raw file exists */ }
           } catch { /* ok */ }
         }
 

@@ -233,15 +233,28 @@ export function DocumentScanPreview({
 
           const endTime = performance.now();
           if (mounted) {
-            setScanResult(result);
-            setDisplayImage(result.processedImage);
-            originalImageRef.current = result.originalImage;
-            setCurrentFilter('color');
-            setProcessingTime(Math.round(endTime - startTime));
-            setCropConfidence(usedConfidence);
-            setCropBounds(usedBounds);
-            setCropApplied(true);
-            setRequiresManualCrop(false);
+            if (result.autoCropApplied && result.processedImage) {
+              setScanResult(result);
+              setDisplayImage(result.processedImage);
+              originalImageRef.current = result.originalImage;
+              setCurrentFilter('color');
+              setProcessingTime(Math.round(endTime - startTime));
+              setCropConfidence(usedConfidence);
+              setCropBounds(usedBounds);
+              setCropApplied(true);
+              setRequiresManualCrop(false);
+            } else {
+              // Transformation failed — do not claim cropped
+              setScanResult(result);
+              originalImageRef.current = result.originalImage;
+              setDisplayImage(result.originalImage);
+              setCurrentFilter('color');
+              setProcessingTime(Math.round(endTime - startTime));
+              setCropConfidence(0);
+              setCropBounds(usedBounds);
+              setCropApplied(false);
+              setRequiresManualCrop(true);
+            }
           }
         } else {
           // Not confident enough — show original + require manual crop
@@ -349,7 +362,7 @@ export function DocumentScanPreview({
     }
   }, [scanResult, currentFilter, applyingFilter, cropBounds, cropApplied]);
 
-  // Handle manual crop - ALWAYS marks crop as applied
+  // Handle manual crop - only marks crop as applied if transformation produces a valid output
   const handleCropConfirm = useCallback(async (newBounds: CropBounds) => {
     setShowCropOverlay(false);
     setCropBounds(newBounds);
@@ -365,34 +378,40 @@ export function DocumentScanPreview({
         maxWidth: 1200,
         cropBounds: newBounds,
       });
+
+      if (!result.autoCropApplied || !result.processedImage) {
+        throw new Error("Perspective transformation failed for the selected corners");
+      }
       
       setDisplayImage(result.processedImage);
       setScanResult(result);
       
-      // Manual crop is always accepted
+      // Manual crop succeeded
       setCropApplied(true);
       setRequiresManualCrop(false);
       setCropConfidence(1.0);
     } catch (err) {
       console.error('Crop error:', err);
+      // Perspective transformation failed — prompt user to adjust corners again
+      setCropApplied(false);
+      setRequiresManualCrop(true);
+      setShowCropOverlay(true);
     } finally {
       setApplyingFilter(false);
     }
   }, [currentFilter]);
 
-  // Handle confirm - allows if crop is applied or falls back to original
+  // Handle confirm - only allows confirmed save if crop was successfully applied
   const handleConfirm = useCallback(() => {
-    if (displayImage && scanResult) {
-      if (cropApplied) {
-        onConfirm(scanResult.processedImage);
-      } else {
-        onConfirm(originalImageRef.current);
-      }
+    if (!cropApplied || !scanResult?.processedImage) {
+      setShowCropOverlay(true);
+      return;
     }
-  }, [displayImage, scanResult, cropApplied, onConfirm]);
+    onConfirm(scanResult.processedImage);
+  }, [scanResult, cropApplied, onConfirm]);
 
-  // Can save if a valid image is displayed and not applying filter
-  const canSave = !applyingFilter && !!displayImage;
+  // Can save ONLY if a valid transformed cropped image is available
+  const canSave = !applyingFilter && !!displayImage && cropApplied;
 
   if (error) {
     return (
@@ -554,10 +573,10 @@ export function DocumentScanPreview({
             </div>
           )}
 
-          {/* Cannot save warning */}
+          {/* Must crop warning */}
           {!processing && !cropApplied && (
-            <p className="text-xs text-muted-foreground text-center">
-              ℹ️ Original image will be used without cropping
+            <p className="text-xs text-amber-600 dark:text-amber-400 text-center font-medium">
+              ⚠️ Document must be cropped before saving. Please adjust corners above.
             </p>
           )}
 
