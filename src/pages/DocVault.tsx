@@ -34,6 +34,8 @@ export default function DocVault() {
   const [showCamera, setShowCamera] = useState(false);
   const [rawCapturedImage, setRawCapturedImage] = useState<string | null>(null);
   const [showScanPreview, setShowScanPreview] = useState(false);
+  const [pendingDocName, setPendingDocName] = useState("");
+  const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -90,6 +92,46 @@ export default function DocVault() {
     }
   };
 
+  const saveCroppedDocVaultDocument = async (
+    croppedImageSrc: string,
+    categoryId: string | null,
+    documentName: string
+  ) => {
+    if (!user?.uid) return;
+    setIsUploading(true);
+    try {
+      const croppedBlob = await srcToImageBlob(croppedImageSrc);
+      const fileExt = croppedBlob.type === 'image/png' ? 'png' : 'jpg';
+      const cleanName = (documentName || 'document').trim();
+      const croppedFile = new File([croppedBlob], `${cleanName}.${fileExt}`, { type: croppedBlob.type });
+
+      const storagePath = await uploadDocumentOriginal(croppedFile, user.uid);
+      if (!storagePath) {
+        throw new Error('The document upload was not completed.');
+      }
+
+      await addDoc(collection(firebaseDb, 'users', user.uid, 'documents'), {
+        userId: user.uid,
+        name: cleanName,
+        documentType: 'other',
+        imagePath: storagePath,
+        issuingAuthority: 'DocVault',
+        docvaultCategoryId: categoryId,
+        categoryDetail: 'uploaded',
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
+
+      toast.success('Cropped document saved to DocVault');
+      await refetch();
+    } catch (error: any) {
+      console.error('DocVault save failed:', error);
+      toast.error(error?.message || 'Failed to save cropped document. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleFileUpload = async (file: File, categoryId: string | null, documentName: string) => {
     if (!user?.uid) {
       toast.error("You must be signed in to upload documents.");
@@ -98,6 +140,20 @@ export default function DocVault() {
 
     if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
       toast.error("Unsupported file type. Please upload an image or PDF.");
+      return;
+    }
+
+    // Images must be cropped to document boundaries — never store raw camera photos
+    if (file.type.startsWith("image/")) {
+      setUploadDialogOpen(false);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPendingDocName((documentName || file.name).replace(/\.[^/.]+$/, ""));
+        setPendingCategoryId(categoryId);
+        setRawCapturedImage(reader.result as string);
+        setShowScanPreview(true);
+      };
+      reader.readAsDataURL(file);
       return;
     }
 
@@ -300,6 +356,24 @@ export default function DocVault() {
         onMove={handleMoveConfirm}
         isLoading={isMoving}
       />
+      {showScanPreview && rawCapturedImage && (
+        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col p-4 md:p-8 overflow-y-auto">
+          <div className="max-w-2xl w-full mx-auto my-auto">
+            <DocumentScanPreview
+              imageSource={rawCapturedImage}
+              onConfirm={async (croppedImage) => {
+                setShowScanPreview(false);
+                setRawCapturedImage(null);
+                await saveCroppedDocVaultDocument(croppedImage, pendingCategoryId, pendingDocName);
+              }}
+              onRetake={() => {
+                setShowScanPreview(false);
+                setRawCapturedImage(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

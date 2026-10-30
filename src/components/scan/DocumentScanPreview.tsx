@@ -401,19 +401,17 @@ export function DocumentScanPreview({
     }
   }, [currentFilter]);
 
-  // Handle confirm - uses processed cropped image when crop was applied, or original image as fallback
+  // Handle confirm - ONLY passes the processed, perspective-corrected cropped document. Never original.
   const handleConfirm = useCallback(() => {
-    if (displayImage) {
-      if (cropApplied && scanResult?.processedImage) {
-        onConfirm(scanResult.processedImage);
-      } else {
-        onConfirm(scanResult?.originalImage || originalImageRef.current || displayImage);
-      }
+    if (!cropApplied || !scanResult?.processedImage) {
+      setShowCropOverlay(true);
+      return;
     }
-  }, [displayImage, scanResult, cropApplied, onConfirm]);
+    onConfirm(scanResult.processedImage);
+  }, [scanResult, cropApplied, onConfirm]);
 
-  // Can save if a valid image is displayed and not applying filter
-  const canSave = !applyingFilter && !!displayImage;
+  // Can save ONLY if a valid transformed cropped image is available
+  const canSave = !applyingFilter && !!displayImage && cropApplied && !!scanResult?.processedImage;
 
   if (error) {
     return (
@@ -575,10 +573,10 @@ export function DocumentScanPreview({
             </div>
           )}
 
-          {/* Uncropped notice */}
+          {/* Crop required notice */}
           {!processing && !cropApplied && (
-            <p className="text-xs text-muted-foreground text-center">
-              ℹ️ Original image will be used without cropping. Click "Adjust Corners" to crop.
+            <p className="text-xs text-amber-600 dark:text-amber-400 text-center font-medium">
+              ⚠️ Document must be cropped before saving. Click "Adjust Corners" above to position corners.
             </p>
           )}
 

@@ -324,6 +324,95 @@ function drawPolygon(
   console.log(`✓ Scenario 8: Document with bold text & specular glare detected with score ${result.score.toFixed(3)} (>= ${RELIABLE_SCORE})`);
 }
 
-console.log("=======================================================");
-console.log("ALL 8 VERIFICATION SCENARIOS PASSED WITH ZERO FAILURES!");
-console.log("=======================================================");
+// -------------------------------------------------------------
+// Test 9: Real-world user image regression (PAN card on patterned floral bedsheet)
+// -------------------------------------------------------------
+{
+  import('fs').then(async (fs) => {
+    import('zlib').then(async (zlib) => {
+      const imgPath = 'C:/Users/VANSH GANDHI/.gemini/antigravity/brain/d950019a-9e4c-41a8-8bc8-43521f0a78f2/.user_uploaded/media_1793358040216_e819e24f.png';
+      if (!fs.existsSync(imgPath)) {
+        console.log("Skipping Test 9: user test image not found");
+        return;
+      }
+      const buf = fs.readFileSync(imgPath);
+      let pos = 8;
+      let width = 0, height = 0;
+      const idatChunks: Buffer[] = [];
+      while (pos < buf.length) {
+        const len = buf.readUInt32BE(pos);
+        const type = buf.toString('ascii', pos + 4, pos + 8);
+        if (type === 'IHDR') {
+          width = buf.readUInt32BE(pos + 8);
+          height = buf.readUInt32BE(pos + 12);
+        } else if (type === 'IDAT') {
+          idatChunks.push(buf.subarray(pos + 8, pos + 8 + len));
+        }
+        pos += 12 + len;
+      }
+      const decompressed = zlib.inflateSync(Buffer.concat(idatChunks));
+      const rgba = new Uint8ClampedArray(width * height * 4);
+      const scanlineLength = 1 + width * 4;
+      const prevRow = new Uint8Array(width * 4);
+      const currRow = new Uint8Array(width * 4);
+
+      for (let y = 0; y < height; y++) {
+        const filter = decompressed[y * scanlineLength];
+        const rawRow = decompressed.subarray(y * scanlineLength + 1, (y + 1) * scanlineLength);
+
+        for (let i = 0; i < width * 4; i++) {
+          const a = i >= 4 ? currRow[i - 4] : 0;
+          const b = prevRow[i];
+          const c = i >= 4 ? prevRow[i - 4] : 0;
+          let val = rawRow[i];
+          if (filter === 1) val = (val + a) & 0xff;
+          else if (filter === 2) val = (val + b) & 0xff;
+          else if (filter === 3) val = (val + Math.floor((a + b) / 2)) & 0xff;
+          else if (filter === 4) {
+            const p = a + b - c;
+            const pa = Math.abs(p - a);
+            const pb = Math.abs(p - b);
+            const pc = Math.abs(p - c);
+            const pr = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+            val = (val + pr) & 0xff;
+          }
+          currRow[i] = val;
+        }
+        prevRow.set(currRow);
+        rgba.set(currRow, y * width * 4);
+      }
+
+      const imgY1 = 110, imgY2 = 880;
+      const cropH = imgY2 - imgY1;
+      const cropData = new Uint8ClampedArray(width * cropH * 4);
+      for (let y = 0; y < cropH; y++) {
+        const srcIdx = (imgY1 + y) * width * 4;
+        const dstIdx = y * width * 4;
+        cropData.set(rgba.subarray(srcIdx, srcIdx + width * 4), dstIdx);
+      }
+
+      const res = detectDocumentQuad(cropData, width, cropH);
+      assert.ok(res.quad !== null, "Test 9: PAN Card must be detected");
+      assert.ok(res.score >= RELIABLE_SCORE, `Test 9: PAN Card score must be >= ${RELIABLE_SCORE}, got ${res.score}`);
+
+      // Check detected coordinates correspond to the card in the center (x: 100-370, y: 300-470)
+      const [tl, tr, br, bl] = res.quad;
+      assert.ok(tl.x >= 90 && tl.x <= 130 && tl.y >= 290 && tl.y <= 340, `TL position correct: (${tl.x}, ${tl.y})`);
+      assert.ok(tr.x >= 330 && tr.x <= 370 && tr.y >= 280 && tr.y <= 330, `TR position correct: (${tr.x}, ${tr.y})`);
+      assert.ok(br.x >= 340 && br.x <= 380 && br.y >= 420 && br.y <= 470, `BR position correct: (${br.x}, ${br.y})`);
+      assert.ok(bl.x >= 100 && bl.x <= 140 && bl.y >= 440 && bl.y <= 480, `BL position correct: (${bl.x}, ${bl.y})`);
+
+      // Verify perspective correction produces rectangular cropped card
+      const bounds: CropBounds = { topLeft: tl, topRight: tr, bottomRight: br, bottomLeft: bl };
+      const corrected = applyPerspectiveCorrection({ data: cropData, width, height: cropH } as any, width, cropH, bounds);
+      assert.ok(corrected !== null, "Perspective correction must succeed on PAN card");
+      const aspect = corrected.width / corrected.height;
+      assert.ok(aspect >= 1.5 && aspect <= 1.9, `Output aspect ratio matches standard ID card (1.5 - 1.9): got ${aspect.toFixed(2)}`);
+
+      console.log(`✓ Scenario 9: User PAN card on floral bedsheet detected with score ${res.score.toFixed(3)}, cropped correctly to ${corrected.width}x${corrected.height} (aspect ${aspect.toFixed(2)})`);
+      console.log("=======================================================");
+      console.log("ALL 9 VERIFICATION SCENARIOS PASSED WITH ZERO FAILURES!");
+      console.log("=======================================================");
+    });
+  });
+}

@@ -944,6 +944,21 @@ function scoreQuad(
   const r2 = Math.min(sides[1], sides[3]) / Math.max(sides[1], sides[3]);
   const sideScore = Math.min(1, ((r1 + r2) / 2) / 0.72);
 
+  // Aspect ratio check: Standard documents, ID cards, and receipts have aspect ratio between 1.15 and 2.05.
+  // Extremely long thin strips (aspect > 2.1) are typically shadows, wall borders, or table edges.
+  const avgW = (sides[0] + sides[2]) / 2;
+  const avgH = (sides[1] + sides[3]) / 2;
+  const longSide = Math.max(avgW, avgH);
+  const shortSide = Math.max(1, Math.min(avgW, avgH));
+  const aspectRatio = longSide / shortSide;
+
+  let aspectScore = 1.0;
+  if (aspectRatio > 2.05) {
+    aspectScore = Math.max(0.25, 1.0 - (aspectRatio - 2.05) * 1.5);
+  } else if (aspectRatio < 1.1) {
+    aspectScore = Math.max(0.65, aspectRatio / 1.1);
+  }
+
   // Gradient support along the quad perimeter.
   const edgeSupport = perimeterEdgeSupport(quad, w, h, magnitude);
 
@@ -951,21 +966,42 @@ function scoreQuad(
   const hullArea = polygonArea(hull) || area;
   const convexity = Math.min(1, Math.min(area, hullArea) / Math.max(area, hullArea));
 
-  // Prefer documents that fill a healthy portion of the frame.
+  // Frame boundary penalty: documents are framed within the shot.
+  // Quads that touch or hug the image boundary on multiple sides are usually camera frame edges.
+  const marginX = w * 0.04;
+  const marginY = h * 0.04;
+  let nearBorderCount = 0;
+  for (const p of quad) {
+    if (p.x < marginX || p.x > w - marginX || p.y < marginY || p.y > h - marginY) {
+      nearBorderCount++;
+    }
+  }
+  const borderMultiplier = nearBorderCount >= 3 ? 0.35 : nearBorderCount === 2 ? 0.65 : 1.0;
+
+  // Real cards and documents occupy 0.05 to 0.90 of the image
   const areaScore =
-    areaRatio < 0.12 ? areaRatio / 0.12 : areaRatio > 0.96 ? Math.max(0, (1 - areaRatio) / 0.04) : 1;
+    areaRatio < 0.05 ? areaRatio / 0.05 : areaRatio > 0.94 ? Math.max(0.3, (1 - areaRatio) / 0.06) : 1;
 
   // Real documents must have visible edge gradients along their perimeter.
-  // Smoothly discount candidates with weak edge support rather than zeroing out.
   const edgeMultiplier = edgeSupport < 0.15 ? Math.max(0.45, edgeSupport / 0.15) : 1.0;
 
   // Axis-aligned bounding box (bbox) is an approximate fallback compared to polygon/OBB.
   const sourceMultiplier = source.includes('bbox') ? 0.72 : 1.0;
 
   const baseScore =
-    0.26 * angleScore + 0.20 * sideScore + 0.26 * edgeSupport + 0.18 * areaScore + 0.10 * convexity;
+    0.22 * angleScore +
+    0.18 * sideScore +
+    0.26 * edgeSupport +
+    0.14 * areaScore +
+    0.10 * convexity +
+    0.10 * aspectScore;
 
-  const score = baseScore * edgeMultiplier * sourceMultiplier;
+  const score =
+    baseScore *
+    edgeMultiplier *
+    sourceMultiplier *
+    borderMultiplier *
+    (aspectScore < 0.7 ? aspectScore : 1.0);
 
   return {
     quad,

@@ -422,7 +422,7 @@ export default function Scan() {
       if (pdfFile) {
         imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
       } else {
-        const imageSrc = finalCroppedImg || processedImage || capturedImage || rawCapturedImage;
+        const imageSrc = finalCroppedImg || processedImage || capturedImage;
         if (imageSrc) {
           const primaryBlob = await srcToImageBlob(imageSrc);
           const fileExt = primaryBlob.type === 'image/png' ? 'png' : 'jpg';
@@ -817,8 +817,11 @@ export default function Scan() {
           }
           imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
         } else {
-          // Prioritize the processed/cropped image: NEVER upload original raw image when cropped is available
-          const finalCroppedSrc = processedImage || capturedImage || rawCapturedImage;
+          // The final image MUST be the cropped image. NEVER upload the raw uncropped photo.
+          const finalCroppedSrc = processedImage || capturedImage;
+          if (!finalCroppedSrc) {
+            throw new Error("A cropped document is required. Please scan and crop the document before saving.");
+          }
           if (finalCroppedSrc) {
             const primaryBlob = await srcToImageBlob(finalCroppedSrc);
             const maxSize = 20 * 1024 * 1024;
