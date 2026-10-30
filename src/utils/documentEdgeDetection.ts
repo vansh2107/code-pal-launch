@@ -61,7 +61,7 @@ export const RELIABLE_SCORE = 0.62;
 
 /** Longest side of the internal processing copy. 512px balances speed (<20ms) and morphological filter window ratios. */
 const PROC_MAX_DIM = 512;
-const MIN_AREA_RATIO = 0.06;
+const MIN_AREA_RATIO = 0.045; // Support small documents such as ID cards and PAN cards
 const MAX_AREA_RATIO = 0.985;
 
 // ─── public helpers ───────────────────────────────────────────────────────────
@@ -121,9 +121,36 @@ export function detectDocumentQuad(
   const imgArea = pw * ph;
   const candidates: QuadCandidate[] = [];
 
+  const marginX = pw * 0.035;
+  const marginY = ph * 0.035;
+
   for (const { name, mask } of masks) {
+    const isInverted = name.endsWith('-');
     const components = connectedComponents(mask, pw, ph, imgArea * MIN_AREA_RATIO * 0.35);
     for (const comp of components) {
+      const compAreaRatio = comp.area / imgArea;
+
+      // Inverted masks capture the background when the document is lighter than the background.
+      // Reject background-sized blobs (> 75% image area) or components that touch all 4 outer margins.
+      if (isInverted && compAreaRatio > 0.75) {
+        continue;
+      }
+
+      // Component-level border check: reject huge blobs that touch 3+ or 4 image boundaries
+      if (compAreaRatio > 0.40) {
+        let touchLeft = false, touchRight = false, touchTop = false, touchBottom = false;
+        for (const pt of comp.points) {
+          if (pt.x <= marginX) touchLeft = true;
+          if (pt.x >= pw - marginX) touchRight = true;
+          if (pt.y <= marginY) touchTop = true;
+          if (pt.y >= ph - marginY) touchBottom = true;
+        }
+        const bordersTouched = (touchLeft ? 1 : 0) + (touchRight ? 1 : 0) + (touchTop ? 1 : 0) + (touchBottom ? 1 : 0);
+        if (bordersTouched >= 3) {
+          continue;
+        }
+      }
+
       const hull = convexHull(comp.points);
       if (hull.length < 4) continue;
 
@@ -944,8 +971,9 @@ function scoreQuad(
   const r2 = Math.min(sides[1], sides[3]) / Math.max(sides[1], sides[3]);
   const sideScore = Math.min(1, ((r1 + r2) / 2) / 0.72);
 
-  // Aspect ratio check: Standard documents, ID cards, and receipts have aspect ratio between 1.15 and 2.05.
-  // Extremely long thin strips (aspect > 2.1) are typically shadows, wall borders, or table edges.
+  // Aspect ratio check: Standard documents, ID cards, receipts, and passports have aspect ratio between 1.05 and 2.10.
+  // Works identically for portrait (e.g. 1/1.41) and landscape (1.41/1) documents by using max/min.
+  // Long background strips (aspect > 2.3) are penalized as supporting signal without hard-rejecting.
   const avgW = (sides[0] + sides[2]) / 2;
   const avgH = (sides[1] + sides[3]) / 2;
   const longSide = Math.max(avgW, avgH);
@@ -953,10 +981,10 @@ function scoreQuad(
   const aspectRatio = longSide / shortSide;
 
   let aspectScore = 1.0;
-  if (aspectRatio > 2.05) {
-    aspectScore = Math.max(0.25, 1.0 - (aspectRatio - 2.05) * 1.5);
-  } else if (aspectRatio < 1.1) {
-    aspectScore = Math.max(0.65, aspectRatio / 1.1);
+  if (aspectRatio > 2.15) {
+    aspectScore = Math.max(0.20, 1.0 - (aspectRatio - 2.15) * 1.4);
+  } else if (aspectRatio < 1.05) {
+    aspectScore = Math.max(0.70, aspectRatio / 1.05);
   }
 
   // Gradient support along the quad perimeter.
@@ -967,31 +995,53 @@ function scoreQuad(
   const convexity = Math.min(1, Math.min(area, hullArea) / Math.max(area, hullArea));
 
   // Frame boundary penalty: documents are framed within the shot.
-  // Quads that touch or hug the image boundary on multiple sides are usually camera frame edges.
-  const marginX = w * 0.04;
-  const marginY = h * 0.04;
+  // Quads that touch, hug, or span across image borders are penalized as background or viewport borders.
+  const marginX = w * 0.06;
+  const marginY = h * 0.06;
   let nearBorderCount = 0;
   for (const p of quad) {
-    if (p.x < marginX || p.x > w - marginX || p.y < marginY || p.y > h - marginY) {
+    if (p.x <= marginX || p.x >= w - marginX || p.y <= marginY || p.y >= h - marginY) {
       nearBorderCount++;
     }
   }
-  const borderMultiplier = nearBorderCount >= 3 ? 0.35 : nearBorderCount === 2 ? 0.65 : 1.0;
 
-  // Real cards and documents occupy 0.05 to 0.90 of the image
+  // Span check: candidate spanning nearly the entire width or height (e.g. wall/shadow strip across bed)
+  const qMinX = Math.min(quad[0].x, quad[1].x, quad[2].x, quad[3].x);
+  const qMaxX = Math.max(quad[0].x, quad[1].x, quad[2].x, quad[3].x);
+  const qMinY = Math.min(quad[0].y, quad[1].y, quad[2].y, quad[3].y);
+  const qMaxY = Math.max(quad[0].y, quad[1].y, quad[2].y, quad[3].y);
+  const spanX = (qMaxX - qMinX) / w;
+  const spanY = (qMaxY - qMinY) / h;
+  const touchesOppositeBorders = (qMinX <= marginX && qMaxX >= w - marginX) || (qMinY <= marginY && qMaxY >= h - marginY);
+
+  let borderMultiplier = nearBorderCount >= 3 ? 0.30 : nearBorderCount === 2 ? 0.55 : 1.0;
+  if (touchesOppositeBorders && (spanX > 0.88 || spanY > 0.88)) {
+    borderMultiplier = Math.min(borderMultiplier, 0.50);
+  }
+
+  // Real cards and documents occupy 0.05 to 0.90 of the image without penalty.
+  // Small ID cards down to 0.045-0.05 are allowed full score; oversized background regions (>0.85) are penalized.
   const areaScore =
-    areaRatio < 0.05 ? areaRatio / 0.05 : areaRatio > 0.94 ? Math.max(0.3, (1 - areaRatio) / 0.06) : 1;
+    areaRatio < 0.05
+      ? areaRatio / 0.05
+      : areaRatio > 0.85
+      ? Math.max(0.25, (1 - areaRatio) / 0.15)
+      : 1.0;
 
   // Real documents must have visible edge gradients along their perimeter.
   const edgeMultiplier = edgeSupport < 0.15 ? Math.max(0.45, edgeSupport / 0.15) : 1.0;
 
   // Axis-aligned bounding box (bbox) is an approximate fallback compared to polygon/OBB.
-  const sourceMultiplier = source.includes('bbox') ? 0.72 : 1.0;
+  const sourceMultiplier = source.includes('bbox') ? 0.70 : 1.0;
+
+  // Real documents have roughly 90-degree internal corners.
+  // Strongly penalize non-orthogonal distortions (e.g. angleErr > 30 deg).
+  const angleMultiplier = angleScore < 0.85 ? Math.max(0.60, angleScore / 0.85) : 1.0;
 
   const baseScore =
-    0.22 * angleScore +
+    0.24 * angleScore +
     0.18 * sideScore +
-    0.26 * edgeSupport +
+    0.24 * edgeSupport +
     0.14 * areaScore +
     0.10 * convexity +
     0.10 * aspectScore;
@@ -1001,7 +1051,8 @@ function scoreQuad(
     edgeMultiplier *
     sourceMultiplier *
     borderMultiplier *
-    (aspectScore < 0.7 ? aspectScore : 1.0);
+    angleMultiplier *
+    (aspectScore < 0.6 ? aspectScore : 1.0);
 
   return {
     quad,
