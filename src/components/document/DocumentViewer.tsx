@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, RotateCw, Loader2, ExternalLink, RefreshCw, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, RotateCw, Loader2, ExternalLink, RefreshCw, AlertCircle, ShieldAlert } from "lucide-react";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -33,6 +33,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAdBlockBlocked, setIsAdBlockBlocked] = useState(false);
   const [isPdf, setIsPdf] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -41,6 +42,19 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
+
+  // Helper to detect adblocker/client network block
+  const checkIsBlocked = (err: any) => {
+    const msg = (err?.message || String(err) || "").toLowerCase();
+    const name = (err?.name || "").toLowerCase();
+    return (
+      msg.includes("failed to fetch") ||
+      msg.includes("err_blocked_by_client") ||
+      msg.includes("networkerror") ||
+      msg.includes("blocked") ||
+      name.includes("typeerror") && msg.includes("fetch")
+    );
+  };
 
   // Detect if file is PDF
   const detectPdf = useCallback(() => {
@@ -58,6 +72,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       setRotation(0);
       setScale(1.5);
       setError(null);
+      setIsAdBlockBlocked(false);
 
       if (isPdfFile) {
         loadPDF();
@@ -80,57 +95,48 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
     }
   }, [currentPage, pdfDoc, scale, rotation, isPdf, pageData.length]);
 
-  const loadImage = async () => {
-    setLoading(true);
+  const loadImage = () => {
     setError(null);
-    try {
-      const response = await fetch(fileUrl);
-      const blob = await response.blob();
+    setIsAdBlockBlocked(false);
+    // Display images directly via browser native <img> tag without in-memory fetch()
+    // This allows images to load and bypass client extension XHR blocks on firebasestorage
+    setImageUrl(fileUrl);
+    setLoading(true);
+  };
 
-      // Check if blob is actually a PDF (e.g. content-type application/pdf or header %PDF)
-      if (blob.type === 'application/pdf') {
-        setIsPdf(true);
-        await loadPDF();
-        return;
-      }
-      
-      // Use createImageBitmap for EXIF orientation correction
-      const imageBitmap = await createImageBitmap(blob);
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = imageBitmap.width;
-      canvas.height = imageBitmap.height;
-      const ctx = canvas.getContext('2d');
-      
-      if (ctx) {
-        ctx.drawImage(imageBitmap, 0, 0);
-        setImageUrl(canvas.toDataURL('image/jpeg', 0.95));
-      } else {
-        setImageUrl(fileUrl);
-      }
-    } catch (err: any) {
-      console.error('Error loading image:', err);
-      // Fallback: If image decode fails, try checking if it can be loaded as PDF
-      try {
-        setIsPdf(true);
-        await loadPDF();
-        return;
-      } catch (pdfErr) {
-        setError("Failed to decode and display the document.");
-        setImageUrl(fileUrl);
-      }
-    } finally {
-      setLoading(false);
-    }
+  const handleImageLoad = () => {
+    setLoading(false);
+  };
+
+  const handleImageError = () => {
+    setLoading(false);
+    // When <img> fails, it could be network block or invalid image
+    setError("Failed to load document image. Please check your connection or disable ad-blockers for this site.");
   };
 
   const loadPDF = async () => {
     setLoading(true);
     setError(null);
+    setIsAdBlockBlocked(false);
     try {
       GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
 
-      const response = await fetch(fileUrl);
+      let response: Response;
+      try {
+        response = await fetch(fileUrl);
+      } catch (fetchErr: any) {
+        if (checkIsBlocked(fetchErr)) {
+          setIsAdBlockBlocked(true);
+          setError("Document request was blocked by a browser extension (e.g. AdBlock / Brave Shields / Privacy Badger). Please pause your ad blocker for this site or open in Incognito.");
+          return;
+        }
+        throw fetchErr;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to download PDF (HTTP ${response.status})`);
+      }
+
       const arrayBuffer = await response.arrayBuffer();
 
       let pdf: any;
@@ -161,7 +167,12 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       await renderPage(1, pdf);
     } catch (err: any) {
       console.error('Error loading PDF:', err);
-      setError("Unable to render PDF document. The file might be corrupted or inaccessible.");
+      if (checkIsBlocked(err)) {
+        setIsAdBlockBlocked(true);
+        setError("Document blocked by browser extension. Please pause your ad blocker for this site.");
+      } else {
+        setError("Unable to render PDF document. The file might be corrupted or inaccessible.");
+      }
     } finally {
       setLoading(false);
     }
@@ -259,6 +270,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
 
   const handleRetry = () => {
     setError(null);
+    setIsAdBlockBlocked(false);
     if (isPdf) {
       loadPDF();
     } else {
@@ -309,11 +321,20 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
           ref={containerRef}
           className="flex-1 overflow-auto bg-muted relative"
         >
-          {/* Error Banner */}
+          {/* Error / Ad-blocker Banner */}
           {error && (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 bg-background/95 gap-3 text-center">
-              <AlertCircle className="h-10 w-10 text-destructive" />
-              <p className="text-sm font-medium text-foreground">{error}</p>
+              {isAdBlockBlocked ? (
+                <ShieldAlert className="h-12 w-12 text-amber-500 animate-pulse" />
+              ) : (
+                <AlertCircle className="h-10 w-10 text-destructive" />
+              )}
+              <p className="text-sm font-medium text-foreground max-w-md">{error}</p>
+              {isAdBlockBlocked && (
+                <p className="text-xs text-muted-foreground max-w-md">
+                  Extensions such as uBlock Origin, AdBlock, or Brave Shields often block Firebase Storage network requests.
+                </p>
+              )}
               <div className="flex items-center gap-2 mt-2">
                 <Button variant="outline" size="sm" onClick={handleRetry} className="gap-1.5">
                   <RefreshCw className="h-3.5 w-3.5" />
@@ -379,6 +400,8 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
                           transform: `rotate(${rotation}deg)`,
                           transition: 'transform 0.3s ease-in-out',
                         }}
+                        onLoad={handleImageLoad}
+                        onError={handleImageError}
                       />
                     </div>
                   </TransformComponent>
