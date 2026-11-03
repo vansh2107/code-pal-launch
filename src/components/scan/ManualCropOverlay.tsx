@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Check, RotateCcw, Move, AlertTriangle } from "lucide-react";
+import { Check, RotateCcw, Move, AlertTriangle, Magnet } from "lucide-react";
 
 interface CropPoint {
   x: number;
@@ -21,6 +21,10 @@ interface ManualCropOverlayProps {
   onCancel: () => void;
 }
 
+const LOUPE_SIZE = 120;
+const LOUPE_ZOOM = 2.2;
+const SNAP_THRESHOLD_NORM = 0.025; // 2.5% magnetic snap radius
+
 export function ManualCropOverlay({
   imageSource,
   initialBounds,
@@ -32,6 +36,9 @@ export function ManualCropOverlay({
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
   const [activeCorner, setActiveCorner] = useState<string | null>(null);
+  const [pointerPos, setPointerPos] = useState<{ x: number; y: number } | null>(null);
+  const [magneticSnapEnabled, setMagneticSnapEnabled] = useState(true);
+  const [edgePoints, setEdgePoints] = useState<{ x: number; y: number }[]>([]);
   
   // Normalized bounds (0-1)
   const [bounds, setBounds] = useState<CropBounds>({
@@ -61,7 +68,7 @@ export function ManualCropOverlay({
   // Initialize bounds from detection
   useEffect(() => {
     if (initialBounds && imageSize.width > 0) {
-      setBounds({
+      const initialNorm = {
         topLeft: {
           x: Math.max(0.02, Math.min(0.98, initialBounds.topLeft.x / imageSize.width)),
           y: Math.max(0.02, Math.min(0.98, initialBounds.topLeft.y / imageSize.height)),
@@ -78,7 +85,16 @@ export function ManualCropOverlay({
           x: Math.max(0.02, Math.min(0.98, initialBounds.bottomRight.x / imageSize.width)),
           y: Math.max(0.02, Math.min(0.98, initialBounds.bottomRight.y / imageSize.height)),
         },
-      });
+      };
+      setBounds(initialNorm);
+
+      // Register initial corners as magnetic anchor points
+      setEdgePoints([
+        initialNorm.topLeft,
+        initialNorm.topRight,
+        initialNorm.bottomRight,
+        initialNorm.bottomLeft,
+      ]);
     }
   }, [initialBounds, imageSize]);
 
@@ -90,7 +106,7 @@ export function ManualCropOverlay({
       
       if (containerRef.current) {
         const containerWidth = containerRef.current.clientWidth - 32; // Padding
-        const containerHeight = containerRef.current.clientHeight - 120; // Buttons
+        const containerHeight = containerRef.current.clientHeight - 130; // Buttons & header
         
         const scaleX = containerWidth / img.width;
         const scaleY = containerHeight / img.height;
@@ -110,18 +126,36 @@ export function ManualCropOverlay({
     e.preventDefault();
     e.stopPropagation();
     setActiveCorner(corner);
+    setPointerPos({ x: e.clientX, y: e.clientY });
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }, []);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    // CRITICAL: compute coordinates relative to the rendered image box (not the full-screen container)
-    // so preview drag == saved crop exactly.
     if (!activeCorner || !imageBoxRef.current || displaySize.width === 0) return;
+
+    setPointerPos({ x: e.clientX, y: e.clientY });
 
     const rect = imageBoxRef.current.getBoundingClientRect();
     let x = (e.clientX - rect.left) / rect.width;
     let y = (e.clientY - rect.top) / rect.height;
     
+    // Magnetic snapping: if near edge anchors or outer margins, attract corner
+    if (magneticSnapEnabled && edgePoints.length > 0) {
+      for (const p of edgePoints) {
+        const d = Math.hypot(x - p.x, y - p.y);
+        if (d < SNAP_THRESHOLD_NORM) {
+          x = p.x;
+          y = p.y;
+          break;
+        }
+      }
+      // Also snap to document border margins if within threshold
+      if (Math.abs(x - 0.05) < 0.015) x = 0.05;
+      if (Math.abs(x - 0.95) < 0.015) x = 0.95;
+      if (Math.abs(y - 0.05) < 0.015) y = 0.05;
+      if (Math.abs(y - 0.95) < 0.015) y = 0.95;
+    }
+
     // Clamp to valid range
     x = Math.max(0.02, Math.min(0.98, x));
     y = Math.max(0.02, Math.min(0.98, y));
@@ -130,10 +164,11 @@ export function ManualCropOverlay({
       ...prev,
       [activeCorner]: { x, y },
     }));
-  }, [activeCorner, displaySize]);
+  }, [activeCorner, displaySize, magneticSnapEnabled, edgePoints]);
 
   const handlePointerUp = useCallback(() => {
     setActiveCorner(null);
+    setPointerPos(null);
   }, []);
 
   const handleConfirm = () => {
@@ -164,7 +199,7 @@ export function ManualCropOverlay({
       setBounds({
         topLeft: {
           x: Math.max(0.02, Math.min(0.98, initialBounds.topLeft.x / imageSize.width)),
-          y: Math.max(0.02, Math.min(0.98, initialBounds.topLeft.y / imageSize.height)),
+          y: Math.max(0.02, Math.min(0.98, initialBounds.topRight.x / imageSize.width) ? initialBounds.topLeft.x / imageSize.width : 0.08),
         },
         topRight: {
           x: Math.max(0.02, Math.min(0.98, initialBounds.topRight.x / imageSize.width)),
@@ -201,20 +236,39 @@ export function ManualCropOverlay({
     `;
   };
 
+  // Calculate loupe position relative to screen: place loupe above corner, or below if too high
+  const activeCoord = activeCorner ? (bounds as any)[activeCorner] : null;
+
   return (
     <div 
       ref={containerRef}
-      className="fixed inset-0 z-[100] bg-black flex flex-col touch-none"
+      className="fixed inset-0 z-[100] bg-black flex flex-col touch-none select-none"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/90 border-b border-white/10">
-        <span className="text-white text-sm flex items-center gap-2">
-          <Move className="h-4 w-4" />
-          Drag corners to adjust
-        </span>
+      <div className="flex items-center justify-between px-4 py-3 bg-black/90 border-b border-white/10 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-white text-sm flex items-center gap-1.5">
+            <Move className="h-4 w-4 text-primary" />
+            Drag corners to adjust
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMagneticSnapEnabled(prev => !prev)}
+            className={`h-7 px-2 text-xs gap-1 border ${
+              magneticSnapEnabled
+                ? 'bg-primary/20 text-primary border-primary/40'
+                : 'text-white/60 border-white/20'
+            }`}
+            title="Toggle Magnetic Edge Snapping"
+          >
+            <Magnet className="h-3 w-3" />
+            Snap {magneticSnapEnabled ? 'On' : 'Off'}
+          </Button>
+        </div>
         {!isValidQuad && (
           <div className="flex items-center gap-1.5 text-xs text-red-400 bg-red-950/60 px-2.5 py-1 rounded border border-red-800">
             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
@@ -225,15 +279,15 @@ export function ManualCropOverlay({
           variant="ghost"
           size="sm"
           onClick={resetBounds}
-          className="text-white hover:bg-white/20"
+          className="text-white hover:bg-white/20 h-8"
         >
-          <RotateCcw className="h-4 w-4 mr-1" />
+          <RotateCcw className="h-3.5 w-3.5 mr-1" />
           Reset
         </Button>
       </div>
 
       {/* Image with crop overlay */}
-      <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
+      <div className="flex-1 flex items-center justify-center p-4 overflow-hidden relative">
         {displaySize.width > 0 && (
           <div
             className="relative"
@@ -266,7 +320,7 @@ export function ManualCropOverlay({
               <rect
                 width="100%"
                 height="100%"
-                fill="rgba(0,0,0,0.7)"
+                fill="rgba(0,0,0,0.72)"
                 mask="url(#cropMask)"
               />
 
@@ -275,7 +329,8 @@ export function ManualCropOverlay({
                 d={buildPath()}
                 fill="none"
                 stroke={isValidQuad ? "hsl(var(--primary))" : "#ef4444"}
-                strokeWidth="2"
+                strokeWidth="2.5"
+                strokeLinejoin="round"
               />
 
               {/* Grid lines inside crop area */}
@@ -323,8 +378,8 @@ export function ManualCropOverlay({
             {(['topLeft', 'topRight', 'bottomLeft', 'bottomRight'] as const).map((corner) => (
               <div
                 key={corner}
-                className={`absolute w-10 h-10 -translate-x-1/2 -translate-y-1/2 touch-none cursor-move
-                  ${activeCorner === corner ? 'scale-110' : ''}`}
+                className={`absolute w-12 h-12 -translate-x-1/2 -translate-y-1/2 touch-none cursor-move z-10 flex items-center justify-center
+                  ${activeCorner === corner ? 'scale-125' : ''}`}
                 style={{
                   left: bounds[corner].x * displaySize.width,
                   top: bounds[corner].y * displaySize.height,
@@ -332,17 +387,62 @@ export function ManualCropOverlay({
                 onPointerDown={handlePointerDown(corner)}
               >
                 {/* Outer ring */}
-                <div className="absolute inset-1 rounded-full border-2 border-white/50" />
+                <div className="absolute inset-1 rounded-full border-2 border-white/80 shadow-md" />
                 {/* Inner dot */}
-                <div className="absolute inset-2 rounded-full bg-primary border-2 border-white shadow-lg" />
+                <div className="absolute inset-2.5 rounded-full bg-primary border-2 border-white shadow-lg" />
               </div>
             ))}
+
+            {/* Magnifying Loupe for Active Corner */}
+            {activeCorner && activeCoord && (
+              <div
+                className="absolute pointer-events-none rounded-full border-2 border-white shadow-2xl overflow-hidden z-30"
+                style={{
+                  width: LOUPE_SIZE,
+                  height: LOUPE_SIZE,
+                  left: Math.max(
+                    0,
+                    Math.min(
+                      displaySize.width - LOUPE_SIZE,
+                      activeCoord.x * displaySize.width - LOUPE_SIZE / 2
+                    )
+                  ),
+                  top:
+                    activeCoord.y * displaySize.height - LOUPE_SIZE - 20 > 0
+                      ? activeCoord.y * displaySize.height - LOUPE_SIZE - 20
+                      : activeCoord.y * displaySize.height + 30,
+                  backgroundColor: '#000',
+                }}
+              >
+                <div
+                  className="w-full h-full relative"
+                  style={{
+                    transform: `scale(${LOUPE_ZOOM})`,
+                    transformOrigin: `${activeCoord.x * 100}% ${activeCoord.y * 100}%`,
+                  }}
+                >
+                  <img
+                    src={imageSource}
+                    alt="Zoom"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                {/* Crosshairs */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-full h-[1px] bg-primary/80 shadow-xs" />
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="h-full w-[1px] bg-primary/80 shadow-xs" />
+                </div>
+                <div className="absolute inset-0 rounded-full border border-primary/50 pointer-events-none" />
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Action buttons */}
-      <div className="flex gap-3 p-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] bg-black/90 border-t border-white/10">
+      <div className="flex gap-3 p-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] bg-black/90 border-t border-white/10 shrink-0">
         <Button
           variant="outline"
           onClick={onCancel}

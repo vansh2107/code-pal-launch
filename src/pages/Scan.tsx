@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Save, Loader2, Camera as CameraIcon, Upload } from "lucide-react";
+import { Save, Loader2, Camera as CameraIcon, Upload, Sparkles, DownloadCloud } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { AppShell, PageHeader } from "@/components/layout/";
 import { toast } from "@/hooks/use-toast";
@@ -43,6 +43,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  isNativeScannerSupported,
+  checkGoogleScannerModule,
+  installGoogleScannerModule,
+  launchNativeDocumentScanner,
+  registerNativeScannerRestoration,
+  type NativeScanOutput,
+} from "@/utils/nativeDocumentScanner";
 
 const documentSchema = z.object({
   name: z.string()
@@ -130,6 +138,12 @@ export default function Scan() {
   const [decision, setDecision] = useState<any>(null);
   const [showExpiredConfirm, setShowExpiredConfirm] = useState(false);
   const [expiredConfirmAction, setExpiredConfirmAction] = useState<(() => void) | null>(null);
+
+  // Native Android ML Kit Scanner States
+  const [isNativeScannerAvailable, setIsNativeScannerAvailable] = useState(false);
+  const [nativeScanning, setNativeScanning] = useState(false);
+  const [nativeModuleDownloading, setNativeModuleDownloading] = useState(false);
+  const [nativeModuleProgress, setNativeModuleProgress] = useState(0);
   
   const [candidateDates, setCandidateDates] = useState<Array<{ label: string; date: string; type?: string; reason?: string }>>([]);
   
@@ -149,6 +163,21 @@ export default function Scan() {
       fetchOrganizations();
     }
   }, [user]);
+
+  // Check Native Scanner availability on Android
+  useEffect(() => {
+    if (isNativeScannerSupported()) {
+      setIsNativeScannerAvailable(true);
+    }
+  }, []);
+
+  // Handle Android app restoration if OS destroyed activity while ML Kit was open
+  useEffect(() => {
+    const unregister = registerNativeScannerRestoration((output: NativeScanOutput) => {
+      handleNativeScanCompleted(output);
+    });
+    return () => unregister();
+  }, []);
 
   // Keep a ref of the live stream so lifecycle listeners never use stale state
   const streamRef = useRef<MediaStream | null>(null);
@@ -358,6 +387,93 @@ export default function Scan() {
         setShowScanPreview(true);
         stopCameraLocal();
       }
+    }
+  };
+
+  // Handle completed scan from Native ML Kit Document Scanner
+  const handleNativeScanCompleted = async (output: NativeScanOutput) => {
+    stopCameraLocal();
+    setOriginalFileName(output.file.name);
+
+    if (output.type === "pdf") {
+      pdfFileRef.current = output.file;
+      setPdfFile(output.file);
+      setExtracting(false);
+      await handlePdfPipeline(output.file);
+    } else {
+      // Single-page image output
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setProcessedImage(result);
+        setCapturedImage(result);
+        setShowScanPreview(false);
+        extractDocumentData(result);
+      };
+      reader.readAsDataURL(output.file);
+    }
+  };
+
+  const handleStartNativeScan = async () => {
+    setError("");
+    setNativeScanning(true);
+    stopCameraLocal();
+
+    try {
+      // 1. Check if Google ML Kit Document Scanner module is available
+      const status = await checkGoogleScannerModule();
+      if (!status.available) {
+        toast({
+          title: "Downloading Scanner Module",
+          description: "Google Play Services is downloading the document scanner component...",
+        });
+        setNativeModuleDownloading(true);
+        setNativeModuleProgress(0);
+
+        const success = await installGoogleScannerModule((prog) => {
+          setNativeModuleProgress(prog);
+        });
+
+        setNativeModuleDownloading(false);
+        if (!success) {
+          toast({
+            title: "Download Incomplete",
+            description: "Could not download the scanner component. Switching to camera mode.",
+            variant: "destructive",
+          });
+          startCamera();
+          return;
+        }
+      }
+
+      // 2. Launch Google ML Kit Document Scanner
+      const output = await launchNativeDocumentScanner({
+        pageLimit: 25,
+        galleryImportAllowed: true,
+      });
+
+      if (output) {
+        await handleNativeScanCompleted(output);
+      } else {
+        // User cancelled scan; keep screen ready
+        toast({
+          title: "Scan Cancelled",
+          description: "Document scan was cancelled.",
+        });
+      }
+    } catch (err: any) {
+      console.error("[Scan] Native scan error:", err);
+      toast({
+        title: "Scanner Launch Failed",
+        description: err?.message || "Failed to start native scanner. You can use standard camera scan.",
+        variant: "destructive",
+      });
+      // Fallback
+      setScanMode("camera");
+      startCamera();
+    } finally {
+      setNativeScanning(false);
+      setNativeModuleDownloading(false);
     }
   };
 
@@ -1086,6 +1202,33 @@ export default function Scan() {
               <span>→</span>
               <span>4. Review & Save</span>
             </div>
+
+            {/* Native Android ML Kit Scanner Card (when on Android) */}
+            {isNativeScannerAvailable && (
+              <div
+                onClick={nativeScanning || nativeModuleDownloading ? undefined : handleStartNativeScan}
+                className="p-4 rounded-2xl border-2 border-primary bg-primary/10 hover:bg-primary/15 transition-all cursor-pointer flex items-center gap-4 shadow-sm"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0 shadow-md">
+                  {nativeScanning || nativeModuleDownloading ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-6 h-6" />
+                  )}
+                </div>
+                <div className="space-y-0.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-foreground">Google Document Scanner</h3>
+                    <Badge variant="default" className="text-[10px] px-1.5 py-0">Recommended</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {nativeModuleDownloading
+                      ? `Downloading component (${nativeModuleProgress}%)...`
+                      : "Multi-page scan, shadow removal & high-resolution PDF"}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Mode selection cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
