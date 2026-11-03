@@ -34,6 +34,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
   const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAdBlockBlocked, setIsAdBlockBlocked] = useState(false);
+  const [embedFallback, setEmbedFallback] = useState(false);
   const [isPdf, setIsPdf] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -125,12 +126,10 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       try {
         response = await fetch(fileUrl);
       } catch (fetchErr: any) {
-        if (checkIsBlocked(fetchErr)) {
-          setIsAdBlockBlocked(true);
-          setError("Document request was blocked by a browser extension (e.g. AdBlock / Brave Shields / Privacy Badger). Please pause your ad blocker for this site or open in Incognito.");
-          return;
-        }
-        throw fetchErr;
+        // Fetch blocked (ad-blocker / CORS) — show file with the browser's own viewer
+        console.warn('PDF fetch blocked, using embedded viewer', fetchErr);
+        setEmbedFallback(true);
+        return;
       }
 
       if (!response.ok) {
