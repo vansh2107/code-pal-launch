@@ -138,6 +138,19 @@ export default function EditDocument() {
         updateData.renewalPeriodDays  = validated.renewal_period_days ?? 30;
       }
 
+      if (newFile) {
+        if (!newFile.type.startsWith('image/') && newFile.type !== 'application/pdf') {
+          throw new Error('The document file must be a PDF or an image.');
+        }
+        const uploadedPath = await uploadDocumentOriginal(newFile, user.uid);
+        if (!uploadedPath) throw new Error('The file upload did not complete. Please try again.');
+        updateData.imagePath = uploadedPath;
+        if (existingImagePath) {
+          try { await deleteObject(fbStorageRef(firebaseStorage, existingImagePath)); } catch { /* old file cleanup is best-effort */ }
+        }
+        setExistingImagePath(uploadedPath);
+      }
+
       await updateDoc(doc(firebaseDb, `users/${user.uid}/documents/${id}`), updateData);
 
       if (!isDocVault && validated.expiry_date) {
@@ -304,6 +317,21 @@ export default function EditDocument() {
                 <p className="text-sm text-muted-foreground">Add your own reminder date in addition to the automatic ones</p>
               </div>
             )}
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="document_file">Document File</Label>
+              </div>
+              <Input id="document_file" type="file" accept="application/pdf,image/*" onChange={(e) => setNewFile(e.target.files?.[0] ?? null)} />
+              {newFile ? (
+                <p className="text-sm text-muted-foreground">Selected: {newFile.name}</p>
+              ) : existingImagePath ? (
+                <p className="text-sm text-muted-foreground">A file is already attached. Choose a new PDF or image to replace it.</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No file attached yet — add the PDF or image so you can view it from the document page.</p>
+              )}
+            </div>
 
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
           </form>
