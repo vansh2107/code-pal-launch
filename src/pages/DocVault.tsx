@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
