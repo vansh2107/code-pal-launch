@@ -168,6 +168,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
 
     try {
       const page = await pdfDoc.getPage(pageNum);
+      if (seq !== renderSeqRef.current) return; // superseded by a newer render
       
       // Calculate optimal scale based on container and device
       const containerWidth = containerRef.current?.clientWidth || window.innerWidth * 0.9;
