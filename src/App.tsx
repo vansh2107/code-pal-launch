@@ -33,7 +33,6 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const Teams = lazy(() => import("./pages/Teams"));
 const TestEmails = lazy(() => import("./pages/TestEmails"));
 const TestOneSignal = lazy(() => import("./pages/TestOneSignal"));
-const PdfViewerTest = lazy(() => import("./pages/PdfViewerTest")); // TEMPORARY test route — remove after testing
 const Tasks = lazy(() => import("./pages/Tasks"));
 const AddTask = lazy(() => import("./pages/AddTask"));
 const EditTask = lazy(() => import("./pages/EditTask"));
@@ -187,7 +186,6 @@ const App = () => {
                     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                     <Route path="/test-emails" element={<ProtectedRoute><TestEmails /></ProtectedRoute>} />
                     <Route path="/test-onesignal" element={<ProtectedRoute><TestOneSignal /></ProtectedRoute>} />
-                    <Route path="/pdf-viewer-test" element={<PdfViewerTest />} /> {/* TEMPORARY — remove after testing */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
