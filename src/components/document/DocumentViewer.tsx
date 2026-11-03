@@ -74,6 +74,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       setScale(1.5);
       setError(null);
       setIsAdBlockBlocked(false);
+      setEmbedFallback(false);
 
       if (isPdfFile) {
         loadPDF();
@@ -165,13 +166,8 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       // Render first page immediately with synchronously available pdf instance
       await renderPage(1, pdf);
     } catch (err: any) {
-      console.error('Error loading PDF:', err);
-      if (checkIsBlocked(err)) {
-        setIsAdBlockBlocked(true);
-        setError("Document blocked by browser extension. Please pause your ad blocker for this site.");
-      } else {
-        setError("Unable to render PDF document. The file might be corrupted or inaccessible.");
-      }
+      console.error('Error loading PDF, using embedded viewer:', err);
+      setEmbedFallback(true);
     } finally {
       setLoading(false);
     }
@@ -362,7 +358,13 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
           )}
 
           {/* Always Keep Canvas Mounted for PDF mode */}
-          {isPdf ? (
+          {isPdf && embedFallback ? (
+            <iframe
+              src={fileUrl}
+              title={fileName}
+              className="w-full h-full min-h-[70vh] border-0 bg-background"
+            />
+          ) : isPdf ? (
             <div className="min-h-full flex items-center justify-center p-4">
               <canvas
                 ref={canvasRef}
