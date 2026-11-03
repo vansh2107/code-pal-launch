@@ -218,7 +218,9 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
         console.error('Error rendering PDF page:', error);
       }
     } finally {
-      setPageLoading(false);
+      if (seq === renderSeqRef.current) {
+        setPageLoading(false);
+      }
     }
   };
 
