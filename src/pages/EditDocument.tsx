@@ -13,16 +13,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, FileText } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { AppShell, PageHeader } from '@/components/layout/';
 import { sanitizeDocumentNote } from '@/utils/documentNotes';
 import { z } from 'zod';
 import { getDoc, doc, updateDoc, setDoc, addDoc, collection, deleteDoc, getDocs, query, where } from 'firebase/firestore';
-import { firebaseDb } from '@/integrations/firebase/client';
+import { ref as fbStorageRef, deleteObject } from 'firebase/storage';
+import { firebaseDb, firebaseStorage } from '@/integrations/firebase/client';
 import { httpsCallable } from 'firebase/functions';
 import { firebaseFunctions } from '@/integrations/firebase/client';
+import { uploadDocumentOriginal } from '@/utils/documentStorage';
 
 const documentSchema = z.object({
   name:                z.string().min(1, 'Document name is required'),
@@ -56,6 +58,8 @@ export default function EditDocument() {
   const [loading,   setLoading]  = useState(true);
   const [saving,    setSaving]   = useState(false);
   const [error,     setError]    = useState('');
+  const [newFile,   setNewFile]  = useState<File | null>(null);
+  const [existingImagePath, setExistingImagePath] = useState<string | null>(null);
   const [formData,  setFormData] = useState({
     name:'', document_type:'', issuing_authority:'', expiry_date:'',
     expiry_date_label:'', renewal_period_days:30, notes:'', custom_reminder_date:'',
@@ -91,6 +95,7 @@ export default function EditDocument() {
         notes:               sanitizeDocumentNote((data.notes as string) ?? ''),
         custom_reminder_date: customReminderDate,
       });
+      setExistingImagePath((data.imagePath || data.image_path || data.imageUrl || data.image_url || data.storagePath || data.storage_path || null) as string | null);
     } catch (err) {
       console.error('[EditDocument] fetchDocument:', err);
       toast({ title: 'Error', description: 'Failed to load document', variant: 'destructive' });
@@ -131,6 +136,19 @@ export default function EditDocument() {
         updateData.expiryDate         = validated.expiry_date         ?? null;
         updateData.expiryDateLabel    = formData.expiry_date_label    || null;
         updateData.renewalPeriodDays  = validated.renewal_period_days ?? 30;
+      }
+
+      if (newFile) {
+        if (!newFile.type.startsWith('image/') && newFile.type !== 'application/pdf') {
+          throw new Error('The document file must be a PDF or an image.');
+        }
+        const uploadedPath = await uploadDocumentOriginal(newFile, user.uid);
+        if (!uploadedPath) throw new Error('The file upload did not complete. Please try again.');
+        updateData.imagePath = uploadedPath;
+        if (existingImagePath) {
+          try { await deleteObject(fbStorageRef(firebaseStorage, existingImagePath)); } catch { /* old file cleanup is best-effort */ }
+        }
+        setExistingImagePath(uploadedPath);
       }
 
       await updateDoc(doc(firebaseDb, `users/${user.uid}/documents/${id}`), updateData);
@@ -299,6 +317,21 @@ export default function EditDocument() {
                 <p className="text-sm text-muted-foreground">Add your own reminder date in addition to the automatic ones</p>
               </div>
             )}
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="document_file">Document File</Label>
+              </div>
+              <Input id="document_file" type="file" accept="application/pdf,image/*" onChange={(e) => setNewFile(e.target.files?.[0] ?? null)} />
+              {newFile ? (
+                <p className="text-sm text-muted-foreground">Selected: {newFile.name}</p>
+              ) : existingImagePath ? (
+                <p className="text-sm text-muted-foreground">A file is already attached. Choose a new PDF or image to replace it.</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No file attached yet — add the PDF or image so you can view it from the document page.</p>
+              )}
+            </div>
 
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
           </form>

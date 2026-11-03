@@ -250,34 +250,27 @@ export default function DocVault() {
         </div>
 
         {isMobile && isSidebarOpen && (
-          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}>
-            <div
-              className="absolute left-0 top-0 h-full w-4/5 max-w-xs bg-card shadow-lg flex flex-col pt-[env(safe-area-inset-top)]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-end px-3 pt-3 pb-1 shrink-0">
-                <Button variant="ghost" size="icon" aria-label="Close menu" onClick={() => setIsSidebarOpen(false)}>
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-              <div className="flex-1 min-h-0">
-                <DocVaultSidebar
-                  categories={categories}
-                  selectedCategory={selectedCategory}
-                  onSelectCategory={(cat) => { setSelectedCategory(cat); setIsSidebarOpen(false); }}
-                  onCreateCategory={() => { setCategoryDialogMode("create"); setCategoryDialogOpen(true); }}
-                  onRenameCategory={(cat) => { setCategoryToEdit(cat); setCategoryDialogMode("rename"); setCategoryDialogOpen(true); }}
-                  onDeleteCategory={deleteCategory}
-                  frequentlyUsedCount={frequentlyUsedCount}
-                  allDocumentsCount={allDocumentsCount}
-                />
-              </div>
+          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
+            <div className="absolute left-0 top-0 h-full w-4/5 max-w-xs bg-card shadow-lg">
+              <DocVaultSidebar 
+                categories={categories}
+                selectedCategory={selectedCategory}
+                onSelectCategory={(cat) => { setSelectedCategory(cat); setIsSidebarOpen(false); }}
+                onCreateCategory={() => { setCategoryDialogMode("create"); setCategoryDialogOpen(true); }}
+                onRenameCategory={(cat) => { setCategoryToEdit(cat); setCategoryDialogMode("rename"); setCategoryDialogOpen(true); }}
+                onDeleteCategory={deleteCategory}
+                frequentlyUsedCount={frequentlyUsedCount}
+                allDocumentsCount={allDocumentsCount}
+              />
+              <Button variant="ghost" className="absolute top-4 right-4" onClick={() => setIsSidebarOpen(false)}>
+                <X className="h-5 w-5" />
+              </Button>
             </div>
           </div>
         )}
 
         <div className="flex-1 flex flex-col h-full overflow-y-auto">
-          <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center justify-between">
+          <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               {isMobile && (
                 <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(true)}>

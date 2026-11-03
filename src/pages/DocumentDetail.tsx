@@ -319,8 +319,28 @@ export default function DocumentDetail() {
             </>
           )}
 
+          {!document.image_path && (
+            <Card className="border-2 border-dashed">
+              <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
+                <FileText className="h-10 w-10 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">No document file attached</p>
+                  <p className="text-sm text-muted-foreground">The file wasn't uploaded when this document was saved. You can attach the PDF or image from the edit page.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => navigate(`/documents/${id}/edit`)}><Edit2 className="h-4 w-4 mr-2" />Attach file</Button>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className={`border-2 ${statusInfo?.bgClass ?? ''} ${statusInfo?.borderClass ?? 'border-border'}`}>
-            <CardHeader><CardTitle className={`flex items-center gap-2 ${statusInfo?.textClass ?? 'text-foreground'}`}><FileText className="h-5 w-5" />Document Details</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle className={`flex items-center gap-2 ${statusInfo?.textClass ?? 'text-foreground'}`}><FileText className="h-5 w-5" />Document Details</CardTitle>
+              {document.image_path && imageUrl && (
+                <Button size="sm" onClick={() => setViewerOpen(true)}>
+                  <FileText className="h-4 w-4 mr-2" />View Document
+                </Button>
+              )}
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
