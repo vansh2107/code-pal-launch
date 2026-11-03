@@ -49,6 +49,8 @@ import {
   installGoogleScannerModule,
   launchNativeDocumentScanner,
   registerNativeScannerRestoration,
+  isScanSessionProcessed,
+  markScanSessionProcessed,
   type NativeScanOutput,
 } from "@/utils/nativeDocumentScanner";
 
@@ -144,6 +146,9 @@ export default function Scan() {
   const [nativeScanning, setNativeScanning] = useState(false);
   const [nativeModuleDownloading, setNativeModuleDownloading] = useState(false);
   const [nativeModuleProgress, setNativeModuleProgress] = useState(0);
+
+  // PDF processing concurrency lock
+  const pdfProcessingLock = useRef(false);
   
   const [candidateDates, setCandidateDates] = useState<Array<{ label: string; date: string; type?: string; reason?: string }>>([]);
   
@@ -392,6 +397,16 @@ export default function Scan() {
 
   // Handle completed scan from Native ML Kit Document Scanner
   const handleNativeScanCompleted = async (output: NativeScanOutput) => {
+    // Idempotent guard: ensure this scan session is processed only once
+    if (isScanSessionProcessed(output.scanSessionId)) {
+      console.log(
+        "[Scan] handleNativeScanCompleted: scanSessionId already processed, ignoring duplicate invocation:",
+        output.scanSessionId
+      );
+      return;
+    }
+    markScanSessionProcessed(output.scanSessionId);
+
     stopCameraLocal();
     setOriginalFileName(output.file.name);
 
@@ -419,6 +434,7 @@ export default function Scan() {
     setNativeScanning(true);
     stopCameraLocal();
 
+    let output: NativeScanOutput | null = null;
     try {
       // 1. Check if Google ML Kit Document Scanner module is available
       const status = await checkGoogleScannerModule();
@@ -447,14 +463,12 @@ export default function Scan() {
       }
 
       // 2. Launch Google ML Kit Document Scanner
-      const output = await launchNativeDocumentScanner({
+      output = await launchNativeDocumentScanner({
         pageLimit: 25,
         galleryImportAllowed: true,
       });
 
-      if (output) {
-        await handleNativeScanCompleted(output);
-      } else {
+      if (!output) {
         // User cancelled scan; keep screen ready
         toast({
           title: "Scan Cancelled",
@@ -472,8 +486,15 @@ export default function Scan() {
       setScanMode("camera");
       startCamera();
     } finally {
+      // ALWAYS release nativeScanning when the native scanner activity returns,
+      // independently of cloud extraction or PDF rendering.
       setNativeScanning(false);
       setNativeModuleDownloading(false);
+    }
+
+    // Process output outside the native scanner activity lock
+    if (output) {
+      await handleNativeScanCompleted(output);
     }
   };
 
@@ -788,51 +809,72 @@ export default function Scan() {
   /**
    * PHASE 1 then PHASE 2. Page failures are reported as page-processing errors
    * and never surface as extraction errors.
+   *
+   * Hardened with processing lock and complete try/catch/finally to guarantee
+   * all loading, extracting, and phase flags are reset regardless of outcome.
    */
   const handlePdfPipeline = async (file: File) => {
+    if (pdfProcessingLock.current) {
+      console.warn("[Scan] handlePdfPipeline: already processing a PDF, ignoring concurrent call");
+      return;
+    }
+    pdfProcessingLock.current = true;
+
     setError("");
     setPdfProgress({ current: 0, total: 0 });
     setPdfPhase("processing");
 
-    let result;
     try {
-      result = await processAllPages(file, (current, total) =>
-        setPdfProgress({ current, total })
-      );
-    } catch (err) {
-      console.error("PDF processing error:", err);
-      setPdfPhase(null);
-      setError("Unable to process this PDF. Please try another file or enter details manually.");
+      let result;
+      try {
+        result = await processAllPages(file, (current, total) =>
+          setPdfProgress({ current, total })
+        );
+      } catch (err) {
+        console.error("PDF processing error:", err);
+        setError("Unable to process this PDF. Please try another file or enter details manually.");
+        toast({
+          title: "PDF Processing Failed",
+          description: "The PDF could not be opened. Please try another file.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (result.failedPages.length > 0) {
+        toast({
+          title: "Some pages could not be processed",
+          description: `Unable to process page${result.failedPages.length > 1 ? "s" : ""} ${result.failedPages.join(", ")}. Continuing with the remaining pages.`,
+          variant: "destructive",
+        });
+      }
+
+      if (result.pages.length === 0) {
+        setError("None of the PDF pages could be processed.");
+        return;
+      }
+
+      // Show first page as the document preview
+      setCapturedImage(result.pages[0].content);
+      setProcessedImage(result.pages[0].content);
+
+      // PHASE 2 begins only after ALL pages are done
+      setPdfPhase("analyzing");
+      await extractDocumentInformation(result.pages, file);
+    } catch (pipelineErr) {
+      console.error("[Scan] handlePdfPipeline unhandled error:", pipelineErr);
+      setError("An unexpected error occurred while processing the PDF.");
       toast({
-        title: "PDF Processing Failed",
-        description: "The PDF could not be opened. Please try another file.",
+        title: "Processing Failed",
+        description: "An unexpected error occurred. Please try entering document details manually.",
         variant: "destructive",
       });
-      return;
-    }
-
-    if (result.failedPages.length > 0) {
-      toast({
-        title: "Some pages could not be processed",
-        description: `Unable to process page${result.failedPages.length > 1 ? "s" : ""} ${result.failedPages.join(", ")}. Continuing with the remaining pages.`,
-        variant: "destructive",
-      });
-    }
-
-    if (result.pages.length === 0) {
+    } finally {
+      // Guarantee all state flags and locks are cleanly reset
       setPdfPhase(null);
-      setError("None of the PDF pages could be processed.");
-      return;
+      setExtracting(false);
+      pdfProcessingLock.current = false;
     }
-
-    // Show first page as the document preview
-    setCapturedImage(result.pages[0].content);
-    setProcessedImage(result.pages[0].content);
-
-    // PHASE 2 begins only after ALL pages are done
-    setPdfPhase("analyzing");
-    await extractDocumentInformation(result.pages, file);
-    setPdfPhase(null);
   };
 
   const retakePhoto = () => {
