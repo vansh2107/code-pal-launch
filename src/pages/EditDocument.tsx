@@ -58,6 +58,8 @@ export default function EditDocument() {
   const [loading,   setLoading]  = useState(true);
   const [saving,    setSaving]   = useState(false);
   const [error,     setError]    = useState('');
+  const [newFile,   setNewFile]  = useState<File | null>(null);
+  const [existingImagePath, setExistingImagePath] = useState<string | null>(null);
   const [formData,  setFormData] = useState({
     name:'', document_type:'', issuing_authority:'', expiry_date:'',
     expiry_date_label:'', renewal_period_days:30, notes:'', custom_reminder_date:'',
@@ -93,6 +95,7 @@ export default function EditDocument() {
         notes:               sanitizeDocumentNote((data.notes as string) ?? ''),
         custom_reminder_date: customReminderDate,
       });
+      setExistingImagePath((data.imagePath || data.image_path || data.imageUrl || data.image_url || data.storagePath || data.storage_path || null) as string | null);
     } catch (err) {
       console.error('[EditDocument] fetchDocument:', err);
       toast({ title: 'Error', description: 'Failed to load document', variant: 'destructive' });
