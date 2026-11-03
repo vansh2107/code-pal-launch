@@ -65,15 +65,18 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
       if (renderTaskRef.current) {
         renderTaskRef.current.cancel();
       }
+      // Reset PDF state so a reopen always renders from scratch
+      setPdfDoc(null);
+      setPageData([]);
     };
   }, [open, fileUrl, detectPdf]);
 
-  // Render current page when it changes
+  // Render current page when it changes, or once loading finishes and the canvas mounts
   useEffect(() => {
-    if (isPdf && pdfDoc && pageData.length > 0) {
+    if (!loading && isPdf && pdfDoc && pageData.length > 0 && canvasRef.current) {
       renderPage(currentPage + 1);
     }
-  }, [currentPage, pdfDoc, scale, rotation]);
+  }, [loading, currentPage, pdfDoc, scale, rotation, isPdf, pageData]);
 
   const loadImage = async () => {
     setLoading(true);
@@ -133,9 +136,10 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
         });
       }
       setPageData(pages);
-      
-      // Render first page
-      await renderPage(1);
+
+      // Note: no renderPage() here - the canvas is not mounted while `loading`
+      // is true, so rendering here would bail out. The render effect below
+      // fires once loading completes and the canvas is in the DOM.
     } catch (error) {
       console.error('Error loading PDF:', error);
     } finally {
