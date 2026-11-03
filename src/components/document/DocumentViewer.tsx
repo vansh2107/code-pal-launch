@@ -38,6 +38,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
+  const renderSeqRef = useRef(0);
 
   // Detect if file is PDF
   const detectPdf = useCallback(() => {
@@ -150,11 +151,19 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
   const renderPage = async (pageNum: number) => {
     if (!pdfDoc || !canvasRef.current) return;
 
+    // Only the most recent render request is allowed to draw,
+    // preventing duplicate or overlapping render operations.
+    const seq = ++renderSeqRef.current;
+
     setPageLoading(true);
 
     // Cancel any ongoing render
     if (renderTaskRef.current) {
-      renderTaskRef.current.cancel();
+      try {
+        renderTaskRef.current.cancel();
+      } catch {
+        // render task already completed or never started
+      }
     }
 
     try {
