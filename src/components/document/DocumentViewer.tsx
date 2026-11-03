@@ -38,6 +38,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
+  const renderSeqRef = useRef(0);
 
   // Detect if file is PDF
   const detectPdf = useCallback(() => {
@@ -65,15 +66,18 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
       if (renderTaskRef.current) {
         renderTaskRef.current.cancel();
       }
+      // Reset PDF state so a reopen always renders from scratch
+      setPdfDoc(null);
+      setPageData([]);
     };
   }, [open, fileUrl, detectPdf]);
 
-  // Render current page when it changes
+  // Render current page when it changes, or once loading finishes and the canvas mounts
   useEffect(() => {
-    if (isPdf && pdfDoc && pageData.length > 0) {
+    if (!loading && isPdf && pdfDoc && pageData.length > 0 && canvasRef.current) {
       renderPage(currentPage + 1);
     }
-  }, [currentPage, pdfDoc, scale, rotation]);
+  }, [loading, currentPage, pdfDoc, scale, rotation, isPdf, pageData]);
 
   const loadImage = async () => {
     setLoading(true);
@@ -133,9 +137,10 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
         });
       }
       setPageData(pages);
-      
-      // Render first page
-      await renderPage(1);
+
+      // Note: no renderPage() here - the canvas is not mounted while `loading`
+      // is true, so rendering here would bail out. The render effect below
+      // fires once loading completes and the canvas is in the DOM.
     } catch (error) {
       console.error('Error loading PDF:', error);
     } finally {
@@ -146,15 +151,24 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
   const renderPage = async (pageNum: number) => {
     if (!pdfDoc || !canvasRef.current) return;
 
+    // Only the most recent render request is allowed to draw,
+    // preventing duplicate or overlapping render operations.
+    const seq = ++renderSeqRef.current;
+
     setPageLoading(true);
 
     // Cancel any ongoing render
     if (renderTaskRef.current) {
-      renderTaskRef.current.cancel();
+      try {
+        renderTaskRef.current.cancel();
+      } catch {
+        // render task already completed or never started
+      }
     }
 
     try {
       const page = await pdfDoc.getPage(pageNum);
+      if (seq !== renderSeqRef.current) return; // superseded by a newer render
       
       // Calculate optimal scale based on container and device
       const containerWidth = containerRef.current?.clientWidth || window.innerWidth * 0.9;
@@ -204,7 +218,9 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
         console.error('Error rendering PDF page:', error);
       }
     } finally {
-      setPageLoading(false);
+      if (seq === renderSeqRef.current) {
+        setPageLoading(false);
+      }
     }
   };
 
