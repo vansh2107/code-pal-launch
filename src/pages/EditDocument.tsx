@@ -13,16 +13,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, FileText } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { AppShell, PageHeader } from '@/components/layout/';
 import { sanitizeDocumentNote } from '@/utils/documentNotes';
 import { z } from 'zod';
 import { getDoc, doc, updateDoc, setDoc, addDoc, collection, deleteDoc, getDocs, query, where } from 'firebase/firestore';
-import { firebaseDb } from '@/integrations/firebase/client';
+import { ref as fbStorageRef, deleteObject } from 'firebase/storage';
+import { firebaseDb, firebaseStorage } from '@/integrations/firebase/client';
 import { httpsCallable } from 'firebase/functions';
 import { firebaseFunctions } from '@/integrations/firebase/client';
+import { uploadDocumentOriginal } from '@/utils/documentStorage';
 
 const documentSchema = z.object({
   name:                z.string().min(1, 'Document name is required'),
