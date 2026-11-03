@@ -187,6 +187,7 @@ const App = () => {
                     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                     <Route path="/test-emails" element={<ProtectedRoute><TestEmails /></ProtectedRoute>} />
                     <Route path="/test-onesignal" element={<ProtectedRoute><TestOneSignal /></ProtectedRoute>} />
+                    <Route path="/pdf-viewer-test" element={<PdfViewerTest />} /> {/* TEMPORARY — remove after testing */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
