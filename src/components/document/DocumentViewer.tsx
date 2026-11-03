@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, RotateCw, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, RotateCw, Loader2, ExternalLink, RefreshCw, AlertCircle } from "lucide-react";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -11,6 +11,7 @@ interface DocumentViewerProps {
   fileName: string;
   open: boolean;
   onClose: () => void;
+  isPdf?: boolean;
 }
 
 interface PDFPageData {
@@ -24,12 +25,14 @@ interface PDFPageData {
  * PDFs are rendered directly to canvas at high resolution - no JPEG conversion.
  * Supports zoom, rotation, and multi-page navigation.
  */
-export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentViewerProps) {
+export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfProp }: DocumentViewerProps) {
   const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const pdfDocRef = useRef<any>(null);
   const [pageData, setPageData] = useState<PDFPageData[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isPdf, setIsPdf] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -41,9 +44,10 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
 
   // Detect if file is PDF
   const detectPdf = useCallback(() => {
+    if (typeof isPdfProp === 'boolean') return isPdfProp;
     const cleanUrl = (fileUrl?.split('?')[0] || '').toLowerCase();
-    return fileName?.toLowerCase().endsWith('.pdf') || cleanUrl.endsWith('.pdf');
-  }, [fileUrl, fileName]);
+    return fileName?.toLowerCase().endsWith('.pdf') || cleanUrl.endsWith('.pdf') || fileUrl?.toLowerCase().includes('.pdf');
+  }, [fileUrl, fileName, isPdfProp]);
 
   // Load document when dialog opens
   useEffect(() => {
@@ -53,6 +57,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
       setCurrentPage(0);
       setRotation(0);
       setScale(1.5);
+      setError(null);
 
       if (isPdfFile) {
         loadPDF();
@@ -70,16 +75,24 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
 
   // Render current page when it changes
   useEffect(() => {
-    if (isPdf && pdfDoc && pageData.length > 0) {
+    if (isPdf && (pdfDoc || pdfDocRef.current) && pageData.length > 0) {
       renderPage(currentPage + 1);
     }
-  }, [currentPage, pdfDoc, scale, rotation]);
+  }, [currentPage, pdfDoc, scale, rotation, isPdf, pageData.length]);
 
   const loadImage = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch(fileUrl);
       const blob = await response.blob();
+
+      // Check if blob is actually a PDF (e.g. content-type application/pdf or header %PDF)
+      if (blob.type === 'application/pdf') {
+        setIsPdf(true);
+        await loadPDF();
+        return;
+      }
       
       // Use createImageBitmap for EXIF orientation correction
       const imageBitmap = await createImageBitmap(blob);
@@ -95,9 +108,17 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
       } else {
         setImageUrl(fileUrl);
       }
-    } catch (error) {
-      console.error('Error loading image:', error);
-      setImageUrl(fileUrl);
+    } catch (err: any) {
+      console.error('Error loading image:', err);
+      // Fallback: If image decode fails, try checking if it can be loaded as PDF
+      try {
+        setIsPdf(true);
+        await loadPDF();
+        return;
+      } catch (pdfErr) {
+        setError("Failed to decode and display the document.");
+        setImageUrl(fileUrl);
+      }
     } finally {
       setLoading(false);
     }
@@ -105,6 +126,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
 
   const loadPDF = async () => {
     setLoading(true);
+    setError(null);
     try {
       GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
 
@@ -119,6 +141,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
         pdf = await (getDocument as any)({ data: arrayBuffer, disableWorker: true }).promise;
       }
 
+      pdfDocRef.current = pdf;
       setPdfDoc(pdf);
 
       // Get page dimensions for all pages
@@ -134,17 +157,19 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
       }
       setPageData(pages);
       
-      // Render first page
-      await renderPage(1);
-    } catch (error) {
-      console.error('Error loading PDF:', error);
+      // Render first page immediately with synchronously available pdf instance
+      await renderPage(1, pdf);
+    } catch (err: any) {
+      console.error('Error loading PDF:', err);
+      setError("Unable to render PDF document. The file might be corrupted or inaccessible.");
     } finally {
       setLoading(false);
     }
   };
 
-  const renderPage = async (pageNum: number) => {
-    if (!pdfDoc || !canvasRef.current) return;
+  const renderPage = async (pageNum: number, activePdfDoc?: any) => {
+    const doc = activePdfDoc || pdfDocRef.current || pdfDoc;
+    if (!doc || !canvasRef.current) return;
 
     setPageLoading(true);
 
@@ -154,7 +179,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
     }
 
     try {
-      const page = await pdfDoc.getPage(pageNum);
+      const page = await doc.getPage(pageNum);
       
       // Calculate optimal scale based on container and device
       const containerWidth = containerRef.current?.clientWidth || window.innerWidth * 0.9;
@@ -232,6 +257,15 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
     setScale(1.5);
   };
 
+  const handleRetry = () => {
+    setError(null);
+    if (isPdf) {
+      loadPDF();
+    } else {
+      loadImage();
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent 
@@ -247,9 +281,24 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
           <DialogTitle className="font-semibold truncate flex-1 text-sm sm:text-base">
             {fileName}
           </DialogTitle>
-          <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0">
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            {fileUrl && (
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
+                title="Open original file"
+                className="h-8 w-8"
+              >
+                <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <DialogDescription className="sr-only" id="document-viewer-description">
           Document viewer for {fileName}. {pageData.length > 1 ? `${pageData.length} pages` : '1 page'}
@@ -260,29 +309,49 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
           ref={containerRef}
           className="flex-1 overflow-auto bg-muted relative"
         >
-          {loading ? (
-            <div className="flex flex-col items-center justify-center h-full gap-4 p-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading document...</p>
-            </div>
-          ) : isPdf ? (
-            /* PDF Canvas Viewer */
-            <div className="min-h-full flex items-center justify-center p-4">
-              <div className="relative">
-                {pageLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
+          {/* Error Banner */}
+          {error && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 bg-background/95 gap-3 text-center">
+              <AlertCircle className="h-10 w-10 text-destructive" />
+              <p className="text-sm font-medium text-foreground">{error}</p>
+              <div className="flex items-center gap-2 mt-2">
+                <Button variant="outline" size="sm" onClick={handleRetry} className="gap-1.5">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Retry
+                </Button>
+                {fileUrl && (
+                  <Button variant="default" size="sm" asChild className="gap-1.5">
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Open Original File
+                    </a>
+                  </Button>
                 )}
-                <canvas
-                  ref={canvasRef}
-                  className="shadow-2xl rounded-lg max-w-full"
-                  style={{
-                    display: 'block',
-                    backgroundColor: 'white',
-                  }}
-                />
               </div>
+            </div>
+          )}
+
+          {/* Loading Overlay */}
+          {(loading || pageLoading) && !error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/60 backdrop-blur-xs z-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">
+                {loading ? "Loading document..." : "Rendering page..."}
+              </p>
+            </div>
+          )}
+
+          {/* Always Keep Canvas Mounted for PDF mode */}
+          {isPdf ? (
+            <div className="min-h-full flex items-center justify-center p-4">
+              <canvas
+                ref={canvasRef}
+                className="shadow-2xl rounded-lg max-w-full"
+                style={{
+                  display: 'block',
+                  backgroundColor: 'white',
+                }}
+              />
             </div>
           ) : imageUrl ? (
             /* Image Viewer with zoom/pan */
@@ -333,15 +402,15 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose }: DocumentVie
                 </>
               )}
             </TransformWrapper>
-          ) : (
+          ) : !loading && !error ? (
             <div className="flex items-center justify-center h-full p-4">
               <p className="text-sm text-muted-foreground">Failed to load document</p>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* PDF Controls */}
-        {isPdf && !loading && (
+        {isPdf && !loading && !error && (
           <div className="flex items-center justify-center gap-2 p-3 sm:p-4 border-t bg-background shrink-0 flex-wrap">
             {/* Zoom Controls */}
             <div className="flex items-center gap-1 bg-muted rounded-lg p-1">

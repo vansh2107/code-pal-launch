@@ -315,7 +315,15 @@ export default function DocumentDetail() {
                   )}
                 </CardContent>
               </Card>
-              {imageUrl && <DocumentViewer fileUrl={viewOriginal ? (rawImageUrl ?? imageUrl) : imageUrl} fileName={document.name} open={viewerOpen} onClose={() => setViewerOpen(false)} />}
+              {imageUrl && (
+                <DocumentViewer
+                  fileUrl={viewOriginal ? (rawImageUrl ?? imageUrl) : imageUrl}
+                  fileName={document.name}
+                  open={viewerOpen}
+                  onClose={() => setViewerOpen(false)}
+                  isPdf={document.image_path?.toLowerCase().endsWith('.pdf') || (rawImageUrl ?? imageUrl)?.toLowerCase().includes('.pdf')}
+                />
+              )}
             </>
           )}
 
