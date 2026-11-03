@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { collection, addDoc, getDocs, doc, updateDoc, getDoc, query, where } from "firebase/firestore";
 import { ref as storageRef, uploadBytes } from "firebase/storage";
@@ -13,19 +13,14 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Save, Loader2, Camera as CameraIcon, Upload, Sparkles, DownloadCloud } from "lucide-react";
+import { Save, Loader2, Upload, Sparkles, DownloadCloud, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { AppShell, PageHeader } from "@/components/layout/";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { ScanningEffect } from "@/components/scan/ScanningEffect";
 import { processAllPages, type ProcessedPdfPage } from "@/utils/pdfPageProcessor";
-import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
-import { Camera } from "@capacitor/camera";
-import { CameraResultType, CameraSource } from "@capacitor/camera";
 import { uploadDocumentOriginal, getPDFPageCount, srcToImageBlob } from "@/utils/documentStorage";
-import { stopCamera as stopCameraManager, forceStopAllCameras, getCameraConstraints, setupVideoElement, requestCamera } from "@/utils/cameraManager";
-import { pauseAppLock, stampLastAuth } from "@/lib/appLock";
 // PDF.js imports for Vite: use worker URL provided by bundler
 // @ts-ignore - path is provided by pdfjs-dist package
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -116,17 +111,12 @@ export default function Scan() {
   const replaceDocId = searchParams.get("docId");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [scanMode, setScanMode] = useState<"camera" | "manual">("camera");
+  const [scanMode, setScanMode] = useState<"scan" | "manual">("scan");
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [rawCapturedImage, setRawCapturedImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
-  const [showScanPreview, setShowScanPreview] = useState(false);
   const [extracting, setExtracting] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [cameraSuspended, setCameraSuspended] = useState(false);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<string>("personal");
   const mountedRef = useRef(true);
@@ -169,6 +159,17 @@ export default function Scan() {
     }
   }, [user]);
 
+  const fetchOrganizations = async () => {
+    const uid = firebaseAuth.currentUser?.uid;
+    if (!uid) return;
+    try {
+      const snap = await getDocs(collection(firebaseDb, "organizations"));
+      setOrganizations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error("[Scan] fetchOrganizations:", err);
+    }
+  };
+
   // Check Native Scanner availability on Android
   useEffect(() => {
     if (isNativeScannerSupported()) {
@@ -184,217 +185,6 @@ export default function Scan() {
     return () => unregister();
   }, []);
 
-  // Keep a ref of the live stream so lifecycle listeners never use stale state
-  const streamRef = useRef<MediaStream | null>(null);
-  useEffect(() => { streamRef.current = stream; }, [stream]);
-
-  // Centralized, single source of truth for releasing the camera hardware
-  const stopCameraFully = useCallback((reason: string = "manual") => {
-    console.log(`[Scan] stopCameraFully (${reason})`);
-    // 1. Stop the tracked stream
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    // 2. Stop and detach the video element stream
-    stopCameraManager(videoRef.current);
-    // 3. Safety net: any other stream left in the document
-    forceStopAllCameras();
-    if (mountedRef.current) setStream(null);
-  }, []);
-
-  // CRITICAL: Force cleanup camera on unmount
-  useEffect(() => {
-    mountedRef.current = true;
-    console.log('[Scan] Mounting');
-
-    return () => {
-      mountedRef.current = false;
-      console.log('[Scan] Unmounting, cleaning up camera...');
-      stopCameraFully("unmount");
-    };
-  }, [stopCameraFully]);
-
-  // Privacy: release camera whenever page/app is no longer actively visible.
-  // The camera is NOT auto-restarted — the user must explicitly start it again.
-  useEffect(() => {
-    const suspend = (reason: string) => {
-      if (!streamRef.current && !videoRef.current?.srcObject) return;
-      stopCameraFully(reason);
-      setCameraSuspended(true);
-    };
-
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") suspend("visibilitychange");
-    };
-    const onPageHide = () => suspend("pagehide");
-    const onFreeze = () => suspend("freeze");
-
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("pagehide", onPageHide);
-    window.addEventListener("freeze", onFreeze);
-    window.addEventListener("beforeunload", onPageHide);
-
-    // Capacitor (Android/iOS) app lifecycle
-    let removeNative: (() => void) | undefined;
-    (async () => {
-      try {
-        const { Capacitor } = await import("@capacitor/core");
-        if (!Capacitor.isNativePlatform()) return;
-        const { App: CapApp } = await import("@capacitor/app");
-        const stateHandle = await CapApp.addListener("appStateChange", ({ isActive }) => {
-          if (!isActive) suspend("appStateChange");
-        });
-        const pauseHandle = await CapApp.addListener("pause", () => suspend("appPause"));
-        removeNative = () => {
-          stateHandle.remove();
-          pauseHandle.remove();
-        };
-      } catch {
-        /* native lifecycle unavailable */
-      }
-    })();
-
-    return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("pagehide", onPageHide);
-      window.removeEventListener("freeze", onFreeze);
-      window.removeEventListener("beforeunload", onPageHide);
-      removeNative?.();
-    };
-  }, [stopCameraFully]);
-
-  // Start camera automatically when in camera mode (never after a suspend)
-  useEffect(() => {
-    if (
-      scanMode === "camera" &&
-      !capturedImage &&
-      !cameraSuspended &&
-      mountedRef.current &&
-      document.visibilityState === "visible"
-    ) {
-      startCamera();
-    }
-
-    return () => {
-      stopCameraFully("mode-change");
-    };
-  }, [scanMode, capturedImage, cameraSuspended, stopCameraFully]);
-
-
-  const fetchOrganizations = async () => {
-    const uid = firebaseAuth.currentUser?.uid;
-    if (!uid) return;
-    try {
-      const snap = await getDocs(collection(firebaseDb, "organizations"));
-      setOrganizations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (err) {
-      console.error("[Scan] fetchOrganizations:", err);
-    }
-  };
-
-  const startCamera = async () => {
-    try {
-      // Check if we're on a native platform (Capacitor)
-      const isNative = typeof (window as any).Capacitor !== 'undefined' && 
-                       (window as any).Capacitor.isNativePlatform?.();
-      
-      // Only request Capacitor permissions on native platforms if needed
-      if (isNative) {
-        try {
-          const status = await Camera.checkPermissions();
-          if (status.camera === 'prompt' || status.camera === 'prompt-with-rationale') {
-            // Pause app lock so the permission dialog overlay does not trigger AppLockGate on resume
-            pauseAppLock(60000);
-            const permission = await Camera.requestPermissions({ permissions: ['camera'] });
-            if (permission.camera === 'denied') {
-              throw new Error('Camera permission denied');
-            }
-          } else if (status.camera === 'denied') {
-            throw new Error('Camera permission denied');
-          }
-        } catch (permErr: any) {
-          if (permErr?.message === 'Camera permission denied') {
-            throw permErr;
-          }
-          console.warn("Capacitor permission check/request failed, trying browser API:", permErr);
-        }
-      }
-
-      // Setup video element for autoplay compatibility (Chrome requirement)
-      if (videoRef.current) {
-        setupVideoElement(videoRef.current);
-      }
-
-      // Use browser's getUserMedia API with proper constraints
-      const constraints = getCameraConstraints('environment', false);
-      const mediaStream = await requestCamera(constraints);
-      
-      if (!mediaStream) {
-        throw new Error('Failed to access camera');
-      }
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        // Wait for video to be ready then play
-        await new Promise<void>((resolve) => {
-          if (!videoRef.current) {
-            resolve();
-            return;
-          }
-          videoRef.current.onloadedmetadata = () => resolve();
-          setTimeout(resolve, 2000); // Timeout fallback
-        });
-        
-        try {
-          await videoRef.current.play();
-        } catch (playErr) {
-          console.warn("Video play failed:", playErr);
-        }
-      }
-      setStream(mediaStream);
-      setCameraSuspended(false);
-    } catch (err) {
-      console.error("Camera error:", err);
-      toast({
-        title: "Camera Error",
-        description: "Unable to access camera. Please grant camera permission or use manual entry.",
-        variant: "destructive",
-      });
-      setScanMode("manual");
-    }
-  };
-
-  const stopCameraLocal = useCallback(() => {
-    stopCameraFully("capture");
-  }, [stopCameraFully]);
-
-  const captureImage = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement("canvas");
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0);
-        // High quality, but not lossless — lossless data URLs blow the
-        // WebView memory budget on Android devices.
-        const imageData = canvas.toDataURL("image/jpeg", 0.92);
-        if (!imageData || imageData.length < 100) {
-          toast({
-            title: "Capture failed",
-            description: "The camera frame could not be saved. Please try again.",
-            variant: "destructive",
-          });
-          return;
-        }
-        setRawCapturedImage(imageData);
-        setShowScanPreview(true);
-        stopCameraLocal();
-      }
-    }
-  };
-
   // Handle completed scan from Native ML Kit Document Scanner
   const handleNativeScanCompleted = async (output: NativeScanOutput) => {
     // Idempotent guard: ensure this scan session is processed only once
@@ -407,7 +197,6 @@ export default function Scan() {
     }
     markScanSessionProcessed(output.scanSessionId);
 
-    stopCameraLocal();
     setOriginalFileName(output.file.name);
 
     if (output.type === "pdf") {
@@ -422,7 +211,6 @@ export default function Scan() {
         const result = reader.result as string;
         setProcessedImage(result);
         setCapturedImage(result);
-        setShowScanPreview(false);
         extractDocumentData(result);
       };
       reader.readAsDataURL(output.file);
@@ -432,7 +220,6 @@ export default function Scan() {
   const handleStartNativeScan = async () => {
     setError("");
     setNativeScanning(true);
-    stopCameraLocal();
 
     let output: NativeScanOutput | null = null;
     try {
@@ -454,10 +241,9 @@ export default function Scan() {
         if (!success) {
           toast({
             title: "Download Incomplete",
-            description: "Could not download the scanner component. Switching to camera mode.",
+            description: "Could not download the scanner component. Please use file upload or manual entry.",
             variant: "destructive",
           });
-          startCamera();
           return;
         }
       }
@@ -479,12 +265,9 @@ export default function Scan() {
       console.error("[Scan] Native scan error:", err);
       toast({
         title: "Scanner Launch Failed",
-        description: err?.message || "Failed to start native scanner. You can use standard camera scan.",
+        description: err?.message || "Failed to start native scanner. You can use file upload or manual entry.",
         variant: "destructive",
       });
-      // Fallback
-      setScanMode("camera");
-      startCamera();
     } finally {
       // ALWAYS release nativeScanning when the native scanner activity returns,
       // independently of cloud extraction or PDF rendering.
@@ -495,26 +278,6 @@ export default function Scan() {
     // Process output outside the native scanner activity lock
     if (output) {
       await handleNativeScanCompleted(output);
-    }
-  };
-
-  // Handle scan preview confirmation
-  const handleScanConfirm = (scannedImage: string) => {
-    setProcessedImage(scannedImage);
-    setCapturedImage(scannedImage);
-    setShowScanPreview(false);
-    extractDocumentData(scannedImage);
-  };
-
-  // Handle scan preview retake
-  const handleScanRetake = () => {
-    setRawCapturedImage(null);
-    setProcessedImage(null);
-    setCapturedImage(null);
-    setOriginalFileName(null);
-    setShowScanPreview(false);
-    if (scanMode === "camera") {
-      startCamera();
     }
   };
 
@@ -532,12 +295,13 @@ export default function Scan() {
         setExtracting(false);
         await handlePdfPipeline(file);
       } else {
-        // Handle image files - show scan preview
+        // Handle image files directly
         const reader = new FileReader();
         reader.onloadend = () => {
           const result = reader.result as string;
-          setRawCapturedImage(result);
-          setShowScanPreview(true);
+          setProcessedImage(result);
+          setCapturedImage(result);
+          extractDocumentData(result);
         };
         reader.readAsDataURL(file);
       }
@@ -877,12 +641,10 @@ export default function Scan() {
     }
   };
 
-  const retakePhoto = () => {
+  const resetScan = () => {
     setCapturedImage(null);
-    setRawCapturedImage(null);
     setProcessedImage(null);
     setOriginalFileName(null);
-    setShowScanPreview(false);
     pdfFileRef.current = null;
     setPdfFile(null);
     setCandidateDates([]);
@@ -896,9 +658,6 @@ export default function Scan() {
       notes: "",
       custom_reminder_date: "",
     });
-    if (scanMode === "camera") {
-      startCamera();
-    }
   };
 
   const proceedWithSave = async () => {
@@ -1197,7 +956,7 @@ export default function Scan() {
         title={replaceMode ? "Update Document" : "Add Document"}
         description={replaceMode 
           ? "Scanning new version to replace existing" 
-          : scanMode === "camera" ? "Scan or upload" : "Manual entry"
+          : "Upload document or enter details manually"
         }
         className="max-w-2xl mx-auto"
       />
@@ -1232,7 +991,7 @@ export default function Scan() {
         )}
 
         {/* Scan Landing State & Upload Options */}
-        {!capturedImage && !showScanPreview && !pdfPhase && (
+        {!capturedImage && !pdfPhase && (
           <div className="space-y-4">
             {/* Stage indicator */}
             <div className="flex items-center justify-between text-xs font-medium text-muted-foreground px-1">
@@ -1272,39 +1031,17 @@ export default function Scan() {
               </div>
             )}
 
-            {/* Mode selection cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div 
-                onClick={() => {
-                  setScanMode("camera");
-                  startCamera();
-                }}
-                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-4 ${
-                  scanMode === "camera" 
-                    ? "border-primary bg-primary/5 shadow-sm" 
-                    : "border-border/60 hover:border-border bg-card"
-                }`}
-              >
-                <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <CameraIcon className="w-6 h-6" />
-                </div>
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-semibold text-foreground">Scan document</h3>
-                  <p className="text-xs text-muted-foreground">Use your camera with auto-edge detection</p>
-                </div>
+            {/* Upload File card */}
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-4 rounded-2xl border-2 border-border/60 hover:border-border bg-card transition-all cursor-pointer flex items-center gap-4 shadow-sm"
+            >
+              <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Upload className="w-6 h-6" />
               </div>
-
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className="p-4 rounded-2xl border-2 border-border/60 hover:border-border bg-card transition-all cursor-pointer flex items-center gap-4"
-              >
-                <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <Upload className="w-6 h-6" />
-                </div>
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-semibold text-foreground">Upload file</h3>
-                  <p className="text-xs text-muted-foreground">Choose PDF or image document file</p>
-                </div>
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-semibold text-foreground">Upload file</h3>
+                <p className="text-xs text-muted-foreground">Choose PDF or image document file</p>
               </div>
             </div>
 
@@ -1314,7 +1051,6 @@ export default function Scan() {
                 type="button"
                 onClick={() => {
                   setScanMode("manual");
-                  stopCameraLocal();
                   setCapturedImage("manual-placeholder");
                 }}
                 className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1.5"
@@ -1323,69 +1059,6 @@ export default function Scan() {
               </button>
             </div>
           </div>
-        )}
-
-        {/* Camera Section */}
-        {scanMode === "camera" && !capturedImage && !showScanPreview && !pdfPhase && (
-          <Card className="border-border/60 shadow-md overflow-hidden rounded-2xl">
-            <CardContent className="p-0">
-              <div className="p-3 bg-muted/40 border-b border-border/50 text-center">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Place the document inside the frame. Keep the document flat and well lit.
-                </p>
-              </div>
-              <div className="relative aspect-[4/3] bg-black overflow-hidden">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-                {!stream && cameraSuspended && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-card">
-                    <div className="text-center space-y-3">
-                      <CameraIcon className="h-8 w-8 mx-auto text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground font-medium">Camera was paused</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => startCamera()}
-                      >
-                        <CameraIcon className="h-4 w-4 mr-2" />
-                        Start camera
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {!stream && !cameraSuspended && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-card">
-                    <div className="text-center space-y-2">
-                      <Loader2 className="h-8 w-8 mx-auto text-primary animate-spin" />
-                      <p className="text-sm text-muted-foreground font-medium">Starting camera...</p>
-                    </div>
-                  </div>
-                )}
-                {/* Corner guide brackets */}
-                <div className="absolute top-6 left-6 w-10 h-10 border-t-2 border-l-2 border-primary/80 rounded-tl-lg pointer-events-none" />
-                <div className="absolute top-6 right-6 w-10 h-10 border-t-2 border-r-2 border-primary/80 rounded-tr-lg pointer-events-none" />
-                <div className="absolute bottom-6 left-6 w-10 h-10 border-b-2 border-l-2 border-primary/80 rounded-bl-lg pointer-events-none" />
-                <div className="absolute bottom-6 right-6 w-10 h-10 border-b-2 border-r-2 border-primary/80 rounded-br-lg pointer-events-none" />
-              </div>
-              {stream && (
-                <div className="p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] bg-card flex justify-center items-center">
-                  <Button 
-                    onClick={captureImage} 
-                    className="h-14 px-8 rounded-full text-base font-semibold shadow-lg hover:shadow-xl transition-all"
-                    size="lg"
-                  >
-                    <CameraIcon className="h-5 w-5 mr-2" />
-                    Capture Document
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         )}
         
         {/* Hidden file input for PDF/Image upload */}
@@ -1426,26 +1099,19 @@ export default function Scan() {
           </Card>
         )}
 
-        {/* Document Scan Preview - CamScanner-style processing */}
-        {showScanPreview && rawCapturedImage && (
-          <DocumentScanPreview
-            imageSource={rawCapturedImage}
-            onConfirm={handleScanConfirm}
-            onRetake={handleScanRetake}
-          />
-        )}
-
-        {/* Captured Image Preview (after scan processing) */}
-        {capturedImage && !showScanPreview && (
+        {/* Captured Image / Upload Preview */}
+        {capturedImage && (
           <Card>
             <CardContent className="p-3 space-y-3 md:p-4 md:space-y-4">
               {extracting ? (
                 <ScanningEffect imageUrl={capturedImage} />
               ) : (
                 <>
-                  <img src={capturedImage} alt="Scanned document" className="w-full rounded-lg" />
-                  <Button variant="outline" onClick={retakePhoto} className="w-full h-10">
-                    Retake Photo
+                  {capturedImage !== "manual-placeholder" && (
+                    <img src={capturedImage} alt="Document preview" className="w-full rounded-lg" />
+                  )}
+                  <Button variant="outline" onClick={resetScan} className="w-full h-10">
+                    {capturedImage === "manual-placeholder" ? "Cancel manual entry" : "Choose different document"}
                   </Button>
                 </>
               )}

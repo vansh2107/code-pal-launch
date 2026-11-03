@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { Upload, Camera as CameraIcon, Search, Menu, X, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DocumentScanPreview } from "@/components/scan/DocumentScanPreview";
 import { DocVaultSidebar, type DocVaultCategory } from "@/components/docvault/DocVaultSidebar";
 import { CategoryDialog } from "@/components/docvault/CategoryDialog";
 import { UploadDocumentDialog } from "@/components/docvault/UploadDocumentDialog";
@@ -31,11 +29,6 @@ export default function DocVault() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
-  const [rawCapturedImage, setRawCapturedImage] = useState<string | null>(null);
-  const [showScanPreview, setShowScanPreview] = useState(false);
-  const [pendingDocName, setPendingDocName] = useState("");
-  const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -47,9 +40,6 @@ export default function DocVault() {
   
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [documentToMove, setDocumentToMove] = useState<DocVaultDocument | null>(null);
-  
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { categories, createCategory, renameCategory, deleteCategory, isCreating, isRenaming } = useDocVaultCategories(user?.uid);
   const { documents, signedUrls, frequentlyUsedDocuments, getDocumentsByCategory, moveDocument, deleteDocument, refetch, isMoving } = useDocVaultDocuments(user?.uid);
@@ -62,74 +52,9 @@ export default function DocVault() {
   const allDocumentsCount = useMemo(() => documents.length, [documents]);
   const frequentlyUsedCount = useMemo(() => frequentlyUsedDocuments.length, [frequentlyUsedDocuments]);
 
-  // Camera logic
-  const startCamera = async (_categoryId?: string | null) => {
-    try {
-      navigate('/scan');
-      return;
-
-    } catch (err) {
-      toast.error("Could not access camera");
-    }
-  };
-
-  const stopCamera = () => {
-    const stream = videoRef.current?.srcObject as MediaStream;
-    stream?.getTracks().forEach((track) => track.stop());
-    setShowCamera(false);
-  };
-
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext("2d");
-      if (context) {
-        canvasRef.current.width = videoRef.current.videoWidth;
-        canvasRef.current.height = videoRef.current.videoHeight;
-        context.drawImage(videoRef.current, 0, 0);
-        setRawCapturedImage(canvasRef.current.toDataURL("image/jpeg"));
-        setShowScanPreview(true);
-      }
-    }
-  };
-
-  const saveCroppedDocVaultDocument = async (
-    croppedImageSrc: string,
-    categoryId: string | null,
-    documentName: string
-  ) => {
-    if (!user?.uid) return;
-    setIsUploading(true);
-    try {
-      const croppedBlob = await srcToImageBlob(croppedImageSrc);
-      const fileExt = croppedBlob.type === 'image/png' ? 'png' : 'jpg';
-      const cleanName = (documentName || 'document').trim();
-      const croppedFile = new File([croppedBlob], `${cleanName}.${fileExt}`, { type: croppedBlob.type });
-
-      const storagePath = await uploadDocumentOriginal(croppedFile, user.uid);
-      if (!storagePath) {
-        throw new Error('The document upload was not completed.');
-      }
-
-      await addDoc(collection(firebaseDb, 'users', user.uid, 'documents'), {
-        userId: user.uid,
-        name: cleanName,
-        documentType: 'other',
-        imagePath: storagePath,
-        issuingAuthority: 'DocVault',
-        docvaultCategoryId: categoryId,
-        categoryDetail: 'uploaded',
-        updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-      });
-
-      toast.success('Cropped document saved to DocVault');
-      await refetch();
-    } catch (error: any) {
-      console.error('DocVault save failed:', error);
-      toast.error(error?.message || 'Failed to save cropped document. Please try again.');
-    } finally {
-      setIsUploading(false);
-    }
+  // Navigate to document scanner
+  const startCamera = (_categoryId?: string | null) => {
+    navigate('/scan');
   };
 
   const handleFileUpload = async (file: File, categoryId: string | null, documentName: string) => {
@@ -140,20 +65,6 @@ export default function DocVault() {
 
     if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
       toast.error("Unsupported file type. Please upload an image or PDF.");
-      return;
-    }
-
-    // Images must be cropped to document boundaries — never store raw camera photos
-    if (file.type.startsWith("image/")) {
-      setUploadDialogOpen(false);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPendingDocName((documentName || file.name).replace(/\.[^/.]+$/, ""));
-        setPendingCategoryId(categoryId);
-        setRawCapturedImage(reader.result as string);
-        setShowScanPreview(true);
-      };
-      reader.readAsDataURL(file);
       return;
     }
 
@@ -356,24 +267,6 @@ export default function DocVault() {
         onMove={handleMoveConfirm}
         isLoading={isMoving}
       />
-      {showScanPreview && rawCapturedImage && (
-        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col p-4 md:p-8 overflow-y-auto">
-          <div className="max-w-2xl w-full mx-auto my-auto">
-            <DocumentScanPreview
-              imageSource={rawCapturedImage}
-              onConfirm={async (croppedImage) => {
-                setShowScanPreview(false);
-                setRawCapturedImage(null);
-                await saveCroppedDocVaultDocument(croppedImage, pendingCategoryId, pendingDocName);
-              }}
-              onRetake={() => {
-                setShowScanPreview(false);
-                setRawCapturedImage(null);
-              }}
-            />
-          </div>
-        </div>
-      )}
     </AppShell>
   );
 }
