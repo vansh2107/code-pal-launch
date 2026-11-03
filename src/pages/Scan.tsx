@@ -124,6 +124,7 @@ export default function Scan() {
   const [documentCountry, setDocumentCountry] = useState<string>("");
   const [enableCountrySelect, setEnableCountrySelect] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const pdfFileRef = useRef<File | null>(null);
   const [pdfPhase, setPdfPhase] = useState<null | "processing" | "analyzing">(null);
   const [pdfProgress, setPdfProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [decision, setDecision] = useState<any>(null);
@@ -389,6 +390,7 @@ export default function Scan() {
       // Check if file is a PDF
       if (file.type === 'application/pdf') {
         // Store the ORIGINAL PDF file - NO conversion
+        pdfFileRef.current = file;
         setPdfFile(file);
         setExtracting(false);
         await handlePdfPipeline(file);
@@ -414,13 +416,14 @@ export default function Scan() {
     }
   };
 
-  const autoSaveNoExpiry = async (extractedFields: any, finalCroppedImg: string | null) => {
+  const autoSaveNoExpiry = async (extractedFields: any, finalCroppedImg: string | null, activePdfFile?: File | null) => {
     if (!user) return;
     setLoading(true);
     try {
       let imagePath = null;
-      if (pdfFile) {
-        imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
+      const targetPdf = activePdfFile || pdfFileRef.current || pdfFile;
+      if (targetPdf) {
+        imagePath = await uploadDocumentOriginal(targetPdf, user.uid);
       } else {
         const imageSrc = finalCroppedImg || processedImage || capturedImage;
         if (imageSrc) {
@@ -430,6 +433,10 @@ export default function Scan() {
           const imageFile = new File([primaryBlob], `${baseName}.${fileExt}`, { type: primaryBlob.type });
           imagePath = await uploadDocumentOriginal(imageFile, user.uid);
         }
+      }
+
+      if (!imagePath) {
+        throw new Error("Failed to upload document file. Save aborted.");
       }
 
       // Map document type
@@ -579,7 +586,7 @@ export default function Scan() {
    * PHASE 2 — document-level extraction, run ONCE on the combined content
    * of every processed page. Never called from inside the page loop.
    */
-  const extractDocumentInformation = async (pages: ProcessedPdfPage[]) => {
+  const extractDocumentInformation = async (pages: ProcessedPdfPage[], activePdfFile?: File | null) => {
     setExtracting(true);
     setError("");
 
@@ -602,7 +609,7 @@ export default function Scan() {
         setDecision(dec);
 
         if (dec.decision === 'NO_EXPIRY_AUTO_SAVE') {
-          await autoSaveNoExpiry(data.data, null);
+          await autoSaveNoExpiry(data.data, null, activePdfFile);
           return;
         }
 
@@ -708,7 +715,7 @@ export default function Scan() {
 
     // PHASE 2 begins only after ALL pages are done
     setPdfPhase("analyzing");
-    await extractDocumentInformation(result.pages);
+    await extractDocumentInformation(result.pages, file);
     setPdfPhase(null);
   };
 
@@ -718,6 +725,7 @@ export default function Scan() {
     setProcessedImage(null);
     setOriginalFileName(null);
     setShowScanPreview(false);
+    pdfFileRef.current = null;
     setPdfFile(null);
     setCandidateDates([]);
     setFormData({
