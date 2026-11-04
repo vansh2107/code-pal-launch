@@ -1,21 +1,29 @@
 /**
  * sendExpiryReminders — Scheduled Function
  *
- * Runs every hour. Fetches all reminders due today that haven't been sent.
+ * Runs every hour. Fetches all reminders due today (plus a bounded
+ * catch-up window for overdue ones) that haven't been sent.
  * Checks user's local time against preferred_notification_time.
- * Sends SendGrid email + OneSignal push if enabled. Marks reminders sent.
+ * Sends SendGrid email + OneSignal push if enabled. Marks reminders sent
+ * only after the provider accepts delivery; failed sends stay eligible
+ * for a bounded retry.
  *
  * Replaces: supabase/functions/send-expiry-reminders
  */
 
 import { scheduler, logger } from 'firebase-functions/v2';
 import { adminDb } from '../shared/admin';
-import { sendOneSignalNotification } from '../shared/onesignal';
+import { sendOneSignalNotificationDetailed } from '../shared/onesignal';
 import { onesignalSecrets } from '../shared/secrets';
 import { sendEmail } from '../shared/sendgrid';
 import { getFunnyNotification } from '../shared/funnyNotifications';
 import { getReminderButtons } from '../shared/notificationActions';
-import { getDateInTimezone, isTimeMatching } from '../shared/timezone';
+import { getDateInTimezone, getLocalDateDaysAgo, isTimeMatching } from '../shared/timezone';
+import {
+  claimReminderForSend,
+  releaseReminderClaim,
+  markReminderSent,
+} from '../shared/reminderClaim';
 
 export const sendExpiryReminders = scheduler.onSchedule(
   { schedule: '0 * * * *', timeZone: 'UTC', secrets: onesignalSecrets },
@@ -39,30 +47,25 @@ export const sendExpiryReminders = scheduler.onSchedule(
       if (prefTime && !isTimeMatching(prefTime, timezone, 30)) continue;
 
       const todayLocal = getDateInTimezone(timezone);
+      const catchupFrom = getLocalDateDaysAgo(timezone, 2);
 
+      // Bounded catch-up: today plus the last 2 local days.
       const remindersSnap = await adminDb
         .collection('users').doc(userId)
         .collection('reminders')
-        .where('reminderDate', '==', todayLocal)
+        .where('reminderDate', '>=', catchupFrom)
+        .where('reminderDate', '<=', todayLocal)
         .where('isSent', '==', false)
         .get();
 
       if (remindersSnap.empty) continue;
 
       for (const reminderDoc of remindersSnap.docs) {
-        const reminder = reminderDoc.data();
-
         // Atomic claim prevents duplicates from overlapping/retried runs.
-        const nowMs = Date.now();
-        const claimed = await adminDb.runTransaction(async (tx) => {
-          const fresh = (await tx.get(reminderDoc.ref)).data();
-          if (!fresh || fresh.isSent) return false;
-          const c = fresh.sendClaimAt ? Date.parse(fresh.sendClaimAt) : NaN;
-          if (Number.isFinite(c) && nowMs - c < 10 * 60 * 1000) return false;
-          tx.update(reminderDoc.ref, { sendClaimAt: new Date(nowMs).toISOString() });
-          return true;
-        });
+        const claimed = await claimReminderForSend(reminderDoc.ref);
         if (!claimed) continue;
+
+        const reminder = reminderDoc.data();
 
         const docSnap = await adminDb
           .collection('users').doc(userId)
@@ -73,13 +76,12 @@ export const sendExpiryReminders = scheduler.onSchedule(
 
         const notif = getFunnyNotification('document_expiring');
 
-        let pushOk = false;
-        let emailOk = false;
         const wantPush = !!profile.pushNotificationsEnabled;
         const wantEmail = profile.emailNotificationsEnabled !== false && !!profile.email;
 
+        let pushOk = true;
         if (wantPush) {
-          pushOk = await sendOneSignalNotification({
+          const result = await sendOneSignalNotificationDetailed({
             userId,
             title:   notif.title,
             message: `${docName} expires ${expiryDate}`,
@@ -91,8 +93,15 @@ export const sendExpiryReminders = scheduler.onSchedule(
             },
             buttons: getReminderButtons('document_reminder'),
           });
+          pushOk = result.success;
+          if (!result.success) {
+            logger.warn(
+              `[sendExpiryReminders] Push not accepted for reminder ${reminderDoc.id} (user ${userId}): ${result.reason} — ${result.detail}`
+            );
+          }
         }
 
+        let emailOk = true;
         if (wantEmail) {
           emailOk = await sendEmail({
             to:      profile.email as string,
@@ -104,14 +113,17 @@ export const sendExpiryReminders = scheduler.onSchedule(
               <p>— Remonk Reminder 🔔</p>
             `,
           });
+          if (!emailOk) {
+            logger.warn(`[sendExpiryReminders] Email failed for reminder ${reminderDoc.id} (user ${userId})`);
+          }
         }
 
         // Mark sent only if at least one requested channel was accepted; otherwise release for retry.
         if (pushOk || emailOk || (!wantPush && !wantEmail)) {
-          await reminderDoc.ref.update({ isSent: true, sendClaimAt: null, sentAt: new Date().toISOString() });
+          await markReminderSent(reminderDoc.ref);
           sent++;
         } else {
-          await reminderDoc.ref.update({ sendClaimAt: null });
+          await releaseReminderClaim(reminderDoc.ref);
           logger.warn(`[sendExpiryReminders] Delivery failed for reminder ${reminderDoc.id}; will retry`);
         }
       }
