@@ -4,6 +4,10 @@
  * Runs every hour. Fetches unsent reminders due today, checks the user's
  * preferred_notification_time against their local hour, sends push + email.
  *
+ * Delivery is per-channel: a reminder is only marked sent once every channel
+ * the user wants (push / email) has succeeded; failed channels retry on a
+ * later run. An atomic claim prevents overlapping runs from double-sending.
+ *
  * Replaces: supabase/functions/document-reminder (pg_cron: 0 * * * *)
  */
 
@@ -15,6 +19,7 @@ import { sendEmail } from '../shared/sendgrid';
 import { getFunnyNotification } from '../shared/funnyNotifications';
 import { getReminderButtons } from '../shared/notificationActions';
 import { getDateInTimezone, isTimeMatching } from '../shared/timezone';
+import { claimReminder, releaseReminderClaim, recordDeliveryResult } from '../shared/reminderClaim';
 
 export const documentReminder = scheduler.onSchedule(
   { schedule: '0 * * * *', timeZone: 'UTC', secrets: onesignalSecrets },
@@ -49,52 +54,82 @@ export const documentReminder = scheduler.onSchedule(
 
       if (remindersSnap.empty) continue;
 
+      const wantPush  = !!profile.pushNotificationsEnabled;
+      const wantEmail = profile.emailNotificationsEnabled !== false && !!profile.email;
+
       for (const reminderDoc of remindersSnap.docs) {
-        const reminder = reminderDoc.data();
+        try {
+          const claim = await claimReminder(reminderDoc.ref, { wantPush, wantEmail });
+          if (!claim.claimed) continue;
 
-        const docSnap = await adminDb
-          .collection('users').doc(userId)
-          .collection('documents').doc(reminder.documentId).get();
+          const reminder = reminderDoc.data();
 
-        const docName = docSnap.exists ? (docSnap.data()!.name as string) : 'Your document';
-        const expiryDate: string = docSnap.exists
-          ? (docSnap.data()!.expiryDate as string ?? '')
-          : '';
+          const docSnap = await adminDb
+            .collection('users').doc(userId)
+            .collection('documents').doc(reminder.documentId).get();
 
-        const notif = getFunnyNotification('document_expiring');
+          const docName = docSnap.exists ? (docSnap.data()!.name as string) : 'Your document';
+          const expiryDate: string = docSnap.exists
+            ? (docSnap.data()!.expiryDate as string ?? '')
+            : '';
 
-        // Push
-        if (profile.pushNotificationsEnabled) {
-          await sendOneSignalNotification({
-            userId,
-            title:   notif.title,
-            message: `${docName}: ${notif.message}`,
-            data:    {
-              entity_type:  'document_reminder',
-              entity_id:    reminderDoc.id,
-              document_id:  reminder.documentId,
-              reminder_id:  reminderDoc.id,
-            },
-            buttons: getReminderButtons('document_reminder'),
-          });
+          const notif = getFunnyNotification('document_expiring');
+
+          let pushOk = false;
+          let emailOk = false;
+
+          // Push — only when still pending, so a successful push is never resent
+          if (claim.pending.push) {
+            pushOk = await sendOneSignalNotification({
+              userId,
+              title:   notif.title,
+              message: `${docName}: ${notif.message}`,
+              data:    {
+                entity_type:  'document_reminder',
+                entity_id:    reminderDoc.id,
+                document_id:  reminder.documentId,
+                reminder_id:  reminderDoc.id,
+              },
+              buttons: getReminderButtons('document_reminder'),
+            });
+          }
+
+          // Email — only when still pending
+          if (claim.pending.email) {
+            emailOk = await sendEmail({
+              to:      profile.email as string,
+              subject: `📄 Reminder: ${docName} expires ${expiryDate}`,
+              html: `
+                <h2>${notif.title}</h2>
+                <p><strong>${docName}</strong> expires on ${expiryDate}.</p>
+                <p>${notif.message}</p>
+                <p>— Remonk Reminder 🔔</p>
+              `,
+            });
+          }
+
+          const allDone = await recordDeliveryResult(
+            reminderDoc.ref,
+            { wantPush, wantEmail },
+            claim.pending,
+            { pushOk, emailOk }
+          );
+
+          if (allDone) {
+            sent++;
+          } else if (!pushOk && !emailOk) {
+            await releaseReminderClaim(reminderDoc.ref);
+            logger.warn(
+              `[documentReminder] Delivery failed for reminder ${reminderDoc.id}; will retry`
+            );
+          }
+        } catch (err: unknown) {
+          await releaseReminderClaim(reminderDoc.ref);
+          logger.error(
+            `[documentReminder] Error processing reminder ${reminderDoc.id}:`,
+            err
+          );
         }
-
-        // Email
-        if (profile.emailNotificationsEnabled !== false && profile.email) {
-          await sendEmail({
-            to:      profile.email as string,
-            subject: `📄 Reminder: ${docName} expires ${expiryDate}`,
-            html: `
-              <h2>${notif.title}</h2>
-              <p><strong>${docName}</strong> expires on ${expiryDate}.</p>
-              <p>${notif.message}</p>
-              <p>— Remonk Reminder 🔔</p>
-            `,
-          });
-        }
-
-        await reminderDoc.ref.update({ isSent: true });
-        sent++;
       }
     }
 
