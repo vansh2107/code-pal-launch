@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "lib/index.js",
   "scripts": {
@@ -28,7 +28,7 @@
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "@types/node": "^20.17.0",
+    "@types/node": "^22.10.0",
     "typescript": "^5.8.3",
     "eslint": "^8.57.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
