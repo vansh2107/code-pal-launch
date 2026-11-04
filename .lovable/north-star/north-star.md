@@ -2,8 +2,8 @@
 
 # North star
 
-People renew their documents and meet their deadlines before anything lapses.
+People keep their important documents valid by renewing them before they lapse
 
 ## Metric
 
-Reminders marked complete each week
+Documents whose expiry date is updated to a later date before the old one passed, each month
