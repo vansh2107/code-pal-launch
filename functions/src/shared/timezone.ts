@@ -11,7 +11,7 @@ import {
   toZonedTime,
   fromZonedTime,
 } from 'date-fns-tz';
-import { addMinutes, parseISO } from 'date-fns';
+import { addMinutes, subDays, parseISO } from 'date-fns';
 
 /**
  * Convert a UTC Date/ISO string to the equivalent local Date in a given
@@ -104,4 +104,23 @@ export function getLocalDayInfo(timezone: string): { todayLocal: string; dayOfWe
  */
 export function addMinutesToDate(date: Date, minutes: number): Date {
   return addMinutes(date, minutes);
+}
+
+/**
+ * Get the local date ("YYYY-MM-DD") `days` days before today, in the
+ * user's timezone. Used to build bounded catch-up windows for overdue
+ * reminders.
+ */
+export function getLocalDateDaysAgo(timezone: string, days: number): string {
+  const tz = timezone || 'UTC';
+  return format(subDays(toZonedTime(new Date(), tz), days), 'yyyy-MM-dd', { timeZone: tz });
+}
+
+/**
+ * Normalise preferredNotificationTime to "HH:mm" so both legacy
+ * "HH:mm" and stored "HH:mm:ss" formats compare correctly.
+ */
+export function normalizePreferredTime(pref: string): string {
+  const p = (pref || '').trim();
+  return p.length >= 5 ? p.slice(0, 5) : p;
 }

@@ -42,13 +42,16 @@ import { firebaseAuth, firebaseDb, firebaseFunctions } from "@/integrations/fire
  */
 export const ONESIGNAL_APP_ID: string = (() => {
   const id = import.meta.env.VITE_ONESIGNAL_APP_ID as string | undefined;
-  if (!id) {
-    console.error(
-      "[onesignal] VITE_ONESIGNAL_APP_ID is not set. " +
-      "Add it to .env — OneSignal push notifications will not work."
-    );
-  }
-  return id ?? "";
+  if (id) return id;
+  // Fallback: the public OneSignal app identifier baked into the Android
+  // build (AndroidManifest.xml / ApplicationClass). This is the public
+  // app id — not a secret — so web and Android target the same OneSignal
+  // app when VITE_ONESIGNAL_APP_ID is not configured.
+  console.warn(
+    "[onesignal] VITE_ONESIGNAL_APP_ID is not set — falling back to the Android app id. " +
+    "Add VITE_ONESIGNAL_APP_ID to .env to override."
+  );
+  return "8cced195-0fd2-487f-9f10-2a8bc898ff4e";
 })();
 
 // ─────────────────────────────────────────────────────────────────────────────
