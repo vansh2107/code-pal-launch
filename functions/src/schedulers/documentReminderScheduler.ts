@@ -35,12 +35,16 @@ export const documentReminderScheduler = scheduler.onSchedule(
       const profile = profileDoc.data();
       const userId: string   = profile.userId;
       const timezone: string = profile.timezone;
-      const prefTime: string = profile.preferredNotificationTime;
-      if (!userId || !timezone || !prefTime) continue;
+      // Normalise "HH:mm:ss" / "H:mm" → "HH:mm"; default to 09:00 when unset.
+      const rawPref = String(profile.preferredNotificationTime || '09:00');
+      const [ph = '9', pm = '0'] = rawPref.split(':');
+      const prefTime = `${ph.padStart(2, '0')}:${pm.padStart(2, '0')}`;
+      if (!userId || !timezone) continue;
 
-      // Exact minute match
-      const currentTime = getCurrentLocalTimeString(timezone);
-      if (currentTime !== prefTime) continue;
+      // Fire at or after the preferred time (catch-up if a minute was missed);
+      // atomic claims + isSent prevent duplicates.
+      const currentTime = getCurrentLocalTimeString(timezone).slice(0, 5);
+      if (currentTime < prefTime) continue;
 
       const todayLocal = getDateInTimezone(timezone);
 
@@ -53,7 +57,7 @@ export const documentReminderScheduler = scheduler.onSchedule(
 
       if (remindersSnap.empty) continue;
 
-      const wantPush  = !!profile.pushNotificationsEnabled;
+      const wantPush  = profile.pushNotificationsEnabled !== false;
       const wantEmail = profile.emailNotificationsEnabled !== false && !!profile.email;
 
       for (const reminderDoc of remindersSnap.docs) {

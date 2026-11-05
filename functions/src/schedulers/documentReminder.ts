@@ -54,7 +54,7 @@ export const documentReminder = scheduler.onSchedule(
 
       if (remindersSnap.empty) continue;
 
-      const wantPush  = !!profile.pushNotificationsEnabled;
+      const wantPush  = profile.pushNotificationsEnabled !== false;
       const wantEmail = profile.emailNotificationsEnabled !== false && !!profile.email;
 
       for (const reminderDoc of remindersSnap.docs) {
