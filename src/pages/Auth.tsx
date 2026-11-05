@@ -460,6 +460,7 @@ export default function Auth() {
             <p><strong className="text-foreground">7. Changes to Terms</strong><br />Continued use after changes constitutes acceptance.</p>
             <p><strong className="text-foreground">8. Contact</strong><br />If you have questions, reach out through the Help Center in the app.</p>
           </div>
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline text-center block">Read the full Terms &amp; Conditions</a>
           <Button onClick={() => setTermsDialogOpen(false)} className="w-full mt-4">Close</Button>
         </DialogContent>
       </Dialog>
