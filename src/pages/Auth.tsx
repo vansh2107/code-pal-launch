@@ -365,7 +365,11 @@ export default function Auth() {
                       <button type="button" className="text-primary underline hover:text-primary/80 font-medium"
                         onClick={(e) => { e.preventDefault(); setTermsDialogOpen(true); }}>
                         Terms &amp; Conditions
-                      </button>
+                      </button>{' '}and{' '}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80 font-medium"
+                        onClick={(e) => e.stopPropagation()}>
+                        Privacy Policy
+                      </a>
                     </label>
                   </div>
                   {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}

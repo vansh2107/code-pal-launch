@@ -20,6 +20,7 @@ import Dashboard from "./pages/Dashboard";
 
 // ── Lazy-load everything else ──
 const Auth = lazy(() => import("./pages/Auth"));
+const Legal = lazy(() => import("./pages/Legal"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Documents = lazy(() => import("./pages/Documents"));
 const DocumentDetail = lazy(() => import("./pages/DocumentDetail"));
@@ -166,6 +167,8 @@ const App = () => {
                 <Suspense fallback={<PageFallback />}>
                   <Routes>
                     <Route path="/auth" element={<Auth />} />
+                    <Route path="/terms" element={<Legal kind="terms" />} />
+                    <Route path="/privacy" element={<Legal kind="privacy" />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
 
                     <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
