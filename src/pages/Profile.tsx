@@ -195,16 +195,8 @@ export default function Profile() {
                 </div>
               </DialogContent>
             </Dialog>
-            <Dialog>
-              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={FileCheck} title="Terms &amp; Privacy" /></button></DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Terms &amp; Privacy Policy</DialogTitle></DialogHeader>
-                <div className="pt-4 space-y-5 max-h-[60vh] overflow-y-auto text-sm text-muted-foreground">
-                  <p className="text-base font-medium text-foreground">Your privacy matters to us.</p>
-                  <p>Remonk Reminder is designed to help you manage important deadlines and reminders while keeping your data secure. We never sell your personal data.</p>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Link to="/terms" className="block w-full"><SettingsItem icon={FileCheck} title="Terms &amp; Conditions" /></Link>
+            <Link to="/privacy" className="block w-full"><SettingsItem icon={FileCheck} title="Privacy Policy" /></Link>
           </SettingsSection>
 
           <div className="mb-6">
