@@ -260,7 +260,11 @@ export async function ensurePushRegistration(
       await doLogin();
 
       let permission = await getPermission();
-      if (!permission && !opts.silent) {
+      // Even in silent mode, ask once per device (Android 13+ requires a prompt).
+      const askedKey = "remonk_push_prompted";
+      const alreadyAsked = (() => { try { return localStorage.getItem(askedKey) === "1"; } catch { return false; } })();
+      if (!permission && (!opts.silent || !alreadyAsked)) {
+        try { localStorage.setItem(askedKey, "1"); } catch { /* ignore */ }
         permission = await requestPushPermission();
       }
       if (!permission) return { ok: false, reason: "permission_denied" };
