@@ -18,8 +18,8 @@
       "collectionGroup": "tasks",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "taskDate", "order": "ASCENDING" },
-        { "fieldPath": "status",   "order": "ASCENDING" }
+        { "fieldPath": "status",   "order": "ASCENDING" },
+        { "fieldPath": "taskDate", "order": "ASCENDING" }
       ]
     },
     {
@@ -45,16 +45,16 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "userId",                "order": "ASCENDING" },
-        { "fieldPath": "consecutiveMissedDays", "order": "ASCENDING" },
-        { "fieldPath": "status",                "order": "ASCENDING" }
+        { "fieldPath": "status",                "order": "ASCENDING" },
+        { "fieldPath": "consecutiveMissedDays", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "tasks",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "consecutiveMissedDays", "order": "ASCENDING" },
-        { "fieldPath": "status",                "order": "ASCENDING" }
+        { "fieldPath": "status",                "order": "ASCENDING" },
+        { "fieldPath": "consecutiveMissedDays", "order": "ASCENDING" }
       ]
     },
     {
