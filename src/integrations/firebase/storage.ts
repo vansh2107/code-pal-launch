@@ -73,8 +73,8 @@ const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
 /** Max file size for task images: 5 MB. */
 const MAX_TASK_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
-/** Max file size for avatars: 2 MB. */
-const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
+/** Max file size for avatars: 20 MB. */
+const MAX_AVATAR_SIZE_BYTES = 20 * 1024 * 1024;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Validation
@@ -134,7 +134,7 @@ export function validateAvatarFile(file: File): StorageValidationResult {
     return {
       ok: false,
       error: 'file_too_large',
-      message: `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 2 MB.`,
+      message: `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 20 MB.`,
     };
   }
   return { ok: true };

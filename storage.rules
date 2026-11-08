@@ -74,7 +74,7 @@ service firebase.storage {
     /** File size helpers (bytes). */
     function maxDocumentSize()  { return 10 * 1024 * 1024; }  // 10 MB
     function maxTaskImageSize() { return  5 * 1024 * 1024; }  //  5 MB
-    function maxAvatarSize()    { return  2 * 1024 * 1024; }  //  2 MB
+    function maxAvatarSize()    { return 20 * 1024 * 1024; }  // 20 MB
 
     function withinDocumentSizeLimit() {
       return request.resource.size <= maxDocumentSize();
