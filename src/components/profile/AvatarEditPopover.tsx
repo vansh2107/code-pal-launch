@@ -36,12 +36,12 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
       return;
     }
 
-    // Validate file size (max 2MB to match storage rules)
-    const maxSize = 2 * 1024 * 1024;
+    // Validate file size (max 20MB to match storage rules)
+    const maxSize = 20 * 1024 * 1024;
     if (file.size > maxSize) {
       toast({
         title: "File too large",
-        description: "Please select an image under 2MB",
+        description: "Please select an image under 20MB",
         variant: "destructive",
       });
       return;
