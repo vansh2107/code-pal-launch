@@ -2,44 +2,50 @@
  * documentReminderScheduler — Scheduled Function
  *
  * Runs every minute. Minute-precision per-document reminder scheduler.
- * Matches getCurrentLocalTimeString() exactly to preferredNotificationTime.
+ * Matches getCurrentLocalTimeString() against preferredNotificationTime.
  *
- * Delivery is per-channel: a reminder is only marked sent once every channel
- * the user wants (push / email) has succeeded; failed channels retry on a
- * later run. An atomic claim prevents overlapping runs from double-sending.
+ * Primary channel: OneSignal push notification (both mobile and web).
+ * Email channel: SendGrid (best-effort; works when configured, but email failure
+ * never blocks push delivery or exhausts attempts).
  *
- * Replaces: supabase/functions/document-reminder-scheduler (pg_cron: * * * * *)
+ * Tolerant queries:
+ * - Queries profiles cleanly without requiring timezone != null.
+ * - Extracts userId with fallback to profileDoc.ref.parent?.parent?.id.
+ * - Handles reminderDate <= todayLocal (bounded within last 7 days) to catch
+ *   overdue or missed reminders.
+ * - Tolerates pushNotificationsEnabled !== false (defaulting to enabled).
  */
 
 import { scheduler, logger } from 'firebase-functions/v2';
 import { adminDb } from '../shared/admin';
 import { sendOneSignalNotification } from '../shared/onesignal';
-import { onesignalSecrets } from '../shared/secrets';
-import { sendEmail } from '../shared/sendgrid';
+import { notificationSecrets } from '../shared/secrets';
+import { sendEmail, isSendGridConfigured } from '../shared/sendgrid';
 import { getFunnyNotification } from '../shared/funnyNotifications';
 import { getReminderButtons } from '../shared/notificationActions';
-import { getDateInTimezone, getCurrentLocalTimeString } from '../shared/timezone';
+import { getDateInTimezone, getCurrentLocalTimeString, addMinutesToDate } from '../shared/timezone';
 import { claimReminder, releaseReminderClaim, recordDeliveryResult } from '../shared/reminderClaim';
 
 export const documentReminderScheduler = scheduler.onSchedule(
-  { schedule: '* * * * *', timeZone: 'UTC', secrets: onesignalSecrets },
+  { schedule: '* * * * *', timeZone: 'UTC', secrets: notificationSecrets },
   async () => {
     const profilesSnap = await adminDb
       .collectionGroup('profile')
-      .where('timezone', '!=', null)
       .get();
 
     let sent = 0;
 
     for (const profileDoc of profilesSnap.docs) {
       const profile = profileDoc.data();
-      const userId: string   = profile.userId;
-      const timezone: string = profile.timezone;
+      const userId: string   = profile.userId || profileDoc.ref.parent?.parent?.id || '';
+      const timezone: string = profile.timezone || 'UTC';
+
+      if (!userId) continue;
+
       // Normalise "HH:mm:ss" / "H:mm" → "HH:mm"; default to 09:00 when unset.
       const rawPref = String(profile.preferredNotificationTime || '09:00');
       const [ph = '9', pm = '0'] = rawPref.split(':');
       const prefTime = `${ph.padStart(2, '0')}:${pm.padStart(2, '0')}`;
-      if (!userId || !timezone) continue;
 
       // Fire at or after the preferred time (catch-up if a minute was missed);
       // atomic claims + isSent prevent duplicates.
@@ -47,18 +53,21 @@ export const documentReminderScheduler = scheduler.onSchedule(
       if (currentTime < prefTime) continue;
 
       const todayLocal = getDateInTimezone(timezone);
+      // Look back up to 7 days for any missed/overdue reminders
+      const minDateBound = addMinutesToDate(new Date(), -7 * 24 * 60).toISOString().slice(0, 10);
 
       const remindersSnap = await adminDb
         .collection('users').doc(userId)
         .collection('reminders')
-        .where('reminderDate', '==', todayLocal)
         .where('isSent', '==', false)
+        .where('reminderDate', '<=', todayLocal)
+        .where('reminderDate', '>=', minDateBound)
         .get();
 
       if (remindersSnap.empty) continue;
 
       const wantPush  = profile.pushNotificationsEnabled !== false;
-      const wantEmail = profile.emailNotificationsEnabled !== false && !!profile.email;
+      const wantEmail = profile.emailNotificationsEnabled !== false && !!profile.email && isSendGridConfigured();
 
       for (const reminderDoc of remindersSnap.docs) {
         try {
@@ -118,8 +127,8 @@ export const documentReminderScheduler = scheduler.onSchedule(
 
           if (allDone) {
             sent++;
-          } else if (!pushOk && !emailOk) {
-            // Both attempted channels failed — release so the next run retries.
+          } else if (!pushOk && (!claim.pending.email || !emailOk)) {
+            // Push failed — release so the next run retries.
             await releaseReminderClaim(reminderDoc.ref);
             logger.warn(
               `[documentReminderScheduler] Delivery failed for reminder ${reminderDoc.id}; will retry`

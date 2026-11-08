@@ -39,11 +39,9 @@ export { taskCarryForward }               from './schedulers/taskCarryForward';
 export { taskTwoHourReminder }            from './schedulers/taskTwoHourReminder';
 export { taskIncompleteReminder }         from './schedulers/taskIncompleteReminder';
 export { taskOverdueAlert }               from './schedulers/taskOverdueAlert';
-export { documentReminder }               from './schedulers/documentReminder';
 export { documentReminderScheduler }      from './schedulers/documentReminderScheduler';
 export { timezoneNotificationScheduler }  from './schedulers/timezoneNotificationScheduler';
 export { routineStepReminder }            from './schedulers/routineStepReminder';
-export { sendExpiryReminders }            from './schedulers/sendExpiryReminders';
 export { sendReminderEmails }             from './schedulers/sendReminderEmails';
 export { sendBulkNotification }           from './schedulers/sendBulkNotification';
 
