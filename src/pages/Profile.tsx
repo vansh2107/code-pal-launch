@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { ChevronRight, Download, User, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Bell } from 'lucide-react';
+import { ChevronRight, Download, User, LogOut, HelpCircle, MessageSquare, Info, Mail, FileCheck, Bell, Smartphone } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { AppShell } from '@/components/layout/AppShell';
 import { toast } from '@/hooks/use-toast';
@@ -153,6 +153,7 @@ export default function Profile() {
 
           <SettingsSection title="Notifications">
             <SettingsItem icon={Bell} title="Notification Settings" to="/notification-sound-settings" />
+            <SettingsItem icon={Smartphone} title="Push & Reminder Settings" to="/notification-settings" />
           </SettingsSection>
 
           <SettingsSection title="Appearance"><AppearanceSettings /></SettingsSection>
