@@ -1,7 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, RotateCw, Loader2, ExternalLink, RefreshCw, AlertCircle, ShieldAlert } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  X,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Loader2,
+  ExternalLink,
+  RefreshCw,
+  AlertCircle,
+  ShieldAlert,
+  Download,
+  FileText
+} from "lucide-react";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -22,7 +36,7 @@ interface PDFPageData {
 
 /**
  * High-quality document viewer with native PDF rendering.
- * PDFs are rendered directly to canvas at high resolution - no JPEG conversion.
+ * PDFs are rendered directly to canvas at high resolution - no iframe embed fallback.
  * Supports zoom, rotation, and multi-page navigation.
  */
 export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfProp }: DocumentViewerProps) {
@@ -33,8 +47,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isAdBlockBlocked, setIsAdBlockBlocked] = useState(false);
-  const [embedFallback, setEmbedFallback] = useState(false);
+  const [isNetworkBlocked, setIsNetworkBlocked] = useState(false);
   const [isPdf, setIsPdf] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -44,7 +57,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<any>(null);
 
-  // Helper to detect adblocker/client network block
+  // Helper to detect adblocker/client network block or CORS failure
   const checkIsBlocked = (err: any) => {
     const msg = (err?.message || String(err) || "").toLowerCase();
     const name = (err?.name || "").toLowerCase();
@@ -53,15 +66,24 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       msg.includes("err_blocked_by_client") ||
       msg.includes("networkerror") ||
       msg.includes("blocked") ||
-      name.includes("typeerror") && msg.includes("fetch")
+      msg.includes("cors") ||
+      (name.includes("typeerror") && msg.includes("fetch"))
     );
   };
 
-  // Detect if file is PDF
+  // Robust document type detection: distinguish PDF from images
   const detectPdf = useCallback(() => {
     if (typeof isPdfProp === 'boolean') return isPdfProp;
     const cleanUrl = (fileUrl?.split('?')[0] || '').toLowerCase();
-    return fileName?.toLowerCase().endsWith('.pdf') || cleanUrl.endsWith('.pdf') || fileUrl?.toLowerCase().includes('.pdf');
+    const cleanName = (fileName || '').toLowerCase();
+
+    // Explicit image extensions are never PDFs
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.bmp', '.heic'];
+    if (imageExtensions.some((ext) => cleanName.endsWith(ext) || cleanUrl.endsWith(ext))) {
+      return false;
+    }
+
+    return cleanName.endsWith('.pdf') || cleanUrl.endsWith('.pdf') || fileUrl?.toLowerCase().includes('.pdf');
   }, [fileUrl, fileName, isPdfProp]);
 
   // Load document when dialog opens
@@ -73,8 +95,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       setRotation(0);
       setScale(1.5);
       setError(null);
-      setIsAdBlockBlocked(false);
-      setEmbedFallback(false);
+      setIsNetworkBlocked(false);
 
       if (isPdfFile) {
         loadPDF();
@@ -99,9 +120,8 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
 
   const loadImage = () => {
     setError(null);
-    setIsAdBlockBlocked(false);
+    setIsNetworkBlocked(false);
     // Display images directly via browser native <img> tag without in-memory fetch()
-    // This allows images to load and bypass client extension XHR blocks on firebasestorage
     setImageUrl(fileUrl);
     setLoading(true);
   };
@@ -112,14 +132,13 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
 
   const handleImageError = () => {
     setLoading(false);
-    // When <img> fails, it could be network block or invalid image
-    setError("Failed to load document image. Please check your connection or disable ad-blockers for this site.");
+    setError("Failed to load document image. Please check your network connection or disable ad-blockers for this site.");
   };
 
   const loadPDF = async () => {
     setLoading(true);
     setError(null);
-    setIsAdBlockBlocked(false);
+    setIsNetworkBlocked(false);
     try {
       GlobalWorkerOptions.workerSrc = pdfWorkerUrl as unknown as string;
 
@@ -127,9 +146,9 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       try {
         response = await fetch(fileUrl);
       } catch (fetchErr: any) {
-        // Fetch blocked (ad-blocker / CORS) — show file with the browser's own viewer
-        console.warn('PDF fetch blocked, using embedded viewer', fetchErr);
-        setEmbedFallback(true);
+        console.warn('PDF fetch failed / blocked (CORS or ad-blocker):', fetchErr);
+        setIsNetworkBlocked(true);
+        setError("Unable to render PDF preview inside the app. This is typically caused by storage CORS restrictions or content blocking.");
         return;
       }
 
@@ -166,8 +185,11 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       // Render first page immediately with synchronously available pdf instance
       await renderPage(1, pdf);
     } catch (err: any) {
-      console.error('Error loading PDF, using embedded viewer:', err);
-      setEmbedFallback(true);
+      console.error('Error rendering PDF:', err);
+      if (checkIsBlocked(err)) {
+        setIsNetworkBlocked(true);
+      }
+      setError("Failed to render PDF preview. You can open or download the original file directly.");
     } finally {
       setLoading(false);
     }
@@ -265,7 +287,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
 
   const handleRetry = () => {
     setError(null);
-    setIsAdBlockBlocked(false);
+    setIsNetworkBlocked(false);
     if (isPdf) {
       loadPDF();
     } else {
@@ -285,22 +307,36 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       >
         {/* Header */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b shrink-0 bg-background">
-          <DialogTitle className="font-semibold truncate flex-1 text-sm sm:text-base">
-            {fileName}
+          <DialogTitle className="font-semibold truncate flex-1 text-sm sm:text-base flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="truncate">{fileName}</span>
           </DialogTitle>
           <div className="flex items-center gap-1 shrink-0">
             {fileUrl && (
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                title="Open original file"
-                className="h-8 w-8"
-              >
-                <a href={fileUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  title="Open original file"
+                  className="h-8 w-8"
+                >
+                  <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  title="Download document"
+                  className="h-8 w-8"
+                >
+                  <a href={fileUrl} download={fileName} target="_blank" rel="noopener noreferrer">
+                    <Download className="h-4 w-4" />
+                  </a>
+                </Button>
+              </>
             )}
             <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
               <X className="h-4 w-4" />
@@ -316,32 +352,43 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
           ref={containerRef}
           className="flex-1 overflow-auto bg-muted relative"
         >
-          {/* Error / Ad-blocker Banner */}
+          {/* Error / Fallback Card (Replaces broken <iframe> fallback) */}
           {error && (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 bg-background/95 gap-3 text-center">
-              {isAdBlockBlocked ? (
-                <ShieldAlert className="h-12 w-12 text-amber-500 animate-pulse" />
+              {isNetworkBlocked ? (
+                <ShieldAlert className="h-12 w-12 text-amber-500" />
               ) : (
                 <AlertCircle className="h-10 w-10 text-destructive" />
               )}
-              <p className="text-sm font-medium text-foreground max-w-md">{error}</p>
-              {isAdBlockBlocked && (
+              <h3 className="font-semibold text-base text-foreground">
+                {isNetworkBlocked ? "Browser Restricted In-App Preview" : "Unable to Display Document"}
+              </h3>
+              <p className="text-sm font-medium text-muted-foreground max-w-md">{error}</p>
+              {isNetworkBlocked && (
                 <p className="text-xs text-muted-foreground max-w-md">
-                  Extensions such as uBlock Origin, AdBlock, or Brave Shields often block Firebase Storage network requests.
+                  Modern browsers and extensions restrict nested file previews. You can view or download the original file safely in a new tab.
                 </p>
               )}
-              <div className="flex items-center gap-2 mt-2">
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
                 <Button variant="outline" size="sm" onClick={handleRetry} className="gap-1.5">
                   <RefreshCw className="h-3.5 w-3.5" />
-                  Retry
+                  Retry Preview
                 </Button>
                 {fileUrl && (
-                  <Button variant="default" size="sm" asChild className="gap-1.5">
-                    <a href={fileUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Open Original File
-                    </a>
-                  </Button>
+                  <>
+                    <Button variant="default" size="sm" asChild className="gap-1.5">
+                      <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Open Original Document
+                      </a>
+                    </Button>
+                    <Button variant="secondary" size="sm" asChild className="gap-1.5">
+                      <a href={fileUrl} download={fileName} target="_blank" rel="noopener noreferrer">
+                        <Download className="h-3.5 w-3.5" />
+                        Download Document
+                      </a>
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -357,20 +404,14 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
             </div>
           )}
 
-          {/* Always Keep Canvas Mounted for PDF mode */}
-          {isPdf && embedFallback ? (
-            <iframe
-              src={fileUrl}
-              title={fileName}
-              className="w-full h-full min-h-[70vh] border-0 bg-background"
-            />
-          ) : isPdf ? (
+          {/* Canvas for PDF mode */}
+          {isPdf ? (
             <div className="min-h-full flex items-center justify-center p-4">
               <canvas
                 ref={canvasRef}
                 className="shadow-2xl rounded-lg max-w-full"
                 style={{
-                  display: 'block',
+                  display: error ? 'none' : 'block',
                   backgroundColor: 'white',
                 }}
               />
