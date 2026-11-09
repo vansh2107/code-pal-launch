@@ -1,13 +1,13 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, Upload, User } from "lucide-react";
 import { useCamera } from "@/hooks/useCamera";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ProfilePhotoCropperModal } from "@/components/profile/ProfilePhotoCropperModal";
 import { toast } from "@/hooks/use-toast";
 import { firebaseDb, firebaseStorage } from "@/integrations/firebase/client";
-import { ref, uploadBytes, deleteObject } from "firebase/storage";
+import { ref, uploadBytes } from "firebase/storage";
 import { doc, setDoc } from "firebase/firestore";
 import { Capacitor } from "@capacitor/core";
-import { autoCropImage } from "@/utils/imageCrop";
 import { pauseAppLock } from "@/lib/appLock";
 
 interface AvatarEditPopoverProps {
@@ -20,11 +20,16 @@ interface AvatarEditPopoverProps {
 export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "sm" }: AvatarEditPopoverProps) {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [cropSource, setCropSource] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { openCamera, openGallery } = useCamera();
 
-  const validateAndUploadFile = async (file: File | Blob, fileName?: string) => {
+  useEffect(() => () => {
+    if (cropSource?.startsWith("blob:")) URL.revokeObjectURL(cropSource);
+  }, [cropSource]);
+
+  const validateAndPrepareFile = (file: File | Blob) => {
     // Validate file type
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (file.type && !validTypes.includes(file.type)) {
@@ -33,7 +38,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
         description: "Please select a JPG, PNG, or WEBP image",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     // Validate file size (max 20MB to match storage rules)
@@ -44,43 +49,34 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
         description: "Please select an image under 20MB",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
-    setUploading(true);
     setOpen(false);
+    setCropSource(URL.createObjectURL(file));
+    return true;
+  };
 
+  const handleCroppedPhotoSave = async (croppedFile: Blob) => {
+    setUploading(true);
     try {
-      // Auto-crop the image to remove background edges
-      const croppedFile = await autoCropImage(file, { tolerance: 30, minCropPercent: 5 });
-
-      // Determine file MIME type and extension
-      const fileMime = croppedFile.type || file.type || 'image/jpeg';
-      const ext = fileName?.split('.').pop()?.toLowerCase() || 
-                  fileMime.split('/')[1] || 'jpg';
-      const storagePath = `avatars/${userId}/profile.${ext}`;
-
-      // Remove old avatar if exists in storage
-      try {
-        const storageRef = ref(firebaseStorage, storagePath);
-        await deleteObject(storageRef);
-      } catch (delErr) {
-        // Ignored if doesn't exist
-      }
-
+      const storagePath = `avatars/${userId}/profile.jpg`;
       const storageRef = ref(firebaseStorage, storagePath);
-      await uploadBytes(storageRef, croppedFile, { contentType: fileMime });
+      await uploadBytes(storageRef, croppedFile, { contentType: "image/jpeg" });
 
       // Update profile in Firestore: users/{userId}/profile/data
       const profileRef = doc(firebaseDb, "users", userId, "profile", "data");
       await setDoc(profileRef, { avatarUrl: storagePath }, { merge: true });
 
       // Create local preview from cropped image
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setPreview(event.target?.result as string);
-      };
-      reader.readAsDataURL(croppedFile);
+      const previewUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not preview the saved photo."));
+        reader.onerror = () => reject(new Error("Could not preview the saved photo."));
+        reader.readAsDataURL(croppedFile);
+      });
+      setPreview(previewUrl);
+      setCropSource(null);
 
       toast({
         title: "Profile photo updated",
@@ -90,12 +86,12 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
       onAvatarUpdate();
     } catch (error: any) {
       console.error('Error uploading avatar:', error);
-      setPreview(null);
       toast({
         title: "Upload failed",
         description: error?.message || "Failed to upload profile photo",
         variant: "destructive",
       });
+      throw error;
     } finally {
       setUploading(false);
     }
@@ -104,7 +100,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      await validateAndUploadFile(file, file.name);
+      validateAndPrepareFile(file);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -121,7 +117,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
         try {
           const response = await fetch(photo.webPath);
           const blob = await response.blob();
-          await validateAndUploadFile(blob, 'gallery-photo.jpg');
+          validateAndPrepareFile(blob);
         } catch (error) {
           console.error('Error processing gallery photo:', error);
           toast({
@@ -147,7 +143,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
         try {
           const response = await fetch(photo.webPath);
           const blob = await response.blob();
-          await validateAndUploadFile(blob, 'camera-photo.jpg');
+          validateAndPrepareFile(blob);
         } catch (error) {
           console.error('Error processing camera photo:', error);
           toast({
@@ -166,7 +162,7 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
       input.onchange = async (e) => {
         const file = (e.target as HTMLInputElement).files?.[0];
         if (file) {
-          await validateAndUploadFile(file, file.name);
+          validateAndPrepareFile(file);
         }
       };
       input.click();
@@ -249,6 +245,13 @@ export function AvatarEditPopover({ userId, avatarUrl, onAvatarUpdate, size = "s
         accept="image/jpeg,image/jpg,image/png,image/webp"
         onChange={handleFileSelect}
         className="hidden"
+      />
+      <ProfilePhotoCropperModal
+        source={cropSource}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !uploading) setCropSource(null);
+        }}
+        onSave={handleCroppedPhotoSave}
       />
     </div>
   );
