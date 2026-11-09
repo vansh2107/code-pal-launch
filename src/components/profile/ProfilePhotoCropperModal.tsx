@@ -70,6 +70,7 @@ export function ProfilePhotoCropperModal({ source, onOpenChange, onSave }: Profi
     setZoom(1);
     setRotation(0);
     setPosition({ x: 0, y: 0 });
+    setSaving(false);
     setImageError(false);
   }, [source]);
 
