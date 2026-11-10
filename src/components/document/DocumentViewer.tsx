@@ -51,7 +51,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
   const [isPdf, setIsPdf] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [scale, setScale] = useState(1.5);
+  const [scale, setScale] = useState(1);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -93,7 +93,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
       setIsPdf(isPdfFile);
       setCurrentPage(0);
       setRotation(0);
-      setScale(1.5);
+      setScale(1);
       setError(null);
       setIsNetworkBlocked(false);
 
@@ -282,7 +282,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
   };
 
   const handleResetZoom = () => {
-    setScale(1.5);
+    setScale(1);
   };
 
   const handleRetry = () => {
