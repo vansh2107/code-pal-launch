@@ -202,6 +202,23 @@ export const callAiDocumentAnalysis =
 
 // ---------------------------------------------------------------------------
 
+export interface DocumentAnalyzerRequest {
+  image?: string;
+  imageBase64?: string;
+  documentId?: string;
+}
+export interface DocumentAnalyzerResponse {
+  success: boolean;
+  documentType?: string;
+  fields?: Record<string, any>;
+  confidence?: number;
+  sourcePage?: number;
+}
+export const callDocumentAnalyzer =
+  callable<DocumentAnalyzerRequest, DocumentAnalyzerResponse>('documentAnalyzer');
+
+// ---------------------------------------------------------------------------
+
 export interface DetectDocumentBoundsRequest {
   image: string;     // base64
   width: number;

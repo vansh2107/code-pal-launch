@@ -112,6 +112,16 @@ Respond with valid structured JSON appropriate for ${analysisType}.`;
       } catch { /* fallback below */ }
     }
 
+    // Normalize requiredDocuments in renewal_requirements if AI returned plain string array
+    if (analysis && analysisType === 'renewal_requirements' && Array.isArray(analysis.requiredDocuments)) {
+      if (analysis.requiredDocuments.length > 0 && typeof analysis.requiredDocuments[0] === 'string') {
+        analysis.requiredDocuments = [{
+          category: 'Required Documents',
+          items: analysis.requiredDocuments,
+        }];
+      }
+    }
+
     if (!analysis) {
       // Mock fallback
       if (analysisType === 'classify') {

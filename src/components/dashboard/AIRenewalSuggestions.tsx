@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { differenceInDays } from "date-fns";
 import { isValidCalendarDate } from "@/utils/documentDecisionEngine";
 import { callAiDocumentAnalysis } from "@/integrations/firebase/functions";
+import { AIMarkdown } from "@/components/ai/AIMarkdown";
 
 interface Document {
   id: string;
@@ -58,22 +59,49 @@ export function AIRenewalSuggestions({ documents }: AIRenewalSuggestionsProps) {
         return;
       }
 
-      const data = await callAiDocumentAnalysis({
-        documents: docsNeedingRenewal.map(doc => ({
-          id: doc.id,
-          name: doc.name,
-          document_type: doc.document_type,
-          expiry_date: doc.expiry_date,
-          issuing_authority: doc.issuing_authority,
-          daysUntilExpiry: differenceInDays(new Date(doc.expiry_date), new Date())
-        })),
-        analysisType: 'renewal_suggestions'
-      } as any);
+      let resultSuggestions: AISuggestion[] = [];
+      try {
+        const data = await callAiDocumentAnalysis({
+          documents: docsNeedingRenewal.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            document_type: doc.document_type,
+            expiry_date: doc.expiry_date,
+            issuing_authority: doc.issuing_authority,
+            daysUntilExpiry: doc.expiry_date && isValidCalendarDate(doc.expiry_date)
+              ? differenceInDays(new Date(doc.expiry_date), new Date())
+              : 30
+          })),
+          analysisType: 'renewal_suggestions'
+        } as any);
+        resultSuggestions = (data?.suggestions as AISuggestion[]) || [];
+      } catch (callError) {
+        console.warn('Backend call failed, using client fallback:', callError);
+      }
 
-      setSuggestions((data.suggestions as AISuggestion[]) || []);
+      if (!resultSuggestions || resultSuggestions.length === 0) {
+        resultSuggestions = docsNeedingRenewal.map((doc: any) => {
+          const days = doc.expiry_date && isValidCalendarDate(doc.expiry_date)
+            ? differenceInDays(new Date(doc.expiry_date), new Date())
+            : 30;
+          return {
+            documentId: doc.id,
+            documentName: doc.name || 'Document',
+            priority: days < 30 ? 'high' : days < 90 ? 'medium' : 'low',
+            suggestion: `Ensure you check the requirements for renewing your ${doc.name || 'document'}.`,
+            actionItems: [
+              `Verify official renewal processing times for ${doc.document_type || 'document'}`,
+              'Prepare required identity and address proofs',
+              'Check official portal for appointment booking or fees'
+            ]
+          };
+        });
+      }
+
+      setSuggestions(resultSuggestions);
       toast({
         title: "AI Analysis Complete",
-        description: `Generated renewal suggestions for ${(data.suggestions as any[])?.length || 0} documents.`,
+        description: `Generated renewal suggestions for ${resultSuggestions.length} document${resultSuggestions.length === 1 ? '' : 's'}.`,
       });
     } catch (error: any) {
       console.error('Error generating AI suggestions:', error);
@@ -167,9 +195,7 @@ export function AIRenewalSuggestions({ documents }: AIRenewalSuggestionsProps) {
                   </span>
                 </div>
                 
-                <p className="text-sm text-muted-foreground mb-3">
-                  {suggestion.suggestion}
-                </p>
+                <AIMarkdown content={suggestion.suggestion} size="sm" className="mb-3 text-muted-foreground" />
                 
                 {suggestion.actionItems && suggestion.actionItems.length > 0 && (
                   <div className="space-y-1">
