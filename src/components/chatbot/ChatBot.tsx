@@ -1,3 +1,4 @@
+import { AIMarkdown } from "@/components/ai/AIMarkdown";
 import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import { MessageCircle, X, Send, Loader2, Upload, FileText, Image as ImageIcon, Camera, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -899,7 +900,11 @@ export function ChatBot() {
                         : 'bg-muted'
                     }`}
                   >
-                    <p className="text-xs md:text-sm whitespace-pre-wrap">{message.content}</p>
+                    {message.role === "user" ? (
+                      <p className="text-xs md:text-sm whitespace-pre-wrap">{message.content}</p>
+                    ) : (
+                      <AIMarkdown content={message.content} size="xs" className="md:text-sm space-y-2" />
+                    )}
                   </div>
                 </div>
               ))}
