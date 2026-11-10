@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { AIMarkdown } from "@/components/ai/AIMarkdown";
 import { useState, useEffect, useRef, memo } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -106,9 +107,7 @@ function LazyAIRecommendationsComponent({ task }: LazyAIRecommendationsProps) {
               <span className="text-xs text-muted-foreground">Generating tips...</span>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {recommendation}
-            </p>
+            <AIMarkdown content={recommendation} size="xs" className="text-muted-foreground" />
           )}
         </div>
       </div>

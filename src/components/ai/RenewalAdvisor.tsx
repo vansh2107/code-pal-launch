@@ -1,3 +1,4 @@
+import { AIMarkdown } from "@/components/ai/AIMarkdown";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -269,10 +270,8 @@ export function RenewalAdvisor({ documentId, documentType, documentName, expiryD
               </Alert>
             )}
 
-            <div className="prose prose-sm max-w-full overflow-hidden">
-              <div className="bg-muted/50 rounded-lg p-4 whitespace-pre-wrap text-sm break-words max-w-full overflow-hidden">
-                {advice}
-              </div>
+            <div className="bg-background/70 border border-border rounded-xl p-4 max-w-full overflow-hidden">
+              <AIMarkdown content={advice} />
             </div>
             <Button 
               variant="outline" 
