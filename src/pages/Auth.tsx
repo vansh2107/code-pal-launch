@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Shield, Mail } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Shield, Mail } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -67,6 +67,8 @@ const COUNTRIES = ALLOWED_COUNTRIES;
 export default function Auth() {
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
+  const [showSignInPassword, setShowSignInPassword] = useState(false);
+  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [name,        setName]        = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [country,     setCountry]     = useState('');
@@ -299,9 +301,18 @@ export default function Auth() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signin-password">Password</Label>
-                  <Input id="signin-password" type="password" value={password}
-                    onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password"
-                    required disabled={loading} />
+                  <div className="relative">
+                    <Input id="signin-password" type={showSignInPassword ? 'text' : 'password'} value={password}
+                      onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password"
+                      required disabled={loading} className="pr-10" />
+                    <Button type="button" variant="ghost" size="icon"
+                      className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                      aria-label={showSignInPassword ? 'Hide password' : 'Show password'}
+                      aria-pressed={showSignInPassword}
+                      onClick={() => setShowSignInPassword((visible) => !visible)}>
+                      {showSignInPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
                 {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                 {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
@@ -333,10 +344,19 @@ export default function Auth() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
-                    <Input id="signup-password" type="password" value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Create a strong password (min 12 characters)"
-                      required disabled={loading} />
+                    <div className="relative">
+                      <Input id="signup-password" type={showSignUpPassword ? 'text' : 'password'} value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Create a strong password (min 12 characters)"
+                        required disabled={loading} className="pr-10" />
+                      <Button type="button" variant="ghost" size="icon"
+                        className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                        aria-label={showSignUpPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showSignUpPassword}
+                        onClick={() => setShowSignUpPassword((visible) => !visible)}>
+                        {showSignUpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       Must be at least 12 characters with 1 uppercase, 1 number, and 1 special character
                     </p>
