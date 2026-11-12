@@ -380,3 +380,60 @@ export function isTaskOverdue(
   return false;
 }
 
+/**
+ * Timezone-safe calendar date parser for date-only strings (YYYY-MM-DD).
+ * Avoids the UTC midnight parse bug where new Date("YYYY-MM-DD") shifts by one day in timezones behind UTC.
+ * Returns a local Date object representing the calendar year, month, and day.
+ */
+export function parseCalendarDate(dateStr: string | null | undefined): Date | null {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const match = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) {
+    const fallback = new Date(dateStr);
+    return isNaN(fallback.getTime()) ? null : fallback;
+  }
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10) - 1;
+  const day = parseInt(match[3], 10);
+  return new Date(year, month, day);
+}
+
+/**
+ * Format a calendar date string (YYYY-MM-DD) or Date in a timezone-safe manner for display.
+ * Treats YYYY-MM-DD as local date rather than UTC.
+ */
+export function formatCalendarDate(
+  dateVal: string | Date | null | undefined,
+  locale?: string,
+  options?: Intl.DateTimeFormatOptions
+): string {
+  if (!dateVal) return '';
+  if (typeof dateVal === 'string') {
+    const parsed = parseCalendarDate(dateVal);
+    if (!parsed) return dateVal;
+    return parsed.toLocaleDateString(locale, options ?? { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+  return dateVal.toLocaleDateString(locale, options ?? { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+/**
+ * Convert Date or date string to standard calendar date format YYYY-MM-DD
+ */
+export function toCalendarDateString(dateVal: Date | string | null | undefined): string {
+  if (!dateVal) return '';
+  if (typeof dateVal === 'string') {
+    const match = dateVal.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+    const parsed = new Date(dateVal);
+    if (isNaN(parsed.getTime())) return '';
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const y = dateVal.getFullYear();
+  const m = String(dateVal.getMonth() + 1).padStart(2, '0');
+  const d = String(dateVal.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+

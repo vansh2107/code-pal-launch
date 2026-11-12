@@ -28,6 +28,7 @@ import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import { sanitizeDocumentNote } from "@/utils/documentNotes";
 import { evaluateDocumentDecision, parseAndNormalizeDate, formatToIsoDate } from "@/utils/documentDecisionEngine";
 import { ALLOWED_COUNTRIES } from "@/utils/countryMapping";
+import { parseCalendarDate, toCalendarDateString, formatCalendarDate } from "@/utils/dateUtils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -141,6 +142,9 @@ export default function Scan() {
   const pdfProcessingLock = useRef(false);
   
   const [candidateDates, setCandidateDates] = useState<Array<{ label: string; date: string; type?: string; reason?: string }>>([]);
+  const [cachedProcessedPages, setCachedProcessedPages] = useState<ProcessedPdfPage[] | null>(null);
+  const [cachedPdfFile, setCachedPdfFile] = useState<File | null>(null);
+  const [extractionFailed, setExtractionFailed] = useState(false);
   
   const [formData, setFormData] = useState({
     name: "",
@@ -163,7 +167,9 @@ export default function Scan() {
     const uid = firebaseAuth.currentUser?.uid;
     if (!uid) return;
     try {
-      const snap = await getDocs(collection(firebaseDb, "organizations"));
+      const snap = await getDocs(
+        query(collection(firebaseDb, "organizations"), where("ownerId", "==", uid))
+      );
       setOrganizations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
       console.error("[Scan] fetchOrganizations:", err);
@@ -285,10 +291,38 @@ export default function Scan() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Reset input value so re-selecting the same file fires onChange
+    e.target.value = "";
+
+    // 1. Reject files where file.size === 0
+    if (file.size === 0) {
+      toast({
+        title: "Invalid File",
+        description: "This file is empty. Choose a valid PDF, JPG, JPEG, or PNG.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 2. Validate allowed MIME type and extension together
+    const allowedExtensions = /\.(pdf|jpe?g|png)$/i;
+    const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    const hasValidExt = allowedExtensions.test(file.name);
+    const hasValidMime = allowedMimeTypes.includes(file.type.toLowerCase()) || (!file.type && hasValidExt);
+
+    if (!hasValidExt || !hasValidMime) {
+      toast({
+        title: "Unsupported File Type",
+        description: "Choose a valid PDF, JPG, JPEG, or PNG.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setOriginalFileName(file.name);
       // Check if file is a PDF
-      if (file.type === 'application/pdf') {
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         // Store the ORIGINAL PDF file - NO conversion
         pdfFileRef.current = file;
         setPdfFile(file);
@@ -490,13 +524,23 @@ export default function Scan() {
   const extractDocumentInformation = async (pages: ProcessedPdfPage[], activePdfFile?: File | null) => {
     setExtracting(true);
     setError("");
+    setExtractionFailed(false);
+    setCachedProcessedPages(pages);
+    if (activePdfFile) setCachedPdfFile(activePdfFile);
+
+    // Timeout guard so extraction never hangs indefinitely
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Document extraction timed out. Please try again or enter details manually.")), 45000)
+    );
 
     try {
       const scanFn2 = httpsCallable(firebaseFunctions, "scanDocument");
-      const result2: any = await scanFn2({
+      const scanPromise = scanFn2({
         pages: pages.map((p) => ({ pageNumber: p.pageNumber, content: p.content })),
         country: documentCountry || null,
       });
+
+      const result2: any = await Promise.race([scanPromise, timeoutPromise]);
       const data = result2.data;
 
       if (data?.success && data.data) {
@@ -559,10 +603,11 @@ export default function Scan() {
       }
     } catch (err) {
       console.error("Document extraction error:", err);
-      setError("Unable to extract information from this document. Please enter details manually.");
+      setExtractionFailed(true);
+      setError("Upload succeeded, extraction failed. You can retry extraction or enter details manually.");
       toast({
-        title: "Unable to extract information",
-        description: "All pages were processed, but the document details could not be read. Please enter them manually.",
+        title: "Upload succeeded, extraction failed",
+        description: "The file was successfully received, but AI extraction could not read the text. You can retry or enter details manually.",
         variant: "destructive",
       });
     } finally {
@@ -648,6 +693,9 @@ export default function Scan() {
     pdfFileRef.current = null;
     setPdfFile(null);
     setCandidateDates([]);
+    setCachedProcessedPages(null);
+    setCachedPdfFile(null);
+    setExtractionFailed(false);
     setFormData({
       name: "",
       document_type: "",
@@ -741,13 +789,16 @@ export default function Scan() {
             throw new Error("PDF file size exceeds 20MB limit");
           }
           imagePath = await uploadDocumentOriginal(pdfFile, user.uid);
+        } else if (scanMode === "manual" && capturedImage === "manual-placeholder") {
+          // Manual entry without attachment: no image upload required
+          imagePath = null;
         } else {
           // The final image MUST be the cropped image. NEVER upload the raw uncropped photo.
           const finalCroppedSrc = processedImage || capturedImage;
           if (!finalCroppedSrc) {
             throw new Error("A cropped document is required. Please scan and crop the document before saving.");
           }
-          if (finalCroppedSrc) {
+          if (finalCroppedSrc && finalCroppedSrc !== "manual-placeholder") {
             const primaryBlob = await srcToImageBlob(finalCroppedSrc);
             const maxSize = 20 * 1024 * 1024;
             if (primaryBlob.size > maxSize) {
@@ -936,13 +987,15 @@ export default function Scan() {
       reminderStages = [7, 3, 1];
     }
     
+    const expiryObj = parseCalendarDate(formData.expiry_date);
+    if (!expiryObj) return [];
+
     return reminderStages.map(days => {
-      const reminderDate = new Date(formData.expiry_date);
-      reminderDate.setDate(reminderDate.getDate() - days);
+      const reminderDate = new Date(expiryObj.getTime() - days * 86400000);
       return {
         days,
-        date: reminderDate.toISOString().split('T')[0],
-        formatted: reminderDate.toLocaleDateString()
+        date: toCalendarDateString(reminderDate),
+        formatted: formatCalendarDate(reminderDate)
       };
     });
   };
@@ -1107,8 +1160,25 @@ export default function Scan() {
                 <ScanningEffect imageUrl={capturedImage} />
               ) : (
                 <>
-                  {capturedImage !== "manual-placeholder" && (
+                  {capturedImage !== "manual-placeholder" ? (
                     <img src={capturedImage} alt="Document preview" className="w-full rounded-lg" />
+                  ) : (
+                    <div className="py-6 text-center border-2 border-dashed border-border rounded-lg bg-muted/20">
+                      <FileText className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm font-medium text-foreground">No file attached</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Creating document details via manual entry</p>
+                    </div>
+                  )}
+                  {extractionFailed && cachedProcessedPages && cachedProcessedPages.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="w-full h-10 gap-2"
+                      onClick={() => extractDocumentInformation(cachedProcessedPages, cachedPdfFile)}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Retry Extraction
+                    </Button>
                   )}
                   <Button variant="outline" onClick={resetScan} className="w-full h-10">
                     {capturedImage === "manual-placeholder" ? "Cancel manual entry" : "Choose different document"}

@@ -64,11 +64,11 @@ export function RoutinesSection() {
       {routines.length === 0 ? (
         <div className="text-center py-12 space-y-4">
           <div className="text-5xl">🧘</div>
-          <h3 className="font-semibold text-foreground">No routines yet</h3>
+          <h3 className="font-semibold text-foreground">No routines scheduled for today</h3>
           <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-            Create a routine to group your daily tasks with flexible schedules.
+            Create a routine to build your daily flow.
           </p>
-          <Button onClick={() => setShowCreate(true)} className="rounded-full px-6">
+          <Button onClick={() => setShowCreate(true)} className="rounded-full px-6 min-h-[44px]">
             <Plus className="h-4 w-4 mr-2" />
             Create First Routine
           </Button>

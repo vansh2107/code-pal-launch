@@ -21,6 +21,7 @@ import { SwipeableDocumentCard } from '@/components/document/SwipeableDocumentCa
 import { Skeleton } from '@/components/ui/skeleton';
 import { getOfflineDocuments, deleteOfflineDocument } from '@/utils/offlineStorage';
 import { isValidCalendarDate } from '@/utils/documentDecisionEngine';
+import { parseCalendarDate } from '@/utils/dateUtils';
 import { collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
 import { firebaseDb } from '@/integrations/firebase/client';
 
@@ -120,16 +121,25 @@ export default function Documents() {
     if (filterType !== 'all') { const cat = categories.find(c => c.id === filterType); if (cat) filtered = filtered.filter(d => cat.types.includes(d.category_detail ?? d.document_type)); }
     if (filterStatus !== 'all') {
       const today = new Date();
+      today.setHours(0, 0, 0, 0);
       filtered = filtered.filter(d => {
         if (!d.expiry_date || !isValidCalendarDate(d.expiry_date)) return false;
-        const days = Math.ceil((new Date(d.expiry_date).getTime() - today.getTime()) / 86400000);
+        const parsed = parseCalendarDate(d.expiry_date);
+        if (!parsed) return false;
+        const days = Math.ceil((parsed.getTime() - today.getTime()) / 86400000);
         if (filterStatus === 'expired')  return days < 0;
         if (filterStatus === 'expiring') return days >= 0 && days <= 30;
         if (filterStatus === 'valid')    return days > 30;
         return true;
       });
     }
-    if (sortBy === 'expiry')  filtered.sort((a,b) => { const av=a.expiry_date&&isValidCalendarDate(a.expiry_date),bv=b.expiry_date&&isValidCalendarDate(b.expiry_date); if(!av&&!bv)return 0;if(!av)return 1;if(!bv)return -1;return new Date(a.expiry_date).getTime()-new Date(b.expiry_date).getTime(); });
+    if (sortBy === 'expiry')  filtered.sort((a,b) => {
+      const av=a.expiry_date&&isValidCalendarDate(a.expiry_date),bv=b.expiry_date&&isValidCalendarDate(b.expiry_date);
+      if(!av&&!bv)return 0;if(!av)return 1;if(!bv)return -1;
+      const ad = parseCalendarDate(a.expiry_date)?.getTime() ?? 0;
+      const bd = parseCalendarDate(b.expiry_date)?.getTime() ?? 0;
+      return ad - bd;
+    });
     else if (sortBy === 'name')   filtered.sort((a,b) => a.name.localeCompare(b.name));
     else if (sortBy === 'recent') filtered.sort((a,b) => new Date(b.created_at).getTime()-new Date(a.created_at).getTime());
     return filtered;

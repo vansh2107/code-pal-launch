@@ -6,7 +6,7 @@
  * UI and validation are preserved exactly.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { applyActionCode, verifyPasswordResetCode } from 'firebase/auth';
 import { firebaseAuth } from '@/integrations/firebase/client';
@@ -16,8 +16,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Shield, CheckCircle2 } from 'lucide-react';
+import { Loader2, Shield, CheckCircle2, XCircle } from 'lucide-react';
 import { z } from 'zod';
+import { validatePasswordRules } from '@/pages/Auth';
 
 const passwordSchema = z.object({
   password: z.string()
@@ -40,6 +41,14 @@ export default function ResetPassword() {
   const [validSession,    setValidSession]    = useState(false);
   const [oobCode,         setOobCode]         = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const passwordRules = useMemo(() => {
+    return validatePasswordRules(password);
+  }, [password]);
+  const isPasswordValid = useMemo(() => {
+    return passwordRules.every(r => r.passed);
+  }, [passwordRules]);
+  const passwordsMatch = password.length > 0 && password === confirmPassword;
 
   useEffect(() => {
     const url    = new URL(window.location.href);
@@ -86,8 +95,18 @@ export default function ResetPassword() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+
+    if (!isPasswordValid) {
+      setError('Password does not meet all security requirements.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const validation = passwordSchema.parse({ password, confirmPassword });
@@ -166,23 +185,52 @@ export default function ResetPassword() {
                 <Label htmlFor="password">New Password</Label>
                 <Input id="password" type="password" value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter new password" required disabled={loading} />
-                <p className="text-xs text-muted-foreground">
-                  Must be at least 12 characters with 1 uppercase, 1 number, and 1 special character
-                </p>
+                  placeholder="Enter new password" required disabled={loading}
+                  className="h-11" />
+                
+                {/* Accessible live password requirements checklist */}
+                <div
+                  className="p-3 bg-muted/40 rounded-lg space-y-1.5 border border-border/50"
+                  role="region"
+                  aria-label="Password requirements"
+                >
+                  <p className="text-xs font-medium text-foreground mb-1">Password Requirements:</p>
+                  <ul className="space-y-1 text-xs">
+                    {passwordRules.map((rule) => (
+                      <li
+                        key={rule.id}
+                        className={`flex items-center gap-1.5 ${
+                          rule.passed ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+                        }`}
+                      >
+                        {rule.passed ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" aria-hidden="true" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" aria-hidden="true" />
+                        )}
+                        <span>{rule.label}</span>
+                        <span className="sr-only">{rule.passed ? '(Passed)' : '(Failed)'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm-password">Confirm New Password</Label>
                 <Input id="confirm-password" type="password" value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password" required disabled={loading} />
+                  placeholder="Confirm new password" required disabled={loading}
+                  className="h-11" />
+                {confirmPassword && !passwordsMatch && (
+                  <p className="text-xs text-destructive">Passwords do not match.</p>
+                )}
               </div>
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={loading || !isPasswordValid || !passwordsMatch}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Update Password
               </Button>

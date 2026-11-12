@@ -36,7 +36,7 @@ function SettingsItem({ icon: Icon, title, onClick, to }: SettingsItemProps) {
     </div>
   );
   if (to) return <Link to={to} className="block border-b border-border/50 last:border-0">{content}</Link>;
-  return <button onClick={onClick} className="w-full text-left border-b border-border/50 last:border-0">{content}</button>;
+  return <div role="button" tabIndex={0} onClick={onClick} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }} className="w-full text-left border-b border-border/50 last:border-0">{content}</div>;
 }
 
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -140,7 +140,7 @@ export default function Profile() {
 
           <SettingsSection title="Documents">
             <Dialog>
-              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={Download} title="Export Data" /></button></DialogTrigger>
+              <DialogTrigger asChild><div className="w-full"><SettingsItem icon={Download} title="Export Data" /></div></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Export Your Documents</DialogTitle></DialogHeader>
                 <div className="space-y-4 pt-4">
@@ -160,7 +160,7 @@ export default function Profile() {
 
           <SettingsSection title="Support">
             <Dialog>
-              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={HelpCircle} title="Help Center" /></button></DialogTrigger>
+              <DialogTrigger asChild><div className="w-full"><SettingsItem icon={HelpCircle} title="Help Center" /></div></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Help Center</DialogTitle></DialogHeader>
                 <div className="pt-4 space-y-4">
@@ -170,11 +170,11 @@ export default function Profile() {
               </DialogContent>
             </Dialog>
             <Dialog>
-              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={MessageSquare} title="Send Feedback" /></button></DialogTrigger>
+              <DialogTrigger asChild><div className="w-full"><SettingsItem icon={MessageSquare} title="Send Feedback" /></div></DialogTrigger>
               <DialogContent><DialogHeader><DialogTitle>Send Feedback</DialogTitle></DialogHeader><div className="pt-4"><FeedbackDialog /></div></DialogContent>
             </Dialog>
             <Dialog>
-              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={Mail} title="Contact Us" /></button></DialogTrigger>
+              <DialogTrigger asChild><div className="w-full"><SettingsItem icon={Mail} title="Contact Us" /></div></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Contact Us</DialogTitle></DialogHeader>
                 <div className="pt-4 space-y-4">
@@ -187,7 +187,7 @@ export default function Profile() {
 
           <SettingsSection title="About">
             <Dialog>
-              <DialogTrigger asChild><button className="w-full"><SettingsItem icon={Info} title="App Information" /></button></DialogTrigger>
+              <DialogTrigger asChild><div className="w-full"><SettingsItem icon={Info} title="App Information" /></div></DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>About Remonk Reminder</DialogTitle></DialogHeader>
                 <div className="pt-4 space-y-3">

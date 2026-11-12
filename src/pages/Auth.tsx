@@ -10,7 +10,7 @@
  *   - All validation schemas, form layout, and error messages are unchanged.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, Loader2, Shield, Mail } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Shield, Mail, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -36,8 +36,24 @@ import { callSendOtp, callVerifyOtp } from '@/integrations/firebase/functions';
 import { doc, setDoc } from 'firebase/firestore';
 import { firebaseDb, firebaseAuth } from '@/integrations/firebase/client';
 
+export const emailSchema = z.string().trim().email('Enter a valid email address');
+
+export const passwordRequirements = [
+  { id: 'length', label: 'Minimum 12 characters', test: (p: string) => p.length >= 12 },
+  { id: 'uppercase', label: 'At least 1 uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
+  { id: 'number', label: 'At least 1 number', test: (p: string) => /[0-9]/.test(p) },
+  { id: 'special', label: 'At least 1 special character', test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+];
+
+export function validatePasswordRules(p: string) {
+  return passwordRequirements.map(rule => ({
+    ...rule,
+    passed: rule.test(p)
+  }));
+}
+
 const signInSchema = z.object({
-  email:    z.string().email('Please enter a valid email address'),
+  email:    emailSchema,
   password: z.string()
     .min(12,  'Password must be at least 12 characters')
     .regex(/[A-Z]/, 'Password must contain at least 1 uppercase letter')
@@ -47,7 +63,7 @@ const signInSchema = z.object({
 
 const signUpSchema = z.object({
   name:         z.string().trim().min(2, 'Name must be at least 2 characters'),
-  email:        z.string().email('Please enter a valid email address'),
+  email:        emailSchema,
   password:     z.string()
     .min(12, 'Password must be at least 12 characters')
     .regex(/[A-Z]/, 'Password must contain at least 1 uppercase letter')
@@ -76,6 +92,20 @@ export default function Auth() {
   const [error,       setError]       = useState('');
   const [success,     setSuccess]     = useState('');
 
+  // Email validation states
+  const [emailTouched, setEmailTouched] = useState(false);
+  const emailValid = useMemo(() => {
+    return emailSchema.safeParse(email).success;
+  }, [email]);
+
+  // Live password validation
+  const passwordRules = useMemo(() => {
+    return validatePasswordRules(password);
+  }, [password]);
+  const isPasswordValid = useMemo(() => {
+    return passwordRules.every(r => r.passed);
+  }, [passwordRules]);
+
   // ── Sign up state & OTP flow ─────────────────────────────────────────────
   const [otpStep,          setOtpStep]          = useState(false);
   const [otpCode,          setOtpCode]          = useState('');
@@ -83,6 +113,10 @@ export default function Auth() {
   const [termsDialogOpen,     setTermsDialogOpen]     = useState(false);
   const [forgotPasswordOpen,  setForgotPasswordOpen]  = useState(false);
   const [resetEmail,          setResetEmail]          = useState('');
+  const [resetEmailTouched,   setResetEmailTouched]   = useState(false);
+  const resetEmailValid = useMemo(() => {
+    return emailSchema.safeParse(resetEmail).success;
+  }, [resetEmail]);
 
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -97,11 +131,15 @@ export default function Auth() {
   // ── Forgot password ──────────────────────────────────────────────────────
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!resetEmailValid) {
+      setError('Enter a valid email address.');
+      return;
+    }
     setLoading(true);
     setError('');
     setSuccess('');
     try {
-      const result = await sendPasswordReset(resetEmail);
+      const result = await sendPasswordReset(resetEmail.trim());
       if (!result.ok) {
         setError(result.error);
       } else {
@@ -122,10 +160,21 @@ export default function Auth() {
   // ── Sign in ──────────────────────────────────────────────────────────────
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+
+    // Revalidate live rules in submit handler
+    if (!emailValid) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const validation = signInSchema.parse({ email, password });
+      const validation = signInSchema.parse({ email: email.trim(), password });
       const result     = await signIn(validation.email, validation.password);
       if (!result.ok) {
         setError(result.error);
@@ -141,9 +190,24 @@ export default function Auth() {
   // ── Step 1: Request Email OTP ─────────────────────────────────────────────
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
     setSuccess('');
+
+    // Revalidate strictly in submit handler
+    if (!emailValid) {
+      setError('Enter a valid email address.');
+      return;
+    }
+    if (!isPasswordValid) {
+      setError('Password does not meet all security requirements.');
+      return;
+    }
+    if (!agreedToTerms) {
+      setError('You must agree to the Terms & Conditions.');
+      return;
+    }
+
+    setLoading(true);
 
     try {
       if (!name.trim() || name.trim().length < 2) {
@@ -165,7 +229,7 @@ export default function Auth() {
       }
 
       signUpSchema.parse({
-        name, email, password, phone_number: cleanedPhone,
+        name, email: email.trim(), password, phone_number: cleanedPhone,
       });
 
       // Create the Firebase account directly (Firebase sends a verification email)
@@ -285,9 +349,9 @@ export default function Auth() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 h-12 p-1">
+              <TabsTrigger value="signin" className="h-10 text-sm font-semibold transition-all">Sign In</TabsTrigger>
+              <TabsTrigger value="signup" className="h-10 text-sm font-semibold transition-all">Sign Up</TabsTrigger>
             </TabsList>
 
             {/* ── Sign In ── */}
@@ -296,30 +360,36 @@ export default function Auth() {
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
                   <Input id="signin-email" type="email" value={email}
-                    onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com"
-                    required disabled={loading} />
+                    onChange={(e) => setEmail(e.target.value)}
+                    onBlur={() => setEmailTouched(true)}
+                    placeholder="your@email.com"
+                    required disabled={loading}
+                    className="h-11" />
+                  {emailTouched && email.trim() && !emailValid && (
+                    <p className="text-xs text-destructive">Enter a valid email address.</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signin-password">Password</Label>
                   <div className="relative">
                     <Input id="signin-password" type={showSignInPassword ? 'text' : 'password'} value={password}
                       onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password"
-                      required disabled={loading} className="pr-10" />
+                      required disabled={loading} className="pr-12 h-11" />
                     <Button type="button" variant="ghost" size="icon"
-                      className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                      className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 p-0 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-primary"
                       aria-label={showSignInPassword ? 'Hide password' : 'Show password'}
                       aria-pressed={showSignInPassword}
                       onClick={() => setShowSignInPassword((visible) => !visible)}>
-                      {showSignInPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showSignInPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </Button>
                   </div>
                 </div>
                 {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                 {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={loading || !emailValid || !password}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Sign In
                 </Button>
-                <Button type="button" variant="link" className="w-full text-sm"
+                <Button type="button" variant="link" className="w-full text-sm min-h-[44px]"
                   onClick={() => { setForgotPasswordOpen(true); setError(''); setSuccess(''); }}>
                   Forgot password?
                 </Button>
@@ -334,13 +404,18 @@ export default function Auth() {
                     <Label htmlFor="signup-name">Name</Label>
                     <Input id="signup-name" type="text" value={name}
                       onChange={(e) => setName(e.target.value)} placeholder="Your full name"
-                      required disabled={loading} />
+                      required disabled={loading} className="h-11" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
                     <Input id="signup-email" type="email" value={email}
-                      onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com"
-                      required disabled={loading} />
+                      onChange={(e) => setEmail(e.target.value)}
+                      onBlur={() => setEmailTouched(true)}
+                      placeholder="your@email.com"
+                      required disabled={loading} className="h-11" />
+                    {emailTouched && email.trim() && !emailValid && (
+                      <p className="text-xs text-destructive">Enter a valid email address.</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
@@ -348,18 +423,42 @@ export default function Auth() {
                       <Input id="signup-password" type={showSignUpPassword ? 'text' : 'password'} value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Create a strong password (min 12 characters)"
-                        required disabled={loading} className="pr-10" />
+                        required disabled={loading} className="pr-12 h-11" />
                       <Button type="button" variant="ghost" size="icon"
-                        className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
+                        className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 p-0 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-primary"
                         aria-label={showSignUpPassword ? 'Hide password' : 'Show password'}
                         aria-pressed={showSignUpPassword}
                         onClick={() => setShowSignUpPassword((visible) => !visible)}>
-                        {showSignUpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showSignUpPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Must be at least 12 characters with 1 uppercase, 1 number, and 1 special character
-                    </p>
+
+                    {/* Accessible live password requirements checklist */}
+                    <div
+                      className="p-3 bg-muted/40 rounded-lg space-y-1.5 border border-border/50"
+                      role="region"
+                      aria-label="Password requirements"
+                    >
+                      <p className="text-xs font-medium text-foreground mb-1">Password Requirements:</p>
+                      <ul className="space-y-1 text-xs">
+                        {passwordRules.map((rule) => (
+                          <li
+                            key={rule.id}
+                            className={`flex items-center gap-1.5 ${
+                              rule.passed ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+                            }`}
+                          >
+                            {rule.passed ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" aria-hidden="true" />
+                            ) : (
+                              <XCircle className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" aria-hidden="true" />
+                            )}
+                            <span>{rule.label}</span>
+                            <span className="sr-only">{rule.passed ? '(Passed)' : '(Failed)'}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone-number">Phone Number</Label>
@@ -394,7 +493,7 @@ export default function Auth() {
                   </div>
                   {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                   {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
-                  <Button type="submit" className="w-full" disabled={loading || !agreedToTerms}>
+                  <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={loading || !agreedToTerms || !isPasswordValid || !emailValid}>
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create Account
                   </Button>
                 </form>
@@ -418,16 +517,16 @@ export default function Auth() {
                     <Input id="otp-code" type="text" maxLength={6} value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                       placeholder="000000" required disabled={loading}
-                      className="text-center text-lg tracking-widest font-mono" />
+                      className="text-center text-lg tracking-widest font-mono h-11" />
                   </div>
 
                   {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                   {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
 
-                  <Button type="submit" className="w-full" disabled={loading || otpCode.trim().length !== 6}>
+                  <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={loading || otpCode.trim().length !== 6}>
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Verify &amp; Create Account
                   </Button>
-                  <Button type="button" variant="outline" className="w-full text-sm"
+                  <Button type="button" variant="outline" className="w-full h-11 text-sm"
                     onClick={() => { setOtpStep(false); setOtpCode(''); setError(''); setSuccess(''); }}>
                     Go back
                   </Button>
@@ -451,12 +550,18 @@ export default function Auth() {
             <div className="space-y-2">
               <Label htmlFor="reset-email">Email</Label>
               <Input id="reset-email" type="email" value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)} placeholder="your@email.com"
-                required disabled={loading} />
+                onChange={(e) => setResetEmail(e.target.value)}
+                onBlur={() => setResetEmailTouched(true)}
+                placeholder="your@email.com"
+                required disabled={loading}
+                className="h-11" />
+              {resetEmailTouched && resetEmail.trim() && !resetEmailValid && (
+                <p className="text-xs text-destructive">Enter a valid email address.</p>
+              )}
             </div>
             {error   && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
             {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={loading || !resetEmailValid}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Send Reset Link
             </Button>
           </form>

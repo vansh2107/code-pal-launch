@@ -173,7 +173,7 @@ export default function DocVault() {
                 frequentlyUsedCount={frequentlyUsedCount}
                 allDocumentsCount={allDocumentsCount}
               />
-              <Button variant="ghost" className="absolute top-4 right-4" onClick={() => setIsSidebarOpen(false)}>
+              <Button variant="ghost" size="icon" aria-label="Close sidebar" className="absolute top-4 right-4 min-h-[44px] min-w-[44px]" onClick={() => setIsSidebarOpen(false)}>
                 <X className="h-5 w-5" />
               </Button>
             </div>
@@ -184,7 +184,7 @@ export default function DocVault() {
           <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               {isMobile && (
-                <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(true)}>
+                <Button variant="ghost" size="icon" aria-label="Open sidebar" className="min-h-[44px] min-w-[44px]" onClick={() => setIsSidebarOpen(true)}>
                   <Menu className="h-5 w-5" />
                 </Button>
               )}

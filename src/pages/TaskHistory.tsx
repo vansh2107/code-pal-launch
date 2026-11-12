@@ -127,7 +127,7 @@ export default function TaskHistory() {
     <div className="min-h-screen page-bg px-4" style={{ paddingBottom: 'calc(var(--nav-height) + var(--safe-area-bottom) + var(--fab-gap) + 32px)' }}>
       <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 border-b border-border/50 pt-[calc(1.5rem+env(safe-area-inset-top,0px))]">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/tasks')}><ArrowLeft className="h-5 w-5" /></Button>
+          <Button variant="ghost" size="icon" aria-label="Go back" className="min-h-[44px] min-w-[44px]" onClick={() => navigate('/tasks')}><ArrowLeft className="h-5 w-5" /></Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Task History</h1>
             <p className="text-sm text-muted-foreground">Last 7 days</p>

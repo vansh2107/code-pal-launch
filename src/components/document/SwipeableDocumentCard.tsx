@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RenewalOptionsSheet } from "@/components/document/RenewalOptionsSheet";
 import { isValidCalendarDate } from "@/utils/documentDecisionEngine";
+import { formatCalendarDate } from "@/utils/dateUtils";
 
 interface SwipeableDocumentCardProps {
   doc: {
@@ -118,7 +119,7 @@ export function SwipeableDocumentCard({
                   <span className="text-muted-foreground">{doc.expiry_date_label || "Expiration Date"}</span>
                   <span className={`font-medium ${statusInfo.textClass}`}>
                     {doc.expiry_date && isValidCalendarDate(doc.expiry_date)
-                      ? new Date(doc.expiry_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                      ? formatCalendarDate(doc.expiry_date)
                       : "No expiry set"}
                   </span>
                 </div>

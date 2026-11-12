@@ -21,6 +21,7 @@ import { DocumentViewer } from '@/components/document/DocumentViewer';
 import { RenewalOptionsSheet } from '@/components/document/RenewalOptionsSheet';
 import { getDocumentStatus } from '@/utils/documentStatus';
 import { sanitizeDocumentNote } from '@/utils/documentNotes';
+import { formatCalendarDate, parseCalendarDate } from '@/utils/dateUtils';
 import { getDoc, doc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { deleteOfflineDocument } from '@/utils/offlineStorage';
@@ -212,7 +213,8 @@ export default function DocumentDetail() {
   const isDocVault   = document.issuing_authority === 'DocVault';
   const statusInfo   = !isDocVault && document.expiry_date ? getDocumentStatus(document.expiry_date) : null;
   const recommendedDays = renewalAdvice ? extractRecommendedDays(renewalAdvice) : null;
-  const daysUntilExpiry = document.expiry_date ? Math.ceil((new Date(document.expiry_date).getTime() - new Date().getTime()) / 86400000) : null;
+  const parsedExpDate = parseCalendarDate(document.expiry_date);
+  const daysUntilExpiry = parsedExpDate ? Math.ceil((parsedExpDate.getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000) : null;
   const daysToStartProcess = recommendedDays ?? document.renewal_period_days ?? null;
   const backDest     = isDocVault ? '/docvault' : '/documents';
 
@@ -364,7 +366,7 @@ export default function DocumentDetail() {
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">{document.expiry_date_label ?? 'Expiry Date'}</Label>
                   {document.expiry_date
-                    ? <p className={statusInfo?.textClass ?? 'text-foreground'}>{new Date(document.expiry_date).toLocaleDateString()}</p>
+                    ? <p className={statusInfo?.textClass ?? 'text-foreground'}>{formatCalendarDate(document.expiry_date)}</p>
                     : isDocVault
                       ? <p className="text-muted-foreground">No expiry set for this document</p>
                       : <p className="text-muted-foreground">Not set — date could not be determined</p>}
@@ -379,7 +381,7 @@ export default function DocumentDetail() {
 
           {!isDocVault && (
             <Card className={`border-2 ${statusInfo?.bgClass ?? ''} ${statusInfo?.borderClass ?? 'border-border'}`}>
-              <CardHeader><CardTitle className={`flex items-center gap-2 ${statusInfo?.textClass ?? 'text-foreground'}`}><Clock className="h-5 w-5" />Document History</CardTitle></CardHeader>
+              <CardHeader><CardTitle className={`flex items-center gap-2 ${statusInfo?.textClass ?? 'text-foreground'}`}><Clock className="h-5 w-5" />Document Audit Information</CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 <div><Label className="text-sm font-medium text-muted-foreground">Created</Label><p className={statusInfo?.textClass ?? 'text-foreground'}>{new Date(document.created_at).toLocaleDateString()}</p></div>
                 <div><Label className="text-sm font-medium text-muted-foreground">Last Updated</Label><p className={statusInfo?.textClass ?? 'text-foreground'}>{new Date(document.updated_at).toLocaleDateString()}</p></div>

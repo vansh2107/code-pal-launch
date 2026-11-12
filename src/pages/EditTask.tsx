@@ -196,7 +196,7 @@ export default function EditTask() {
       <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 border-b border-border/50 pt-[calc(1.5rem+env(safe-area-inset-top,0px))]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate(`/task/${id}`)}>
+            <Button variant="ghost" size="icon" aria-label="Go back" className="min-h-[44px] min-w-[44px]" onClick={() => navigate(`/task/${id}`)}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
@@ -206,7 +206,7 @@ export default function EditTask() {
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="icon"><Trash2 className="h-5 w-5" /></Button>
+              <Button variant="destructive" size="icon" aria-label="Delete task" className="min-h-[44px] min-w-[44px]"><Trash2 className="h-5 w-5" /></Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>

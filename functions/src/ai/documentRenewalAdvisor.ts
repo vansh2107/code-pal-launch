@@ -42,7 +42,25 @@ export const documentRenewalAdvisor = https.onCall(
       context = `User Documents: ${JSON.stringify(docs)}`;
     }
 
-    const systemPrompt = `You are a document renewal advisor assistant.
+    const isOtherOrUnknown = !documentType || ['other', 'unknown', 'general'].includes(documentType.toLowerCase().trim());
+    const normalizedDocType = isOtherOrUnknown ? 'Other (General Document)' : documentType;
+
+    const systemPrompt = isOtherOrUnknown
+      ? `You are a document renewal advisor assistant for general and miscellaneous documents.
+CRITICAL: You MUST start your response on the first line with EXACTLY this format:
+"Recommended renewal start: [NUMBER] days before expiry"
+
+STRICT RULES:
+- The document type is "Other" / general document.
+- You MUST provide generic, flexible renewal advice.
+- You MUST PROHIBIT passport-specific guidance, immigration forms, or passport photos unless the document name explicitly specifies a passport.
+- Do NOT assume citizenship or passport requirements.
+
+Then provide:
+1. Required documents for renewal (generic list: original document/contract, valid government ID, proof of address or billing details if applicable)
+2. Key steps and timeline considerations (contact issuing party/provider, check renewal portal or terms)
+3. Important deadlines`
+      : `You are a document renewal advisor assistant.
 CRITICAL: You MUST start your response on the first line with EXACTLY this format:
 "Recommended renewal start: [NUMBER] days before expiry"
 
@@ -51,25 +69,48 @@ Then provide:
 2. Key steps and timeline considerations
 3. Important deadlines`;
 
-    const userPrompt = `${context}\nQuestion/Prompt: ${question || 'How to renew this document?'}`;
+    const userPrompt = `${context}\nDocument Type: ${normalizedDocType}\nQuestion/Prompt: ${question || 'How to renew this document?'}`;
 
-    const adviceText = await getAiCompletion({
+    let adviceText = await getAiCompletion({
       systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     });
 
-    const safeDocType = documentType || 'document';
+    // Validate that AI did not hallucinate passport advice for an "other" document
+    if (isOtherOrUnknown && adviceText && /passport[- ]size photo|consulate|embassy|citizenship proof/i.test(adviceText)) {
+      logger.warn('[documentRenewalAdvisor] AI returned passport guidance for Other document; replacing with generic fallback.');
+      adviceText = null;
+    }
+
+    const safeDocType = isOtherOrUnknown ? 'document' : (documentType || 'document');
     const safeDocName = documentName ? ` (${documentName})` : '';
 
-    const fallbackAdvice = `Recommended renewal start: 30 days before expiry
+    const fallbackAdvice = isOtherOrUnknown
+      ? `Recommended renewal start: 30 days before expiry
+
+Here are general renewal guidelines for your ${safeDocType}${safeDocName}:
+
+1. Required Documents for Renewal:
+- Current original document, contract, or reference number
+- Valid government-issued photo ID (if verification is required)
+- Recent payment receipt, billing statement, or renewal notice (if applicable)
+
+2. Key Steps & Timeline Considerations:
+- Review the issuer's or service provider's specific renewal policy online.
+- Check if renewal or replacement can be submitted online or via customer portal.
+- Standard processing time generally ranges between 5 to 15 business days.
+
+3. Important Deadlines:
+- Submit renewal request at least 30 days before expiration to prevent lapse in service.`
+      : `Recommended renewal start: 30 days before expiry
 
 Here are the details and requirements to renew your ${safeDocType}${safeDocName}:
 
 1. Required Documents for Renewal:
 - Current original document or card
 - Completed renewal application form
-- Proof of identification/citizenship
-- 2 recent passport-size photographs
+- Proof of identification
+- Recent photograph (if required by issuing authority)
 - Renewal fee payment
 
 2. Key Steps & Timeline Considerations:

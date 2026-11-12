@@ -14,6 +14,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
+import { parseCalendarDate, formatCalendarDate } from "@/utils/dateUtils";
 import {
   collection,
   getDocs,
@@ -98,9 +99,10 @@ export default function Notifications() {
   };
 
   const getNotificationStatus = (reminderDate: string, expiryDate: string) => {
-    const today    = new Date();
-    const reminder = new Date(reminderDate);
-    const expiry   = new Date(expiryDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const reminder = parseCalendarDate(reminderDate) || new Date(reminderDate);
+    const expiry   = parseCalendarDate(expiryDate) || new Date(expiryDate);
     if (expiry < today)   return { status: "expired", color: "destructive", text: "Document Expired" };
     if (reminder <= today) return { status: "active",  color: "warning",     text: "Renewal Due Soon" };
     return                        { status: "pending", color: "secondary",   text: "Upcoming Reminder" };
@@ -146,7 +148,7 @@ export default function Notifications() {
                           <div className="flex-1">
                             <h3 className="font-semibold text-foreground mb-1">{n.document.name}</h3>
                             <p className="text-sm text-muted-foreground capitalize mb-2">{n.document.document_type.replace('_', ' ')}</p>
-                            <p className="text-sm text-muted-foreground">Expires: {new Date(n.document.expiry_date).toLocaleDateString()}</p>
+                            <p className="text-sm text-muted-foreground">Expires: {formatCalendarDate(n.document.expiry_date)}</p>
                           </div>
                           <div className="ml-4">
                             <Badge variant={status.color === "destructive" ? "destructive" : "secondary"} className={status.color === "warning" ? "bg-warning text-warning-foreground" : ""}>{status.text}</Badge>

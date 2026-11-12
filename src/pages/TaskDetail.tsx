@@ -128,20 +128,20 @@ export default function TaskDetail() {
       <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 border-b border-border/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/tasks')}>
+            <Button variant="ghost" size="icon" aria-label="Go back" className="min-h-[44px] min-w-[44px]" onClick={() => navigate('/tasks')}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <h1 className="text-2xl font-bold text-foreground">Task Details</h1>
           </div>
           <div className="flex items-center gap-2">
             {task.status === 'pending' && (
-              <Button variant="outline" size="icon" onClick={() => navigate(`/edit-task/${id}`)}>
+              <Button variant="outline" size="icon" aria-label="Edit task" className="min-h-[44px] min-w-[44px]" onClick={() => navigate(`/edit-task/${id}`)}>
                 <Edit className="h-5 w-5" />
               </Button>
             )}
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="icon"><Trash2 className="h-5 w-5" /></Button>
+                <Button variant="destructive" size="icon" aria-label="Delete task" className="min-h-[44px] min-w-[44px]"><Trash2 className="h-5 w-5" /></Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>

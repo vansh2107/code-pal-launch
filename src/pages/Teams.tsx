@@ -340,6 +340,8 @@ export default function Teams() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label={`Delete organization ${org.name}`}
+                          className="min-h-[44px] min-w-[44px]"
                           onClick={(e) => {
                             e.stopPropagation();
                             setOrgToDelete(org.id);
@@ -453,6 +455,8 @@ export default function Teams() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  aria-label="Remove team member"
+                                  className="min-h-[44px] min-w-[44px]"
                                   onClick={() => removeMember(member.id)}
                                   disabled={member.user_id === user?.uid}
                                 >

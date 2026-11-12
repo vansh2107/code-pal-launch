@@ -25,6 +25,7 @@ import { firebaseDb, firebaseStorage } from '@/integrations/firebase/client';
 import { httpsCallable } from 'firebase/functions';
 import { firebaseFunctions } from '@/integrations/firebase/client';
 import { uploadDocumentOriginal } from '@/utils/documentStorage';
+import { parseCalendarDate, toCalendarDateString, formatCalendarDate } from '@/utils/dateUtils';
 
 const documentSchema = z.object({
   name:                z.string().min(1, 'Document name is required'),
@@ -168,13 +169,15 @@ export default function EditDocument() {
         else if (renewalDays >= 14) stages = [14,7,2];
         else stages = [7,3,1];
 
-        const expiryMs = new Date(validated.expiry_date!).getTime();
-        const reminders = stages
-          .map(days => {
-            const d = new Date(expiryMs - days * 86400000);
-            return d > new Date() ? d.toISOString().slice(0,10) : null;
-          })
-          .filter(Boolean) as string[];
+        const expiryCalendarDate = parseCalendarDate(validated.expiry_date);
+        const reminders = expiryCalendarDate
+          ? stages
+              .map(days => {
+                const d = new Date(expiryCalendarDate.getTime() - days * 86400000);
+                return d.getTime() > Date.now() ? toCalendarDateString(d) : null;
+              })
+              .filter(Boolean) as string[]
+          : [];
 
         if (formData.custom_reminder_date) reminders.push(formData.custom_reminder_date);
 
@@ -212,10 +215,11 @@ export default function EditDocument() {
     if (!formData.expiry_date || !formData.renewal_period_days) return [];
     const r = formData.renewal_period_days;
     const stages = r>=90?[60,30,7]:r>=30?[30,14,3]:r>=14?[14,7,2]:[7,3,1];
+    const expiryDateObj = parseCalendarDate(formData.expiry_date);
+    if (!expiryDateObj) return [];
     return stages.map(days => {
-      const d = new Date(formData.expiry_date);
-      d.setDate(d.getDate() - days);
-      return { days, date: d.toISOString().split('T')[0], formatted: d.toLocaleDateString() };
+      const d = new Date(expiryDateObj.getTime() - days * 86400000);
+      return { days, date: toCalendarDateString(d), formatted: formatCalendarDate(d) };
     });
   };
 

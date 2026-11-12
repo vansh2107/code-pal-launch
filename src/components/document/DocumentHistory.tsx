@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { firebaseDb } from "@/integrations/firebase/client";
+import { firebaseDb, firebaseAuth } from "@/integrations/firebase/client";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { History } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { History, RefreshCw, AlertCircle } from "lucide-react";
+import { formatCalendarDate } from "@/utils/dateUtils";
 
 interface HistoryEntry {
   id: string;
@@ -21,17 +23,26 @@ interface DocumentHistoryProps {
 export function DocumentHistory({ documentId }: DocumentHistoryProps) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchHistory();
   }, [documentId]);
 
   const fetchHistory = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const q = query(
-        collection(firebaseDb, "document_history"),
-        where("documentId", "==", documentId)
-      );
+      const currentUid = firebaseAuth.currentUser?.uid;
+      const historyCollection = collection(firebaseDb, "document_history");
+      const q = currentUid
+        ? query(
+            historyCollection,
+            where("documentId", "==", documentId),
+            where("userId", "==", currentUid)
+          )
+        : query(historyCollection, where("documentId", "==", documentId));
+
       const querySnap = await getDocs(q);
       const entries: HistoryEntry[] = querySnap.docs.map((docSnap) => {
         const data = docSnap.data();
@@ -48,8 +59,9 @@ export function DocumentHistory({ documentId }: DocumentHistoryProps) {
       // Sort descending by created_at
       entries.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setHistory(entries);
-    } catch (error) {
-      console.error("Error fetching history:", error);
+    } catch (err: any) {
+      console.error("[DocumentHistory] Error fetching history:", err);
+      setError("Unable to load document history. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -70,9 +82,9 @@ export function DocumentHistory({ documentId }: DocumentHistoryProps) {
 
   if (loading) {
     return (
-      <Card>
+      <Card aria-labelledby="document-history-heading">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle id="document-history-heading" className="flex items-center gap-2">
             <History className="h-5 w-5" />
             Document History
           </CardTitle>
@@ -86,10 +98,33 @@ export function DocumentHistory({ documentId }: DocumentHistoryProps) {
     );
   }
 
+  if (error) {
+    return (
+      <Card aria-labelledby="document-history-heading">
+        <CardHeader>
+          <CardTitle id="document-history-heading" className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Document History
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-4 space-y-3 text-center">
+            <AlertCircle className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <Button variant="outline" size="sm" onClick={fetchHistory} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Card>
+    <Card aria-labelledby="document-history-heading">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle id="document-history-heading" className="flex items-center gap-2">
           <History className="h-5 w-5" />
           Document History
         </CardTitle>
@@ -118,11 +153,11 @@ export function DocumentHistory({ documentId }: DocumentHistoryProps) {
                     <p className="text-sm">
                       <span className="text-muted-foreground">Expiry changed from </span>
                       <span className="font-medium">
-                        {new Date(entry.old_expiry_date).toLocaleDateString()}
+                        {formatCalendarDate(entry.old_expiry_date)}
                       </span>
                       <span className="text-muted-foreground"> to </span>
                       <span className="font-medium">
-                        {new Date(entry.new_expiry_date).toLocaleDateString()}
+                        {formatCalendarDate(entry.new_expiry_date)}
                       </span>
                     </p>
                   )}
@@ -130,7 +165,7 @@ export function DocumentHistory({ documentId }: DocumentHistoryProps) {
                     <p className="text-sm">
                       <span className="text-muted-foreground">Set expiry date to </span>
                       <span className="font-medium">
-                        {new Date(entry.new_expiry_date).toLocaleDateString()}
+                        {formatCalendarDate(entry.new_expiry_date)}
                       </span>
                     </p>
                   )}
@@ -143,3 +178,4 @@ export function DocumentHistory({ documentId }: DocumentHistoryProps) {
     </Card>
   );
 }
+
