@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, subDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { formatDuration } from '@/utils/taskDuration';
+import { parseCalendarDate } from '@/utils/dateUtils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BottomNavigation } from '@/components/layout/BottomNavigation';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
@@ -145,50 +146,64 @@ export default function TaskHistory() {
         ) : (
           <div className="relative">
             <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-primary/20" />
-            {Object.entries(groupedTasks).map(([date, dateTasks]) => (
-              <div key={date} className="relative mb-8">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="relative z-10 w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-                    <div className="w-3 h-3 rounded-full bg-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-foreground">
-                      {date === 'Recent' || isNaN(new Date(date).getTime())
-                        ? 'Recent'
-                        : format(new Date(date), 'EEEE, MMM d')}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">{dateTasks.length} task{dateTasks.length !== 1 ? 's' : ''}</p>
-                  </div>
-                </div>
-                <div className="ml-12 space-y-3">
-                  {dateTasks.map((task) => (
-                    <Card key={task.id} className="p-4 smooth hover:scale-[1.02] cursor-pointer rounded-xl shadow-sm w-full"
-                      onClick={() => navigate(`/task/${task.id}`)}>
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-semibold text-sm">{task.title}</h4>
-                        {getStatusBadge(task)}
+            {Object.entries(groupedTasks)
+              .sort(([a], [b]) => {
+                if (a === 'Recent') return -1;
+                if (b === 'Recent') return 1;
+                return b.localeCompare(a);
+              })
+              .map(([date, dateTasks]) => {
+                const parsedDate = parseCalendarDate(date);
+                const displayDate =
+                  date === 'Recent'
+                    ? 'Recent'
+                    : parsedDate
+                    ? format(parsedDate, 'EEEE, MMM d')
+                    : !isNaN(new Date(date).getTime())
+                    ? format(new Date(date), 'EEEE, MMM d')
+                    : 'Recent';
+
+                return (
+                  <div key={date} className="relative mb-8">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="relative z-10 w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
+                        <div className="w-3 h-3 rounded-full bg-white" />
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          <span>{formatInTimeZone(new Date(task.start_time), userTimezone || 'UTC', 'h:mm a')}</span>
-                        </div>
-                        {task.total_time_minutes && (
-                          <div className="flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3" />
-                            <span>{formatDuration(task.total_time_minutes)}</span>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-foreground">{displayDate}</h3>
+                        <p className="text-xs text-muted-foreground">{dateTasks.length} task{dateTasks.length !== 1 ? 's' : ''}</p>
+                      </div>
+                    </div>
+                    <div className="ml-12 space-y-3">
+                      {dateTasks.map((task) => (
+                        <Card key={task.id} className="p-4 smooth hover:scale-[1.02] cursor-pointer rounded-xl shadow-sm w-full"
+                          onClick={() => navigate(`/task/${task.id}`)}>
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-semibold text-sm">{task.title}</h4>
+                            {getStatusBadge(task)}
                           </div>
-                        )}
-                        {task.image_path && <div className="flex items-center gap-1"><ImageIcon className="h-3 w-3" /></div>}
-                      </div>
-                      {task.consecutive_missed_days >= 3 && (
-                        <p className="text-xs text-destructive-foreground mt-2 font-medium">🤦‍♂️ This one took a while...</p>
-                      )}
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            ))}
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              <span>{formatInTimeZone(new Date(task.start_time), userTimezone || 'UTC', 'h:mm a')}</span>
+                            </div>
+                            {task.total_time_minutes && (
+                              <div className="flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                <span>{formatDuration(task.total_time_minutes)}</span>
+                              </div>
+                            )}
+                            {task.image_path && <div className="flex items-center gap-1"><ImageIcon className="h-3 w-3" /></div>}
+                          </div>
+                          {task.consecutive_missed_days >= 3 && (
+                            <p className="text-xs text-destructive-foreground mt-2 font-medium">🤦‍♂️ This one took a while...</p>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>
