@@ -394,8 +394,16 @@ export function useTasksData() {
       const today = getTodayInTimezone(state.userTimezone);
       const snap  = await getDocs(collection(firebaseDb, `users/${uid}/tasks`));
       const allTasks = snap.docs.map((d) => fsDocToTask(d.id, d.data() as Record<string, unknown>));
-      const activeTasks = allTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'rejected');
-      const todayTasks  = activeTasks.filter((t) => !t.task_date || t.task_date <= today);
+      
+      const todayTasks = allTasks.filter((t) => {
+        const isTodayOrPast = !t.task_date || t.task_date <= today;
+        if (!isTodayOrPast) return false;
+        if (t.status === 'cancelled' || t.status === 'rejected') return false;
+        if (t.status === 'completed') {
+          return !t.task_date || t.task_date === today;
+        }
+        return true;
+      });
       todayTasks.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
       sessionCache.tasks     = todayTasks;

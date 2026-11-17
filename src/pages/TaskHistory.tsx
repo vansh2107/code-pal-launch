@@ -87,7 +87,7 @@ export default function TaskHistory() {
         .filter((t) => {
           if (!['completed', 'cancelled', 'rejected'].includes(t.status)) return false;
           // Check if completion / task date falls within the last 7 days
-          const dateToTest = t.task_date || (t as any).updated_at || t.start_time;
+          const dateToTest = (t as any).updated_at || t.end_time || t.task_date || t.start_time;
           if (!dateToTest) return true;
           return new Date(dateToTest) >= sevenDaysAgo;
         });
@@ -107,7 +107,8 @@ export default function TaskHistory() {
   };
 
   const groupedTasks = tasks.reduce((acc, task) => {
-    const groupDate = task.local_date ?? task.original_date;
+    const rawDate = task.local_date ?? task.original_date ?? task.task_date ?? task.start_time?.slice(0, 10);
+    const groupDate = rawDate && !isNaN(new Date(rawDate).getTime()) ? rawDate : 'Recent';
     if (!acc[groupDate]) acc[groupDate] = [];
     acc[groupDate].push(task);
     return acc;
@@ -151,7 +152,11 @@ export default function TaskHistory() {
                     <div className="w-3 h-3 rounded-full bg-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-foreground">{format(new Date(date), 'EEEE, MMM d')}</h3>
+                    <h3 className="font-semibold text-foreground">
+                      {date === 'Recent' || isNaN(new Date(date).getTime())
+                        ? 'Recent'
+                        : format(new Date(date), 'EEEE, MMM d')}
+                    </h3>
                     <p className="text-xs text-muted-foreground">{dateTasks.length} task{dateTasks.length !== 1 ? 's' : ''}</p>
                   </div>
                 </div>

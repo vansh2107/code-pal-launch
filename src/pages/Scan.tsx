@@ -657,13 +657,14 @@ export default function Scan() {
       } else {
         throw new Error(data?.error || "Unable to extract information from this document.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Document extraction error:", err);
+      const errorMessage = err?.message || "Unable to extract information from this document.";
       setExtractionFailed(true);
-      setError("Upload succeeded, extraction failed. You can retry extraction or enter details manually.");
+      setError(errorMessage);
       toast({
-        title: "Upload succeeded, extraction failed",
-        description: "The file was successfully received, but AI extraction could not read the text. You can retry or enter details manually.",
+        title: "Extraction Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
