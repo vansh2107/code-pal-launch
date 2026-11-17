@@ -162,7 +162,14 @@ export default function DocVault() {
 
         {isMobile && isSidebarOpen && (
           <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
-            <div className="absolute left-0 top-0 h-full w-4/5 max-w-xs bg-card shadow-lg">
+            <div 
+              className="absolute left-0 top-0 h-full w-4/5 max-w-xs bg-card shadow-lg flex flex-col"
+              style={{
+                paddingTop: "max(1rem, env(safe-area-inset-top, 0px))",
+                paddingBottom: "max(1rem, env(safe-area-inset-bottom, 0px))",
+                paddingLeft: "env(safe-area-inset-left, 0px)",
+              }}
+            >
               <DocVaultSidebar 
                 categories={categories}
                 selectedCategory={selectedCategory}
@@ -173,7 +180,14 @@ export default function DocVault() {
                 frequentlyUsedCount={frequentlyUsedCount}
                 allDocumentsCount={allDocumentsCount}
               />
-              <Button variant="ghost" size="icon" aria-label="Close sidebar" className="absolute top-4 right-4 min-h-[44px] min-w-[44px]" onClick={() => setIsSidebarOpen(false)}>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                aria-label="Close sidebar" 
+                className="absolute right-4 min-h-[44px] min-w-[44px]" 
+                style={{ top: "max(1rem, env(safe-area-inset-top, 0px))" }}
+                onClick={() => setIsSidebarOpen(false)}
+              >
                 <X className="h-5 w-5" />
               </Button>
             </div>

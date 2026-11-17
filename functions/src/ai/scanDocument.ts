@@ -22,6 +22,7 @@ const EXTRACTION_PROMPT = `You are an expert document data extraction and renewa
 Analyze the provided document image(s) or page(s) and extract document information accurately.
 
 Extract these JSON fields:
+- is_empty: boolean (set to true ONLY if the image has no document, is completely blank, solid color, pitch dark, completely blurry, or unreadable)
 - name: document title (e.g., "Driver's License", "Health Insurance Policy", "Vehicle Registration Certificate", "Electricity Bill")
 - document_type: Choose the MOST SPECIFIC type from:
   passport_renewal, drivers_license, vehicle_registration, health_card, work_permit_visa, student_visa,
@@ -121,6 +122,13 @@ export const scanDocument = https.onCall(
       try {
         extractedData = JSON.parse(resText.replace(/^```json\s*/i, '').replace(/```\s*$/, ''));
       } catch { /* fallback below */ }
+    }
+
+    if (extractedData?.is_empty === true) {
+      return {
+        success: false,
+        error: "The uploaded document is empty or unreadable. Please capture a clear document.",
+      };
     }
 
     if (!extractedData) {

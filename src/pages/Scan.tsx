@@ -80,6 +80,50 @@ const documentSchema = z.object({
     .or(z.literal("")),
 });
 
+/** Check whether an image has meaningful contrast/variance or is blank/solid/dark */
+async function checkImageHasContent(dataUrl: string): Promise<boolean> {
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("decode failed"));
+      el.src = dataUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    const sampleSize = 100;
+    canvas.width = sampleSize;
+    canvas.height = sampleSize;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return true;
+
+    ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
+    const imgData = ctx.getImageData(0, 0, sampleSize, sampleSize);
+    const data = imgData.data;
+
+    let min = 255;
+    let max = 0;
+    let sum = 0;
+    const pixelCount = data.length / 4;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const brightness = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      if (brightness < min) min = brightness;
+      if (brightness > max) max = brightness;
+      sum += brightness;
+    }
+
+    const mean = sum / pixelCount;
+    // If range is tiny (< 20) or extreme solid white (> 252) or pitch black (< 5)
+    if (max - min < 20 || mean > 252 || mean < 5) {
+      return false;
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 /** Downscale a data URL so AI payloads stay within edge-function limits. */
 async function shrinkDataUrl(dataUrl: string, maxDim = 1600, quality = 0.85): Promise<string> {
   try {
@@ -428,6 +472,18 @@ export default function Scan() {
     setError("");
     
     try {
+      const hasContent = await checkImageHasContent(imageBase64);
+      if (!hasContent) {
+        setExtracting(false);
+        setError("The uploaded document is empty or unreadable. Please capture a clear document.");
+        toast({
+          title: "Document Empty or Unreadable",
+          description: "The uploaded document is empty or unreadable. Please capture a clear document.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Keep the AI payload small — full-resolution camera data URLs routinely
       // exceed the edge function limit and fail on Android.
       const payloadImage = await shrinkDataUrl(imageBase64, 1600, 0.85);

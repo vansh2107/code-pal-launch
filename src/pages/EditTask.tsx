@@ -192,8 +192,16 @@ export default function EditTask() {
   };
 
   return (
-    <div className="min-h-screen page-bg px-4" style={{ paddingBottom: 'calc(var(--nav-height) + var(--safe-area-bottom) + var(--fab-gap) + 32px)' }}>
-      <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 border-b border-border/50 pt-[calc(1.5rem+env(safe-area-inset-top,0px))]">
+    <div 
+      className="min-h-screen page-bg px-4" 
+      style={{ 
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingBottom: 'calc(var(--nav-height) + var(--safe-area-bottom) + var(--fab-gap) + 32px)',
+        paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
+      }}
+    >
+      <div className="bg-background/80 backdrop-blur-xl p-6 -mx-4 sticky top-0 z-10 border-b border-border/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" aria-label="Go back" className="min-h-[44px] min-w-[44px]" onClick={() => navigate(`/task/${id}`)}>

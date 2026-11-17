@@ -296,9 +296,22 @@ export function useTasksData() {
       const allSnap = await getDocs(collection(firebaseDb, `users/${uid}/tasks`));
       const allTasks = allSnap.docs.map((d) => fsDocToTask(d.id, d.data() as Record<string, unknown>));
 
-      const activeTasks = allTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'rejected');
-      const todayTasks  = activeTasks.filter((t) => !t.task_date || t.task_date <= today);
-      const futureTasks = activeTasks.filter((t) => t.task_date && t.task_date > today) as unknown as FutureTask[];
+      // Active non-completed tasks for future scheduling
+      const futureTasks = allTasks.filter(
+        (t) => t.task_date && t.task_date > today && t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'rejected'
+      ) as unknown as FutureTask[];
+
+      // Today's tasks include active tasks and tasks completed on/for today
+      const todayTasks = allTasks.filter((t) => {
+        const isTodayOrPast = !t.task_date || t.task_date <= today;
+        if (!isTodayOrPast) return false;
+        if (t.status === 'cancelled' || t.status === 'rejected') return false;
+        // If completed, only include if it belongs to today
+        if (t.status === 'completed') {
+          return !t.task_date || t.task_date === today;
+        }
+        return true;
+      });
 
       todayTasks.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
       futureTasks.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());

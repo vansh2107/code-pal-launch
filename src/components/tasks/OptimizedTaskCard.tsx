@@ -12,6 +12,7 @@ import { firebaseAuth, firebaseDb, firebaseStorage } from "@/integrations/fireba
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
+import { clearTasksCache } from "@/hooks/useTasksData";
 import { LazyAIRecommendations } from "./LazyAIRecommendations";
 import { parseLocalInputToUtc } from "@/utils/dateUtils";
 
@@ -92,14 +93,6 @@ function OptimizedTaskCardComponent({
       const durationMs = endTime.getTime() - startTime.getTime();
       const durationMinutes = Math.max(0, Math.floor(durationMs / 60000));
 
-      // Optimistic: close dialog and refresh immediately
-      setShowCompleteDialog(false);
-      toast({
-        title: "Task completed! 🎉",
-        description: `Great job finishing "${task.title}"!`,
-      });
-      onRefresh();
-
       const taskRef = doc(firebaseDb, "users", user.uid, "tasks", task.id);
       await updateDoc(taskRef, {
         status: "completed",
@@ -109,6 +102,14 @@ function OptimizedTaskCardComponent({
         reminderActive: false,
         updatedAt: serverTimestamp(),
       });
+
+      clearTasksCache();
+      setShowCompleteDialog(false);
+      toast({
+        title: "Task completed! 🎉",
+        description: `Great job finishing "${task.title}"!`,
+      });
+      onRefresh();
     } catch (error) {
       toast({
         title: "Error",

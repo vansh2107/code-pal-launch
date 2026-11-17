@@ -63,14 +63,8 @@ export default function TaskHistory() {
     const uid = firebaseAuth.currentUser?.uid;
     if (!uid) return;
     try {
-      const sevenDaysAgo = subDays(new Date(), 7).toISOString();
-      const snap = await getDocs(
-        query(
-          collection(firebaseDb, `users/${uid}/tasks`),
-          where('createdAt', '>=', sevenDaysAgo),
-          orderBy('createdAt', 'desc'),
-        ),
-      );
+      const sevenDaysAgo = subDays(new Date(), 7);
+      const snap = await getDocs(collection(firebaseDb, `users/${uid}/tasks`));
       const mapped: Task[] = snap.docs
         .map((d) => {
           const data = d.data();
@@ -87,9 +81,16 @@ export default function TaskHistory() {
             task_date:               data.taskDate as string,
             original_date:           data.originalDate as string,
             local_date:              (data.localDate as string) ?? (data.taskDate as string),
+            updated_at:              data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt,
           };
         })
-        .filter((t) => ['completed', 'cancelled', 'rejected'].includes(t.status));
+        .filter((t) => {
+          if (!['completed', 'cancelled', 'rejected'].includes(t.status)) return false;
+          // Check if completion / task date falls within the last 7 days
+          const dateToTest = t.task_date || (t as any).updated_at || t.start_time;
+          if (!dateToTest) return true;
+          return new Date(dateToTest) >= sevenDaysAgo;
+        });
       setTasks(mapped);
     } catch (err: unknown) {
       toast({ title: 'Error', description: (err as Error).message ?? 'Failed to fetch task history', variant: 'destructive' });
