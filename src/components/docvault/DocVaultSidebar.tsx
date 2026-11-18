@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FolderOpen, Star, Plus, MoreVertical, Pencil, Trash2, Folder } from "lucide-react";
+import { FolderOpen, Star, Plus, MoreVertical, Pencil, Trash2, Folder, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -37,6 +37,7 @@ interface DocVaultSidebarProps {
   onDeleteCategory: (categoryId: string) => void;
   frequentlyUsedCount: number;
   allDocumentsCount: number;
+  onClose?: () => void;
 }
 
 export function DocVaultSidebar({
@@ -48,6 +49,7 @@ export function DocVaultSidebar({
   onDeleteCategory,
   frequentlyUsedCount,
   allDocumentsCount,
+  onClose,
 }: DocVaultSidebarProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<DocVaultCategory | null>(null);
@@ -71,14 +73,22 @@ export function DocVaultSidebar({
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Categories</h2>
+          <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
             onClick={onCreateCategory}
-            className="h-8 w-8"
+            aria-label="Add category"
+            className="h-10 w-10"
           >
             <Plus className="h-4 w-4" />
           </Button>
+          {onClose && (
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close sidebar" className="h-10 w-10">
+              <X className="h-5 w-5" />
+            </Button>
+          )}
+          </div>
         </div>
       </div>
 

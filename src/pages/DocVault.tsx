@@ -161,8 +161,9 @@ export default function DocVault() {
         </div>
 
         {isMobile && isSidebarOpen && (
-          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm">
-            <div 
+          <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}>
+            <div onClick={(e) => e.stopPropagation()}
+              
               className="absolute left-0 top-0 h-full w-4/5 max-w-xs bg-card shadow-lg flex flex-col"
               style={{
                 paddingTop: "max(1rem, env(safe-area-inset-top, 0px))",
@@ -179,17 +180,8 @@ export default function DocVault() {
                 onDeleteCategory={deleteCategory}
                 frequentlyUsedCount={frequentlyUsedCount}
                 allDocumentsCount={allDocumentsCount}
+                onClose={() => setIsSidebarOpen(false)}
               />
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                aria-label="Close sidebar" 
-                className="absolute right-4 min-h-[44px] min-w-[44px]" 
-                style={{ top: "max(1rem, env(safe-area-inset-top, 0px))" }}
-                onClick={() => setIsSidebarOpen(false)}
-              >
-                <X className="h-5 w-5" />
-              </Button>
             </div>
           </div>
         )}
