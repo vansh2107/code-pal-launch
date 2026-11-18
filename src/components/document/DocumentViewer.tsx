@@ -298,7 +298,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent 
-        className="max-w-[95vw] sm:max-w-5xl h-[90vh] p-0 flex flex-col" 
+        className="max-w-[95vw] sm:max-w-5xl h-[90vh] p-0 flex flex-col [&>button:last-child]:hidden" 
         aria-describedby="document-viewer-description"
         style={{
           paddingTop: 'env(safe-area-inset-top)',
