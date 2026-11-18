@@ -40,14 +40,21 @@ export const taskIncompleteReminder = scheduler.onSchedule(
       const tasksSnap = await adminDb
         .collection('users').doc(userId)
         .collection('tasks')
-        .where('taskDate', '<=', todayLocal)
         .where('status', '==', 'pending')
         .get();
 
       if (tasksSnap.empty) continue;
 
-      const taskTitles = tasksSnap.docs.map((d) => d.data().title as string).slice(0, 3);
-      const hasLazy = tasksSnap.docs.some((d) => (d.data().consecutiveMissedDays ?? 0) >= 3);
+      // Filter taskDate <= todayLocal in memory to prevent composite index requirement
+      const pendingTasks = tasksSnap.docs.filter((d) => {
+        const taskDate = d.data().taskDate;
+        return typeof taskDate === 'string' && taskDate <= todayLocal;
+      });
+
+      if (pendingTasks.length === 0) continue;
+
+      const taskTitles = pendingTasks.map((d) => d.data().title as string).slice(0, 3);
+      const hasLazy = pendingTasks.some((d) => (d.data().consecutiveMissedDays ?? 0) >= 3);
 
       const notifType = hasLazy ? 'task_lazy_3days' : 'task_incomplete';
       const notif = getFunnyNotification(notifType);

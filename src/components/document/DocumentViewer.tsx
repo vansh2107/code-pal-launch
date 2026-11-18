@@ -379,7 +379,7 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
                     <Button variant="default" size="sm" asChild className="gap-1.5">
                       <a href={fileUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-3.5 w-3.5" />
-                        Open Original Document
+                        Open in New Tab
                       </a>
                     </Button>
                     <Button variant="secondary" size="sm" asChild className="gap-1.5">
@@ -406,16 +406,33 @@ export function DocumentViewer({ fileUrl, fileName, open, onClose, isPdf: isPdfP
 
           {/* Canvas for PDF mode */}
           {isPdf ? (
-            <div className="min-h-full flex items-center justify-center p-4">
-              <canvas
-                ref={canvasRef}
-                className="shadow-2xl rounded-lg max-w-full"
-                style={{
-                  display: error ? 'none' : 'block',
-                  backgroundColor: 'white',
-                }}
-              />
-            </div>
+            <TransformWrapper
+              initialScale={1}
+              minScale={0.5}
+              maxScale={4}
+              centerOnInit
+              wheel={{ step: 0.1 }}
+              doubleClick={{ mode: "toggle", step: 0.7 }}
+              pinch={{ step: 5 }}
+            >
+              {() => (
+                <TransformComponent
+                  wrapperClass="w-full h-full"
+                  contentClass="w-full h-full flex items-center justify-center"
+                >
+                  <div className="min-h-full flex items-center justify-center p-4">
+                    <canvas
+                      ref={canvasRef}
+                      className="shadow-2xl rounded-lg max-w-full"
+                      style={{
+                        display: error ? 'none' : 'block',
+                        backgroundColor: 'white',
+                      }}
+                    />
+                  </div>
+                </TransformComponent>
+              )}
+            </TransformWrapper>
           ) : imageUrl ? (
             /* Image Viewer with zoom/pan */
             <TransformWrapper

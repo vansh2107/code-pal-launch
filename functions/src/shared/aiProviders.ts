@@ -30,16 +30,16 @@ export async function getAiCompletion(options: AiCompletionOptions): Promise<str
   if (geminiKey) {
     apiKey = geminiKey;
     apiEndpoint = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-    modelName = 'gemini-3.5-flash';
+    modelName = 'gemini-2.0-flash';
   } else if (groqKey) {
     apiKey = groqKey;
     apiEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
     const hasImage = options.messages.some(m => Array.isArray(m.content) && m.content.some((c: any) => c?.type === 'image_url'));
-    modelName = hasImage ? 'meta-llama/llama-4-scout-17b-16e-instruct' : 'llama-3.3-70b-versatile';
+    modelName = hasImage ? 'llama-3.2-11b-vision-preview' : 'llama-3.3-70b-versatile';
   } else if (lovableKey) {
     apiKey = lovableKey;
     apiEndpoint = 'https://ai.gateway.lovable.dev/v1/chat/completions';
-    modelName = 'google/gemini-2.5-flash';
+    modelName = 'google/gemini-2.0-flash';
   }
 
   if (!apiKey) {

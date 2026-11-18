@@ -4,6 +4,7 @@ import { collection, addDoc, getDocs, doc, updateDoc, getDoc, query, where } fro
 import { ref as storageRef, uploadBytes } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
 import { firebaseDb, firebaseStorage, firebaseAuth, firebaseFunctions } from "@/integrations/firebase/client";
+import { userProfileDoc } from "@/integrations/firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import { sanitizeDocumentNote } from "@/utils/documentNotes";
 import { evaluateDocumentDecision, parseAndNormalizeDate, formatToIsoDate } from "@/utils/documentDecisionEngine";
 import { ALLOWED_COUNTRIES } from "@/utils/countryMapping";
-import { parseCalendarDate, toCalendarDateString, formatCalendarDate } from "@/utils/dateUtils";
+import { parseCalendarDate, toCalendarDateString, formatCalendarDate, getDateInTimezone } from "@/utils/dateUtils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -201,11 +202,30 @@ export default function Scan() {
     custom_reminder_date: "",
   });
 
+  const [userTimezone, setUserTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+
   useEffect(() => {
     if (user) {
       fetchOrganizations();
+      fetchUserProfile();
     }
   }, [user]);
+
+  const fetchUserProfile = async () => {
+    const uid = firebaseAuth.currentUser?.uid;
+    if (!uid) return;
+    try {
+      const snap = await getDoc(userProfileDoc(uid));
+      if (snap.exists()) {
+        const storedTz = snap.data()?.timezone;
+        if (storedTz) {
+          setUserTimezone(storedTz);
+        }
+      }
+    } catch (err) {
+      console.warn("[Scan] fetchUserProfile:", err);
+    }
+  };
 
   const fetchOrganizations = async () => {
     const uid = firebaseAuth.currentUser?.uid;
@@ -475,11 +495,19 @@ export default function Scan() {
       const hasContent = await checkImageHasContent(imageBase64);
       if (!hasContent) {
         setExtracting(false);
-        setError("The uploaded document is empty or unreadable. Please capture a clear document.");
+        const todayIso = getDateInTimezone(userTimezone);
+        setFormData(prev => ({
+          ...prev,
+          name: prev.name || "Scanned Document",
+          document_type: prev.document_type || "other",
+          expiry_date: prev.expiry_date || "",
+          notes: prev.notes || `Scanned on ${todayIso}. Captured image was blank or unreadable. Please enter details manually.`,
+        }));
+        setScanMode("manual");
+        setError("The uploaded document is low contrast or unreadable. Default metadata has been applied—please review and update manually.");
         toast({
-          title: "Document Empty or Unreadable",
-          description: "The uploaded document is empty or unreadable. Please capture a clear document.",
-          variant: "destructive",
+          title: "Document Unreadable - Manual Entry",
+          description: "The document is dark or empty. You can enter the details manually.",
         });
         return;
       }
@@ -562,11 +590,20 @@ export default function Scan() {
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       console.error("[SCAN DEBUG] Extraction error:", detail, err);
-      setError(`Could not read this document automatically (${detail}). Please enter the details manually.`);
+      // Graceful fallback: pre-populate default metadata so user is never blocked
+      const todayIso = getDateInTimezone(userTimezone);
+      setFormData(prev => ({
+        ...prev,
+        name: prev.name || "Scanned Document",
+        document_type: prev.document_type || "other",
+        expiry_date: prev.expiry_date || "",
+        notes: prev.notes || `Scanned on ${todayIso}. Automated extraction failed: ${detail.slice(0, 100)}. Please verify details manually.`,
+      }));
+      setScanMode("manual");
+      setError(`Automated extraction failed (${detail.slice(0, 120)}). Default metadata has been applied—please review and update manually.`);
       toast({
-        title: "Extraction Failed",
-        description: detail.slice(0, 160),
-        variant: "destructive",
+        title: "Manual Verification Required",
+        description: "AI extraction could not read the document. You can edit details and save manually.",
       });
     } finally {
       setExtracting(false);
@@ -661,11 +698,20 @@ export default function Scan() {
       console.error("Document extraction error:", err);
       const errorMessage = err?.message || "Unable to extract information from this document.";
       setExtractionFailed(true);
-      setError(errorMessage);
+      // Graceful fallback: pre-populate default metadata so user is never blocked
+      const todayIso = getDateInTimezone(userTimezone);
+      setFormData(prev => ({
+        ...prev,
+        name: prev.name || "Scanned Document",
+        document_type: prev.document_type || "other",
+        expiry_date: prev.expiry_date || "",
+        notes: prev.notes || `Scanned on ${todayIso}. Automated extraction failed: ${errorMessage.slice(0, 100)}. Please verify details manually.`,
+      }));
+      setScanMode("manual");
+      setError(`Automated extraction failed (${errorMessage.slice(0, 120)}). Default metadata has been applied—please review and update manually.`);
       toast({
-        title: "Extraction Failed",
-        description: errorMessage,
-        variant: "destructive",
+        title: "Manual Verification Required",
+        description: "AI extraction could not read the document. You can edit details and save manually.",
       });
     } finally {
       setExtracting(false);
